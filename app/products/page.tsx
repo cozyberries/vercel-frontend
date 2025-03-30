@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getAllProducts, SimplifiedProduct } from "@/lib/supabase"
 
-export default function ProductsPage() {
+function ProductsContent() {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
@@ -134,5 +134,13 @@ export default function ProductsPage() {
         </Button>
       </div>
     </div>
-  )
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="text-center p-12">Loading products...</div>}>
+      <ProductsContent />
+    </Suspense>
+  );
 } 
