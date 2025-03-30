@@ -485,7 +485,14 @@ export async function getAllProducts(): Promise<SimplifiedProduct[]> {
 
       let imageUrl = '';
       if (images && images.length > 0) {
-        imageUrl = await getProductImageByPath(images[0].storage_path);
+        try {
+          imageUrl = await getProductImageByPath(images[0].storage_path);
+        } catch (error) {
+          console.error('Error getting product image URL:', error);
+          imageUrl = await getProductImageByPath('sample-product.webp');
+        }
+      } else {
+        imageUrl = await getProductImageByPath('sample-product.webp');
       }
 
       return {
