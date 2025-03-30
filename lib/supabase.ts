@@ -15,9 +15,12 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 // Utility function to get signed URLs using service role
 export async function getStorageUrl(bucket: string, path: string): Promise<string> {
   try {
+    // Ensure path starts with the correct prefix
+    const fullPath = path.startsWith('products/') ? path : `products/${path}`;
+    
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
-      .createSignedUrl(path, 3600);
+      .createSignedUrl(fullPath, 3600);
 
     if (error) {
       console.error('Error generating signed URL:', error);
@@ -43,7 +46,7 @@ export async function getLogoUrl(): Promise<string> {
 
 export async function getProductImageUrl(): Promise<string> {
   try {
-    return await getStorageUrl('media', 'products/sample-product.webp');
+    return await getStorageUrl('media', 'sample-product.webp');
   } catch (error) {
     console.error('Error getting product image URL:', error);
     return '/placeholder.svg';
@@ -146,7 +149,10 @@ interface DbProductFeature {
 export async function getProductImageByPath(path: string): Promise<string> {
   try {
     if (!path) return await getProductImageUrl();
-    return await getStorageUrl('media', path);
+    
+    // If path already includes 'products/', use it as is
+    const imagePath = path.startsWith('products/') ? path : `products/${path}`;
+    return await getStorageUrl('media', imagePath);
   } catch (error) {
     console.error('Error getting product image URL:', error);
     return await getProductImageUrl();
