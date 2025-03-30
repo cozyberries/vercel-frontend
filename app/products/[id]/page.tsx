@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { getProductImageUrl } from "@/lib/supabase"
 
 // Mock product data
 const product = {
@@ -56,6 +57,8 @@ const product = {
 }
 
 export default function ProductPage({ params }: { params: { id: string } }) {
+  const productImageUrl = getProductImageUrl();
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
@@ -63,7 +66,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         <div className="space-y-4">
           <div className="aspect-square overflow-hidden bg-[#f5f5f5]">
             <Image
-              src={product.images[0] || "/placeholder.svg"}
+              src={productImageUrl}
               alt={product.name}
               width={600}
               height={600}
@@ -78,7 +81,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                 className={`aspect-square overflow-hidden bg-[#f5f5f5] ${index === 0 ? "ring-2 ring-primary" : ""}`}
               >
                 <Image
-                  src={image || "/placeholder.svg"}
+                  src={productImageUrl}
                   alt={`${product.name} - View ${index + 1}`}
                   width={150}
                   height={150}
@@ -205,7 +208,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
               <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                 <Link href={`/products/${relatedProduct.id}`}>
                   <Image
-                    src={relatedProduct.image || "/placeholder.svg"}
+                    src={productImageUrl}
                     alt={relatedProduct.name}
                     width={400}
                     height={400}

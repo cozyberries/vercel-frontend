@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { getProductImageUrl } from "@/lib/supabase"
 
 // Mock data for products
 const products = [
@@ -93,6 +94,7 @@ export default function CategoryPage({ params }: { params: { category: string } 
     title: "Collection",
     description: "Explore our collection of baby clothing",
   }
+  const productImageUrl = getProductImageUrl();
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -181,7 +183,7 @@ export default function CategoryPage({ params }: { params: { category: string } 
             <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
               <Link href={`/products/${product.id}`}>
                 <Image
-                  src={product.image || "/placeholder.svg"}
+                  src={productImageUrl}
                   alt={product.name}
                   width={400}
                   height={400}

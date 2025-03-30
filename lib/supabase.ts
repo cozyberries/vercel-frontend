@@ -21,5 +21,5 @@ export function getLogoUrl(): string {
 }
 
 export function getProductImageUrl(): string {
-  return getStorageUrl('media', 'products/sample-product.webp');
+  return getStorageUrl('media', 'sample-product.webp');
 } 

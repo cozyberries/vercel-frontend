@@ -1,5 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
+import { getProductImageUrl } from "@/lib/supabase"
 
 const categories = [
   {
@@ -25,13 +26,15 @@ const categories = [
 ]
 
 export default function CategoryGrid() {
+  const productImageUrl = getProductImageUrl();
+  
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       {categories.map((category) => (
         <Link key={category.name} href={category.href} className="group relative overflow-hidden rounded-lg">
           <div className="aspect-square overflow-hidden">
             <Image
-              src={category.image || "/placeholder.svg"}
+              src={productImageUrl}
               alt={category.name}
               width={400}
               height={400}
