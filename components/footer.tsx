@@ -1,6 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Facebook, Instagram, Twitter } from "lucide-react"
+import { getLogoUrl } from "@/lib/supabase"
 
 const footerLinks = [
   {
@@ -36,6 +37,8 @@ const footerLinks = [
 ]
 
 export default function Footer() {
+  const logoUrl = getLogoUrl();
+  
   return (
     <footer className="bg-background border-t">
       <div className="container mx-auto px-4 py-12">
@@ -44,7 +47,7 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="inline-block mb-6">
               <Image
-                src="/placeholder.svg?height=50&width=180"
+                src={logoUrl}
                 alt="CozyBerries"
                 width={180}
                 height={50}
@@ -87,7 +90,7 @@ export default function Footer() {
 
         <div className="border-t mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-sm text-muted-foreground mb-4 md:mb-0">
-            © {new Date().getFullYear()} TinyTreasures. All rights reserved.
+            © {new Date().getFullYear()} CozyBerries. All rights reserved.
           </p>
           <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
             <Link href="/privacy-policy" className="hover:text-primary">
