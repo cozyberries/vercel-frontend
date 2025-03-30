@@ -1,122 +1,147 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, Filter, ChevronDown } from "lucide-react"
+import { Heart, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { getProductImageUrl } from "@/lib/supabase"
+import { getProductsByCategory, SimplifiedProduct } from "@/lib/supabase"
 
 // Mock data for products
-const products = [
-  {
-    id: 1,
-    name: "Organic Cotton Onesie",
-    price: 24.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Newborn",
-  },
-  {
-    id: 2,
-    name: "Soft Knit Baby Blanket",
-    price: 39.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Accessories",
-  },
-  {
-    id: 3,
-    name: "Ruffled Sleeve Dress",
-    price: 32.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Girl",
-  },
-  {
-    id: 4,
-    name: "Striped Romper Set",
-    price: 29.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Boy",
-  },
-  {
-    id: 5,
-    name: "Knitted Cardigan",
-    price: 34.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Newborn",
-  },
-  {
-    id: 6,
-    name: "Embroidered Bib Set",
-    price: 19.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Accessories",
-  },
-  {
-    id: 7,
-    name: "Floral Print Dress",
-    price: 36.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Girl",
-  },
-  {
-    id: 8,
-    name: "Linen Shorts",
-    price: 26.99,
-    image: "/placeholder.svg?height=400&width=400",
-    category: "Boy",
-  },
-]
+// const products = [
+//   {
+//     id: 1,
+//     name: "Organic Cotton Onesie",
+//     price: 24.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Newborn",
+//   },
+//   {
+//     id: 2,
+//     name: "Soft Knit Baby Blanket",
+//     price: 39.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Accessories",
+//   },
+//   {
+//     id: 3,
+//     name: "Ruffled Sleeve Dress",
+//     price: 32.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Girl",
+//   },
+//   {
+//     id: 4,
+//     name: "Striped Romper Set",
+//     price: 29.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Boy",
+//   },
+//   {
+//     id: 5,
+//     name: "Knitted Cardigan",
+//     price: 34.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Newborn",
+//   },
+//   {
+//     id: 6,
+//     name: "Embroidered Bib Set",
+//     price: 19.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Accessories",
+//   },
+//   {
+//     id: 7,
+//     name: "Floral Print Dress",
+//     price: 36.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Girl",
+//   },
+//   {
+//     id: 8,
+//     name: "Linen Shorts",
+//     price: 26.99,
+//     image: "/placeholder.svg?height=400&width=400",
+//     category: "Boy",
+//   },
+// ]
 
-// Categories for the page
 const categories = {
   newborn: {
     title: "Newborn Collection",
-    description: "Soft, gentle clothing for your newborn baby",
+    description:
+      "Soft, gentle clothing for your precious newborn. Our newborn collection features organic fabrics and thoughtful designs for your baby's comfort.",
   },
   girl: {
     title: "Girls Collection",
-    description: "Beautiful styles for your little princess",
+    description:
+      "Adorable dresses, rompers, and outfits for your little princess. Our girls collection combines style and comfort for everyday wear and special occasions.",
   },
   boy: {
     title: "Boys Collection",
-    description: "Stylish and comfortable clothing for your little gentleman",
+    description:
+      "Stylish and comfortable clothing for your little man. Our boys collection features playful designs and durable fabrics for active little ones.",
   },
-  occasion: {
-    title: "Occasion Wear",
-    description: "Special outfits for memorable moments",
+  accessories: {
+    title: "Baby Accessories",
+    description:
+      "Complete your baby's look with our adorable accessories. From hats and bibs to blankets and toys, find the perfect finishing touch.",
   },
 }
 
 export default function CategoryPage({ params }: { params: { category: string } }) {
-  const category = params.category
-  const categoryInfo = categories[category as keyof typeof categories] || {
-    title: "Collection",
-    description: "Explore our collection of baby clothing",
+  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const categoryInfo = categories[params.category as keyof typeof categories] || {
+    title: "Products",
+    description: "Browse our collection of baby clothing and accessories.",
   }
-  const productImageUrl = getProductImageUrl();
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const categoryProducts = await getProductsByCategory(params.category);
+        setProducts(categoryProducts);
+      } catch (error) {
+        console.error('Error loading category products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProducts();
+  }, [params.category]);
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Category Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-3xl md:text-4xl font-light mb-4">{categoryInfo.title}</h1>
+      <div className="mb-12 text-center">
+        <h1 className="text-3xl font-light mb-4">{categoryInfo.title}</h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">{categoryInfo.description}</p>
       </div>
 
-      {/* Filters and Sorting */}
-      <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex-1">
+          <p className="text-sm text-muted-foreground">
+            Showing {products.length} product{products.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+
+        {/* Filters button (mobile) */}
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm" className="flex items-center gap-2">
+            <Button variant="outline" className="flex items-center gap-2 md:hidden">
               <Filter className="h-4 w-4" />
-              Filter
+              Filters
             </Button>
           </SheetTrigger>
           <SheetContent side="left">
             <SheetHeader>
-              <SheetTitle>Filter Products</SheetTitle>
-              <SheetDescription>Narrow down your product search with the following filters.</SheetDescription>
+              <SheetTitle>Filters</SheetTitle>
+              <SheetDescription>Filter products by size, color, and price.</SheetDescription>
             </SheetHeader>
             <div className="py-6 space-y-6">
               <div>
@@ -160,82 +185,91 @@ export default function CategoryPage({ params }: { params: { category: string } 
           </SheetContent>
         </Sheet>
 
+        {/* Sort dropdown */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Sort by:</span>
-          <Select defaultValue="featured">
+          <span className="hidden md:inline text-sm text-muted-foreground">Sort by:</span>
+          <Select defaultValue="newest">
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="featured">Featured</SelectItem>
               <SelectItem value="newest">Newest</SelectItem>
-              <SelectItem value="price-low">Price: Low to High</SelectItem>
-              <SelectItem value="price-high">Price: High to Low</SelectItem>
+              <SelectItem value="price-low-high">Price: Low to High</SelectItem>
+              <SelectItem value="price-high-low">Price: High to Low</SelectItem>
+              <SelectItem value="name-a-z">Name: A to Z</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {products.map((product) => (
-          <div key={product.id} className="group">
-            <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-              <Link href={`/products/${product.id}`}>
-                <Image
-                  src={productImageUrl}
-                  alt={product.name}
-                  width={400}
-                  height={400}
-                  className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
-              >
-                <Heart className="h-4 w-4" />
-                <span className="sr-only">Add to wishlist</span>
-              </Button>
-              <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" className="w-full rounded-none py-3">
-                  Add to Cart
+      {loading ? (
+        <div className="text-center p-12">Loading products...</div>
+      ) : products.length === 0 ? (
+        <div className="text-center p-12">
+          <p className="text-lg mb-4">No products found in this category.</p>
+          <Button asChild>
+            <Link href="/collections">View all collections</Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          {products.map((product) => (
+            <div key={product.id} className="group">
+              <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
+                <Link href={`/products/${product.id}`}>
+                  <Image
+                    src={product.image || "/placeholder.svg"}
+                    alt={product.name}
+                    width={400}
+                    height={400}
+                    className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+                >
+                  <Heart className="h-4 w-4" />
+                  <span className="sr-only">Add to wishlist</span>
                 </Button>
+                <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" className="w-full rounded-none py-3">
+                    Add to Cart
+                  </Button>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-sm font-medium mb-1">
+                  <Link href={`/products/${product.id}`} className="hover:text-primary">
+                    {product.name}
+                  </Link>
+                </h3>
+                <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
+                <p className="font-medium">${product.price.toFixed(2)}</p>
               </div>
             </div>
-            <div className="text-center">
-              <h3 className="text-sm font-medium mb-1">
-                <Link href={`/products/${product.id}`} className="hover:text-primary">
-                  {product.name}
-                </Link>
-              </h3>
-              <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
-              <p className="font-medium">${product.price.toFixed(2)}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Pagination */}
       <div className="flex justify-center mt-12">
-        <nav className="flex items-center gap-1">
-          <Button variant="outline" size="icon" disabled>
-            <ChevronDown className="h-4 w-4 rotate-90" />
-          </Button>
-          <Button variant="outline" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-            1
-          </Button>
-          <Button variant="outline" size="sm">
-            2
-          </Button>
-          <Button variant="outline" size="sm">
-            3
-          </Button>
-          <Button variant="outline" size="icon">
-            <ChevronDown className="h-4 w-4 -rotate-90" />
-          </Button>
-        </nav>
+        <Button variant="outline" className="mr-2" disabled>
+          Previous
+        </Button>
+        <Button variant="outline" className="font-medium">
+          1
+        </Button>
+        <Button variant="outline" className="font-normal">
+          2
+        </Button>
+        <Button variant="outline" className="font-normal">
+          3
+        </Button>
+        <Button variant="outline" className="ml-2">
+          Next
+        </Button>
       </div>
     </div>
   )
