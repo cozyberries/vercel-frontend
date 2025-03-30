@@ -6,7 +6,7 @@ A modern Next.js application with a beautiful UI built using Tailwind CSS and Ra
 
 Before you begin, ensure you have the following installed:
 - Node.js (v18 or higher)
-- pnpm (recommended) or npm
+- npm (v10 or higher)
 
 ## Getting Started
 
@@ -18,15 +18,11 @@ cd cozyberries/vercel-frontend
 
 2. Install dependencies:
 ```bash
-pnpm install
-# or
 npm install
 ```
 
 3. Start the development server:
 ```bash
-pnpm dev
-# or
 npm run dev
 ```
 
@@ -34,10 +30,10 @@ npm run dev
 
 ## Available Scripts
 
-- `pnpm dev` - Start the development server
-- `pnpm build` - Build the application for production
-- `pnpm start` - Start the production server
-- `pnpm lint` - Run ESLint to check code quality
+- `npm run dev` - Start the development server
+- `npm run build` - Build the application for production
+- `npm start` - Start the production server
+- `npm run lint` - Run ESLint to check code quality
 
 ## Tech Stack
 
@@ -62,6 +58,61 @@ npm run dev
 ├── public/          # Static assets
 └── styles/          # Global styles
 ```
+
+## Deployment
+
+### Manual Deployment
+
+1. Build the project:
+```bash
+npm run build
+```
+
+2. Install Vercel CLI globally:
+```bash
+npm install -g vercel
+```
+
+3. Deploy to Vercel:
+```bash
+vercel
+```
+
+4. Deploy to production:
+```bash
+vercel --prod
+```
+
+### Automatic Deployment
+
+The project is configured for automatic deployments on the main branch:
+
+1. Push your changes to the main branch:
+```bash
+git add .
+git commit -m "Your commit message"
+git push origin main
+```
+
+2. Vercel will automatically:
+   - Detect the changes
+   - Build the project
+   - Deploy to production
+   - Provide a preview URL for pull requests
+
+### Deployment URLs
+
+- Production: https://cozyberries-frontend-1dbxd44uc-cozyberries-projects.vercel.app
+- Preview: https://cozyberries-frontend-8gzcqcr3i-cozyberries-projects.vercel.app
+
+### Environment Variables
+
+If you need to set up environment variables:
+
+1. Go to the Vercel dashboard
+2. Select your project
+3. Go to Settings > Environment Variables
+4. Add your environment variables
 
 ## Contributing
 
