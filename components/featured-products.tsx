@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getProductImageUrl } from "@/lib/supabase"
+import { useEffect, useState } from "react"
 
 const products = [
   {
@@ -36,9 +37,20 @@ const products = [
 ]
 
 export default function FeaturedProducts() {
-  // Get the product image URL from Supabase
-  const productImageUrl = getProductImageUrl();
-  
+  const [productImageUrl, setProductImageUrl] = useState<string>('');
+
+  useEffect(() => {
+    const loadImageUrl = async () => {
+      try {
+        const url = await getProductImageUrl();
+        setProductImageUrl(url);
+      } catch (error) {
+        console.error('Error loading product image:', error);
+      }
+    };
+    loadImageUrl();
+  }, []);
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       {products.map((product) => (
@@ -46,7 +58,7 @@ export default function FeaturedProducts() {
           <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
             <Link href={`/products/${product.id}`}>
               <Image
-                src={productImageUrl}
+                src={productImageUrl || "/placeholder.svg"}
                 alt={product.name}
                 width={400}
                 height={400}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Heart, ShoppingBag, User, Search, Menu, X } from "lucide-react"
@@ -22,7 +22,19 @@ const navigation = [
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const logoUrl = getLogoUrl();
+  const [logoUrl, setLogoUrl] = useState<string>('');
+
+  useEffect(() => {
+    const loadLogoUrl = async () => {
+      try {
+        const url = await getLogoUrl();
+        setLogoUrl(url);
+      } catch (error) {
+        console.error('Error loading logo:', error);
+      }
+    };
+    loadLogoUrl();
+  }, []);
 
   return (
     <header className="bg-background border-b">
@@ -41,7 +53,7 @@ export default function Header() {
                 <div className="border-b py-4">
                   <Link href="/" className="flex items-center justify-center">
                     <Image
-                      src={logoUrl}
+                      src={logoUrl || "/placeholder.svg"}
                       alt="CozyBerries"
                       width={180}
                       height={50}
@@ -84,7 +96,7 @@ export default function Header() {
           <div className="flex-1 flex items-center justify-center lg:justify-start">
             <Link href="/" className="flex items-center">
               <Image
-                src={logoUrl}
+                src={logoUrl || "/placeholder.svg"}
                 alt="CozyBerries"
                 width={180}
                 height={50}

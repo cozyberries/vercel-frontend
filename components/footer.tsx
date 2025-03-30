@@ -2,6 +2,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Facebook, Instagram, Twitter } from "lucide-react"
 import { getLogoUrl } from "@/lib/supabase"
+import { useEffect, useState } from "react"
 
 const footerLinks = [
   {
@@ -37,8 +38,20 @@ const footerLinks = [
 ]
 
 export default function Footer() {
-  const logoUrl = getLogoUrl();
-  
+  const [logoUrl, setLogoUrl] = useState<string>('');
+
+  useEffect(() => {
+    const loadLogoUrl = async () => {
+      try {
+        const url = await getLogoUrl();
+        setLogoUrl(url);
+      } catch (error) {
+        console.error('Error loading logo:', error);
+      }
+    };
+    loadLogoUrl();
+  }, []);
+
   return (
     <footer className="bg-background border-t">
       <div className="container mx-auto px-4 py-12">
@@ -47,7 +60,7 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="inline-block mb-6">
               <Image
-                src={logoUrl}
+                src={logoUrl || "/placeholder.svg"}
                 alt="CozyBerries"
                 width={180}
                 height={50}
