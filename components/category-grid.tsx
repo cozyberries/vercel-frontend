@@ -9,22 +9,22 @@ const categories = [
   {
     name: "Newborn",
     image: "/placeholder.svg?height=400&width=400",
-    href: "/collections/newborn",
+    href: "/products?category=newborn",
   },
   {
     name: "Girl",
     image: "/placeholder.svg?height=400&width=400",
-    href: "/collections/girl",
+    href: "/products?category=girl",
   },
   {
     name: "Boy",
     image: "/placeholder.svg?height=400&width=400",
-    href: "/collections/boy",
+    href: "/products?category=boy",
   },
   {
-    name: "Accessories",
+    name: "Couture",
     image: "/placeholder.svg?height=400&width=400",
-    href: "/collections/accessories",
+    href: "/products?category=couture",
   },
 ]
 

@@ -14,30 +14,40 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // Utility function to get signed URLs using service role
 export async function getStorageUrl(bucket: string, path: string): Promise<string> {
-  const { data, error } = await supabaseAdmin.storage
-    .from(bucket)
-    .createSignedUrl(path, 3600); // URL valid for 1 hour
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucket)
+      .createSignedUrl(path, 3600);
 
-  if (error) {
-    console.error('Error generating signed URL:', error);
-    throw error;
+    if (error) {
+      console.error('Error generating signed URL:', error);
+      return '/placeholder.svg';
+    }
+
+    return data?.signedUrl || '/placeholder.svg';
+  } catch (error) {
+    console.error('Error in getStorageUrl:', error);
+    return '/placeholder.svg';
   }
-
-  console.log('Generated signed URL for', path, ':', data?.signedUrl);
-  return data?.signedUrl || '';
 }
 
 // Helper functions for specific media
 export async function getLogoUrl(): Promise<string> {
-  const url = await getStorageUrl('media', 'logo.png');
-  console.log('Logo URL:', url);
-  return url;
+  try {
+    return await getStorageUrl('media', 'logo.png');
+  } catch (error) {
+    console.error('Error getting logo URL:', error);
+    return '/placeholder.svg';
+  }
 }
 
 export async function getProductImageUrl(): Promise<string> {
-  const url = await getStorageUrl('media', 'sample-product.webp');
-  console.log('Product Image URL:', url);
-  return url;
+  try {
+    return await getStorageUrl('media', 'sample-product.webp');
+  } catch (error) {
+    console.error('Error getting product image URL:', error);
+    return '/placeholder.svg';
+  }
 }
 
 // Types for product data
@@ -135,11 +145,11 @@ interface DbProductFeature {
 // Function to get product image URL
 export async function getProductImageByPath(path: string): Promise<string> {
   try {
-    const url = await getStorageUrl('media', path);
-    return url;
+    if (!path) return '/placeholder.svg';
+    return await getStorageUrl('media', path);
   } catch (error) {
     console.error('Error getting product image URL:', error);
-    return '';
+    return '/placeholder.svg';
   }
 }
 
@@ -445,4 +455,46 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   }
 
   return getProductById(data.id);
+}
+
+export async function getAllProducts(): Promise<SimplifiedProduct[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      id, 
+      name, 
+      slug, 
+      price,
+      categories(name)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching products:', error);
+    return [];
+  }
+
+  const productsWithImages = await Promise.all(
+    (data || []).map(async (product: DbProduct) => {
+      const { data: images } = await supabase
+        .from('product_images')
+        .select('*')
+        .eq('product_id', product.id)
+        .eq('is_primary', true)
+        .limit(1);
+
+      let imageUrl = '';
+      if (images && images.length > 0) {
+        imageUrl = await getProductImageByPath(images[0].storage_path);
+      }
+
+      return {
+        ...product,
+        category: safeExtract(product.categories, 'name'),
+        image: imageUrl
+      };
+    })
+  );
+
+  return productsWithImages;
 } 

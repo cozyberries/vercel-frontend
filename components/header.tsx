@@ -11,13 +11,7 @@ import { getLogoUrl } from "@/lib/supabase"
 
 const navigation = [
   { name: "HOME", href: "/" },
-  { name: "NEWBORN", href: "/collections/newborn" },
-  { name: "BOY", href: "/collections/boy" },
-  { name: "GIRL", href: "/collections/girl" },
-  { name: "OCCASION", href: "/collections/occasion" },
-  { name: "COUTURE", href: "/collections/couture" },
-  { name: "GIFTING", href: "/collections/gifting" },
-  { name: "OFFERS", href: "/offers" },
+  { name: "PRODUCTS", href: "/products" },
 ]
 
 export default function Header() {

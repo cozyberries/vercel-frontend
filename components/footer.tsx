@@ -10,11 +10,7 @@ const footerLinks = [
   {
     title: "Shop",
     links: [
-      { name: "Newborn", href: "/collections/newborn" },
-      { name: "Girl", href: "/collections/girl" },
-      { name: "Boy", href: "/collections/boy" },
-      { name: "Occasion", href: "/collections/occasion" },
-      { name: "Couture", href: "/collections/couture" },
+      { name: "Products", href: "/products" },
     ],
   },
   {
