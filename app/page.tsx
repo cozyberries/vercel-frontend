@@ -62,7 +62,7 @@ export default function Home() {
         <div className="container mx-auto px-4 max-w-4xl text-center">
           <h2 className="text-2xl md:text-3xl font-light mb-6">Our Story</h2>
           <p className="text-lg text-muted-foreground mb-8">
-            At TinyTreasures, we believe that every baby deserves to be wrapped in comfort and style. Our clothing is
+            At Cozyberries, we believe that every baby deserves to be wrapped in comfort and style. Our clothing is
             crafted from premium organic materials, ensuring that your little one experiences nothing but the softest
             touch against their delicate skin.
           </p>
