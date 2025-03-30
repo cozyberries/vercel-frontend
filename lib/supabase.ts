@@ -43,7 +43,7 @@ export async function getLogoUrl(): Promise<string> {
 
 export async function getProductImageUrl(): Promise<string> {
   try {
-    return await getStorageUrl('media', 'sample-product.webp');
+    return await getStorageUrl('media', 'products/sample-product.webp');
   } catch (error) {
     console.error('Error getting product image URL:', error);
     return '/placeholder.svg';
@@ -145,11 +145,11 @@ interface DbProductFeature {
 // Function to get product image URL
 export async function getProductImageByPath(path: string): Promise<string> {
   try {
-    if (!path) return '/placeholder.svg';
+    if (!path) return await getProductImageUrl();
     return await getStorageUrl('media', path);
   } catch (error) {
     console.error('Error getting product image URL:', error);
-    return '/placeholder.svg';
+    return await getProductImageUrl();
   }
 }
 
@@ -489,10 +489,10 @@ export async function getAllProducts(): Promise<SimplifiedProduct[]> {
           imageUrl = await getProductImageByPath(images[0].storage_path);
         } catch (error) {
           console.error('Error getting product image URL:', error);
-          imageUrl = await getProductImageByPath('sample-product.webp');
+          imageUrl = await getProductImageUrl();
         }
       } else {
-        imageUrl = await getProductImageByPath('sample-product.webp');
+        imageUrl = await getProductImageUrl();
       }
 
       return {
