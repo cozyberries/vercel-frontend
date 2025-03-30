@@ -1,3 +1,6 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { getProductImageUrl } from "@/lib/supabase"
@@ -19,14 +22,26 @@ const categories = [
     href: "/collections/boy",
   },
   {
-    name: "Occasion",
+    name: "Accessories",
     image: "/placeholder.svg?height=400&width=400",
-    href: "/collections/occasion",
+    href: "/collections/accessories",
   },
 ]
 
 export default function CategoryGrid() {
-  const productImageUrl = getProductImageUrl();
+  const [imageUrl, setImageUrl] = useState("/placeholder.svg");
+
+  useEffect(() => {
+    const loadImage = async () => {
+      try {
+        const url = await getProductImageUrl();
+        setImageUrl(url);
+      } catch (error) {
+        console.error("Error loading image:", error);
+      }
+    };
+    loadImage();
+  }, []);
   
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -34,7 +49,7 @@ export default function CategoryGrid() {
         <Link key={category.name} href={category.href} className="group relative overflow-hidden rounded-lg">
           <div className="aspect-square overflow-hidden">
             <Image
-              src={productImageUrl}
+              src={imageUrl}
               alt={category.name}
               width={400}
               height={400}

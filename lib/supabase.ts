@@ -89,7 +89,7 @@ export interface Product {
 export interface SimplifiedProduct {
   id: string;
   name: string;
-  slug: string;
+  slug?: string;  // Make slug optional
   price: number;
   description?: string;
   categories?: { name: string };
@@ -101,7 +101,7 @@ export interface SimplifiedProduct {
 interface DbProduct {
   id: string;
   name: string;
-  slug: string;
+  slug?: string;  // Make slug optional
   description?: string;
   price: number;
   care_instructions?: string;

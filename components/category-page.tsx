@@ -11,66 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { getProductsByCategory, SimplifiedProduct } from "@/lib/supabase"
 
-// Mock data for products
-// const products = [
-//   {
-//     id: 1,
-//     name: "Organic Cotton Onesie",
-//     price: 24.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Newborn",
-//   },
-//   {
-//     id: 2,
-//     name: "Soft Knit Baby Blanket",
-//     price: 39.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Accessories",
-//   },
-//   {
-//     id: 3,
-//     name: "Ruffled Sleeve Dress",
-//     price: 32.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Girl",
-//   },
-//   {
-//     id: 4,
-//     name: "Striped Romper Set",
-//     price: 29.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Boy",
-//   },
-//   {
-//     id: 5,
-//     name: "Knitted Cardigan",
-//     price: 34.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Newborn",
-//   },
-//   {
-//     id: 6,
-//     name: "Embroidered Bib Set",
-//     price: 19.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Accessories",
-//   },
-//   {
-//     id: 7,
-//     name: "Floral Print Dress",
-//     price: 36.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Girl",
-//   },
-//   {
-//     id: 8,
-//     name: "Linen Shorts",
-//     price: 26.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Boy",
-//   },
-// ]
-
 const categories = {
   newborn: {
     title: "Newborn Collection",
@@ -94,10 +34,15 @@ const categories = {
   },
 }
 
-export default function CategoryPage({ params }: { params: { category: string } }) {
+interface CategoryPageProps {
+  category: string;
+}
+
+export default function CategoryPage({ category }: CategoryPageProps) {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const categoryInfo = categories[params.category as keyof typeof categories] || {
+  
+  const categoryInfo = categories[category as keyof typeof categories] || {
     title: "Products",
     description: "Browse our collection of baby clothing and accessories.",
   }
@@ -105,7 +50,7 @@ export default function CategoryPage({ params }: { params: { category: string } 
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        const categoryProducts = await getProductsByCategory(params.category);
+        const categoryProducts = await getProductsByCategory(category);
         setProducts(categoryProducts);
       } catch (error) {
         console.error('Error loading category products:', error);
@@ -114,7 +59,7 @@ export default function CategoryPage({ params }: { params: { category: string } 
       }
     };
     loadProducts();
-  }, [params.category]);
+  }, [category]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -273,5 +218,4 @@ export default function CategoryPage({ params }: { params: { category: string } 
       </div>
     </div>
   )
-}
-
+} 
