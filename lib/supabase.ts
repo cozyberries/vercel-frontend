@@ -316,34 +316,52 @@ export async function getProductById(productId: string): Promise<Product | null>
   }
 
   const product = data as DbProduct;
-
-  // Extract category information safely
   const categoryName = safeExtract(product.categories, 'name');
   const categoryId = safeExtract(product.categories, 'id');
 
-  // Fetch product features
   const { data: features } = await supabase
     .from('product_features')
     .select('feature')
     .eq('product_id', productId)
     .order('display_order');
 
-  // Fetch product images
   const { data: images } = await supabase
     .from('product_images')
     .select('*')
     .eq('product_id', productId)
     .order('display_order');
 
-  // Get image URLs
-  const imagesWithUrls = await Promise.all(
-    (images || []).map(async (image: DbProductImage) => ({
-      ...image,
-      url: await getProductImageByPath(image.storage_path)
-    }))
-  );
+  let imagesWithUrls: ProductImage[] = [];
+  if (images && images.length > 0) {
+    imagesWithUrls = await Promise.all(
+      images.map(async (image: DbProductImage) => {
+        try {
+          const url = await getProductImageByPath(image.storage_path);
+          return {
+            ...image,
+            url
+          };
+        } catch (error) {
+          console.error('Error getting image URL:', error);
+          return {
+            ...image,
+            url: await getProductImageUrl()
+          };
+        }
+      })
+    );
+  } else {
+    // If no images found, use the default product image
+    const defaultImageUrl = await getProductImageUrl();
+    imagesWithUrls = [{
+      id: 'default',
+      storage_path: 'sample-product.webp',
+      is_primary: true,
+      display_order: 0,
+      url: defaultImageUrl
+    }];
+  }
 
-  // Fetch available colors and sizes from variants
   const { data: variantsData } = await supabase
     .from('product_variants')
     .select(`
@@ -356,13 +374,11 @@ export async function getProductById(productId: string): Promise<Product | null>
     `)
     .eq('product_id', productId);
   
-  // Extract sizes and colors from variants
   const variants = variantsData || [];
   const colorsSet = new Set<string>();
   const sizesSet = new Set<string>();
   const productVariants: ProductVariant[] = [];
 
-  // Process each variant to extract colors, sizes, and build product variants
   variants.forEach((variant: DbProductVariant) => {
     const colorName = safeExtract(variant.colors, 'name');
     const sizeName = safeExtract(variant.sizes, 'name');
@@ -383,7 +399,6 @@ export async function getProductById(productId: string): Promise<Product | null>
   const colors = Array.from(colorsSet);
   const sizes = Array.from(sizesSet);
 
-  // Fetch related products
   const { data: relatedProductIds } = await supabase
     .from('related_products')
     .select('related_product_id')
@@ -402,7 +417,6 @@ export async function getProductById(productId: string): Promise<Product | null>
       `)
       .in('id', ids);
 
-    // Fetch primary image for each related product
     if (related) {
       relatedProducts = await Promise.all(
         related.map(async (product: DbProduct) => {
@@ -415,16 +429,21 @@ export async function getProductById(productId: string): Promise<Product | null>
 
           let imageUrl = '';
           if (productImages && productImages.length > 0) {
-            imageUrl = await getProductImageByPath(productImages[0].storage_path);
+            try {
+              imageUrl = await getProductImageByPath(productImages[0].storage_path);
+            } catch (error) {
+              console.error('Error getting related product image URL:', error);
+              imageUrl = await getProductImageUrl();
+            }
+          } else {
+            imageUrl = await getProductImageUrl();
           }
-
-          const relatedCategoryName = safeExtract(product.categories, 'name');
 
           return {
             id: product.id,
             name: product.name,
             price: product.price,
-            category: relatedCategoryName,
+            category: safeExtract(product.categories, 'name'),
             image: imageUrl
           };
         })
@@ -437,12 +456,12 @@ export async function getProductById(productId: string): Promise<Product | null>
     category: categoryName,
     category_id: categoryId,
     features: features?.map((f: DbProductFeature) => f.feature) || [],
-    images: imagesWithUrls || [],
+    images: imagesWithUrls,
     colors,
     sizes,
     variants: productVariants,
     relatedProducts,
-    stock_quantity: 0, // Default values for fields not directly queried
+    stock_quantity: 0,
     is_featured: false
   };
 }
