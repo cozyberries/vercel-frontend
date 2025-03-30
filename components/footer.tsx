@@ -45,7 +45,7 @@ export default function Footer() {
             <Link href="/" className="inline-block mb-6">
               <Image
                 src="/placeholder.svg?height=50&width=180"
-                alt="TinyTreasures"
+                alt="CozyBerries"
                 width={180}
                 height={50}
                 className="h-12 w-auto"

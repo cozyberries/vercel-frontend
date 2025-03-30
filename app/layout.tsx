@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "TinyTreasures | Premium Baby Clothing",
+  title: "CozyBerries | Premium Baby Clothing",
   description: "Adorable, high-quality clothing for your little ones",
     generator: 'v0.dev'
 }

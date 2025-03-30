@@ -7,6 +7,7 @@ import { Heart, ShoppingBag, User, Search, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
+import { getLogoUrl } from "@/lib/supabase"
 
 const navigation = [
   { name: "HOME", href: "/" },
@@ -21,6 +22,7 @@ const navigation = [
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const logoUrl = getLogoUrl();
 
   return (
     <header className="bg-background border-b">
@@ -39,8 +41,8 @@ export default function Header() {
                 <div className="border-b py-4">
                   <Link href="/" className="flex items-center justify-center">
                     <Image
-                      src="/placeholder.svg?height=50&width=180"
-                      alt="TinyTreasures"
+                      src={logoUrl}
+                      alt="CozyBerries"
                       width={180}
                       height={50}
                       className="h-12 w-auto"
@@ -82,8 +84,8 @@ export default function Header() {
           <div className="flex-1 flex items-center justify-center lg:justify-start">
             <Link href="/" className="flex items-center">
               <Image
-                src="/placeholder.svg?height=50&width=180"
-                alt="TinyTreasures"
+                src={logoUrl}
+                alt="CozyBerries"
                 width={180}
                 height={50}
                 className="h-12 w-auto"
