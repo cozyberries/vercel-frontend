@@ -59,7 +59,7 @@ const product = {
   ],
 }
 
-export default function ProductDetails({ id }: { id: string }) {
+export default function ProductDetails({ id: productId }: { id: string }) {
   const [productImageUrl, setProductImageUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +85,14 @@ export default function ProductDetails({ id }: { id: string }) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center text-red-500">{error}</div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">Loading...</div>
       </div>
     );
   }
