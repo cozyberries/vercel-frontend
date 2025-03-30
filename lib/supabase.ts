@@ -15,19 +15,30 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 // Utility function to get signed URLs using service role
 export async function getStorageUrl(bucket: string, path: string): Promise<string> {
   try {
-    // Ensure path starts with the correct prefix
-    const fullPath = path.startsWith('products/') ? path : `products/${path}`;
+    if (!path) {
+      console.error('Empty path provided to getStorageUrl');
+      return '/placeholder.svg';
+    }
     
+    console.log(`Getting signed URL for bucket: ${bucket}, path: ${path}`);
+    
+    // Don't manipulate the path - use it exactly as provided
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
-      .createSignedUrl(fullPath, 3600);
-
+      .createSignedUrl(path, 60 * 60); // 1 hour expiry
+    
     if (error) {
       console.error('Error generating signed URL:', error);
       return '/placeholder.svg';
     }
-
-    return data?.signedUrl || '/placeholder.svg';
+    
+    if (!data || !data.signedUrl) {
+      console.error('No signedUrl in response:', data);
+      return '/placeholder.svg';
+    }
+    
+    console.log(`Successfully generated signed URL: ${data.signedUrl.substring(0, 50)}...`);
+    return data.signedUrl;
   } catch (error) {
     console.error('Error in getStorageUrl:', error);
     return '/placeholder.svg';
@@ -148,11 +159,16 @@ interface DbProductFeature {
 // Function to get product image URL
 export async function getProductImageByPath(path: string): Promise<string> {
   try {
-    if (!path) return await getProductImageUrl();
+    if (!path) {
+      console.log('Empty path provided to getProductImageByPath');
+      return await getProductImageUrl();
+    }
     
-    // If path already includes 'products/', use it as is
-    const imagePath = path.startsWith('products/') ? path : `products/${path}`;
-    return await getStorageUrl('media', imagePath);
+    console.log(`Getting product image for path: ${path}`);
+    
+    // Just use the path exactly as it is stored in the database
+    // This assumes the paths in the database are already correctly formatted
+    return await getStorageUrl('media', path);
   } catch (error) {
     console.error('Error getting product image URL:', error);
     return await getProductImageUrl();
