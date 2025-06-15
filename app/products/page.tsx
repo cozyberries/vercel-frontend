@@ -14,6 +14,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -36,9 +37,11 @@ export default function ProductsPage() {
     }
   }, [searchParams]);
 
-  const filteredProducts = selectedCategory === "all" 
-    ? products 
-    : products.filter(product => product.category?.toLowerCase() === selectedCategory);
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = selectedCategory === "all" || product.category?.toLowerCase() === selectedCategory;
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -49,7 +52,14 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search products by name..."
+          className="border border-gray-300 rounded-md px-4 py-2 w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Filter by category" />
