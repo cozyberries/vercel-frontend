@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getAllProducts, SimplifiedProduct } from "@/lib/supabase";
+import { getAllProducts, getProductCategories, SimplifiedProduct } from "@/lib/supabase";
 
 export default function ProductsClient() {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
@@ -15,6 +15,7 @@ export default function ProductsClient() {
   const searchParams = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -36,6 +37,15 @@ export default function ProductsClient() {
       setSelectedCategory(category.toLowerCase());
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    getProductCategories()
+      .then(setCategories)
+      .catch((err) => {
+        console.error("Error loading categories:", err);
+        setCategories([]);
+      });
+  }, []);
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === "all" || product.category?.toLowerCase() === selectedCategory;
@@ -66,11 +76,11 @@ export default function ProductsClient() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="newborn">Newborn</SelectItem>
-            <SelectItem value="boy">Boy</SelectItem>
-            <SelectItem value="girl">Girl</SelectItem>
-            <SelectItem value="occasion">Occasion</SelectItem>
-            <SelectItem value="couture">Couture</SelectItem>
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

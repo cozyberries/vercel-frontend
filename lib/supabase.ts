@@ -545,4 +545,25 @@ export async function getAllProducts(): Promise<SimplifiedProduct[]> {
   );
 
   return productsWithImages;
+}
+
+// Function to fetch unique product categories
+export async function getProductCategories(): Promise<string[]> {
+  // Try to fetch from categories table if it exists
+  const { data, error } = await supabase
+    .from('categories')
+    .select('name');
+
+  if (!error && data) {
+    // Return unique, non-null, lowercased category names
+    return Array.from(new Set(data.map((item: { name: string }) => item.name?.toLowerCase()).filter(Boolean)));
+  }
+
+  // Fallback: fetch from products table if categories table does not exist
+  const { data: prodData, error: prodError } = await supabase
+    .from('products')
+    .select('category');
+
+  if (prodError || !prodData) return [];
+  return Array.from(new Set(prodData.map((item: { category: string }) => item.category?.toLowerCase()).filter(Boolean)));
 } 
