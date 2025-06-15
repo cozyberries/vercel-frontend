@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Heart } from "lucide-react";
+import { Heart, ShoppingBag, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAllProducts, getProductCategories, SimplifiedProduct } from "@/lib/supabase";
+import { useCart } from "@/components/cart-context";
+import { toast } from "sonner";
 
 export default function ProductsClient() {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
@@ -16,6 +18,7 @@ export default function ProductsClient() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [categories, setCategories] = useState<string[]>([]);
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -116,9 +119,36 @@ export default function ProductsClient() {
                   <Heart className="h-4 w-4" />
                   <span className="sr-only">Add to wishlist</span>
                 </Button>
-                <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" className="w-full rounded-none py-3">
-                    Add to Cart
+                <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-row gap-2 p-2 justify-center">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full"
+                    onClick={() => {
+                      addToCart({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        image: product.image,
+                        quantity: 1
+                      });
+                      toast.success(`${product.name} added to cart!`);
+                    }}
+                  >
+                    <ShoppingBag className="h-5 w-5" />
+                    <span className="sr-only">Add to Cart</span>
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="rounded-full"
+                    onClick={() => {
+                      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+                      toast.success(`${product.name} removed from products!`);
+                    }}
+                  >
+                    <Trash2 className="h-5 w-5" />
+                    <span className="sr-only">Remove</span>
                   </Button>
                 </div>
               </div>
