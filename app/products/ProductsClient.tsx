@@ -119,7 +119,7 @@ export default function ProductsClient() {
                   </Link>
                 </h3>
                 <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
-                <p className="font-medium">${product.price.toFixed(2)}</p>
+                <p className="font-medium">₹{product.price.toFixed(2)}</p>
               </div>
             </div>
           ))}
