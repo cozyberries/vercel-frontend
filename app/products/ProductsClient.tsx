@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Heart, ShoppingBag, Trash2 } from "lucide-react";
+import { Heart, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAllProducts, getProductCategories, SimplifiedProduct } from "@/lib/supabase";
@@ -119,7 +119,7 @@ export default function ProductsClient() {
                   <Heart className="h-4 w-4" />
                   <span className="sr-only">Add to wishlist</span>
                 </Button>
-                <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-row gap-2 p-2 justify-center">
+                <div className="absolute bottom-0 left-0 right-0 bg-white/30 border border-gray-300 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-row gap-2 p-2 justify-center rounded-b-lg">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -135,7 +135,7 @@ export default function ProductsClient() {
                       toast.success(`${product.name} added to cart!`);
                     }}
                   >
-                    <ShoppingBag className="h-5 w-5" />
+                    <Plus className="h-5 w-5" />
                     <span className="sr-only">Add to Cart</span>
                   </Button>
                   <Button
