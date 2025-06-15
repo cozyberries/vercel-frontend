@@ -121,6 +121,11 @@ export default function ProductsClient() {
                     <Heart className="h-4 w-4" />
                     <span className="sr-only">Add to wishlist</span>
                   </Button>
+                  {isInCart && (
+                    <div className="absolute top-4 left-4 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow z-10">
+                      Added
+                    </div>
+                  )}
                   <div className="absolute bottom-0 left-0 right-0 bg-white/30 border border-gray-300 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-row gap-2 p-2 justify-center rounded-b-lg">
                     <Button
                       variant="ghost"
