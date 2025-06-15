@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAllProducts, getProductCategories, SimplifiedProduct } from "@/lib/supabase";
 import { useCart } from "@/components/cart-context";
+import { useWishlist } from "@/components/wishlist-context";
 import { toast } from "sonner";
 
 export default function ProductsClient() {
@@ -19,6 +20,7 @@ export default function ProductsClient() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [categories, setCategories] = useState<string[]>([]);
   const { addToCart, removeFromCart, cart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -101,6 +103,7 @@ export default function ProductsClient() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {filteredProducts.map((product) => {
             const isInCart = cart.some((item) => item.id === product.id);
+            const inWishlist = isInWishlist(product.id);
             return (
               <div key={product.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
@@ -117,9 +120,24 @@ export default function ProductsClient() {
                     variant="ghost"
                     size="icon"
                     className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+                    onClick={e => {
+                      e.preventDefault();
+                      if (inWishlist) {
+                        removeFromWishlist(product.id);
+                        toast.success(`${product.name} removed from wishlist!`);
+                      } else {
+                        addToWishlist({
+                          id: product.id,
+                          name: product.name,
+                          price: product.price,
+                          image: product.image
+                        });
+                        toast.success(`${product.name} added to wishlist!`);
+                      }
+                    }}
                   >
-                    <Heart className="h-4 w-4" />
-                    <span className="sr-only">Add to wishlist</span>
+                    <Heart className={`h-4 w-4 ${inWishlist ? "fill-red-500 text-red-500" : ""}`} />
+                    <span className="sr-only">{inWishlist ? "Remove from wishlist" : "Add to wishlist"}</span>
                   </Button>
                   {isInCart && (
                     <div className="absolute top-4 left-4 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow z-10">
