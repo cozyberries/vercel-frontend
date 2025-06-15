@@ -3,53 +3,46 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { getProductImageUrl } from "@/lib/supabase"
-
-const categories = [
-  {
-    name: "Newborn",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=newborn",
-  },
-  {
-    name: "Girl",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=girl",
-  },
-  {
-    name: "Boy",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=boy",
-  },
-  {
-    name: "Couture",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=couture",
-  },
-]
+import { getCategories } from "@/lib/supabase"
 
 export default function CategoryGrid() {
-  const [imageUrl, setImageUrl] = useState("/placeholder.svg");
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadImage = async () => {
+    const loadCategories = async () => {
       try {
-        const url = await getProductImageUrl();
-        setImageUrl(url);
+        const cats = await getCategories();
+        setCategories(cats);
       } catch (error) {
-        console.error("Error loading image:", error);
+        console.error("Error loading categories:", error);
+        setCategories([]);
+      } finally {
+        setLoading(false);
       }
     };
-    loadImage();
+    loadCategories();
   }, []);
-  
+
+  if (loading) {
+    return <div className="text-center p-8">Loading categories...</div>;
+  }
+
+  if (!categories.length) {
+    return <div className="text-center p-8">No categories found.</div>;
+  }
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       {categories.map((category) => (
-        <Link key={category.name} href={category.href} className="group relative overflow-hidden rounded-lg">
+        <Link
+          key={category.id || category.name}
+          href={category.slug ? `/products?category=${category.slug}` : `/products?category=${category.name?.toLowerCase()}`}
+          className="group relative overflow-hidden rounded-lg"
+        >
           <div className="aspect-square overflow-hidden">
             <Image
-              src={imageUrl}
+              src={category.image || "/placeholder.svg?height=400&width=400"}
               alt={category.name}
               width={400}
               height={400}
@@ -62,6 +55,6 @@ export default function CategoryGrid() {
         </Link>
       ))}
     </div>
-  )
+  );
 }
 
