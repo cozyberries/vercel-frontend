@@ -1,15 +1,28 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { Heart, Filter } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { getProductsByCategory, SimplifiedProduct } from "@/lib/supabase"
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Heart, Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { getProductsByCategory, SimplifiedProduct } from "@/lib/services/api";
 
 const categories = {
   newborn: {
@@ -32,7 +45,7 @@ const categories = {
     description:
       "Complete your baby's look with our adorable accessories. From hats and bibs to blankets and toys, find the perfect finishing touch.",
   },
-}
+};
 
 interface CategoryPageProps {
   category: string;
@@ -41,11 +54,11 @@ interface CategoryPageProps {
 export default function CategoryPage({ category }: CategoryPageProps) {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const categoryInfo = categories[category as keyof typeof categories] || {
     title: "Products",
     description: "Browse our collection of baby clothing and accessories.",
-  }
+  };
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -53,7 +66,7 @@ export default function CategoryPage({ category }: CategoryPageProps) {
         const categoryProducts = await getProductsByCategory(category);
         setProducts(categoryProducts);
       } catch (error) {
-        console.error('Error loading category products:', error);
+        console.error("Error loading category products:", error);
       } finally {
         setLoading(false);
       }
@@ -65,7 +78,9 @@ export default function CategoryPage({ category }: CategoryPageProps) {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-12 text-center">
         <h1 className="text-3xl font-light mb-4">{categoryInfo.title}</h1>
-        <p className="text-muted-foreground max-w-2xl mx-auto">{categoryInfo.description}</p>
+        <p className="text-muted-foreground max-w-2xl mx-auto">
+          {categoryInfo.description}
+        </p>
       </div>
 
       <div className="flex justify-between items-center mb-8">
@@ -78,7 +93,10 @@ export default function CategoryPage({ category }: CategoryPageProps) {
         {/* Filters button (mobile) */}
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" className="flex items-center gap-2 md:hidden">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 md:hidden"
+            >
               <Filter className="h-4 w-4" />
               Filters
             </Button>
@@ -86,7 +104,9 @@ export default function CategoryPage({ category }: CategoryPageProps) {
           <SheetContent side="left">
             <SheetHeader>
               <SheetTitle>Filters</SheetTitle>
-              <SheetDescription>Filter products by size, color, and price.</SheetDescription>
+              <SheetDescription>
+                Filter products by size, color, and price.
+              </SheetDescription>
             </SheetHeader>
             <div className="py-6 space-y-6">
               <div>
@@ -114,12 +134,14 @@ export default function CategoryPage({ category }: CategoryPageProps) {
               <div>
                 <h3 className="font-medium mb-4">Price</h3>
                 <div className="space-y-3">
-                  {["Under $20", "$20 - $30", "$30 - $40", "Over $40"].map((price) => (
-                    <div key={price} className="flex items-center space-x-2">
-                      <Checkbox id={`price-${price}`} />
-                      <Label htmlFor={`price-${price}`}>{price}</Label>
-                    </div>
-                  ))}
+                  {["Under $20", "$20 - $30", "$30 - $40", "Over $40"].map(
+                    (price) => (
+                      <div key={price} className="flex items-center space-x-2">
+                        <Checkbox id={`price-${price}`} />
+                        <Label htmlFor={`price-${price}`}>{price}</Label>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -132,7 +154,9 @@ export default function CategoryPage({ category }: CategoryPageProps) {
 
         {/* Sort dropdown */}
         <div className="flex items-center gap-2">
-          <span className="hidden md:inline text-sm text-muted-foreground">Sort by:</span>
+          <span className="hidden md:inline text-sm text-muted-foreground">
+            Sort by:
+          </span>
           <Select defaultValue="newest">
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Sort by" />
@@ -186,11 +210,16 @@ export default function CategoryPage({ category }: CategoryPageProps) {
               </div>
               <div className="text-center">
                 <h3 className="text-sm font-medium mb-1">
-                  <Link href={`/products/${product.id}`} className="hover:text-primary">
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="hover:text-primary"
+                  >
                     {product.name}
                   </Link>
                 </h3>
-                <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  {product.category}
+                </p>
                 <p className="font-medium">${product.price.toFixed(2)}</p>
               </div>
             </div>
@@ -217,5 +246,5 @@ export default function CategoryPage({ category }: CategoryPageProps) {
         </Button>
       </div>
     </div>
-  )
-} 
+  );
+}

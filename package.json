@@ -40,6 +40,8 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "@supabase/supabase-js": "^2.49.4",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.11.0",
+    "axois": "^0.0.1-security",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",

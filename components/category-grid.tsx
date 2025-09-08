@@ -1,55 +1,31 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { getProductImageUrl } from "@/lib/supabase"
+import Image from "next/image";
+import Link from "next/link";
 
 const categories = [
-  {
-    name: "Newborn",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=newborn",
-  },
-  {
-    name: "Girl",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=girl",
-  },
-  {
-    name: "Boy",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=boy",
-  },
-  {
-    name: "Couture",
-    image: "/placeholder.svg?height=400&width=400",
-    href: "/products?category=couture",
-  },
-]
+  { name: "Newborn", href: "/products?category=newborn" },
+  { name: "Girl", href: "/products?category=girl" },
+  { name: "Boy", href: "/products?category=boy" },
+  { name: "Couture", href: "/products?category=couture" },
+];
+
+// Deterministic seed based on category name
+const getImageForCategory = (name: string) =>
+  `https://picsum.photos/seed/${encodeURIComponent(name)}/400/400`;
 
 export default function CategoryGrid() {
-  const [imageUrl, setImageUrl] = useState("/placeholder.svg");
-
-  useEffect(() => {
-    const loadImage = async () => {
-      try {
-        const url = await getProductImageUrl();
-        setImageUrl(url);
-      } catch (error) {
-        console.error("Error loading image:", error);
-      }
-    };
-    loadImage();
-  }, []);
-  
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+    <div className="grid grid-cols-4 gap-8">
       {categories.map((category) => (
-        <Link key={category.name} href={category.href} className="group relative overflow-hidden rounded-lg">
+        <Link
+          key={category.name}
+          href={category.href}
+          className="group relative overflow-hidden rounded-lg"
+        >
           <div className="aspect-square overflow-hidden">
             <Image
-              src={imageUrl}
+              src={getImageForCategory(category.name)}
               alt={category.name}
               width={400}
               height={400}
@@ -62,6 +38,5 @@ export default function CategoryGrid() {
         </Link>
       ))}
     </div>
-  )
+  );
 }
-

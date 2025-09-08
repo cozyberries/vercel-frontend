@@ -1,0 +1,3 @@
+export const images = {
+    logoURL: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/sign/media/logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81OWNhOGQyOC00MGM3LTQwOGEtYjZmOC04NjcxMmVmNzFhM2IiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtZWRpYS9sb2dvLnBuZyIsImlhdCI6MTc1NzM0MDQxMSwiZXhwIjoxNzU3MzQ0MDExfQ.Pdplf78f9cjEzUbxDd826MfqpudA5aE1YMUqjZB5sOE"
+}

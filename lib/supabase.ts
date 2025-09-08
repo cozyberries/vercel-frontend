@@ -1,68 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
-
-if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-// Create two clients - one for public operations and one for service role operations
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-// Utility function to get signed URLs using service role
-export async function getStorageUrl(bucket: string, path: string): Promise<string> {
-  try {
-    if (!path) {
-      console.error('Empty path provided to getStorageUrl');
-      return '/placeholder.svg';
-    }
-    
-    console.log(`Getting signed URL for bucket: ${bucket}, path: ${path}`);
-    
-    // Don't manipulate the path - use it exactly as provided
-    const { data, error } = await supabaseAdmin.storage
-      .from(bucket)
-      .createSignedUrl(path, 60 * 60); // 1 hour expiry
-    
-    if (error) {
-      console.error('Error generating signed URL:', error);
-      return '/placeholder.svg';
-    }
-    
-    if (!data || !data.signedUrl) {
-      console.error('No signedUrl in response:', data);
-      return '/placeholder.svg';
-    }
-    
-    console.log(`Successfully generated signed URL: ${data.signedUrl.substring(0, 50)}...`);
-    return data.signedUrl;
-  } catch (error) {
-    console.error('Error in getStorageUrl:', error);
-    return '/placeholder.svg';
-  }
-}
-
-// Helper functions for specific media
-export async function getLogoUrl(): Promise<string> {
-  try {
-    return await getStorageUrl('media', 'logo.png');
-  } catch (error) {
-    console.error('Error getting logo URL:', error);
-    return '/placeholder.svg';
-  }
-}
-
-export async function getProductImageUrl(): Promise<string> {
-  try {
-    return await getStorageUrl('media', 'sample-product.webp');
-  } catch (error) {
-    console.error('Error getting product image URL:', error);
-    return '/placeholder.svg';
-  }
-}
+// Supabase removed. All data flows through API routes now.
 
 // Types for product data
 export interface ProductVariant {
@@ -113,7 +49,7 @@ export interface Product {
 export interface SimplifiedProduct {
   id: string;
   name: string;
-  slug?: string;  // Make slug optional
+  slug?: string; // Make slug optional
   price: number;
   description?: string;
   categories?: { name: string };
@@ -125,7 +61,7 @@ export interface SimplifiedProduct {
 interface DbProduct {
   id: string;
   name: string;
-  slug?: string;  // Make slug optional
+  slug?: string; // Make slug optional
   description?: string;
   price: number;
   care_instructions?: string;
@@ -156,393 +92,249 @@ interface DbProductFeature {
   [key: string]: any;
 }
 
-// Function to get product image URL
-export async function getProductImageByPath(path: string): Promise<string> {
-  try {
-    if (!path) {
-      console.log('Empty path provided to getProductImageByPath');
-      return await getProductImageUrl();
-    }
-    
-    console.log(`Getting product image for path: ${path}`);
-    
-    // Just use the path exactly as it is stored in the database
-    // This assumes the paths in the database are already correctly formatted
-    return await getStorageUrl('media', path);
-  } catch (error) {
-    console.error('Error getting product image URL:', error);
-    return await getProductImageUrl();
+// Basic API helper utilities
+function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return window.location.origin;
   }
+  return process.env.NEXT_PUBLIC_SITE_URL || "https://api.cozyberries.in/";
+}
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${getBaseUrl()}${path}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    ...init,
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`API ${response.status} ${response.statusText}: ${text}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+// Image URL helpers (no Supabase dependency)
+export async function getProductImageUrl(): Promise<string> {
+  // Fallback image available in public directory
+  return "/placeholder.jpg";
+}
+
+export async function getProductImageByPath(path: string): Promise<string> {
+  if (!path) return getProductImageUrl();
+  // Assume API or static server serves media under /media
+  // If your API returns absolute URLs, prefer those directly instead.
+  return path.startsWith("http") ? path : `/media/${path}`;
 }
 
 // Function to fetch all categories
 export async function getCategories() {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name');
-
-  if (error) {
-    console.error('Error fetching categories:', error);
+  try {
+    const categories = await apiFetch<any[]>(`/api/categories`);
+    return categories || [];
+  } catch (error) {
+    console.error("Error fetching categories:", error);
     return [];
   }
-
-  return data || [];
 }
 
 // Function to fetch featured products
 export async function getFeaturedProducts(): Promise<SimplifiedProduct[]> {
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      id, 
-      name, 
-      slug, 
-      description, 
-      price,
-      categories(name)
-    `)
-    .eq('is_featured', true)
-    .limit(4);
-
-  if (error) {
-    console.error('Error fetching featured products:', error);
+  try {
+    const data = await apiFetch<DbProduct[]>(
+      `/api/products?featured=true&limit=4`
+    );
+    const productsWithImages = await Promise.all(
+      (data || []).map(async (product: DbProduct) => {
+        const imageUrl = await getProductImageByPath(
+          (product as any).image || ""
+        );
+        return {
+          ...product,
+          category: safeExtract(product.categories, "name"),
+          image: imageUrl,
+        };
+      })
+    );
+    return productsWithImages;
+  } catch (error) {
+    console.error("Error fetching featured products:", error);
     return [];
   }
-
-  // Fetch images for each product
-  const productsWithImages = await Promise.all(
-    data.map(async (product: DbProduct) => {
-      const { data: images } = await supabase
-        .from('product_images')
-        .select('*')
-        .eq('product_id', product.id)
-        .eq('is_primary', true)
-        .limit(1);
-
-      let imageUrl = '';
-      if (images && images.length > 0) {
-        imageUrl = await getProductImageByPath(images[0].storage_path);
-      }
-
-      return {
-        ...product,
-        category: safeExtract(product.categories, 'name'),
-        image: imageUrl
-      };
-    })
-  );
-
-  return productsWithImages;
 }
 
 // Function to fetch products by category
-export async function getProductsByCategory(categorySlug: string): Promise<SimplifiedProduct[]> {
-  // First get the category id
-  const { data: category, error: categoryError } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('slug', categorySlug)
-    .single();
-
-  if (categoryError || !category) {
-    console.error('Error fetching category:', categoryError);
+export async function getProductsByCategory(
+  categorySlug: string
+): Promise<SimplifiedProduct[]> {
+  try {
+    const data = await apiFetch<DbProduct[]>(
+      `/api/products?categorySlug=${encodeURIComponent(categorySlug)}`
+    );
+    const productsWithImages = await Promise.all(
+      (data || []).map(async (product: DbProduct) => {
+        const imageUrl = await getProductImageByPath(
+          (product as any).image || ""
+        );
+        return {
+          ...product,
+          category: safeExtract(product.categories, "name"),
+          image: imageUrl,
+        };
+      })
+    );
+    return productsWithImages;
+  } catch (error) {
+    console.error("Error fetching products by category:", error);
     return [];
   }
-
-  // Then get products in that category
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      id, 
-      name, 
-      slug, 
-      price,
-      categories(name)
-    `)
-    .eq('category_id', category.id);
-
-  if (error) {
-    console.error('Error fetching products by category:', error);
-    return [];
-  }
-
-  // Fetch images for each product
-  const productsWithImages = await Promise.all(
-    data.map(async (product: DbProduct) => {
-      const { data: images } = await supabase
-        .from('product_images')
-        .select('*')
-        .eq('product_id', product.id)
-        .eq('is_primary', true)
-        .limit(1);
-
-      let imageUrl = '';
-      if (images && images.length > 0) {
-        imageUrl = await getProductImageByPath(images[0].storage_path);
-      }
-
-      return {
-        ...product,
-        category: safeExtract(product.categories, 'name'),
-        image: imageUrl
-      };
-    })
-  );
-
-  return productsWithImages;
 }
 
 // Safely extract a value from a potential object or array
-function safeExtract(obj: unknown, key: string, defaultValue: string = ''): string {
+function safeExtract(
+  obj: unknown,
+  key: string,
+  defaultValue: string = ""
+): string {
   if (!obj) return defaultValue;
-  
+
   if (Array.isArray(obj)) {
-    return obj.length > 0 && obj[0] && typeof obj[0] === 'object' && key in obj[0] 
+    return obj.length > 0 &&
+      obj[0] &&
+      typeof obj[0] === "object" &&
+      key in obj[0]
       ? String((obj[0] as Record<string, unknown>)[key]) || defaultValue
       : defaultValue;
   }
-  
-  if (typeof obj === 'object' && obj !== null && key in (obj as object)) {
+
+  if (typeof obj === "object" && obj !== null && key in (obj as object)) {
     return String((obj as Record<string, unknown>)[key]) || defaultValue;
   }
-  
+
   return defaultValue;
 }
 
 // Function to fetch a single product by ID
-export async function getProductById(productId: string): Promise<Product | null> {
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      id, 
-      name, 
-      slug, 
-      description, 
-      price,
-      care_instructions,
-      categories(id, name)
-    `)
-    .eq('id', productId)
-    .single();
+export async function getProductById(
+  productId: string
+): Promise<Product | null> {
+  try {
+    const data = await apiFetch<any>(
+      `/api/products/${encodeURIComponent(productId)}`
+    );
+    // Normalize images array to include url field
+    const imagesWithUrls: ProductImage[] = await Promise.all(
+      (data.images || []).map(async (img: DbProductImage) => ({
+        ...img,
+        url: await getProductImageByPath(
+          (img as any).url || img.storage_path || ""
+        ),
+      }))
+    );
 
-  if (error || !data) {
-    console.error('Error fetching product:', error);
-    return null;
-  }
+    const variants: DbProductVariant[] = data.variants || [];
+    const colorsSet = new Set<string>();
+    const sizesSet = new Set<string>();
+    const productVariants: ProductVariant[] = [];
 
-  const product = data as DbProduct;
-  const categoryName = safeExtract(product.categories, 'name');
-  const categoryId = safeExtract(product.categories, 'id');
+    variants.forEach((variant: DbProductVariant) => {
+      const colorName = safeExtract(variant.colors, "name");
+      const sizeName = safeExtract(variant.sizes, "name");
+      if (colorName) colorsSet.add(colorName);
+      if (sizeName) sizesSet.add(sizeName);
+      productVariants.push({
+        id: variant.id,
+        sku: variant.sku,
+        price: variant.price,
+        stock_quantity: variant.stock_quantity,
+        size: sizeName,
+        color: colorName,
+      });
+    });
 
-  const { data: features } = await supabase
-    .from('product_features')
-    .select('feature')
-    .eq('product_id', productId)
-    .order('display_order');
-
-  const { data: images } = await supabase
-    .from('product_images')
-    .select('*')
-    .eq('product_id', productId)
-    .order('display_order');
-
-  let imagesWithUrls: ProductImage[] = [];
-  if (images && images.length > 0) {
-    imagesWithUrls = await Promise.all(
-      images.map(async (image: DbProductImage) => {
-        try {
-          const url = await getProductImageByPath(image.storage_path);
-          return {
-            ...image,
-            url
-          };
-        } catch (error) {
-          console.error('Error getting image URL:', error);
-          return {
-            ...image,
-            url: await getProductImageUrl()
-          };
-        }
+    const relatedProducts: RelatedProduct[] = (data.relatedProducts || []).map(
+      (p: any) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        category: p.category || safeExtract(p.categories, "name"),
+        image: p.image,
       })
     );
-  } else {
-    // If no images found, use the default product image
-    const defaultImageUrl = await getProductImageUrl();
-    imagesWithUrls = [{
-      id: 'default',
-      storage_path: 'sample-product.webp',
-      is_primary: true,
-      display_order: 0,
-      url: defaultImageUrl
-    }];
+
+    return {
+      id: data.id,
+      name: data.name,
+      slug: data.slug,
+      description: data.description,
+      price: data.price,
+      care_instructions: data.care_instructions,
+      stock_quantity: data.stock_quantity ?? 0,
+      is_featured: data.is_featured ?? false,
+      category_id: data.category_id,
+      category: data.category || safeExtract(data.categories, "name"),
+      features: (data.features || []).map(
+        (f: DbProductFeature) => f.feature ?? f
+      ),
+      images: imagesWithUrls.length
+        ? imagesWithUrls
+        : [
+            {
+              id: "default",
+              storage_path: "",
+              is_primary: true,
+              display_order: 0,
+              url: await getProductImageUrl(),
+            },
+          ],
+      colors: Array.from(colorsSet),
+      sizes: Array.from(sizesSet),
+      variants: productVariants,
+      relatedProducts,
+    };
+  } catch (error) {
+    console.error("Error fetching product:", error);
+    return null;
   }
-
-  const { data: variantsData } = await supabase
-    .from('product_variants')
-    .select(`
-      id,
-      sku,
-      price,
-      stock_quantity,
-      sizes(name),
-      colors(name)
-    `)
-    .eq('product_id', productId);
-  
-  const variants = variantsData || [];
-  const colorsSet = new Set<string>();
-  const sizesSet = new Set<string>();
-  const productVariants: ProductVariant[] = [];
-
-  variants.forEach((variant: DbProductVariant) => {
-    const colorName = safeExtract(variant.colors, 'name');
-    const sizeName = safeExtract(variant.sizes, 'name');
-    
-    if (colorName) colorsSet.add(colorName);
-    if (sizeName) sizesSet.add(sizeName);
-    
-    productVariants.push({
-      id: variant.id,
-      sku: variant.sku,
-      price: variant.price,
-      stock_quantity: variant.stock_quantity,
-      size: sizeName,
-      color: colorName
-    });
-  });
-
-  const colors = Array.from(colorsSet);
-  const sizes = Array.from(sizesSet);
-
-  const { data: relatedProductIds } = await supabase
-    .from('related_products')
-    .select('related_product_id')
-    .eq('product_id', productId);
-
-  let relatedProducts: RelatedProduct[] = [];
-  if (relatedProductIds && relatedProductIds.length > 0) {
-    const ids = relatedProductIds.map(item => item.related_product_id);
-    const { data: related } = await supabase
-      .from('products')
-      .select(`
-        id, 
-        name, 
-        price,
-        categories(name)
-      `)
-      .in('id', ids);
-
-    if (related) {
-      relatedProducts = await Promise.all(
-        related.map(async (product: DbProduct) => {
-          const { data: productImages } = await supabase
-            .from('product_images')
-            .select('storage_path')
-            .eq('product_id', product.id)
-            .eq('is_primary', true)
-            .limit(1);
-
-          let imageUrl = '';
-          if (productImages && productImages.length > 0) {
-            try {
-              imageUrl = await getProductImageByPath(productImages[0].storage_path);
-            } catch (error) {
-              console.error('Error getting related product image URL:', error);
-              imageUrl = await getProductImageUrl();
-            }
-          } else {
-            imageUrl = await getProductImageUrl();
-          }
-
-          return {
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            category: safeExtract(product.categories, 'name'),
-            image: imageUrl
-          };
-        })
-      );
-    }
-  }
-
-  return {
-    ...data,
-    category: categoryName,
-    category_id: categoryId,
-    features: features?.map((f: DbProductFeature) => f.feature) || [],
-    images: imagesWithUrls,
-    colors,
-    sizes,
-    variants: productVariants,
-    relatedProducts,
-    stock_quantity: 0,
-    is_featured: false
-  };
 }
 
 // Function to fetch a single product by slug
 export async function getProductBySlug(slug: string): Promise<Product | null> {
-  const { data, error } = await supabase
-    .from('products')
-    .select('id')
-    .eq('slug', slug)
-    .single();
-
-  if (error || !data) {
-    console.error('Error fetching product by slug:', error);
+  try {
+    const data = await apiFetch<{ id: string } | Product>(
+      `/api/products?slug=${encodeURIComponent(slug)}`
+    );
+    if ((data as any).id && Object.keys(data as any).length === 1) {
+      return getProductById((data as any).id);
+    }
+    return data as Product;
+  } catch (error) {
+    console.error("Error fetching product by slug:", error);
     return null;
   }
-
-  return getProductById(data.id);
 }
 
 export async function getAllProducts(): Promise<SimplifiedProduct[]> {
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      id, 
-      name, 
-      slug, 
-      price,
-      categories(name)
-    `)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching products:', error);
+  try {
+    const data = await apiFetch<DbProduct[]>(`/api/products`);
+    const productsWithImages = await Promise.all(
+      (data || []).map(async (product: DbProduct) => {
+        const imageUrl = await getProductImageByPath(
+          (product as any).image || ""
+        );
+        return {
+          ...product,
+          category: safeExtract(product.categories, "name"),
+          image: imageUrl,
+        };
+      })
+    );
+    return productsWithImages;
+  } catch (error) {
+    console.error("Error fetching products:", error);
     return [];
   }
-
-  const productsWithImages = await Promise.all(
-    (data || []).map(async (product: DbProduct) => {
-      const { data: images } = await supabase
-        .from('product_images')
-        .select('*')
-        .eq('product_id', product.id)
-        .eq('is_primary', true)
-        .limit(1);
-
-      let imageUrl = '';
-      if (images && images.length > 0) {
-        try {
-          imageUrl = await getProductImageByPath(images[0].storage_path);
-        } catch (error) {
-          console.error('Error getting product image URL:', error);
-          imageUrl = await getProductImageUrl();
-        }
-      } else {
-        imageUrl = await getProductImageUrl();
-      }
-
-      return {
-        ...product,
-        category: safeExtract(product.categories, 'name'),
-        image: imageUrl
-      };
-    })
-  );
-
-  return productsWithImages;
-} 
+}

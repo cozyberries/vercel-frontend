@@ -1,13 +1,19 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import { Heart } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllProducts, SimplifiedProduct } from "@/lib/supabase"
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getAllProducts, SimplifiedProduct } from "@/lib/services/api";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
@@ -22,7 +28,7 @@ export default function ProductsPage() {
         const allProducts = await getAllProducts();
         setProducts(allProducts);
       } catch (error) {
-        console.error('Error loading products:', error);
+        console.error("Error loading products:", error);
       } finally {
         setLoading(false);
       }
@@ -31,15 +37,19 @@ export default function ProductsPage() {
   }, []);
 
   useEffect(() => {
-    const category = searchParams.get('category');
+    const category = searchParams.get("category");
     if (category) {
       setSelectedCategory(category.toLowerCase());
     }
   }, [searchParams]);
 
-  const filteredProducts = products.filter(product => {
-    const matchesCategory = selectedCategory === "all" || product.category?.toLowerCase() === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory =
+      selectedCategory === "all" ||
+      product.category?.toLowerCase() === selectedCategory;
+    const matchesSearch = product.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -48,7 +58,8 @@ export default function ProductsPage() {
       <div className="mb-12 text-center">
         <h1 className="text-3xl font-light mb-4">Our Products</h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Discover our complete collection of baby clothing and accessories, carefully curated for your little ones.
+          Discover our complete collection of baby clothing and accessories,
+          carefully curated for your little ones.
         </p>
       </div>
 
@@ -56,7 +67,7 @@ export default function ProductsPage() {
         <input
           type="text"
           value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search products by name..."
           className="border border-gray-300 rounded-md px-4 py-2 w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-primary"
         />
@@ -114,11 +125,16 @@ export default function ProductsPage() {
               </div>
               <div className="text-center">
                 <h3 className="text-sm font-medium mb-1">
-                  <Link href={`/products/${product.id}`} className="hover:text-primary">
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="hover:text-primary"
+                  >
                     {product.name}
                   </Link>
                 </h3>
-                <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  {product.category}
+                </p>
                 <p className="font-medium">${product.price.toFixed(2)}</p>
               </div>
             </div>
@@ -144,5 +160,5 @@ export default function ProductsPage() {
         </Button>
       </div>
     </div>
-  )
-} 
+  );
+}

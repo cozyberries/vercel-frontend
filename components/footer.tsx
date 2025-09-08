@@ -1,17 +1,14 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import Image from "next/image"
-import { Facebook, Instagram, Twitter } from "lucide-react"
-import { getLogoUrl } from "@/lib/supabase"
-import { useEffect, useState } from "react"
+import Link from "next/link";
+import Image from "next/image";
+import { Facebook, Instagram, Twitter } from "lucide-react";
+import { images } from "@/app/assets/images";
 
 const footerLinks = [
   {
     title: "Shop",
-    links: [
-      { name: "Products", href: "/products" },
-    ],
+    links: [{ name: "Products", href: "/products" }],
   },
   {
     title: "Help",
@@ -33,23 +30,9 @@ const footerLinks = [
       { name: "Press", href: "/press" },
     ],
   },
-]
+];
 
 export default function Footer() {
-  const [logoUrl, setLogoUrl] = useState<string>('');
-
-  useEffect(() => {
-    const loadLogoUrl = async () => {
-      try {
-        const url = await getLogoUrl();
-        setLogoUrl(url);
-      } catch (error) {
-        console.error('Error loading logo:', error);
-      }
-    };
-    loadLogoUrl();
-  }, []);
-
   return (
     <footer className="bg-background border-t">
       <div className="container mx-auto px-4 py-12">
@@ -58,7 +41,7 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="inline-block mb-6">
               <Image
-                src={logoUrl || "/placeholder.svg"}
+                src={images.logoURL || "/placeholder.svg"}
                 alt="CozyBerries"
                 width={180}
                 height={50}
@@ -66,17 +49,29 @@ export default function Footer() {
               />
             </Link>
             <p className="text-muted-foreground mb-6 max-w-md">
-              Adorable, high-quality clothing for your little ones. Crafted with love, designed for comfort, and made to
-              last.
+              Adorable, high-quality clothing for your little ones. Crafted with
+              love, designed for comfort, and made to last.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-muted-foreground hover:text-primary" aria-label="Facebook">
+              <a
+                href="#"
+                className="text-muted-foreground hover:text-primary"
+                aria-label="Facebook"
+              >
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-primary" aria-label="Instagram">
+              <a
+                href="#"
+                className="text-muted-foreground hover:text-primary"
+                aria-label="Instagram"
+              >
                 <Instagram className="h-5 w-5" />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-primary" aria-label="Twitter">
+              <a
+                href="#"
+                className="text-muted-foreground hover:text-primary"
+                aria-label="Twitter"
+              >
                 <Twitter className="h-5 w-5" />
               </a>
             </div>
@@ -89,7 +84,10 @@ export default function Footer() {
               <ul className="space-y-3">
                 {section.links.map((link) => (
                   <li key={link.name}>
-                    <Link href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
+                    <Link
+                      href={link.href}
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
                       {link.name}
                     </Link>
                   </li>
@@ -117,6 +115,5 @@ export default function Footer() {
         </div>
       </div>
     </footer>
-  )
+  );
 }
-

@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { Heart } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { getFeaturedProducts, SimplifiedProduct } from "@/lib/supabase"
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { getFeaturedProducts, SimplifiedProduct } from "@/lib/services/api";
 
 // Remove mock products data
 // const products = [
@@ -49,7 +49,7 @@ export default function FeaturedProducts() {
         const featuredProducts = await getFeaturedProducts();
         setProducts(featuredProducts);
       } catch (error) {
-        console.error('Error loading featured products:', error);
+        console.error("Error loading featured products:", error);
       } finally {
         setLoading(false);
       }
@@ -95,16 +95,20 @@ export default function FeaturedProducts() {
           </div>
           <div className="text-center">
             <h3 className="text-sm font-medium mb-1">
-              <Link href={`/products/${product.id}`} className="hover:text-primary">
+              <Link
+                href={`/products/${product.id}`}
+                className="hover:text-primary"
+              >
                 {product.name}
               </Link>
             </h3>
-            <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
+            <p className="text-sm text-muted-foreground mb-1">
+              {product.category}
+            </p>
             <p className="font-medium">${product.price.toFixed(2)}</p>
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }
-

@@ -1,34 +1,22 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { Heart, ShoppingBag, User, Search, Menu, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Input } from "@/components/ui/input"
-import { getLogoUrl } from "@/lib/supabase"
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { Heart, ShoppingBag, User, Search, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { getLogoUrl } from "@/lib/services/api";
+import { images } from "@/app/assets/images";
 
 const navigation = [
   { name: "HOME", href: "/" },
   { name: "PRODUCTS", href: "/products" },
-]
+];
 
 export default function Header() {
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const [logoUrl, setLogoUrl] = useState<string>('');
-
-  useEffect(() => {
-    const loadLogoUrl = async () => {
-      try {
-        const url = await getLogoUrl();
-        setLogoUrl(url);
-      } catch (error) {
-        console.error('Error loading logo:', error);
-      }
-    };
-    loadLogoUrl();
-  }, []);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
     <header className="bg-background border-b">
@@ -47,7 +35,7 @@ export default function Header() {
                 <div className="border-b py-4">
                   <Link href="/" className="flex items-center justify-center">
                     <Image
-                      src={logoUrl || "/placeholder.svg"}
+                      src={images.logoURL}
                       alt="CozyBerries"
                       width={180}
                       height={50}
@@ -59,7 +47,10 @@ export default function Header() {
                   <ul className="space-y-6">
                     {navigation.map((item) => (
                       <li key={item.name}>
-                        <Link href={item.href} className="block px-4 py-2 text-base font-medium hover:text-primary">
+                        <Link
+                          href={item.href}
+                          className="block px-4 py-2 text-base font-medium hover:text-primary"
+                        >
                           {item.name}
                         </Link>
                       </li>
@@ -90,7 +81,7 @@ export default function Header() {
           <div className="flex-1 flex items-center justify-center lg:justify-start">
             <Link href="/" className="flex items-center">
               <Image
-                src={logoUrl || "/placeholder.svg"}
+                src={images.logoURL}
                 alt="CozyBerries"
                 width={180}
                 height={50}
@@ -104,7 +95,10 @@ export default function Header() {
             <ul className="flex space-x-8">
               {navigation.map((item) => (
                 <li key={item.name}>
-                  <Link href={item.href} className="text-sm font-medium hover:text-primary transition-colors">
+                  <Link
+                    href={item.href}
+                    className="text-sm font-medium hover:text-primary transition-colors"
+                  >
                     {item.name}
                   </Link>
                 </li>
@@ -114,8 +108,16 @@ export default function Header() {
 
           {/* Icons */}
           <div className="flex items-center justify-end flex-1 space-x-4">
-            <Button variant="ghost" size="icon" onClick={() => setIsSearchOpen(!isSearchOpen)}>
-              {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+            >
+              {isSearchOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Search className="h-5 w-5" />
+              )}
               <span className="sr-only">Search</span>
             </Button>
             <Button variant="ghost" size="icon" className="hidden sm:flex">
@@ -139,13 +141,17 @@ export default function Header() {
             <div className="max-w-md mx-auto">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="search" placeholder="Search for products..." className="pl-10" autoFocus />
+                <Input
+                  type="search"
+                  placeholder="Search for products..."
+                  className="pl-10"
+                  autoFocus
+                />
               </div>
             </div>
           </div>
         )}
       </div>
     </header>
-  )
+  );
 }
-
