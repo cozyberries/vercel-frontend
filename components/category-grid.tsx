@@ -16,7 +16,7 @@ const getImageForCategory = (name: string) =>
 
 export default function CategoryGrid() {
   return (
-    <div className="grid grid-cols-4 gap-8">
+    <div className="grid lg:grid-cols-4 grid-cols-3 gap-8">
       {categories.map((category) => (
         <Link
           key={category.name}

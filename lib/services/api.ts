@@ -76,8 +76,7 @@ export const getFeaturedProducts = async (): Promise<SimplifiedProduct[]> => {
   try {
     const { data } = await api.get("/products");
     return (data || []).map(normalizeProduct);
-  } catch (error) {
-    console.log(error);
+  } catch {
     return [];
   }
 };

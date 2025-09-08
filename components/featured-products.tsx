@@ -1,73 +1,19 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getFeaturedProducts, SimplifiedProduct } from "@/lib/services/api";
+import { getFeaturedProducts } from "@/lib/services/api";
 
-// Remove mock products data
-// const products = [
-//   {
-//     id: 1,
-//     name: "Organic Cotton Onesie",
-//     price: 24.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Newborn",
-//   },
-//   {
-//     id: 2,
-//     name: "Soft Knit Baby Blanket",
-//     price: 39.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Accessories",
-//   },
-//   {
-//     id: 3,
-//     name: "Ruffled Sleeve Dress",
-//     price: 32.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Girl",
-//   },
-//   {
-//     id: 4,
-//     name: "Striped Romper Set",
-//     price: 29.99,
-//     image: "/placeholder.svg?height=400&width=400",
-//     category: "Boy",
-//   },
-// ]
-
-export default function FeaturedProducts() {
-  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const featuredProducts = await getFeaturedProducts();
-        setProducts(featuredProducts);
-      } catch (error) {
-        console.error("Error loading featured products:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadProducts();
-  }, []);
-
-  if (loading) {
-    return <div className="text-center p-8">Loading featured products...</div>;
-  }
+export default async function FeaturedProducts() {
+  const products = await getFeaturedProducts();
 
   if (!products.length) {
     return <div className="text-center p-8">No featured products found.</div>;
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-      {products.map((product) => (
+    <div className="grid lg:grid-cols-4 grid-cols-2 gap-8">
+      {products.slice(0, 4).map((product) => (
         <div key={product.id} className="group">
           <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
             <Link href={`/products/${product.id}`}>
@@ -109,6 +55,11 @@ export default function FeaturedProducts() {
           </div>
         </div>
       ))}
+      <div className="col-span-full flex justify-center items-center">
+        <Button>
+          <Link href="/products">View More</Link>
+        </Button>
+      </div>
     </div>
   );
 }
