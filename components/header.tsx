@@ -2,21 +2,23 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Heart, ShoppingBag, User, Search, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { getLogoUrl } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
 
 const navigation = [
   { name: "HOME", href: "/" },
   { name: "PRODUCTS", href: "/products" },
+  { name: "About", href: "/about" },
 ];
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <header className="bg-background border-b">
@@ -45,16 +47,27 @@ export default function Header() {
                 </div>
                 <nav className="flex-1 py-8">
                   <ul className="space-y-6">
-                    {navigation.map((item) => (
-                      <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className="block px-4 py-2 text-base font-medium hover:text-primary"
-                        >
-                          {item.name}
-                        </Link>
-                      </li>
-                    ))}
+                    {navigation.map((item) => {
+                      const isActive =
+                        item.href === "/"
+                          ? pathname === "/"
+                          : pathname.startsWith(item.href);
+                      return (
+                        <li key={item.name}>
+                          <Link
+                            href={item.href}
+                            aria-current={isActive ? "page" : undefined}
+                            className={`block px-4 py-2 text-base font-medium transition-colors ${
+                              isActive
+                                ? "text-primary"
+                                : "text-foreground/80 hover:text-primary"
+                            }`}
+                          >
+                            {item.name}
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </nav>
                 <div className="border-t py-4">
@@ -93,16 +106,32 @@ export default function Header() {
           {/* Desktop navigation */}
           <nav className="hidden lg:flex items-center justify-center flex-1">
             <ul className="flex space-x-8">
-              {navigation.map((item) => (
-                <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className="text-sm font-medium hover:text-primary transition-colors"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
+              {navigation.map((item) => {
+                const isActive =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
+                return (
+                  <li key={item.name}>
+                    <Link
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`relative text-sm font-medium transition-colors ${
+                        isActive
+                          ? "text-primary"
+                          : "text-foreground/80 hover:text-primary"
+                      }`}
+                    >
+                      {item.name}
+                      <span
+                        className={`absolute left-0 -bottom-1 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 ${
+                          isActive ? "scale-x-100" : "group-hover:scale-x-100"
+                        }`}
+                      />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </nav>
 
