@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { getProductById, Product } from "@/lib/services/api";
+import { useWishlist } from "./wishlist-context";
+import { useCart } from "./cart-context";
+import { toast } from "sonner";
 
 export default function ProductDetails({ id: productId }: { id: string }) {
   const [product, setProduct] = useState<Product | null>(null);

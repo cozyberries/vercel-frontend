@@ -6,11 +6,22 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Heart, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getAllProducts, getProductCategories, SimplifiedProduct } from "@/lib/supabase";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getAllProducts,
+  getCategories,
+  SimplifiedProduct,
+} from "@/lib/services/api";
 import { useCart } from "@/components/cart-context";
 import { useWishlist } from "@/components/wishlist-context";
 import { toast } from "sonner";
+import ProductCard from "@/components/product-card";
 
 export default function ProductsClient() {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
@@ -28,7 +39,7 @@ export default function ProductsClient() {
         const allProducts = await getAllProducts();
         setProducts(allProducts);
       } catch (error) {
-        console.error('Error loading products:', error);
+        console.error("Error loading products:", error);
       } finally {
         setLoading(false);
       }
@@ -37,24 +48,28 @@ export default function ProductsClient() {
   }, []);
 
   useEffect(() => {
-    const category = searchParams.get('category');
+    const category = searchParams.get("category");
     if (category) {
       setSelectedCategory(category.toLowerCase());
     }
   }, [searchParams]);
 
   useEffect(() => {
-    getProductCategories()
+    getCategories()
       .then(setCategories)
-      .catch((err) => {
-        console.error("Error loading categories:", err);
+      .catch(() => {
+        console.error("Error loading categories");
         setCategories([]);
       });
   }, []);
 
-  const filteredProducts = products.filter(product => {
-    const matchesCategory = selectedCategory === "all" || product.category?.toLowerCase() === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory =
+      selectedCategory === "all" ||
+      product.category?.toLowerCase() === selectedCategory;
+    const matchesSearch = product.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -63,7 +78,8 @@ export default function ProductsClient() {
       <div className="mb-12 text-center">
         <h1 className="text-3xl font-light mb-4">Our Products</h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Discover our complete collection of baby clothing and accessories, carefully curated for your little ones.
+          Discover our complete collection of baby clothing and accessories,
+          carefully curated for your little ones.
         </p>
       </div>
 
@@ -71,7 +87,7 @@ export default function ProductsClient() {
         <input
           type="text"
           value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search products by name..."
           className="border border-gray-300 rounded-md px-4 py-2 w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-primary"
         />
@@ -104,97 +120,10 @@ export default function ProductsClient() {
           {filteredProducts.map((product) => {
             const isInCart = cart.some((item) => item.id === product.id);
             const inWishlist = isInWishlist(product.id);
-            return (
-              <div key={product.id} className="group">
-                <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                  <Link href={`/products/${product.id}`}>
-                    <Image
-                      src={product.image || "/placeholder.svg"}
-                      alt={product.name}
-                      width={400}
-                      height={400}
-                      className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
-                    onClick={e => {
-                      e.preventDefault();
-                      if (inWishlist) {
-                        removeFromWishlist(product.id);
-                        toast.success(`${product.name} removed from wishlist!`);
-                      } else {
-                        addToWishlist({
-                          id: product.id,
-                          name: product.name,
-                          price: product.price,
-                          image: product.image
-                        });
-                        toast.success(`${product.name} added to wishlist!`);
-                      }
-                    }}
-                  >
-                    <Heart className={`h-4 w-4 ${inWishlist ? "fill-red-500 text-red-500" : ""}`} />
-                    <span className="sr-only">{inWishlist ? "Remove from wishlist" : "Add to wishlist"}</span>
-                  </Button>
-                  {isInCart && (
-                    <div className="absolute top-4 left-4 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow z-10">
-                      Added
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-white/30 border border-gray-300 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-row gap-2 p-2 justify-center rounded-b-lg">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-full"
-                      onClick={() => {
-                        addToCart({
-                          id: product.id,
-                          name: product.name,
-                          price: product.price,
-                          image: product.image,
-                          quantity: 1
-                        });
-                        toast.success(`${product.name} added to cart!`);
-                      }}
-                      disabled={isInCart}
-                    >
-                      <Plus className="h-5 w-5" />
-                      <span className="sr-only">Add to Cart</span>
-                    </Button>
-                    {isInCart && (
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="rounded-full"
-                        onClick={() => {
-                          removeFromCart(product.id);
-                          toast.success(`${product.name} removed from cart!`);
-                        }}
-                      >
-                        <Trash2 className="h-5 w-5" />
-                        <span className="sr-only">Remove from cart</span>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <h3 className="text-sm font-medium mb-1">
-                    <Link href={`/products/${product.id}`} className="hover:text-primary">
-                      {product.name}
-                    </Link>
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
-                  <p className="font-medium">₹{product.price.toFixed(2)}</p>
-                </div>
-              </div>
-            );
+            return <ProductCard product={product} />;
           })}
         </div>
       )}
-
       <div className="flex justify-center mt-12">
         <Button variant="outline" className="mr-2" disabled>
           Previous
@@ -214,4 +143,4 @@ export default function ProductsClient() {
       </div>
     </div>
   );
-} 
+}

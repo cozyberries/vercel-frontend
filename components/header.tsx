@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCart } from "@/components/cart-context";
 import { useWishlist } from "@/components/wishlist-context";
+import { images } from "@/app/assets/images";
 
 const navigation = [
   { name: "HOME", href: "/" },

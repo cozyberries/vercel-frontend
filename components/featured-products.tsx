@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFeaturedProducts } from "@/lib/services/api";
 import ProductCard from "./product-card";
