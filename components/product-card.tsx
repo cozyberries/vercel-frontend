@@ -23,7 +23,10 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
         <Link href={`/products/${product.id}`}>
           <Image
-            src={product.image || "/placeholder.svg"}
+            src={
+              // product.image ||
+              "https://thelittlebunny.in/cdn/shop/files/E83689CF-8048-436C-B8E4-0FEFB62F3BA8.jpg?v=1714489289"
+            }
             alt={product.name}
             width={400}
             height={400}

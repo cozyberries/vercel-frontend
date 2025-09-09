@@ -94,9 +94,14 @@ export const getProductsByCategory = async (
   }
 };
 
-export const getAllProducts = async (): Promise<SimplifiedProduct[]> => {
+export const getAllProducts = async (params?: {
+  sort?: string;
+  type?: string;
+}): Promise<SimplifiedProduct[]> => {
   try {
-    const { data } = await api.get("/products");
+    const { data } = await api.get("/products", {
+      params: params || {},
+    });
     return (data || []).map(normalizeProduct);
   } catch {
     return [];
