@@ -2,80 +2,38 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { Heart, ShoppingBag, User, Search, Menu, X } from "lucide-react";
+import { User, Search, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { getLogoUrl } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
-
-const navigation = [
-  { name: "HOME", href: "/" },
-  { name: "PRODUCTS", href: "/products" },
-];
+import { useUser } from "@auth0/nextjs-auth0/client";
+import { HamburgerSheet } from "./HamburgerSheet";
+import WishlistSheet from "./WishlistSheet";
+import CartSheet from "./CartSheet";
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const pathname = usePathname();
+  const { user } = useUser();
+
+  // Close search with Esc key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsSearchOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <header className="bg-background border-b">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-20">
           {/* Mobile menu */}
-          <Sheet>
-            <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon">
-                <Menu className="h-6 w-6" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-80">
-              <div className="flex flex-col h-full">
-                <div className="border-b py-4">
-                  <Link href="/" className="flex items-center justify-center">
-                    <Image
-                      src={images.logoURL}
-                      alt="CozyBerries"
-                      width={180}
-                      height={50}
-                      className="h-12 w-auto"
-                    />
-                  </Link>
-                </div>
-                <nav className="flex-1 py-8">
-                  <ul className="space-y-6">
-                    {navigation.map((item) => (
-                      <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className="block px-4 py-2 text-base font-medium hover:text-primary"
-                        >
-                          {item.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-                <div className="border-t py-4">
-                  <div className="flex justify-center space-x-6">
-                    <Button variant="ghost" size="icon">
-                      <User className="h-5 w-5" />
-                      <span className="sr-only">Account</span>
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <Heart className="h-5 w-5" />
-                      <span className="sr-only">Wishlist</span>
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <ShoppingBag className="h-5 w-5" />
-                      <span className="sr-only">Cart</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+          <HamburgerSheet />
 
           {/* Logo */}
           <div className="flex-1 flex items-center justify-center lg:justify-start">
@@ -93,21 +51,39 @@ export default function Header() {
           {/* Desktop navigation */}
           <nav className="hidden lg:flex items-center justify-center flex-1">
             <ul className="flex space-x-8">
-              {navigation.map((item) => (
-                <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className="text-sm font-medium hover:text-primary transition-colors"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
+              {navigation.map((item) => {
+                const isActive =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
+
+                return (
+                  <li key={item.name}>
+                    <Link
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`group relative text-sm font-medium transition-colors ${
+                        isActive
+                          ? "text-primary"
+                          : "text-foreground/80 hover:text-primary"
+                      }`}
+                    >
+                      {item.name}
+                      <span
+                        className={`absolute left-0 -bottom-1 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 ${
+                          isActive ? "scale-x-100" : "group-hover:scale-x-100"
+                        }`}
+                      />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </nav>
 
-          {/* Icons */}
+          {/* Icons + Auth */}
           <div className="flex items-center justify-end flex-1 space-x-4">
+            {/* Search toggle */}
             <Button
               variant="ghost"
               size="icon"
@@ -120,18 +96,35 @@ export default function Header() {
               )}
               <span className="sr-only">Search</span>
             </Button>
-            <Button variant="ghost" size="icon" className="hidden sm:flex">
-              <User className="h-5 w-5" />
-              <span className="sr-only">Account</span>
-            </Button>
-            <Button variant="ghost" size="icon" className="hidden sm:flex">
-              <Heart className="h-5 w-5" />
-              <span className="sr-only">Wishlist</span>
-            </Button>
-            <Button variant="ghost" size="icon">
-              <ShoppingBag className="h-5 w-5" />
-              <span className="sr-only">Cart</span>
-            </Button>
+
+            {/* Auth buttons */}
+            {!user ? (
+              <Button variant="ghost" asChild>
+                <Link href="/api/auth/login">Login</Link>
+              </Button>
+            ) : (
+              <>
+                {/* User Profile */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden sm:flex"
+                  asChild
+                >
+                  <Link href="/profile" aria-label="Profile">
+                    <User className="h-5 w-5" />
+                  </Link>
+                </Button>
+
+                {/* Logout */}
+                <Button variant="ghost" asChild>
+                  <Link href="/api/auth/logout">Logout</Link>
+                </Button>
+              </>
+            )}
+
+            <WishlistSheet />
+            <CartSheet />
           </div>
         </div>
 

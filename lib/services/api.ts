@@ -58,7 +58,7 @@ export interface SimplifiedProduct {
 
 // ---------- Axios Client ----------
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_SITE_URL || "https://api.cozyberries.in/",
+  baseURL: process.env.NEXT_PUBLIC_SITE_URL,
   headers: { "Content-Type": "application/json" },
 });
 
