@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { getProductById, Product } from "@/lib/services/api";
+import { useWishlist } from "./wishlist-context";
+import { useCart } from "./cart-context";
+import { toast } from "sonner";
 
 export default function ProductDetails({ id: productId }: { id: string }) {
   const [product, setProduct] = useState<Product | null>(null);
@@ -23,6 +26,11 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<number>(0);
+
+  const { addToCart, removeFromCart, cart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const isInCart = cart.some((item) => item.id === product?.id);
+  const inWishlist = isInWishlist(product?.id ?? "");
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -203,14 +211,73 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
-              <Button size="lg" className="flex-1">
-                Add to Cart
-              </Button>
-              <Button variant="outline" size="lg" className="flex-1">
-                <Heart className="h-4 w-4 mr-2" />
-                Add to Wishlist
+              {!isInCart ? (
+                <Button
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => {
+                    addToCart({
+                      id: product.id,
+                      name: product.name,
+                      price: product.price,
+                      image: product.images[0]?.url,
+                      quantity,
+                      ...(selectedColor ? { color: selectedColor } : {}),
+                      ...(selectedSize ? { size: selectedSize } : {}),
+                    });
+                    toast.success(`${product.name} added to cart!`);
+                  }}
+                >
+                  Add to Cart
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={() => {
+                    removeFromCart(product.id);
+                    toast.success(`${product.name} removed from cart!`);
+                  }}
+                >
+                  Remove from Cart
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1"
+                onClick={() => {
+                  if (inWishlist) {
+                    removeFromWishlist(product.id);
+                    toast.success(`${product.name} removed from wishlist!`);
+                  } else {
+                    addToWishlist({
+                      id: product.id,
+                      name: product.name,
+                      price: product.price,
+                      image: product.images[0]?.url,
+                    });
+                    toast.success(`${product.name} added to wishlist!`);
+                  }
+                }}
+              >
+                <Heart
+                  className={`h-4 w-4 mr-2 ${
+                    inWishlist ? "fill-red-500 text-red-500" : ""
+                  }`}
+                />
+                {inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
               </Button>
             </div>
+
+            {isInCart && (
+              <div className="mb-4">
+                <span className="inline-block bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow">
+                  Added
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
               <div className="flex items-center gap-2">

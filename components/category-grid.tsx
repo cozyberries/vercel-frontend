@@ -32,25 +32,21 @@ const categories = [
   },
 ];
 
-// Deterministic seed based on category name
-const getImageForCategory = (name: string) =>
-  `https://picsum.photos/seed/${encodeURIComponent(name)}/400/400`;
-
 export default function CategoryGrid() {
   return (
-    <div className="grid grid-cols-4 gap-8">
+    <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
       {categories.map((category) => (
         <Link
           key={category.name}
           href={category.href}
-          className="group relative overflow-hidden rounded-lg"
+          className="group relative overflow-hidden lg:rounded-lg rounded-full"
         >
           <div className="aspect-square overflow-hidden">
             <Image
-              src={getImageForCategory(category.name)}
+              src={category.image}
               alt={category.name}
-              width={400}
-              height={400}
+              width={200}
+              height={200}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           </div>

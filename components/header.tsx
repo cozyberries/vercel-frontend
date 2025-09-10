@@ -8,11 +8,11 @@ import Image from "next/image";
 import { User, Search, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CartSheet from "@/components/CartSheet";
+import WishlistSheet from "@/components/WishlistSheet";
 import { images } from "@/app/assets/images";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { HamburgerSheet } from "./HamburgerSheet";
-import WishlistSheet from "./WishlistSheet";
-import CartSheet from "./CartSheet";
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -114,11 +114,6 @@ export default function Header() {
                   <Link href="/profile" aria-label="Profile">
                     <User className="h-5 w-5" />
                   </Link>
-                </Button>
-
-                {/* Logout */}
-                <Button variant="ghost" asChild>
-                  <Link href="/api/auth/logout">Logout</Link>
                 </Button>
               </>
             )}
