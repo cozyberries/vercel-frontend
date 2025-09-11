@@ -87,11 +87,15 @@ export default function Header() {
 
             {/* Auth buttons */}
             <>
-              {user && (
+              {user ? (
                 <Button variant="ghost">
                   <Link href="/profile">
                     <User />
                   </Link>
+                </Button>
+              ) : (
+                <Button variant="default" className="hidden lg:block">
+                  <Link href="/login">Login</Link>
                 </Button>
               )}
             </>

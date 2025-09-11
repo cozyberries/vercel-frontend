@@ -26,7 +26,7 @@ const categories = [
     href: "/products?category=tradional",
   },
   {
-    name: "Inner Wear",
+    name: "Costumes",
     image: images.categories[4],
     href: "/products?category=inner-wear",
   },
