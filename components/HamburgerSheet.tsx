@@ -6,12 +6,12 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { images } from "@/app/assets/images";
-import { useUser } from "@auth0/nextjs-auth0/client";
+import { useAuth } from "@/components/supabase-auth-provider";
 import { navigation } from "@/app/assets/data";
 
 export const HamburgerSheet = () => {
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user, loading, signOut } = useAuth();
   console.log(user);
 
   return (
@@ -84,15 +84,30 @@ export const HamburgerSheet = () => {
 
           {/* Auth Buttons */}
           <div className="border-t py-4">
-            <div className="flex justify-center">
-              {user ? (
-                <Button asChild variant="ghost">
-                  <Link href="/api/auth/logout">Logout</Link>
-                </Button>
-              ) : (
-                <Button asChild variant="ghost">
-                  <Link href="/api/auth/login">Login</Link>
-                </Button>
+            <div className="flex justify-center space-x-2">
+              {!loading && (
+                <>
+                  {!user ? (
+                    <Button asChild variant="ghost">
+                      <Link href="/login">Login</Link>
+                    </Button>
+                  ) : (
+                    <>
+                      <Button asChild variant="ghost">
+                        <Link href="/profile">Profile</Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={async () => {
+                          await signOut();
+                          window.location.href = "/";
+                        }}
+                      >
+                        Logout
+                      </Button>
+                    </>
+                  )}
+                </>
               )}
             </div>
           </div>

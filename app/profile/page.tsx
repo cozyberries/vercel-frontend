@@ -1,13 +1,13 @@
 "use client";
 
-import { useUser } from "@auth0/nextjs-auth0/client";
+import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default function ProfilePage() {
-  const { user, isLoading } = useUser();
+  const { user, loading, signOut } = useAuth();
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <p className="text-lg text-muted-foreground">Loading profile...</p>
@@ -23,7 +23,7 @@ export default function ProfilePage() {
           Please log in to view your profile.
         </p>
         <Button asChild>
-          <Link href="/api/auth/login">Login</Link>
+          <Link href="/login">Login</Link>
         </Button>
       </div>
     );
@@ -35,16 +35,24 @@ export default function ProfilePage() {
       <section className="py-20 bg-background">
         <div className="container mx-auto px-4 flex flex-col items-center text-center">
           <img
-            src={user.picture || "/default-avatar.png"}
-            alt={user.name || "Profile"}
+            src={user.user_metadata?.avatar_url || "/default-avatar.png"}
+            alt={user.user_metadata?.full_name || user.email || "Profile"}
             className="w-24 h-24 rounded-full mb-6 shadow-md"
           />
-          <h2 className="text-2xl md:text-3xl font-light">{user.name}</h2>
+          <h2 className="text-2xl md:text-3xl font-light">
+            {user.user_metadata?.full_name || user.email}
+          </h2>
           <p className="text-lg text-muted-foreground">{user.email}</p>
 
           <div className="mt-8 flex space-x-4">
-            <Button variant="outline" asChild>
-              <Link href="/api/auth/logout">Logout</Link>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await signOut();
+                window.location.href = "/";
+              }}
+            >
+              Logout
             </Button>
             <Button asChild>
               <Link href="/">Back to Home</Link>
@@ -61,7 +69,8 @@ export default function ProfilePage() {
           </h3>
           <div className="bg-white shadow rounded-xl p-6 text-left">
             <p className="mb-4">
-              <span className="font-medium">Name:</span> {user.name}
+              <span className="font-medium">Name:</span>{" "}
+              {user.user_metadata?.full_name || user.email}
             </p>
             <p className="mb-4">
               <span className="font-medium">Email:</span> {user.email}

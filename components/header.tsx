@@ -5,19 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { User, Search, X, LogOut } from "lucide-react";
+import { Search, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CartSheet from "@/components/CartSheet";
 import WishlistSheet from "@/components/WishlistSheet";
 import { images } from "@/app/assets/images";
-import { useUser } from "@auth0/nextjs-auth0/client";
+import { useAuth } from "@/components/supabase-auth-provider";
 import { HamburgerSheet } from "./HamburgerSheet";
+import HeaderLinks from "./HeaderLinks";
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user } = useAuth();
 
   // Close search with Esc key
   useEffect(() => {
@@ -58,24 +59,11 @@ export default function Header() {
                     : pathname.startsWith(item.href);
 
                 return (
-                  <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`group relative text-sm font-medium transition-colors ${
-                        isActive
-                          ? "text-primary"
-                          : "text-foreground/80 hover:text-primary"
-                      }`}
-                    >
-                      {item.name}
-                      <span
-                        className={`absolute left-0 -bottom-1 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 ${
-                          isActive ? "scale-x-100" : "group-hover:scale-x-100"
-                        }`}
-                      />
-                    </Link>
-                  </li>
+                  <HeaderLinks
+                    name={item.name}
+                    href={item.href}
+                    isActive={isActive}
+                  />
                 );
               })}
             </ul>
@@ -98,25 +86,15 @@ export default function Header() {
             </Button>
 
             {/* Auth buttons */}
-            {!user ? (
-              <Button variant="ghost" asChild>
-                <Link href="/api/auth/login">Login</Link>
-              </Button>
-            ) : (
-              <>
-                {/* User Profile */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden sm:flex"
-                  asChild
-                >
-                  <Link href="/profile" aria-label="Profile">
-                    <User className="h-5 w-5" />
+            <>
+              {user && (
+                <Button variant="ghost">
+                  <Link href="/profile">
+                    <User />
                   </Link>
                 </Button>
-              </>
-            )}
+              )}
+            </>
 
             <WishlistSheet />
             <CartSheet />

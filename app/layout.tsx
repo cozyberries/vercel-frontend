@@ -8,10 +8,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import "./globals.css";
-// import { WishlistProvider } from "@/components/wishlist-context";
-// import { CartProvider } from "@/components/cart-context";
 
-import AuthProvider from "@/components/auth-provider";
+import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -49,7 +47,7 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body className={inter.className}>
-        <AuthProvider>
+        <SupabaseAuthProvider>
           <WishlistProvider>
             <CartProvider>
               <ThemeProvider
@@ -66,7 +64,7 @@ export default function RootLayout({
               </ThemeProvider>
             </CartProvider>
           </WishlistProvider>
-        </AuthProvider>
+        </SupabaseAuthProvider>
       </body>
     </html>
   );

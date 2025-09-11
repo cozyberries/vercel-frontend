@@ -7,15 +7,13 @@ interface ProductsPageProps {
     type?: string;
   };
 }
-
 export default async function ProductsPage({
   searchParams,
 }: ProductsPageProps) {
+  const { sort, type } = await searchParams;
+
   const [products, categories] = await Promise.all([
-    getAllProducts({
-      sort: searchParams.sort,
-      type: searchParams.type,
-    }),
+    getAllProducts({ sort, type }),
     getCategories(),
   ]);
 
@@ -32,8 +30,8 @@ export default async function ProductsPage({
       <ProductsClient
         products={products}
         categories={categories}
-        currentSort={searchParams.sort}
-        currentType={searchParams.type}
+        currentSort={sort}
+        currentType={type}
       />
     </div>
   );
