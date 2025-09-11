@@ -60,6 +60,7 @@ export default function Header() {
 
                 return (
                   <HeaderLinks
+                    key={item.name}
                     name={item.name}
                     href={item.href}
                     isActive={isActive}
