@@ -36,7 +36,6 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     const loadProduct = async () => {
       try {
         const productData = await getProductById(productId);
-        console.log(productData);
         setProduct(productData);
 
         // Set default selections if product is loaded
