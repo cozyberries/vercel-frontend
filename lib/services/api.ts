@@ -71,8 +71,14 @@ export interface PaginatedResponse<T> {
 }
 
 // ---------- Axios Client ----------
+const getBaseURL = () => {
+  // Always use relative URLs for API calls to avoid CORS issues
+  // This works both in development and production
+  return '';
+};
+
 const api = axios.create({
-  baseURL: "http://localhost:3000",
+  baseURL: getBaseURL(),
   headers: { "Content-Type": "application/json" },
 });
 
