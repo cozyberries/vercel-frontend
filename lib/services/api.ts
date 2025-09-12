@@ -56,9 +56,23 @@ export interface SimplifiedProduct {
   image?: string;
 }
 
+export interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  products: T[];
+  pagination: PaginationInfo;
+}
+
 // ---------- Axios Client ----------
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  baseURL: "http://localhost:3000",
   headers: { "Content-Type": "application/json" },
 });
 
@@ -67,7 +81,8 @@ export const getCategories = async () => {
   try {
     const { data } = await api.get("/api/categories");
     return data || [];
-  } catch {
+  } catch (error) {
+    console.error("Error fetching categories:", error);
     return [];
   }
 };
@@ -77,6 +92,16 @@ export const getFeaturedProducts = async (): Promise<SimplifiedProduct[]> => {
     const { data } = await api.get("/api/products");
     return (data || []).map(normalizeProduct);
   } catch {
+    return [];
+  }
+};
+
+export const getBestsellers = async (): Promise<SimplifiedProduct[]> => {
+  try {
+    const { data } = await api.get("/api/products/bestsellers");
+    return (data || []).map(normalizeProduct);
+  } catch (error) {
+    console.error("Error fetching bestsellers:", error);
     return [];
   }
 };
@@ -103,8 +128,58 @@ export const getAllProducts = async (params?: {
       params: params || {},
     });
     return (data || []).map(normalizeProduct);
-  } catch {
+  } catch (error) {
+    console.error("Error fetching products:", error);
     return [];
+  }
+};
+
+export const getPaginatedProducts = async (params?: {
+  page?: number;
+  limit?: number;
+  category?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  bestseller?: boolean;
+}): Promise<PaginatedResponse<SimplifiedProduct>> => {
+  try {
+    const { data } = await api.get("/api/products", {
+      params: {
+        page: params?.page || 1,
+        limit: params?.limit || 12,
+        category: params?.category,
+        search: params?.search,
+        sortBy: params?.sortBy || "created_at",
+        sortOrder: params?.sortOrder || "desc",
+        bestseller: params?.bestseller,
+      },
+    });
+
+    return {
+      products: (data.products || []).map(normalizeProduct),
+      pagination: data.pagination || {
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        itemsPerPage: 12,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching paginated products:", error);
+    return {
+      products: [],
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        itemsPerPage: 12,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    };
   }
 };
 

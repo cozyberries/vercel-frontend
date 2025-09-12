@@ -1,22 +1,6 @@
-import { getAllProducts, getCategories } from "@/lib/services/api";
 import ProductsClient from "./ProductsClient";
 
-interface ProductsPageProps {
-  searchParams: {
-    sort?: string;
-    type?: string;
-  };
-}
-export default async function ProductsPage({
-  searchParams,
-}: ProductsPageProps) {
-  const { sort, type } = await searchParams;
-
-  const [products, categories] = await Promise.all([
-    getAllProducts({ sort, type }),
-    getCategories(),
-  ]);
-
+export default function ProductsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-12 text-center">
@@ -27,12 +11,7 @@ export default async function ProductsPage({
         </p>
       </div>
 
-      <ProductsClient
-        products={products}
-        categories={categories}
-        currentSort={sort}
-        currentType={type}
-      />
+      <ProductsClient />
     </div>
   );
 }

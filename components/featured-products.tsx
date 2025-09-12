@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getFeaturedProducts } from "@/lib/services/api";
+import { getBestsellers } from "@/lib/services/api";
 import ProductCard from "./product-card";
 
 export default async function FeaturedProducts() {
-  const products = await getFeaturedProducts();
+  const products = await getBestsellers();
 
   if (!products.length) {
-    return <div className="text-center p-8">No featured products found.</div>;
+    return <div className="text-center p-8">No bestsellers found.</div>;
   }
 
   return (

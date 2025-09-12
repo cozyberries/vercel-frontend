@@ -2,13 +2,64 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { Product, ProductCreate } from "@/lib/types/product";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "12");
+    const category = searchParams.get("category");
+    const search = searchParams.get("search");
+    const sortBy = searchParams.get("sortBy") || "created_at";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+
+    // Validate pagination parameters
+    if (page < 1) {
+      return NextResponse.json(
+        { error: "Page must be greater than 0" },
+        { status: 400 }
+      );
+    }
+
+    if (limit < 1 || limit > 100) {
+      return NextResponse.json(
+        { error: "Limit must be between 1 and 100" },
+        { status: 400 }
+      );
+    }
+
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    
+    // Calculate offset
+    const offset = (page - 1) * limit;
+
+    // Build query
+    let query = supabase
       .from("products")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("*", { count: "exact" });
+
+    // Apply filters
+    if (category && category !== "all") {
+      query = query.eq("category_id", category);
+    }
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    // Apply bestsellers filter
+    const isBestseller = searchParams.get("bestseller") === "true";
+    if (isBestseller) {
+      query = query.eq("is_featured", true);
+    }
+
+    // Apply sorting
+    const ascending = sortOrder === "asc";
+    query = query.order(sortBy, { ascending });
+
+    // Apply pagination
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("Error retrieving products:", error);
@@ -19,9 +70,21 @@ export async function GET() {
     }
 
     const products: Product[] = data || [];
-    console.log(`Retrieved ${products.length} products`);
+    const totalPages = Math.ceil((count || 0) / limit);
 
-    return NextResponse.json(products);
+    console.log(`Retrieved ${products.length} products (page ${page}/${totalPages})`);
+
+    return NextResponse.json({
+      products,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: count || 0,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (error) {
     console.error("Error in GET /api/products:", error);
     return NextResponse.json(
