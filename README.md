@@ -5,23 +5,27 @@ A modern Next.js application with a beautiful UI built using Tailwind CSS and Ra
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
+
 - Node.js (v18 or higher)
 - npm (v10 or higher)
 
 ## Getting Started
 
 1. Clone the repository:
+
 ```bash
 git clone <your-repository-url>
 cd cozyberries/vercel-frontend
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Start the development server:
+
 ```bash
 npm run dev
 ```
@@ -64,21 +68,25 @@ npm run dev
 ### Manual Deployment
 
 1. Build the project:
+
 ```bash
 npm run build
 ```
 
 2. Install Vercel CLI globally:
+
 ```bash
 npm install -g vercel
 ```
 
 3. Deploy to Vercel:
+
 ```bash
 vercel
 ```
 
 4. Deploy to production:
+
 ```bash
 vercel --prod
 ```
@@ -88,6 +96,7 @@ vercel --prod
 The project is configured for automatic deployments on the main branch:
 
 1. Push your changes to the main branch:
+
 ```bash
 git add .
 git commit -m "Your commit message"
@@ -114,6 +123,26 @@ If you need to set up environment variables:
 3. Go to Settings > Environment Variables
 4. Add your environment variables
 
+#### Auth0 Setup
+
+Add the following to `.env.local` (and replicate in Vercel → Settings → Environment Variables):
+
+```
+AUTH0_SECRET=replace-with-a-random-long-secret
+AUTH0_BASE_URL=http://localhost:3000
+AUTH0_ISSUER_BASE_URL=https://YOUR_TENANT_REGION.auth0.com
+AUTH0_CLIENT_ID=YOUR_CLIENT_ID
+AUTH0_CLIENT_SECRET=YOUR_CLIENT_SECRET
+```
+
+Notes:
+
+- Generate `AUTH0_SECRET` using `openssl rand -base64 32`.
+- `AUTH0_BASE_URL` must match your local URL and Vercel domain for production.
+- In Auth0 Dashboard → Application → Allowed Callback URLs/Logout URLs/Allowed Web Origins, add:
+  - `http://localhost:3000`
+  - Your Vercel domain (e.g., `https://your-app.vercel.app`)
+
 ## Contributing
 
 1. Fork the repository
@@ -124,4 +153,4 @@ If you need to set up environment variables:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
