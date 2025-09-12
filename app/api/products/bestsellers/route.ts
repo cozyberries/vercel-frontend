@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { Product } from "@/lib/types/product";
 
+// Bestsellers API endpoint for home page
+
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
