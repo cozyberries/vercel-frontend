@@ -88,7 +88,6 @@ export default function ProductsClient() {
           sortOrder: currentSortOrder as "asc" | "desc",
           bestseller: currentBestseller,
         });
-        console.log(response.products);
         setProducts(response.products);
         setPagination(response.pagination);
         setSelectedCategory(currentCategory);

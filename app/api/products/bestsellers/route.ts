@@ -7,7 +7,7 @@ import { Product } from "@/lib/types/product";
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     // Get featured products (bestsellers) with a limit
     const { data, error } = await supabase
       .from("products")
@@ -25,7 +25,6 @@ export async function GET() {
     }
 
     const bestsellers: Product[] = data || [];
-    console.log(`Retrieved ${bestsellers.length} bestsellers`);
 
     return NextResponse.json(bestsellers);
   } catch (error) {

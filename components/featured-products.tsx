@@ -1,13 +1,42 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getBestsellers } from "@/lib/services/api";
+import { getBestsellers, SimplifiedProduct } from "@/lib/services/api";
 import ProductCard from "./product-card";
 
-export default async function FeaturedProducts() {
-  const products = await getBestsellers();
+export default function FeaturedProducts() {
+  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await getBestsellers();
+        setProducts(data);
+      } catch (error) {
+        console.error("Error fetching featured products:", error);
+        setProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="text-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p>Loading featured products...</p>
+      </div>
+    );
+  }
 
   if (!products.length) {
-    return <div className="text-center p-8">No bestsellers found.</div>;
+    return <div className="text-center p-8">No featured products found.</div>;
   }
 
   return (

@@ -76,10 +76,6 @@ export async function GET(request: NextRequest) {
     const products: Product[] = data || [];
     const totalPages = Math.ceil((count || 0) / limit);
 
-    console.log(
-      `Retrieved ${products.length} products (page ${page}/${totalPages})`
-    );
-
     return NextResponse.json({
       products,
       pagination: {
@@ -151,7 +147,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Created product with data:", productData);
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error("Error in POST /api/products:", error);

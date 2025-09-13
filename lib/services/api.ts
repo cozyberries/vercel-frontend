@@ -103,10 +103,8 @@ export const getCategories = async () => {
 
 export const getBestsellers = async (): Promise<SimplifiedProduct[]> => {
   try {
-    const { data } = await api.get("/api/products", {
-      params: { bestseller: true },
-    });
-    return (data?.products || []).map(normalizeProduct);
+    const { data } = await api.get("/api/products/bestsellers");
+    return (data || []).map(normalizeProduct);
   } catch (error) {
     console.error("Error fetching bestsellers:", error);
     return [];
