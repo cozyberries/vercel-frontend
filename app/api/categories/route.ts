@@ -4,7 +4,6 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
-    console.log("Supabase client created successfully for categories");
     const { data, error } = await supabase
       .from("categories")
       .select(`

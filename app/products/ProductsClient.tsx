@@ -48,13 +48,11 @@ export default function ProductsClient() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        console.log("Fetching products and categories...");
         setError(null); // Clear any previous errors
         const [productsData, categoriesData] = await Promise.all([
           getAllProducts(),
           getCategories(),
         ]);
-        console.log("Fetched data:", { products: productsData.length, categories: categoriesData.length });
         setAllProducts(productsData);
         setCategories(categoriesData);
         
