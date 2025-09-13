@@ -238,11 +238,40 @@ export default function ProductsClient() {
 
   if (!allProducts || allProducts.length === 0) {
     return (
-      <div className="text-center p-12">
-        <p className="text-lg mb-4">No products available.</p>
-        <Button asChild>
-          <Link href="/">Go Home</Link>
-        </Button>
+      <div className="text-center py-16">
+        <div className="max-w-md mx-auto">
+          <div className="mb-6">
+            <svg
+              className="mx-auto h-24 w-24 text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-xl font-medium text-gray-900 mb-3">
+            No products available
+          </h3>
+          <p className="text-gray-500 mb-6">
+            Our product catalog is currently empty. Please check back later or contact us for more information.
+          </p>
+          <div className="space-y-3">
+            <Button asChild variant="default">
+              <Link href="/">Back to Home</Link>
+            </Button>
+            <div>
+              <Button asChild variant="outline">
+                <Link href="/contact">Contact Us</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -305,20 +334,69 @@ export default function ProductsClient() {
         {currentBestseller && " (Bestsellers only)"}
       </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-        {filteredProducts.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
+      {/* Products Grid or No Results Message */}
+      {filteredProducts.length > 0 ? (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+            {filteredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
 
-      {/* Pagination */}
-      <Pagination
-        currentPage={pagination.currentPage}
-        totalPages={pagination.totalPages}
-        onPageChange={handlePageChange}
-        className="mt-8"
-      />
+          {/* Pagination */}
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            onPageChange={handlePageChange}
+            className="mt-8"
+          />
+        </>
+      ) : (
+        <div className="text-center py-16">
+          <div className="max-w-md mx-auto">
+            <div className="mb-6">
+              <svg
+                className="mx-auto h-24 w-24 text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M9 5l7 7-7 7"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-3">
+              No products found
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {currentSearch || currentCategory !== "all" || currentBestseller
+                ? "We couldn't find any products matching your current filters. Try adjusting your search criteria."
+                : "No products are currently available. Please check back later."}
+            </p>
+            <div className="space-y-3">
+              {(currentSearch || currentCategory !== "all" || currentBestseller) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    router.push(`/products?${params.toString()}`);
+                  }}
+                  className="mr-3"
+                >
+                  Clear All Filters
+                </Button>
+              )}
+              <Button asChild variant="default">
+                <Link href="/">Back to Home</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
