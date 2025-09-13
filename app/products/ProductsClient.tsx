@@ -52,8 +52,6 @@ export default function ProductsClient() {
           getAllProducts(),
           getCategories(),
         ]);
-        console.log("Fetched products:", productsData.length);
-        console.log("Fetched categories:", categoriesData.length);
         setAllProducts(productsData);
         setCategories(categoriesData);
         setSelectedCategory(currentCategory);
@@ -71,16 +69,6 @@ export default function ProductsClient() {
 
   // Client-side filtering, sorting, and pagination
   const { filteredProducts, pagination } = useMemo(() => {
-    console.log("Filtering products:", {
-      allProducts: allProducts.length,
-      currentCategory,
-      currentSearch,
-      currentBestseller,
-      currentSort,
-      currentSortOrder,
-      currentPage,
-    });
-    
     let filtered = [...allProducts];
 
     // Filter by category
@@ -141,14 +129,6 @@ export default function ProductsClient() {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const paginatedProducts = filtered.slice(startIndex, endIndex);
-
-    console.log("Final pagination:", {
-      totalItems,
-      totalPages,
-      startIndex,
-      endIndex,
-      paginatedProducts: paginatedProducts.length,
-    });
 
     return {
       filteredProducts: paginatedProducts,

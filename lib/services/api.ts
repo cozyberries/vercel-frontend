@@ -132,7 +132,7 @@ export const getAllProducts = async (params?: {
     const { data } = await api.get("/api/products", {
       params: {
         ...params,
-        limit: 1000, // Get a large number to get all products
+        limit: 100, // Maximum allowed by API
         page: 1,
       },
     });
