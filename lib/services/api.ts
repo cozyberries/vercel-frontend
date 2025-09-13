@@ -56,6 +56,7 @@ export interface SimplifiedProduct {
   categoryId?: string;
   categoryName?: string;
   image?: string;
+  is_featured?: boolean;
 }
 
 export interface PaginationInfo {

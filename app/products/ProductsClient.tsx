@@ -33,7 +33,6 @@ export default function ProductsClient() {
   const [allProducts, setAllProducts] = useState<SimplifiedProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Get current URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1");
@@ -54,7 +53,6 @@ export default function ProductsClient() {
         ]);
         setAllProducts(productsData);
         setCategories(categoriesData);
-        setSelectedCategory(currentCategory);
       } catch (error) {
         console.error("Error fetching data:", error);
         setAllProducts([]);
@@ -76,7 +74,7 @@ export default function ProductsClient() {
       const category = categories.find((cat) => cat.slug === currentCategory);
       if (category) {
         filtered = filtered.filter(
-          (product) => product.category === category.id
+          (product) => product.categoryId === category.id
         );
       }
     }
@@ -92,10 +90,9 @@ export default function ProductsClient() {
       );
     }
 
-    // Filter by bestseller (if you have this field in your product data)
+    // Filter by bestseller
     if (currentBestseller) {
-      // Assuming you have an is_featured field or similar
-      // filtered = filtered.filter((product) => product.is_featured);
+      filtered = filtered.filter((product) => product.is_featured);
     }
 
     // Sort products
@@ -228,7 +225,7 @@ export default function ProductsClient() {
       <div className="mb-8 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Category Filter */}
-          <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+          <Select value={currentCategory} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Filter by category" />
             </SelectTrigger>

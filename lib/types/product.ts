@@ -31,6 +31,7 @@ export interface SimplifiedProduct {
   description?: string;
   category?: string;
   image?: string;
+  is_featured?: boolean;
 }
 
 export interface ProductBase {

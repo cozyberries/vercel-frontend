@@ -65,4 +65,5 @@ export const normalizeProduct = (p: any): SimplifiedProduct => ({
   categoryId: p.category_id || "Uncategorized",
   categoryName: p.categories?.name || "Uncategorized",
   image: getPrimaryImageUrl(p.images), // This will be undefined if no images
+  is_featured: p.is_featured || false,
 });

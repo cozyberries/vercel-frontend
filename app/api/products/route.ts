@@ -49,7 +49,16 @@ export async function GET(request: NextRequest) {
 
     // Apply filters
     if (category && category !== "all") {
-      query = query.eq("category_id", category);
+      // First, get the category ID from the slug
+      const { data: categoryData } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("slug", category)
+        .single();
+      
+      if (categoryData) {
+        query = query.eq("category_id", categoryData.id);
+      }
     }
 
     if (search) {
