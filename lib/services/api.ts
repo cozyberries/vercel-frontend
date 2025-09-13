@@ -53,6 +53,8 @@ export interface SimplifiedProduct {
   price: number;
   description?: string;
   category?: string;
+  categoryId?: string;
+  categoryName?: string;
   image?: string;
 }
 
@@ -72,9 +74,15 @@ export interface PaginatedResponse<T> {
 
 // ---------- Axios Client ----------
 const getBaseURL = () => {
-  // Always use relative URLs for API calls to avoid CORS issues
-  // This works both in development and production
-  return '';
+  // Handle both client-side and server-side requests
+  if (typeof window !== "undefined") {
+    // Client-side: use current origin
+    return window.location.origin;
+  }
+  // Server-side: use environment variable or default to localhost
+  return process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
 };
 
 const api = axios.create({
@@ -93,19 +101,12 @@ export const getCategories = async () => {
   }
 };
 
-export const getFeaturedProducts = async (): Promise<SimplifiedProduct[]> => {
-  try {
-    const { data } = await api.get("/api/products");
-    return (data || []).map(normalizeProduct);
-  } catch {
-    return [];
-  }
-};
-
 export const getBestsellers = async (): Promise<SimplifiedProduct[]> => {
   try {
-    const { data } = await api.get("/api/products/bestsellers");
-    return (data || []).map(normalizeProduct);
+    const { data } = await api.get("/api/products", {
+      params: { bestseller: true },
+    });
+    return (data?.products || []).map(normalizeProduct);
   } catch (error) {
     console.error("Error fetching bestsellers:", error);
     return [];

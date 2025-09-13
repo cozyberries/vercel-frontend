@@ -15,13 +15,15 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  console.log(product);
   const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const isInCart = cart.some((item) => item.id === product.id);
   const inWishlist = isInWishlist(product.id);
   return (
-    <div key={product.id} className="group">
-      <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
+    <div key={product.id} className="group flex flex-col h-full">
+      {/* Image Section */}
+      <div className="relative mb-4 overflow-hidden bg-[#f5f5f5] flex-shrink-0">
         <Link href={`/products/${product.id}`}>
           <Image
             src={
@@ -68,50 +70,73 @@ export default function ProductCard({ product }: ProductCardProps) {
             Added
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 bg-white/30 border border-gray-300 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-row gap-2 p-2 justify-center rounded-b-lg">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => {
-              addToCart({
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                image: product.image,
-                quantity: 1,
-              });
-              toast.success(`${product.name} added to cart!`);
-            }}
-            disabled={isInCart}
-          >
-            <Plus className="h-5 w-5" />
-            <span className="sr-only">Add to Cart</span>
-          </Button>
-          {isInCart && (
+      </div>
+
+      {/* Content Section */}
+      <div className="flex flex-col flex-grow">
+        {/* Product Info and Price Row */}
+        <div className="flex justify-between items-start mb-3">
+          {/* Product Info Block */}
+          <div className="flex-1 pr-2">
+            <h3 className="text-sm font-medium mb-1">
+              <Link
+                href={`/products/${product.id}`}
+                className="hover:text-primary"
+              >
+                {product.name}
+              </Link>
+            </h3>
+            {product.categoryName &&
+              product.categoryName !== "Uncategorized" && (
+                <p className="text-sm text-muted-foreground">
+                  {product.categoryName}
+                </p>
+              )}
+          </div>
+
+          {/* Price Block */}
+          <div className="flex-shrink-0">
+            <p className="font-medium text-right">
+              ₹{product.price.toFixed(2)}
+            </p>
+          </div>
+        </div>
+
+        {/* Add to Cart Button */}
+        <div className="mt-auto">
+          {!isInCart ? (
             <Button
-              variant="destructive"
-              size="icon"
-              className="rounded-full"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                addToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.image,
+                  quantity: 1,
+                });
+                toast.success(`${product.name} added to cart!`);
+              }}
+            >
+              Add to Cart
+            </Button>
+          ) : (
+            <Button
+              variant="default"
+              size="sm"
+              className="w-full"
               onClick={() => {
                 removeFromCart(product.id);
                 toast.success(`${product.name} removed from cart!`);
               }}
             >
-              <Trash2 className="h-5 w-5" />
-              <span className="sr-only">Remove from cart</span>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove from Cart
             </Button>
           )}
         </div>
-      </div>
-      <div className="text-center">
-        <h3 className="text-sm font-medium mb-1">
-          <Link href={`/products/${product.id}`} className="hover:text-primary">
-            {product.name}
-          </Link>
-        </h3>
-        <p className="text-sm text-muted-foreground mb-1">{product.category}</p>
-        <p className="font-medium">₹{product.price.toFixed(2)}</p>
       </div>
     </div>
   );

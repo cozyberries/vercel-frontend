@@ -1,5 +1,5 @@
 export const images = {
-    logoURL: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/sign/media/logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81OWNhOGQyOC00MGM3LTQwOGEtYjZmOC04NjcxMmVmNzFhM2IiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtZWRpYS9sb2dvLnBuZyIsImlhdCI6MTc1NzM0MDQxMSwiZXhwIjoxNzU3MzQ0MDExfQ.Pdplf78f9cjEzUbxDd826MfqpudA5aE1YMUqjZB5sOE",
+    logoURL: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/sign/media/logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81OWNhOGQyOC00MGM3LTQwOGEtYjZmOC04NjcxMmVmNzFhM2IiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtZWRpYS9sb2dvLnBuZyIsImlhdCI6MTc1Nzc1MzA3MiwiZXhwIjoxNzU4MzU3ODcyfQ.o0KTJjvswJu6-uv9S2XESmFZPwhRYxQnsF-ESri47ZA",
     heroImages: [
         "https://bonorganik.in/cdn/shop/products/My-Hero-_-My-Angel-Tees.jpg?v=1593094764",
         "https://www.myredpalette.com/wp-content/uploads/2014/06/Babyhero2.jpg",
@@ -12,5 +12,5 @@ export const images = {
         "https://mamaandpeaches.com/cdn/shop/files/SunflowerKurtaSet_3.jpg?v=1743155848&width=1100",
         "https://m.media-amazon.com/images/I/51uO5vDU92L._UY1100_.jpg"
     ],
-    staticProductImage: "https://thelittlebunny.in/cdn/shop/files/E83689CF-8048-436C-B8E4-0FEFB62F3BA8.jpg?v=1714489289"
+    staticProductImage: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/sign/media/sample-product.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81OWNhOGQyOC00MGM3LTQwOGEtYjZmOC04NjcxMmVmNzFhM2IiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtZWRpYS9zYW1wbGUtcHJvZHVjdC53ZWJwIiwiaWF0IjoxNzU3NzUzMTQwLCJleHAiOjE3ODkyODkxNDB9.1yJgOcRhWl0dzde1wDjkvnfzXEW5j8CfEDcM6gJDn6Q"
 }

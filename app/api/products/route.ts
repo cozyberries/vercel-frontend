@@ -28,14 +28,18 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createServerSupabaseClient();
-    
+
     // Calculate offset
     const offset = (page - 1) * limit;
 
-    // Build query
-    let query = supabase
-      .from("products")
-      .select("*", { count: "exact" });
+    // Build query with category name join
+    let query = supabase.from("products").select(
+      `
+        *,
+        categories(name)
+      `,
+      { count: "exact" }
+    );
 
     // Apply filters
     if (category && category !== "all") {
@@ -72,7 +76,9 @@ export async function GET(request: NextRequest) {
     const products: Product[] = data || [];
     const totalPages = Math.ceil((count || 0) / limit);
 
-    console.log(`Retrieved ${products.length} products (page ${page}/${totalPages})`);
+    console.log(
+      `Retrieved ${products.length} products (page ${page}/${totalPages})`
+    );
 
     return NextResponse.json({
       products,
