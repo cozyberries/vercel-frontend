@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,7 @@ import {
 } from "@/components/ui/select";
 import {
   SimplifiedProduct,
-  PaginationInfo,
-  getPaginatedProducts,
+  getAllProducts,
   getCategories,
 } from "@/lib/services/api";
 import ProductCard from "@/components/product-card";
@@ -31,83 +30,146 @@ export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<SimplifiedProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    currentPage: 1,
-    totalPages: 1,
-    totalItems: 0,
-    itemsPerPage: 12,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Get current URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1");
-  const currentSort = searchParams.get("sortBy") || "created_at";
+  const currentSort = searchParams.get("sortBy") || "default";
   const currentSortOrder = searchParams.get("sortOrder") || "desc";
   const currentCategory = searchParams.get("category") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentBestseller = searchParams.get("bestseller") === "true";
 
-  // Fetch categories on component mount
+  // Fetch all products and categories on component mount
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const categoriesData = await getCategories();
-        setCategories(categoriesData);
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  // Fetch products when parameters change
-  useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Convert category slug to ID
-        let categoryId = undefined;
-        if (currentCategory !== "all") {
-          const category = categories.find(
-            (cat) => cat.slug === currentCategory
-          );
-          categoryId = category?.id;
-        }
-
-        const response = await getPaginatedProducts({
-          page: currentPage,
-          limit: 12,
-          category: categoryId,
-          search: currentSearch || undefined,
-          sortBy: currentSort,
-          sortOrder: currentSortOrder as "asc" | "desc",
-          bestseller: currentBestseller,
-        });
-        setProducts(response.products);
-        setPagination(response.pagination);
+        const [productsData, categoriesData] = await Promise.all([
+          getAllProducts(),
+          getCategories(),
+        ]);
+        console.log("Fetched products:", productsData.length);
+        console.log("Fetched categories:", categoriesData.length);
+        setAllProducts(productsData);
+        setCategories(categoriesData);
         setSelectedCategory(currentCategory);
       } catch (error) {
-        console.error("Error fetching products:", error);
-        setProducts([]);
+        console.error("Error fetching data:", error);
+        setAllProducts([]);
+        setCategories([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchData();
+  }, []);
+
+  // Client-side filtering, sorting, and pagination
+  const { filteredProducts, pagination } = useMemo(() => {
+    console.log("Filtering products:", {
+      allProducts: allProducts.length,
+      currentCategory,
+      currentSearch,
+      currentBestseller,
+      currentSort,
+      currentSortOrder,
+      currentPage,
+    });
+    
+    let filtered = [...allProducts];
+
+    // Filter by category
+    if (currentCategory !== "all") {
+      const category = categories.find((cat) => cat.slug === currentCategory);
+      if (category) {
+        filtered = filtered.filter(
+          (product) => product.category === category.id
+        );
+      }
+    }
+
+    // Filter by search
+    if (currentSearch) {
+      const searchLower = currentSearch.toLowerCase();
+      filtered = filtered.filter(
+        (product) =>
+          product.name.toLowerCase().includes(searchLower) ||
+          (product.description &&
+            product.description.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Filter by bestseller (if you have this field in your product data)
+    if (currentBestseller) {
+      // Assuming you have an is_featured field or similar
+      // filtered = filtered.filter((product) => product.is_featured);
+    }
+
+    // Sort products
+    if (currentSort === "price") {
+      filtered.sort((a, b) => {
+        if (currentSortOrder === "asc") {
+          return a.price - b.price;
+        } else {
+          return b.price - a.price;
+        }
+      });
+    } else if (currentSort === "name") {
+      filtered.sort((a, b) => {
+        if (currentSortOrder === "asc") {
+          return a.name.localeCompare(b.name);
+        } else {
+          return b.name.localeCompare(a.name);
+        }
+      });
+    }
+    // Default sorting (by creation date or original order)
+    else if (currentSort === "default") {
+      // Keep original order or sort by creation date if available
+      // filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+
+    // Pagination
+    const itemsPerPage = 12;
+    const totalItems = filtered.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedProducts = filtered.slice(startIndex, endIndex);
+
+    console.log("Final pagination:", {
+      totalItems,
+      totalPages,
+      startIndex,
+      endIndex,
+      paginatedProducts: paginatedProducts.length,
+    });
+
+    return {
+      filteredProducts: paginatedProducts,
+      pagination: {
+        currentPage,
+        totalPages,
+        totalItems,
+        itemsPerPage,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1,
+      },
+    };
   }, [
-    currentPage,
-    currentSort,
-    currentSortOrder,
+    allProducts,
+    categories,
     currentCategory,
     currentSearch,
     currentBestseller,
-    categories,
+    currentSort,
+    currentSortOrder,
+    currentPage,
   ]);
 
   const handleSortChange = (sort: string) => {
@@ -169,7 +231,7 @@ export default function ProductsClient() {
     );
   }
 
-  if (!products || products.length === 0) {
+  if (!allProducts || allProducts.length === 0) {
     return (
       <div className="text-center p-12">
         <p className="text-lg mb-4">No products available.</p>
@@ -228,7 +290,7 @@ export default function ProductsClient() {
 
       {/* Results Info */}
       <div className="mb-6 text-sm text-gray-600">
-        Showing {products.length} of {pagination.totalItems} products
+        Showing {filteredProducts.length} of {pagination.totalItems} products
         {currentSearch && ` for "${currentSearch}"`}
         {currentCategory !== "all" &&
           ` in ${
@@ -240,7 +302,7 @@ export default function ProductsClient() {
 
       {/* Products Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-        {products.map((product) => (
+        {filteredProducts.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>

@@ -130,9 +130,14 @@ export const getAllProducts = async (params?: {
 }): Promise<SimplifiedProduct[]> => {
   try {
     const { data } = await api.get("/api/products", {
-      params: params || {},
+      params: {
+        ...params,
+        limit: 1000, // Get a large number to get all products
+        page: 1,
+      },
     });
-    return (data || []).map(normalizeProduct);
+    // The API returns { products: [...], pagination: {...} }
+    return (data?.products || []).map(normalizeProduct);
   } catch (error) {
     console.error("Error fetching products:", error);
     return [];
