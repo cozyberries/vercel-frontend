@@ -26,10 +26,7 @@ export default function WishlistItem({
   return (
     <div className="flex items-center gap-4 border-b pb-4">
       <img
-        src={
-          // item.image ||
-          images.staticProductImage
-        }
+        src={item.image || images.staticProductImage}
         alt={item.name}
         className="w-16 h-16 object-cover rounded"
       />

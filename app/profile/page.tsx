@@ -3,48 +3,86 @@
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import ProfileForm from "@/components/profile/ProfileForm";
+import AddressList from "@/components/profile/AddressList";
+import AddressFormModal from "@/components/profile/AddressFormModal";
+import { useProfile } from "@/hooks/useProfile";
 
 export default function ProfilePage() {
-  const { user, loading, signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const {
+    profile,
+    addresses,
+    isLoading,
+    isSaving,
+    isEditing,
+    showAddAddress,
+    editingAddress,
+    editData,
+    validationErrors,
+    addressData,
+    addressValidationErrors,
+    handleInputChange,
+    handleSave,
+    handleCancel,
+    handleEdit,
+    handleAddAddress,
+    handleUpdateAddress,
+    handleDeleteAddress,
+    handleSetDefault,
+    handleEditAddress,
+    handleCloseAddressModal,
+    setShowAddAddress,
+    setAddressData,
+  } = useProfile(user);
 
-  if (loading) {
+  if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-lg text-muted-foreground">Loading profile...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Please log in to view your profile
+          </h1>
+          <Link href="/login">
+            <Button>Go to Login</Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
-  if (!user) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <h2 className="text-2xl md:text-3xl font-light mb-4">Not Logged In</h2>
-        <p className="text-muted-foreground mb-6">
-          Please log in to view your profile.
-        </p>
-        <Button asChild>
-          <Link href="/login">Login</Link>
-        </Button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading profile...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="py-20 bg-background">
-        <div className="container mx-auto px-4 flex flex-col items-center text-center">
-          <img
-            src={user.user_metadata?.avatar_url || "/default-avatar.png"}
-            alt={user.user_metadata?.full_name || user.email || "Profile"}
-            className="w-24 h-24 rounded-full mb-6 shadow-md"
-          />
-          <h2 className="text-2xl md:text-3xl font-light">
-            {user.user_metadata?.full_name || user.email}
-          </h2>
-          <p className="text-lg text-muted-foreground">{user.email}</p>
-
-          <div className="mt-8 flex space-x-4">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link href="/">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Home
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
+                <p className="text-gray-600">
+                  Manage your personal information and addresses
+                </p>
+              </div>
+            </div>
             <Button
               variant="outline"
               onClick={async () => {
@@ -54,30 +92,62 @@ export default function ProfilePage() {
             >
               Logout
             </Button>
-            <Button asChild>
-              <Link href="/">Back to Home</Link>
-            </Button>
           </div>
         </div>
-      </section>
 
-      {/* Account Info */}
-      <section className="py-20 bg-[#f9f7f4]">
-        <div className="container mx-auto px-4 max-w-2xl text-center">
-          <h3 className="text-xl md:text-2xl font-light mb-6">
-            Account Details
-          </h3>
-          <div className="bg-white shadow rounded-xl p-6 text-left">
-            <p className="mb-4">
-              <span className="font-medium">Name:</span>{" "}
-              {user.user_metadata?.full_name || user.email}
-            </p>
-            <p className="mb-4">
-              <span className="font-medium">Email:</span> {user.email}
-            </p>
-          </div>
-        </div>
-      </section>
+        {/* Profile Form */}
+        <ProfileForm
+          profile={profile}
+          isEditing={isEditing}
+          isSaving={isSaving}
+          validationErrors={validationErrors}
+          editData={editData}
+          onEdit={handleEdit}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          onInputChange={handleInputChange}
+        />
+
+        {/* Address List */}
+        <AddressList
+          addresses={addresses}
+          onAddAddress={() => setShowAddAddress(true)}
+          onEditAddress={handleEditAddress}
+          onDeleteAddress={handleDeleteAddress}
+          onSetDefault={handleSetDefault}
+        />
+
+        {/* Account Information
+        <AccountInfo profile={profile} user={user} /> */}
+
+        {/* Address Form Modal */}
+        <AddressFormModal
+          isOpen={showAddAddress || !!editingAddress}
+          isEditing={!!editingAddress}
+          isSaving={isSaving}
+          addressData={addressData}
+          validationErrors={addressValidationErrors}
+          onClose={handleCloseAddressModal}
+          onSave={() =>
+            editingAddress
+              ? handleUpdateAddress(editingAddress)
+              : handleAddAddress()
+          }
+          onInputChange={(field: string, value: string) => {
+            if (field === "is_default") {
+              setAddressData((prev) => ({
+                ...prev,
+                is_default: value === "true",
+              }));
+            } else {
+              setAddressData((prev) => ({
+                ...prev,
+                [field]: value,
+              }));
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -31,6 +31,7 @@ export interface SimplifiedProduct {
   description?: string;
   category?: string;
   image?: string;
+  is_featured?: boolean;
 }
 
 export interface ProductBase {
@@ -53,6 +54,21 @@ export interface Product extends ProductBase {
   id: string;
   created_at: string;
   updated_at?: string;
+  slug?: string;
+  stock_quantity?: number;
+  is_featured?: boolean;
+  category_id?: string;
+  categories?: { name: string };
+  images?: ProductImage[];
+}
+
+export interface CategoryImage {
+  id: string;
+  storage_path: string;
+  is_primary?: boolean;
+  display_order?: number;
+  metadata?: any;
+  url?: string;
 }
 
 export interface Category {
@@ -60,4 +76,5 @@ export interface Category {
   name: string;
   slug: string;
   description?: string;
+  images?: CategoryImage[];
 }

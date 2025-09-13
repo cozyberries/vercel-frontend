@@ -7,8 +7,6 @@ import Footer from "@/components/footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
-import "./globals.css";
-
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 
 const inter = Inter({ subsets: ["latin"] });

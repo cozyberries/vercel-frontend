@@ -12,7 +12,6 @@ import { navigation } from "@/app/assets/data";
 export const HamburgerSheet = () => {
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
-  console.log(user);
 
   return (
     <Sheet>

@@ -27,7 +27,7 @@ export default function Home() {
       <section className="py-20 bg-[#f9f7f4]">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl md:text-3xl font-light text-center mb-12">
-            Our Bestsellers
+            Our Featured Products
           </h2>
           <FeaturedProducts />
         </div>

@@ -53,30 +53,88 @@ export interface SimplifiedProduct {
   price: number;
   description?: string;
   category?: string;
+  categoryId?: string;
+  categoryName?: string;
   image?: string;
+  is_featured?: boolean;
+}
+
+export interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  products: T[];
+  pagination: PaginationInfo;
 }
 
 // ---------- Axios Client ----------
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-  headers: { "Content-Type": "application/json" },
-});
-
-// ---------- API Functions ----------
-export const getCategories = async () => {
-  try {
-    const { data } = await api.get("/api/categories");
-    return data || [];
-  } catch {
-    return [];
+const getBaseURL = () => {
+  // Handle both client-side and server-side requests
+  if (typeof window !== "undefined") {
+    // Client-side: use current origin
+    return window.location.origin;
   }
+  // Server-side: use environment variable or default to localhost
+  return process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
 };
 
-export const getFeaturedProducts = async (): Promise<SimplifiedProduct[]> => {
+const api = axios.create({
+  baseURL: getBaseURL(),
+  headers: { "Content-Type": "application/json" },
+  timeout: 10000, // 10 second timeout
+});
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout:', error.config.url);
+    } else if (error.response?.status >= 500) {
+      console.error('Server error:', error.response.status, error.config.url);
+    } else if (!error.response) {
+      console.error('Network error:', error.message, error.config.url);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ---------- API Functions ----------
+export const getCategories = async (retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/categories");
+      return data || [];
+    } catch (error) {
+      console.error(`Error fetching categories (attempt ${i + 1}/${retries}):`, error);
+      
+      // If it's the last retry, return empty array
+      if (i === retries - 1) {
+        console.error("Failed to fetch categories after all retries");
+        return [];
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+    }
+  }
+  return [];
+};
+
+export const getBestsellers = async (): Promise<SimplifiedProduct[]> => {
   try {
-    const { data } = await api.get("/api/products");
+    const { data } = await api.get("/api/products/bestsellers");
     return (data || []).map(normalizeProduct);
-  } catch {
+  } catch (error) {
+    console.error("Error fetching bestsellers:", error);
     return [];
   }
 };
@@ -97,14 +155,80 @@ export const getProductsByCategory = async (
 export const getAllProducts = async (params?: {
   sort?: string;
   type?: string;
-}): Promise<SimplifiedProduct[]> => {
+}, retries = 3): Promise<SimplifiedProduct[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/products", {
+        params: {
+          ...params,
+          limit: 100, // Maximum allowed by API
+          page: 1,
+        },
+      });
+      // The API returns { products: [...], pagination: {...} }
+      return (data?.products || []).map(normalizeProduct);
+    } catch (error) {
+      console.error(`Error fetching products (attempt ${i + 1}/${retries}):`, error);
+      
+      // If it's the last retry, return empty array
+      if (i === retries - 1) {
+        console.error("Failed to fetch products after all retries");
+        return [];
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+    }
+  }
+  return [];
+};
+
+export const getPaginatedProducts = async (params?: {
+  page?: number;
+  limit?: number;
+  category?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  bestseller?: boolean;
+}): Promise<PaginatedResponse<SimplifiedProduct>> => {
   try {
     const { data } = await api.get("/api/products", {
-      params: params || {},
+      params: {
+        page: params?.page || 1,
+        limit: params?.limit || 12,
+        category: params?.category,
+        search: params?.search,
+        sortBy: params?.sortBy || "created_at",
+        sortOrder: params?.sortOrder || "desc",
+        bestseller: params?.bestseller,
+      },
     });
-    return (data || []).map(normalizeProduct);
-  } catch {
-    return [];
+
+    return {
+      products: (data.products || []).map(normalizeProduct),
+      pagination: data.pagination || {
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        itemsPerPage: 12,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching paginated products:", error);
+    return {
+      products: [],
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        itemsPerPage: 12,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    };
   }
 };
 
@@ -114,16 +238,8 @@ export const getProductById = async (id: string): Promise<Product | null> => {
 
     const images: ProductImage[] = data.images?.map((img: any) => ({
       ...img,
-      url: img.url || img.storage_path || "/placeholder.jpg",
-    })) || [
-      {
-        id: "default",
-        storage_path: "",
-        is_primary: true,
-        display_order: 0,
-        url: "/placeholder.jpg",
-      },
-    ];
+      url: img.url || `/${img.storage_path}`,
+    })) || [];
 
     const variants: ProductVariant[] = (data.variants || []).map((v: any) => ({
       id: v.id,

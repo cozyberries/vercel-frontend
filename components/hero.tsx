@@ -6,10 +6,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { images } from "@/app/assets/images";
 
-const HERO_IMAGES = images.heroImages;
+const HERO_IMAGES = images.heroImages.length > 0 ? images.heroImages : ["/placeholder.jpg"];
+const FALLBACK_IMAGE = "/placeholder.jpg";
 
 export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -17,6 +19,10 @@ export default function Hero() {
     }, 4000);
     return () => clearInterval(intervalId);
   }, []);
+
+  const handleImageError = (index: number) => {
+    setImageErrors(prev => new Set(prev).add(index));
+  };
 
   return (
     <section className="relative h-[500px] md:h-[600px] bg-[#f5eee0] overflow-hidden">
@@ -42,7 +48,7 @@ export default function Hero() {
             {HERO_IMAGES.map((src, index) => (
               <Image
                 key={src}
-                src={src}
+                src={imageErrors.has(index) ? FALLBACK_IMAGE : src}
                 alt="Baby clothing collection"
                 fill
                 sizes="50vw"
@@ -50,6 +56,7 @@ export default function Hero() {
                   index === currentIndex ? "opacity-100" : "opacity-0"
                 }`}
                 priority={index === 0}
+                onError={() => handleImageError(index)}
               />
             ))}
           </div>
