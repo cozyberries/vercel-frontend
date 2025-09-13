@@ -128,8 +128,25 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in GET /api/products:", error);
+    
+    // Check if it's a Supabase client creation error
+    if (error instanceof Error && error.message.includes('Missing Supabase environment variables')) {
+      return NextResponse.json(
+        { error: "Database configuration error" },
+        { status: 500 }
+      );
+    }
+    
+    // Check if it's a network/connection error
+    if (error instanceof Error && (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED'))) {
+      return NextResponse.json(
+        { error: "Database connection failed" },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

@@ -89,17 +89,44 @@ const getBaseURL = () => {
 const api = axios.create({
   baseURL: getBaseURL(),
   headers: { "Content-Type": "application/json" },
+  timeout: 10000, // 10 second timeout
 });
 
-// ---------- API Functions ----------
-export const getCategories = async () => {
-  try {
-    const { data } = await api.get("/api/categories");
-    return data || [];
-  } catch (error) {
-    console.error("Error fetching categories:", error);
-    return [];
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout:', error.config.url);
+    } else if (error.response?.status >= 500) {
+      console.error('Server error:', error.response.status, error.config.url);
+    } else if (!error.response) {
+      console.error('Network error:', error.message, error.config.url);
+    }
+    return Promise.reject(error);
   }
+);
+
+// ---------- API Functions ----------
+export const getCategories = async (retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/categories");
+      return data || [];
+    } catch (error) {
+      console.error(`Error fetching categories (attempt ${i + 1}/${retries}):`, error);
+      
+      // If it's the last retry, return empty array
+      if (i === retries - 1) {
+        console.error("Failed to fetch categories after all retries");
+        return [];
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+    }
+  }
+  return [];
 };
 
 export const getBestsellers = async (): Promise<SimplifiedProduct[]> => {
@@ -128,21 +155,32 @@ export const getProductsByCategory = async (
 export const getAllProducts = async (params?: {
   sort?: string;
   type?: string;
-}): Promise<SimplifiedProduct[]> => {
-  try {
-    const { data } = await api.get("/api/products", {
-      params: {
-        ...params,
-        limit: 100, // Maximum allowed by API
-        page: 1,
-      },
-    });
-    // The API returns { products: [...], pagination: {...} }
-    return (data?.products || []).map(normalizeProduct);
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    return [];
+}, retries = 3): Promise<SimplifiedProduct[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/products", {
+        params: {
+          ...params,
+          limit: 100, // Maximum allowed by API
+          page: 1,
+        },
+      });
+      // The API returns { products: [...], pagination: {...} }
+      return (data?.products || []).map(normalizeProduct);
+    } catch (error) {
+      console.error(`Error fetching products (attempt ${i + 1}/${retries}):`, error);
+      
+      // If it's the last retry, return empty array
+      if (i === retries - 1) {
+        console.error("Failed to fetch products after all retries");
+        return [];
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+    }
   }
+  return [];
 };
 
 export const getPaginatedProducts = async (params?: {

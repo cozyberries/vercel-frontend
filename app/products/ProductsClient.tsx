@@ -33,6 +33,7 @@ export default function ProductsClient() {
   const [allProducts, setAllProducts] = useState<SimplifiedProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Get current URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1");
@@ -47,14 +48,24 @@ export default function ProductsClient() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
+        console.log("Fetching products and categories...");
+        setError(null); // Clear any previous errors
         const [productsData, categoriesData] = await Promise.all([
           getAllProducts(),
           getCategories(),
         ]);
+        console.log("Fetched data:", { products: productsData.length, categories: categoriesData.length });
         setAllProducts(productsData);
         setCategories(categoriesData);
+        
+        // Check if we got no data, which might indicate an API issue
+        if (productsData.length === 0 && categoriesData.length === 0) {
+          setError("Unable to load product data. Please check your connection and try again.");
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
+        setError("Failed to load products. Please try refreshing the page.");
+        // Set empty arrays as fallback to prevent crashes
         setAllProducts([]);
         setCategories([]);
       } finally {
@@ -204,6 +215,25 @@ export default function ProductsClient() {
       <div className="text-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p className="text-lg">Loading products...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center p-12">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+          <div className="text-red-600 mb-4">
+            <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-red-800 mb-2">Connection Error</h3>
+          <p className="text-red-700 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Try Again
+          </Button>
+        </div>
       </div>
     );
   }
