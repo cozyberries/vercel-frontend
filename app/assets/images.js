@@ -1,5 +1,6 @@
 export const images = {
     logoURL: "/logo.png",
+    staticProductImage: "/placeholder.jpg", // Default fallback image
     heroImages: [
         "https://bonorganik.in/cdn/shop/products/My-Hero-_-My-Angel-Tees.jpg?v=1593094764",
         "https://www.myredpalette.com/wp-content/uploads/2014/06/Babyhero2.jpg",
@@ -11,6 +12,5 @@ export const images = {
         "https://teamjapanese.com/wp-content/uploads/2022/03/boy-in-japanese.jpg",
         "https://mamaandpeaches.com/cdn/shop/files/SunflowerKurtaSet_3.jpg?v=1743155848&width=1100",
         "https://m.media-amazon.com/images/I/51uO5vDU92L._UY1100_.jpg"
-    ],
-    staticProductImage: "/sample-product.webp"
+    ]
 }

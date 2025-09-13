@@ -25,10 +25,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="relative mb-4 overflow-hidden bg-[#f5f5f5] flex-shrink-0">
         <Link href={`/products/${product.id}`}>
           <Image
-            src={
-              // product.image ||
-              images.staticProductImage
-            }
+            src={product.image || images.staticProductImage}
             alt={product.name}
             width={400}
             height={400}

@@ -20,7 +20,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(`
+        *,
+        categories(name),
+        product_images(
+          id,
+          storage_path,
+          is_primary,
+          display_order
+        )
+      `)
       .eq("id", id)
       .single();
 
@@ -39,7 +48,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    return NextResponse.json(data);
+    // Process product to add image URLs
+    const product = {
+      ...data,
+      images: (data.product_images || [])
+        .filter((img: any) => img.storage_path) // Filter out images with null storage_path
+        .map((img: any) => ({
+          id: img.id,
+          storage_path: img.storage_path,
+          is_primary: img.is_primary,
+          display_order: img.display_order,
+          url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
+        }))
+        .sort((a: any, b: any) => {
+          // Sort by display_order, then by is_primary
+          if (a.display_order !== b.display_order) {
+            return (a.display_order || 0) - (b.display_order || 0);
+          }
+          return b.is_primary ? 1 : -1;
+        }),
+    };
+
+    return NextResponse.json(product);
   } catch (error) {
     console.error("Error in GET /api/products/[id]:", error);
     return NextResponse.json(

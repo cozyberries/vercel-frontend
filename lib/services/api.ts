@@ -199,16 +199,8 @@ export const getProductById = async (id: string): Promise<Product | null> => {
 
     const images: ProductImage[] = data.images?.map((img: any) => ({
       ...img,
-      url: img.url || img.storage_path || "/placeholder.jpg",
-    })) || [
-      {
-        id: "default",
-        storage_path: "",
-        is_primary: true,
-        display_order: 0,
-        url: "/placeholder.jpg",
-      },
-    ];
+      url: img.url || `/${img.storage_path}`,
+    })) || [];
 
     const variants: ProductVariant[] = (data.variants || []).map((v: any) => ({
       id: v.id,

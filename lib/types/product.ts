@@ -53,6 +53,12 @@ export interface Product extends ProductBase {
   id: string;
   created_at: string;
   updated_at?: string;
+  slug?: string;
+  stock_quantity?: number;
+  is_featured?: boolean;
+  category_id?: string;
+  categories?: { name: string };
+  images?: ProductImage[];
 }
 
 export interface Category {

@@ -272,12 +272,12 @@ export default function AddressFormModal({
                 !addressData.city ||
                 !addressData.state ||
                 !addressData.postal_code ||
-                validationErrors.full_name ||
-                validationErrors.phone ||
-                validationErrors.address_line_1 ||
-                validationErrors.city ||
-                validationErrors.state ||
-                validationErrors.postal_code
+                !!validationErrors.full_name ||
+                !!validationErrors.phone ||
+                !!validationErrors.address_line_1 ||
+                !!validationErrors.city ||
+                !!validationErrors.state ||
+                !!validationErrors.postal_code
               }
             >
               {isSaving

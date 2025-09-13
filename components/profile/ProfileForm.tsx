@@ -62,8 +62,8 @@ export default function ProfileForm({
               onClick={onSave}
               disabled={
                 isSaving ||
-                validationErrors.full_name ||
-                validationErrors.phone
+                !!validationErrors.full_name ||
+                !!validationErrors.phone
               }
               className="flex items-center space-x-2"
             >

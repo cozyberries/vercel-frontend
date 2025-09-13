@@ -32,11 +32,17 @@ export async function GET(request: NextRequest) {
     // Calculate offset
     const offset = (page - 1) * limit;
 
-    // Build query with category name join
+    // Build query with category name join and product images
     let query = supabase.from("products").select(
       `
         *,
-        categories(name)
+        categories(name),
+        product_images(
+          id,
+          storage_path,
+          is_primary,
+          display_order
+        )
       `,
       { count: "exact" }
     );
@@ -73,7 +79,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const products: Product[] = data || [];
+    // Process products to add image URLs
+    const products: Product[] = (data || []).map((product: any) => {
+      const images = (product.product_images || [])
+        .filter((img: any) => img.storage_path) // Filter out images with null storage_path
+        .map((img: any) => ({
+          id: img.id,
+          storage_path: img.storage_path,
+          is_primary: img.is_primary,
+          display_order: img.display_order,
+          url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
+        }))
+        .sort((a: any, b: any) => {
+          // Sort by display_order, then by is_primary
+          if (a.display_order !== b.display_order) {
+            return (a.display_order || 0) - (b.display_order || 0);
+          }
+          return b.is_primary ? 1 : -1;
+        });
+
+      return {
+        ...product,
+        images,
+      };
+    });
+
     const totalPages = Math.ceil((count || 0) / limit);
 
     return NextResponse.json({
