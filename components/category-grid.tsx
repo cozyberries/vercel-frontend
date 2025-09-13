@@ -67,8 +67,16 @@ export default function CategoryGrid() {
     <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
       {categories.map((category) => {
         // Use dynamic category image if available, otherwise fallback to placeholder
-        const dynamicImage = getPrimaryCategoryImageUrl(category.images);
-        const categoryImage = dynamicImage || images.staticCategoryImage;
+        let categoryImage = images.staticCategoryImage;
+        try {
+          const dynamicImage = getPrimaryCategoryImageUrl(category.images);
+          if (dynamicImage) {
+            categoryImage = dynamicImage;
+          }
+        } catch (error) {
+          console.warn('Error getting category image for', category.name, error);
+          // categoryImage already set to fallback
+        }
 
         return (
           <Link
