@@ -5,13 +5,21 @@ import { images } from "@/app/assets/images";
 import Image from "next/image";
 import Link from "next/link";
 import { getCategories } from "@/lib/services/api";
+import { getPrimaryCategoryImageUrl } from "@/lib/utils/product";
 
 interface Category {
   id: string;
   name: string;
   slug: string;
   description?: string;
-  image?: string;
+  images?: Array<{
+    id: string;
+    storage_path: string;
+    is_primary?: boolean;
+    display_order?: number;
+    metadata?: any;
+    url?: string;
+  }>;
 }
 
 export default function CategoryGrid() {
@@ -57,10 +65,10 @@ export default function CategoryGrid() {
 
   return (
     <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
-      {categories.map((category, index) => {
-        // Use category image if available, otherwise fallback to static images
-        const categoryImage =
-          category.image || images.categories[index % images.categories.length];
+      {categories.map((category) => {
+        // Use dynamic category image if available, otherwise fallback to placeholder
+        const dynamicImage = getPrimaryCategoryImageUrl(category.images);
+        const categoryImage = dynamicImage || images.staticCategoryImage;
 
         return (
           <Link
