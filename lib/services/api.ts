@@ -133,26 +133,18 @@ export const getCategories = async (retries = 3) => {
   return [];
 };
 
-
-
 export const getAllProducts = async (
-  params?: {
-    sort?: string;
-    type?: string;
-  },
   retries = 3
 ): Promise<SimplifiedProduct[]> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/products", {
         params: {
-          ...params,
           limit: 100, // Maximum allowed by API
-          page: 1,
         },
       });
-      // The API returns { products: [...], pagination: {...} }
-      return (data?.products || []).map(normalizeProduct);
+      // The API now returns products array directly
+      return (data || []).map(normalizeProduct);
     } catch (error) {
       console.error(
         `Error fetching products (attempt ${i + 1}/${retries}):`,
@@ -174,6 +166,38 @@ export const getAllProducts = async (
   return [];
 };
 
+export const getAllProductsDetailed = async (
+  retries = 3
+): Promise<Product[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/products", {
+        params: {
+          limit: 100, // Maximum allowed by API
+        },
+      });
+      // Return full product data without normalization
+      return data || [];
+    } catch (error) {
+      console.error(
+        `Error fetching detailed products (attempt ${i + 1}/${retries}):`,
+        error
+      );
+
+      // If it's the last retry, return empty array
+      if (i === retries - 1) {
+        console.error("Failed to fetch detailed products after all retries");
+        return [];
+      }
+
+      // Wait before retrying (exponential backoff)
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
+  }
+  return [];
+};
 
 export const getProductById = async (id: string): Promise<Product | null> => {
   try {
