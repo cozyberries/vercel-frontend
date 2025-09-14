@@ -18,6 +18,7 @@ import {
 } from "@/lib/services/api";
 import ProductCard from "@/components/product-card";
 import Pagination from "@/components/ui/pagination";
+import FilterSheet from "@/components/FilterSheet";
 
 interface Category {
   id: string;
@@ -208,6 +209,11 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
+  const handleClearFilters = () => {
+    const params = new URLSearchParams();
+    router.push(`/products?${params.toString()}`);
+  };
+
   if (isLoading) {
     return (
       <div className="text-center p-12">
@@ -280,7 +286,24 @@ export default function ProductsClient() {
     <>
       {/* Filters and Search */}
       <div className="mb-8 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        {/* Mobile Filter Button */}
+        <div className="flex justify-between items-center md:hidden">
+          <h2 className="text-lg font-medium">Products</h2>
+          <FilterSheet
+            categories={categories}
+            currentCategory={currentCategory}
+            currentSort={currentSort}
+            currentSortOrder={currentSortOrder}
+            currentBestseller={currentBestseller}
+            onCategoryChange={handleCategoryChange}
+            onSortChange={handleSortChange}
+            onBestsellerToggle={handleBestsellerToggle}
+            onClearFilters={handleClearFilters}
+          />
+        </div>
+
+        {/* Desktop Filters */}
+        <div className="hidden md:flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Category Filter */}
           <Select value={currentCategory} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-[200px]">
