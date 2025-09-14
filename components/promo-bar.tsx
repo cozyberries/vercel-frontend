@@ -8,7 +8,7 @@ export default function PromoBar() {
   if (!isVisible) return null;
 
   return (
-    <div className="w-full top-0 left-0 right-0 bg-[#e8e3d7] text-sm py-1 z-50">
+    <div className="w-full top-0 left-0 right-0 bg-[#e8e3d7] text-sm py-1 z-10">
       <Marquee
         gradient={false}
         speed={50}
