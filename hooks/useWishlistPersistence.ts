@@ -13,6 +13,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
+  const isInitializingRef = useRef(false);
 
   /**
    * Debounced sync to Supabase to avoid excessive API calls
@@ -46,6 +47,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   const loadInitialWishlist = useCallback(async () => {
     if (authLoading || hasInitializedRef.current) return;
 
+    isInitializingRef.current = true;
     try {
       const localWishlist = wishlistService.getLocalWishlist();
 
@@ -56,7 +58,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
         
         setWishlist(mergedWishlist);
         
-        // Save merged wishlist locally and remotely
+        // Save merged wishlist immediately since we're initializing
         wishlistService.saveLocalWishlist(mergedWishlist);
         if (mergedWishlist.length > 0) {
           await wishlistService.saveUserWishlist(user.id, mergedWishlist);
@@ -73,6 +75,8 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
       const localWishlist = wishlistService.getLocalWishlist();
       setWishlist(localWishlist);
       hasInitializedRef.current = true;
+    } finally {
+      isInitializingRef.current = false;
     }
   }, [user?.id, authLoading, setWishlist]);
 
@@ -158,12 +162,13 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     }
   }, [user?.id, handleAuthChange]);
 
-  // Persist wishlist changes
+  // Persist wishlist changes (but skip during initialization to avoid duplicate saves)
   useEffect(() => {
-    if (hasInitializedRef.current && wishlist.length >= 0) {
+    // Only persist if initialized, not currently loading, and not initializing
+    if (hasInitializedRef.current && wishlist.length >= 0 && !authLoading && !isInitializingRef.current) {
       persistWishlist(wishlist);
     }
-  }, [wishlist, persistWishlist]);
+  }, [wishlist, persistWishlist, authLoading]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

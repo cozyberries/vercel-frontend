@@ -13,6 +13,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
+  const isInitializingRef = useRef(false);
 
   /**
    * Debounced sync to Supabase to avoid excessive API calls
@@ -46,6 +47,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
   const loadInitialCart = useCallback(async () => {
     if (authLoading || hasInitializedRef.current) return;
 
+    isInitializingRef.current = true;
     try {
       const localCart = cartService.getLocalCart();
 
@@ -55,8 +57,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
         const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
         
         setCart(mergedCart);
-        
-        // Save merged cart locally and remotely
+        // Save merged cart immediately since we're initializing
         cartService.saveLocalCart(mergedCart);
         if (mergedCart.length > 0) {
           await cartService.saveUserCart(user.id, mergedCart);
@@ -73,6 +74,8 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
       const localCart = cartService.getLocalCart();
       setCart(localCart);
       hasInitializedRef.current = true;
+    } finally {
+      isInitializingRef.current = false;
     }
   }, [user?.id, authLoading, setCart]);
 
@@ -96,11 +99,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
         const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
         
         setCart(mergedCart);
-        cartService.saveLocalCart(mergedCart);
-        
-        if (mergedCart.length > 0) {
-          await cartService.saveUserCart(currentUserId, mergedCart);
-        }
+        // Note: persistence effect will handle saving merged cart
       } catch (error) {
         console.error("Error merging carts on sign in:", error);
       }
@@ -158,12 +157,13 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
     }
   }, [user?.id, handleAuthChange]);
 
-  // Persist cart changes
+  // Persist cart changes (but skip during initialization to avoid duplicate saves)
   useEffect(() => {
-    if (hasInitializedRef.current && cart.length >= 0) {
+    // Only persist if initialized, not currently loading, and not initializing
+    if (hasInitializedRef.current && cart.length >= 0 && !authLoading && !isInitializingRef.current) {
       persistCart(cart);
     }
-  }, [cart, persistCart]);
+  }, [cart, persistCart, authLoading]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
