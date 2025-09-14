@@ -15,7 +15,7 @@ import { images } from "@/app/assets/images";
 import CartItem from "@/components/CartItem";
 
 export default function CartSheet() {
-  const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { cart, updateQuantity, removeFromCart, clearCart, isLoading } = useCart();
   const [open, setOpen] = useState(false);
   const subtotal = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -54,7 +54,11 @@ export default function CartSheet() {
             </div>
           )}
           <div className="flex-1 overflow-y-auto p-4">
-            {cart.length === 0 ? (
+            {isLoading ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <div className="animate-pulse">Loading cart...</div>
+              </div>
+            ) : cart.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 Your cart is empty.
               </div>

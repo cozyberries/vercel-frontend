@@ -3,9 +3,9 @@ import React, {
   createContext,
   useContext,
   useState,
-  useEffect,
   ReactNode,
 } from "react";
+import { useCartPersistence } from "@/hooks/useCartPersistence";
 
 export interface CartItem {
   id: string;
@@ -22,6 +22,7 @@ interface CartContextType {
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  isLoading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -29,16 +30,8 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("cart");
-    if (stored) setCart(JSON.parse(stored));
-  }, []);
-
-  // Persist cart to localStorage
-  useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
+  // Use cart persistence hook for Supabase integration
+  const { isLoading, clearAllCart } = useCartPersistence({ cart, setCart });
 
   const addToCart = (item: CartItem) => {
     setCart((prev) => {
@@ -60,11 +53,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart((prev) => prev.map((i) => (i.id === id ? { ...i, quantity } : i)));
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = async () => {
+    setCart([]);
+    await clearAllCart();
+  };
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart }}
+      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, isLoading }}
     >
       {children}
     </CartContext.Provider>
