@@ -47,7 +47,7 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-background border-b">
+    <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-20">
           {/* Mobile menu */}
