@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { Search, User, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CartSheet from "@/components/CartSheet";
@@ -14,6 +14,7 @@ import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { HamburgerSheet } from "./HamburgerSheet";
 import HeaderLinks from "./HeaderLinks";
+import UserMenu from "./UserMenu";
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -88,7 +89,7 @@ export default function Header() {
           </nav>
 
           {/* Icons + Auth */}
-          <div className="flex items-center justify-end flex-1 space-x-4">
+          <div className="flex items-center justify-end flex-1 space-x-1">
             {/* Search toggle */}
             <Button
               variant="ghost"
@@ -103,21 +104,10 @@ export default function Header() {
               <span className="sr-only">Search</span>
             </Button>
 
-            {/* Auth buttons */}
-            <>
-              {user ? (
-                <Button variant="ghost">
-                  <Link href="/profile">
-                    <User />
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="default" className="hidden lg:block">
-                  <Link href="/login">Login</Link>
-                </Button>
-              )}
-            </>
-
+            {/* User Menu */}
+            <div className="hidden lg:block">
+              <UserMenu />
+            </div>
             <WishlistSheet />
             <CartSheet />
           </div>

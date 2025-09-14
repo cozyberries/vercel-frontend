@@ -77,8 +77,8 @@ export interface PaginatedResponse<T> {
 const getBaseURL = () => {
   // Handle both client-side and server-side requests
   if (typeof window !== "undefined") {
-    // Client-side: use current origin
-    return window.location.origin;
+    // Client-side: use environment variable or current origin
+    return process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
   }
   // Server-side: use environment variable or default to localhost
   return process.env.VERCEL_URL
