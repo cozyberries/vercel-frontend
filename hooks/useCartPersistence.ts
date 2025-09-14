@@ -144,13 +144,19 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
     }
   }, [user?.id]);
 
-  // Load initial cart on mount and auth changes
+  // Load initial cart on mount only
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && !hasInitializedRef.current) {
       loadInitialCart();
+    }
+  }, [authLoading, loadInitialCart]);
+
+  // Handle auth changes separately (only when user ID actually changes)
+  useEffect(() => {
+    if (!authLoading && hasInitializedRef.current) {
       handleAuthChange();
     }
-  }, [loadInitialCart, handleAuthChange, authLoading]);
+  }, [user?.id, handleAuthChange]);
 
   // Persist cart changes
   useEffect(() => {

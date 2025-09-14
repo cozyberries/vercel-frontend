@@ -144,13 +144,19 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     }
   }, [user?.id]);
 
-  // Load initial wishlist on mount and auth changes
+  // Load initial wishlist on mount only
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && !hasInitializedRef.current) {
       loadInitialWishlist();
+    }
+  }, [authLoading, loadInitialWishlist]);
+
+  // Handle auth changes separately (only when user ID actually changes)
+  useEffect(() => {
+    if (!authLoading && hasInitializedRef.current) {
       handleAuthChange();
     }
-  }, [loadInitialWishlist, handleAuthChange, authLoading]);
+  }, [user?.id, handleAuthChange]);
 
   // Persist wishlist changes
   useEffect(() => {
