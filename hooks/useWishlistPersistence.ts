@@ -42,38 +42,41 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   );
 
   /**
-   * Load initial wishlist data
+   * Load initial wishlist data with faster local-first approach
    */
   const loadInitialWishlist = useCallback(async () => {
     if (authLoading || hasInitializedRef.current) return;
 
     isInitializingRef.current = true;
     try {
-      const localWishlist = wishlistService.getLocalWishlist();
-
-      if (user?.id) {
-        // User is authenticated - merge local and remote wishlists
-        const remoteWishlist = await wishlistService.getUserWishlist(user.id);
-        const mergedWishlist = wishlistService.mergeWishlistItems(localWishlist, remoteWishlist);
-        
-        setWishlist(mergedWishlist);
-        
-        // Save merged wishlist immediately since we're initializing
-        wishlistService.saveLocalWishlist(mergedWishlist);
-        if (mergedWishlist.length > 0) {
-          await wishlistService.saveUserWishlist(user.id, mergedWishlist);
-        }
-      } else {
-        // Anonymous user - use local wishlist only
-        setWishlist(localWishlist);
-      }
-
-      hasInitializedRef.current = true;
-    } catch (error) {
-      console.error("Error loading initial wishlist:", error);
-      // Fallback to local wishlist only
+      // Always load local wishlist immediately for instant UI
       const localWishlist = wishlistService.getLocalWishlist();
       setWishlist(localWishlist);
+      hasInitializedRef.current = true;
+
+      if (user?.id) {
+        // User is authenticated - merge with remote wishlist in background
+        try {
+          const remoteWishlist = await wishlistService.getUserWishlist(user.id);
+          const mergedWishlist = wishlistService.mergeWishlistItems(localWishlist, remoteWishlist);
+          
+          // Only update if there's a difference
+          if (JSON.stringify(localWishlist) !== JSON.stringify(mergedWishlist)) {
+            setWishlist(mergedWishlist);
+            wishlistService.saveLocalWishlist(mergedWishlist);
+            if (mergedWishlist.length > 0) {
+              await wishlistService.saveUserWishlist(user.id, mergedWishlist);
+            }
+          }
+        } catch (error) {
+          console.error("Error syncing remote wishlist:", error);
+          // Continue with local wishlist - no need to show error to user
+        }
+      }
+    } catch (error) {
+      console.error("Error loading initial wishlist:", error);
+      // Fallback to empty wishlist
+      setWishlist([]);
       hasInitializedRef.current = true;
     } finally {
       isInitializingRef.current = false;

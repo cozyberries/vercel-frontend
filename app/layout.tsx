@@ -4,10 +4,12 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
+import MobileBottomHeader from "@/components/MobileBottomHeader";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
+import { DataPreloader } from "@/components/data-preloader";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -46,22 +48,25 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <SupabaseAuthProvider>
-          <WishlistProvider>
-            <CartProvider>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="light"
-                enableSystem={false}
-                disableTransitionOnChange
-              >
-                <div className="flex min-h-screen flex-col">
-                  <Header />
-                  <main className="flex-1">{children}</main>
-                  <Footer />
-                </div>
-              </ThemeProvider>
-            </CartProvider>
-          </WishlistProvider>
+          <DataPreloader>
+            <WishlistProvider>
+              <CartProvider>
+                <ThemeProvider
+                  attribute="class"
+                  defaultTheme="light"
+                  enableSystem={false}
+                  disableTransitionOnChange
+                >
+                  <div className="flex min-h-screen flex-col">
+                    <Header />
+                    <main className="flex-1 pb-16 lg:pb-0">{children}</main>
+                    <Footer />
+                    <MobileBottomHeader />
+                  </div>
+                </ThemeProvider>
+              </CartProvider>
+            </WishlistProvider>
+          </DataPreloader>
         </SupabaseAuthProvider>
       </body>
     </html>

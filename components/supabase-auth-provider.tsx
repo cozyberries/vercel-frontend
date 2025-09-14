@@ -68,8 +68,14 @@ export function SupabaseAuthProvider({
   };
 
   const signInWithGoogle = async () => {
-    // Use NEXT_PUBLIC_APP_URL for production deployments, fallback to window.location.origin for development
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    // Use only the environment variable for redirect URL
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+    if (!baseUrl) {
+      console.error("NEXT_PUBLIC_SITE_URL environment variable is not set");
+      return { error: new Error("Site URL configuration missing") };
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -11,30 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  SimplifiedProduct,
-  getAllProducts,
-  getCategories,
-} from "@/lib/services/api";
 import ProductCard from "@/components/product-card";
 import Pagination from "@/components/ui/pagination";
 import FilterSheet from "@/components/FilterSheet";
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-}
+import { usePreloadedData } from "@/components/data-preloader";
 
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [allProducts, setAllProducts] = useState<SimplifiedProduct[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { products: allProducts, categories, isLoading, error } = usePreloadedData();
 
   // Get current URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1");
@@ -43,37 +28,6 @@ export default function ProductsClient() {
   const currentCategory = searchParams.get("category") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentBestseller = searchParams.get("bestseller") === "true";
-
-  // Fetch all products and categories on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        setError(null); // Clear any previous errors
-        const [productsData, categoriesData] = await Promise.all([
-          getAllProducts(),
-          getCategories(),
-        ]);
-        setAllProducts(productsData);
-        setCategories(categoriesData);
-        
-        // Check if we got no data, which might indicate an API issue
-        if (productsData.length === 0 && categoriesData.length === 0) {
-          setError("Unable to load product data. Please check your connection and try again.");
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setError("Failed to load products. Please try refreshing the page.");
-        // Set empty arrays as fallback to prevent crashes
-        setAllProducts([]);
-        setCategories([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   // Client-side filtering, sorting, and pagination
   const { filteredProducts, pagination } = useMemo(() => {

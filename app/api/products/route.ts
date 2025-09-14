@@ -4,6 +4,16 @@ import { Product, ProductCreate } from "@/lib/types/product";
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("Products API: Starting request");
+    console.log("Environment check:", {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      nodeEnv: process.env.NODE_ENV,
+      vercelUrl: process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "not set",
+    });
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "12");
@@ -11,6 +21,15 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const sortBy = searchParams.get("sortBy") || "created_at";
     const sortOrder = searchParams.get("sortOrder") || "desc";
+
+    console.log("Products API: Request params:", {
+      page,
+      limit,
+      category,
+      search,
+      sortBy,
+      sortOrder,
+    });
 
     // Validate pagination parameters
     if (page < 1) {
@@ -28,6 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createServerSupabaseClient();
+    console.log("Products API: Supabase client created successfully");
 
     // Calculate offset
     const offset = (page - 1) * limit;
@@ -55,7 +75,7 @@ export async function GET(request: NextRequest) {
         .select("id")
         .eq("slug", category)
         .single();
-      
+
       if (categoryData) {
         query = query.eq("category_id", categoryData.id);
       }
@@ -82,8 +102,13 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error("Error retrieving products:", error);
+      console.error("Error details:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       return NextResponse.json(
-        { error: "Failed to retrieve products" },
+        { error: "Failed to retrieve products", details: error.message },
         { status: 500 }
       );
     }
@@ -115,6 +140,14 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil((count || 0) / limit);
 
+    console.log(
+      "Products API: Successfully retrieved",
+      products.length,
+      "products out of",
+      count,
+      "total"
+    );
+
     return NextResponse.json({
       products,
       pagination: {
@@ -128,25 +161,35 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in GET /api/products:", error);
-    
+
     // Check if it's a Supabase client creation error
-    if (error instanceof Error && error.message.includes('Missing Supabase environment variables')) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Missing Supabase environment variables")
+    ) {
       return NextResponse.json(
         { error: "Database configuration error" },
         { status: 500 }
       );
     }
-    
+
     // Check if it's a network/connection error
-    if (error instanceof Error && (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED'))) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("fetch failed") ||
+        error.message.includes("ECONNREFUSED"))
+    ) {
       return NextResponse.json(
         { error: "Database connection failed" },
         { status: 503 }
       );
     }
-    
+
     return NextResponse.json(
-      { error: "Internal server error", details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }
