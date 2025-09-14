@@ -1,15 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, CreditCard, Truck, Shield, Check } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  Truck,
+  Shield,
+  Check,
+  MapPin,
+  Plus,
+  Star,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useCart } from "@/components/cart-context";
+import { useAuth } from "@/components/supabase-auth-provider";
+import { useProfile } from "@/hooks/useProfile";
+import AddressFormModal from "@/components/profile/AddressFormModal";
 
 interface CheckoutFormData {
   email: string;
@@ -28,9 +40,14 @@ interface CheckoutFormData {
 
 export default function CheckoutPage() {
   const { cart, clearCart } = useCart();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    null
+  );
+  const [showAddressModal, setShowAddressModal] = useState(false);
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: "",
     firstName: "",
@@ -46,10 +63,99 @@ export default function CheckoutPage() {
     cardName: "",
   });
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Use profile hook for address management
+  const {
+    addresses,
+    isLoading: addressesLoading,
+    showAddAddress,
+    editingAddress,
+    addressData,
+    addressValidationErrors,
+    setShowAddAddress,
+    setAddressData,
+    setAddressValidationErrors,
+    handleAddAddress,
+    handleUpdateAddress,
+    handleCloseAddressModal,
+  } = useProfile(user);
+
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const deliveryCharge = cart.length > 0 ? 50 : 0;
   const tax = subtotal * 0.1; // 10% tax
   const total = subtotal + deliveryCharge + tax;
+
+  // Redirect if user is not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+
+  // Auto-select default address if available
+  useEffect(() => {
+    if (addresses.length > 0 && !selectedAddressId) {
+      const defaultAddress = addresses.find((addr) => addr.is_default);
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id);
+        populateFormWithAddress(defaultAddress);
+      }
+    }
+  }, [addresses, selectedAddressId]);
+
+  // Populate form with selected address
+  const populateFormWithAddress = (address: any) => {
+    const nameParts = address.full_name?.split(" ") || ["", ""];
+    setFormData((prev) => ({
+      ...prev,
+      firstName: nameParts[0] || "",
+      lastName: nameParts.slice(1).join(" ") || "",
+      address: address.address_line_1,
+      city: address.city,
+      state: address.state,
+      zipCode: address.postal_code,
+      phone: address.phone || "",
+    }));
+  };
+
+  // Handle address selection
+  const handleAddressSelect = (addressId: string) => {
+    setSelectedAddressId(addressId);
+    const selectedAddress = addresses.find((addr) => addr.id === addressId);
+    if (selectedAddress) {
+      populateFormWithAddress(selectedAddress);
+    }
+  };
+
+  // Handle adding new address
+  const handleAddNewAddress = () => {
+    setShowAddressModal(true);
+    setShowAddAddress(true);
+  };
+
+  // Handle address modal save
+  const handleAddressModalSave = async () => {
+    if (editingAddress) {
+      await handleUpdateAddress(editingAddress);
+    } else {
+      await handleAddAddress();
+    }
+    setShowAddressModal(false);
+  };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Redirect if cart is empty
   if (cart.length === 0 && !orderComplete) {
@@ -97,7 +203,8 @@ export default function CheckoutPage() {
             </div>
             <h1 className="text-3xl font-light mb-4">Order Complete!</h1>
             <p className="text-muted-foreground mb-8">
-              Thank you for your order. We'll send you a confirmation email shortly.
+              Thank you for your order. We'll send you a confirmation email
+              shortly.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild>
@@ -133,7 +240,9 @@ export default function CheckoutPage() {
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Contact Information */}
               <div>
-                <h2 className="text-lg font-medium mb-4">Contact Information</h2>
+                <h2 className="text-lg font-medium mb-4">
+                  Contact Information
+                </h2>
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="email">Email Address</Label>
@@ -150,9 +259,118 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Shipping Address */}
+              {/* Address Selection */}
               <div>
-                <h2 className="text-lg font-medium mb-4">Shipping Address</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium">Shipping Address</h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddNewAddress}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add New Address
+                  </Button>
+                </div>
+
+                {/* Address Selection */}
+                {addresses.length > 0 && (
+                  <div className="mb-6">
+                    <Label className="text-sm font-medium mb-3 block">
+                      Select Address
+                    </Label>
+                    <div className="space-y-3">
+                      {addresses.map((address) => (
+                        <div
+                          key={address.id}
+                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                            selectedAddressId === address.id
+                              ? "border-primary bg-primary/5"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                          onClick={() => handleAddressSelect(address.id)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <MapPin className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm font-medium capitalize">
+                                  {address.address_type}
+                                </span>
+                                {address.label && (
+                                  <span className="text-sm text-gray-500">
+                                    ({address.label})
+                                  </span>
+                                )}
+                                {address.is_default && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <Star className="w-3 h-3 mr-1" />
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {address.full_name && (
+                                  <p className="font-medium">
+                                    {address.full_name}
+                                  </p>
+                                )}
+                                <p>{address.address_line_1}</p>
+                                {address.address_line_2 && (
+                                  <p>{address.address_line_2}</p>
+                                )}
+                                <p>
+                                  {address.city}, {address.state}{" "}
+                                  {address.postal_code}
+                                </p>
+                                <p>{address.country}</p>
+                                {address.phone && (
+                                  <p className="mt-1">Phone: {address.phone}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div
+                                className={`w-4 h-4 rounded-full border-2 ${
+                                  selectedAddressId === address.id
+                                    ? "border-primary bg-primary"
+                                    : "border-gray-300"
+                                }`}
+                              >
+                                {selectedAddressId === address.id && (
+                                  <div className="w-full h-full rounded-full bg-white scale-50"></div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {addresses.length === 0 && (
+                  <div className="mb-6 p-4 border border-dashed border-gray-300 rounded-lg text-center">
+                    <MapPin className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500 mb-2">
+                      No addresses saved
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Add an address to continue with checkout
+                    </p>
+                  </div>
+                )}
+
+                <Separator className="my-6" />
+              </div>
+
+              {/* Manual Address Entry */}
+              <div>
+                <h3 className="text-md font-medium mb-4">
+                  Or enter address manually
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="firstName">First Name</Label>
@@ -237,7 +455,9 @@ export default function CheckoutPage() {
 
               {/* Payment Information */}
               <div>
-                <h2 className="text-lg font-medium mb-4">Payment Information</h2>
+                <h2 className="text-lg font-medium mb-4">
+                  Payment Information
+                </h2>
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="cardName">Name on Card</Label>
@@ -298,7 +518,8 @@ export default function CheckoutPage() {
                   <span className="font-medium">Secure Checkout</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Your payment information is encrypted and secure. We never store your card details.
+                  Your payment information is encrypted and secure. We never
+                  store your card details.
                 </p>
               </div>
 
@@ -328,7 +549,7 @@ export default function CheckoutPage() {
           <div className="lg:sticky lg:top-8 h-fit">
             <div className="bg-muted/30 p-6 rounded-lg">
               <h2 className="text-lg font-medium mb-4">Order Summary</h2>
-              
+
               {/* Cart Items */}
               <div className="space-y-4 mb-6">
                 {cart.map((item) => (
@@ -393,6 +614,23 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      {/* Address Form Modal */}
+      <AddressFormModal
+        isOpen={showAddressModal}
+        isEditing={!!editingAddress}
+        isSaving={false}
+        addressData={addressData}
+        validationErrors={addressValidationErrors}
+        onClose={() => {
+          setShowAddressModal(false);
+          handleCloseAddressModal();
+        }}
+        onSave={handleAddressModalSave}
+        onInputChange={(field, value) => {
+          setAddressData((prev) => ({ ...prev, [field]: value }));
+        }}
+      />
     </div>
   );
 }

@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protect routes that require authentication
-  if (request.nextUrl.pathname.startsWith("/profile") && !user) {
+  if ((request.nextUrl.pathname.startsWith("/profile") || request.nextUrl.pathname.startsWith("/checkout")) && !user) {
     // Redirect to login page if user is not authenticated
     return NextResponse.redirect(new URL("/login", request.url));
   }
