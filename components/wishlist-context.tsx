@@ -3,9 +3,9 @@ import React, {
   createContext,
   useContext,
   useState,
-  useEffect,
   ReactNode,
 } from "react";
+import { useWishlistPersistence } from "@/hooks/useWishlistPersistence";
 
 export interface WishlistItem {
   id: string;
@@ -20,6 +20,7 @@ interface WishlistContextType {
   removeFromWishlist: (id: string) => void;
   isInWishlist: (id: string) => boolean;
   clearWishlist: () => void;
+  isLoading: boolean;
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(
@@ -29,14 +30,8 @@ const WishlistContext = createContext<WishlistContextType | undefined>(
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("wishlist");
-    if (stored) setWishlist(JSON.parse(stored));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-  }, [wishlist]);
+  // Use wishlist persistence hook for Supabase integration
+  const { isLoading, clearAllWishlist } = useWishlistPersistence({ wishlist, setWishlist });
 
   const addToWishlist = (item: WishlistItem) => {
     setWishlist((prev) => {
@@ -51,7 +46,10 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   const isInWishlist = (id: string) => wishlist.some((i) => i.id === id);
 
-  const clearWishlist = () => setWishlist([]);
+  const clearWishlist = async () => {
+    setWishlist([]);
+    await clearAllWishlist();
+  };
 
   return (
     <WishlistContext.Provider
@@ -61,6 +59,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         removeFromWishlist,
         isInWishlist,
         clearWishlist,
+        isLoading,
       }}
     >
       {children}
