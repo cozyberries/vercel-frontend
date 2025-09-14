@@ -70,6 +70,11 @@ export default function Header() {
           <nav className="hidden lg:flex items-center justify-center flex-1">
             <ul className="flex space-x-8">
               {navigation.map((item) => {
+                // Skip orders link if user is not authenticated
+                if (item.href === "/orders" && !user) {
+                  return null;
+                }
+
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
