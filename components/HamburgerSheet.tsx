@@ -40,6 +40,11 @@ export const HamburgerSheet = () => {
           <nav className="flex-1 py-8">
             <ul className="space-y-6">
               {navigation.map((item) => {
+                // Skip orders link if user is not authenticated
+                if (item.href === "/orders" && !user) {
+                  return null;
+                }
+
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
@@ -62,22 +67,24 @@ export const HamburgerSheet = () => {
                 );
               })}
 
-              {/* Profile */}
-              <li>
-                <Link
-                  href="/profile"
-                  aria-current={
-                    pathname.startsWith("/profile") ? "page" : undefined
-                  }
-                  className={`block px-4 py-2 text-base font-medium transition-colors ${
-                    pathname.startsWith("/profile")
-                      ? "text-primary"
-                      : "text-foreground/80 hover:text-primary"
-                  }`}
-                >
-                  Profile
-                </Link>
-              </li>
+              {/* Profile - only show if authenticated */}
+              {user && (
+                <li>
+                  <Link
+                    href="/profile"
+                    aria-current={
+                      pathname.startsWith("/profile") ? "page" : undefined
+                    }
+                    className={`block px-4 py-2 text-base font-medium transition-colors ${
+                      pathname.startsWith("/profile")
+                        ? "text-primary"
+                        : "text-foreground/80 hover:text-primary"
+                    }`}
+                  >
+                    Profile
+                  </Link>
+                </li>
+              )}
             </ul>
           </nav>
 

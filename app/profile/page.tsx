@@ -127,6 +127,7 @@ export default function ProfilePage() {
           isSaving={isSaving}
           addressData={addressData}
           validationErrors={addressValidationErrors}
+          addresses={addresses}
           onClose={handleCloseAddressModal}
           onSave={() =>
             editingAddress

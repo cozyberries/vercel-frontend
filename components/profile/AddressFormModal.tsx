@@ -34,6 +34,7 @@ interface AddressFormModalProps {
   isSaving: boolean;
   addressData: AddressData;
   validationErrors: AddressValidationErrors;
+  addresses: any[]; // Array of user's addresses
   onClose: () => void;
   onSave: () => void;
   onInputChange: (field: string, value: string) => void;
@@ -45,6 +46,7 @@ export default function AddressFormModal({
   isSaving,
   addressData,
   validationErrors,
+  addresses,
   onClose,
   onSave,
   onInputChange,
@@ -251,12 +253,25 @@ export default function AddressFormModal({
                 type="checkbox"
                 id="is_default"
                 checked={addressData.is_default}
+                disabled={addresses.length === 1}
                 onChange={(e) =>
                   onInputChange("is_default", e.target.checked.toString())
                 }
-                className="rounded border-gray-300"
+                className={`rounded border-gray-300 ${
+                  addresses.length === 1 ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               />
-              <Label htmlFor="is_default">Set as default address</Label>
+              <Label 
+                htmlFor="is_default"
+                className={addresses.length === 1 ? "opacity-50" : ""}
+              >
+                Set as default address
+                {addresses.length === 1 && (
+                  <span className="text-xs text-gray-500 ml-1">
+                    (Only address - automatically default)
+                  </span>
+                )}
+              </Label>
             </div>
           </div>
 

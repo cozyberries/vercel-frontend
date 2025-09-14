@@ -28,8 +28,8 @@ export default function CartSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <ShoppingBag className="h-5 w-5" />
+        <Button variant="ghost" size="icon" className="relative lg:w-10 lg:h-10 w-12 h-12">
+          <ShoppingBag className="h-6 w-6 lg:h-5 lg:w-5" />
           {cart.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-primary text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
               {cart.reduce((sum, item) => sum + item.quantity, 0)}

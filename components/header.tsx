@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { Search, X } from "lucide-react";
+import { Search, X, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CartSheet from "@/components/CartSheet";
@@ -14,7 +14,6 @@ import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { HamburgerSheet } from "./HamburgerSheet";
 import HeaderLinks from "./HeaderLinks";
-import UserMenu from "./UserMenu";
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -71,6 +70,11 @@ export default function Header() {
           <nav className="hidden lg:flex items-center justify-center flex-1">
             <ul className="flex space-x-8">
               {navigation.map((item) => {
+                // Skip orders link if user is not authenticated
+                if (item.href === "/orders" && !user) {
+                  return null;
+                }
+
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
@@ -95,18 +99,28 @@ export default function Header() {
               variant="ghost"
               size="icon"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className=" w-12 h-12"
             >
               {isSearchOpen ? (
-                <X className="h-5 w-5" />
+                <X className="h-6 w-6" />
               ) : (
-                <Search className="h-5 w-5" />
+                <Search className="h-6 w-6" />
               )}
               <span className="sr-only">Search</span>
             </Button>
 
-            {/* User Menu */}
+            {/* User Icon */}
             <div className="hidden lg:block">
-              <UserMenu />
+              <Link href={user ? "/profile" : "/login"}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 transition-colors duration-200"
+                  aria-label={user ? "Go to profile" : "Go to login"}
+                >
+                  <User className="h-6 w-6" />
+                </Button>
+              </Link>
             </div>
             <WishlistSheet />
             <CartSheet />
