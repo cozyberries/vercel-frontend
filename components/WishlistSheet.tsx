@@ -16,7 +16,7 @@ import { useCart } from "@/components/cart-context";
 import WishlistItem from "@/components/WishlistItem";
 
 export default function WishlistSheet() {
-  const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
+  const { wishlist, removeFromWishlist, clearWishlist, isLoading } = useWishlist();
   const { cart, updateQuantity } = useCart();
   const [open, setOpen] = useState(false);
 
@@ -69,7 +69,11 @@ export default function WishlistSheet() {
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {wishlist.length === 0 ? (
+            {isLoading ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <div className="animate-pulse">Loading wishlist...</div>
+              </div>
+            ) : wishlist.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 Your wishlist is empty.
               </div>
