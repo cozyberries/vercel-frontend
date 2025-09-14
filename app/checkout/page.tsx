@@ -443,6 +443,7 @@ export default function CheckoutPage() {
         isSaving={false}
         addressData={addressData}
         validationErrors={addressValidationErrors}
+        addresses={addresses}
         onClose={() => {
           setShowAddressModal(false);
           handleCloseAddressModal();

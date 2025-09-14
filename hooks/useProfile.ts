@@ -329,12 +329,34 @@ export function useProfile(user: any) {
 
   const handleSetDefault = async (addressId: string) => {
     try {
+      // Find the address to get its complete data
+      const addressToUpdate = addresses.find(addr => addr.id === addressId);
+      if (!addressToUpdate) {
+        alert("Address not found. Please refresh and try again.");
+        return;
+      }
+
+      // Send complete address data with is_default set to true
+      const updateData = {
+        address_type: addressToUpdate.address_type,
+        label: addressToUpdate.label,
+        full_name: addressToUpdate.full_name,
+        phone: addressToUpdate.phone,
+        address_line_1: addressToUpdate.address_line_1,
+        address_line_2: addressToUpdate.address_line_2,
+        city: addressToUpdate.city,
+        state: addressToUpdate.state,
+        postal_code: addressToUpdate.postal_code,
+        country: addressToUpdate.country,
+        is_default: true,
+      };
+
       const response = await fetch(`/api/profile/addresses/${addressId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ is_default: true }),
+        body: JSON.stringify(updateData),
       });
 
       if (response.ok) {
