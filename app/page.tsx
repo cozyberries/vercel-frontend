@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import Hero from "@/components/hero";
 import FeaturedProducts from "@/components/featured-products";
 import CategoryGrid from "@/components/category-grid";
+import AgeGrid from "@/components/age-grid";
 import Newsletter from "@/components/newsletter";
 
 export default function Home() {
@@ -12,6 +13,16 @@ export default function Home() {
       <PromoBar />
 
       <Hero />
+
+      {/* Shop by Age */}
+      <section className="py-20 bg-[#f9f7f4]">
+        <div className="container mx-auto px-4">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-12">
+            Shop by Age
+          </h2>
+          <AgeGrid />
+        </div>
+      </section>
 
       {/* Category Grid */}
       <section className="py-20 bg-background">
