@@ -100,6 +100,7 @@ export default function Header() {
               size="icon"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
               className=" w-12 h-12"
+              data-search-trigger
             >
               {isSearchOpen ? (
                 <X className="h-6 w-6" />
