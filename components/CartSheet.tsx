@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -13,6 +13,7 @@ import {
 import { useCart } from "@/components/cart-context";
 import { images } from "@/app/assets/images";
 import CartItem from "@/components/CartItem";
+import Link from "next/link";
 
 export default function CartSheet() {
   const { cart, updateQuantity, removeFromCart, clearCart, isLoading } = useCart();
@@ -59,8 +60,16 @@ export default function CartSheet() {
                 <div className="animate-pulse">Loading cart...</div>
               </div>
             ) : cart.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
-                Your cart is empty.
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="mb-6">
+                  <ShoppingCart className="h-16 w-16 text-muted-foreground/40" />
+                </div>
+                <h3 className="text-lg font-medium text-muted-foreground mb-2">
+                  Your cart is empty
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Add items to get started
+                </p>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -76,25 +85,33 @@ export default function CartSheet() {
             )}
           </div>
 
-          <div className="border-t p-4 space-y-3">
-            <div className="flex justify-between items-center text-base">
-              <span className="font-medium">Subtotal</span>
-              <span className="font-semibold">₹{subtotal.toFixed(2)}</span>
+          {cart.length > 0 && (
+            <div className="border-t p-4 space-y-3">
+              <div className="flex justify-between items-center text-base">
+                <span className="font-medium">Subtotal</span>
+                <span className="font-semibold">₹{subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-base">
+                <span className="font-medium">Delivery Charge</span>
+                <span className="font-semibold">
+                  ₹{deliveryCharge.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-base">
+                <span className="font-medium">Total</span>
+                <span className="font-bold">₹{grandTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setOpen(false)}
+                  className="w-full"
+                  asChild
+                >
+                  <Link href="/checkout">Checkout</Link>
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-between items-center text-base">
-              <span className="font-medium">Delivery Charge</span>
-              <span className="font-semibold">
-                ₹{deliveryCharge.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-base">
-              <span className="font-medium">Total</span>
-              <span className="font-bold">₹{grandTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex gap-2">
-              <Button className="w-full">Checkout</Button>
-            </div>
-          </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
