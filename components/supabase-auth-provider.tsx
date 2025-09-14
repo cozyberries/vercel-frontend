@@ -68,10 +68,8 @@ export function SupabaseAuthProvider({
   };
 
   const signInWithGoogle = async () => {
-    // Use VERCEL_URL for production deployments, fallback to window.location.origin for development
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : window.location.origin;
+    // Use NEXT_PUBLIC_APP_URL for production deployments, fallback to window.location.origin for development
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
