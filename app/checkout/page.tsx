@@ -6,7 +6,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
-  CreditCard,
   Truck,
   Shield,
   Check,
@@ -25,17 +24,6 @@ import AddressFormModal from "@/components/profile/AddressFormModal";
 
 interface CheckoutFormData {
   email: string;
-  firstName: string;
-  lastName: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  phone: string;
-  cardNumber: string;
-  expiryDate: string;
-  cvv: string;
-  cardName: string;
 }
 
 export default function CheckoutPage() {
@@ -50,17 +38,6 @@ export default function CheckoutPage() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: "",
-    firstName: "",
-    lastName: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    phone: "",
-    cardNumber: "",
-    expiryDate: "",
-    cvv: "",
-    cardName: "",
   });
 
   // Use profile hook for address management
@@ -94,39 +71,29 @@ export default function CheckoutPage() {
     }
   }, [user, loading, router]);
 
+  // Auto-populate email with user's email
+  useEffect(() => {
+    if (user?.email) {
+      setFormData((prev) => ({
+        ...prev,
+        email: user.email || "",
+      }));
+    }
+  }, [user]);
+
   // Auto-select default address if available
   useEffect(() => {
     if (addresses.length > 0 && !selectedAddressId) {
       const defaultAddress = addresses.find((addr) => addr.is_default);
       if (defaultAddress) {
         setSelectedAddressId(defaultAddress.id);
-        populateFormWithAddress(defaultAddress);
       }
     }
   }, [addresses, selectedAddressId]);
 
-  // Populate form with selected address
-  const populateFormWithAddress = (address: any) => {
-    const nameParts = address.full_name?.split(" ") || ["", ""];
-    setFormData((prev) => ({
-      ...prev,
-      firstName: nameParts[0] || "",
-      lastName: nameParts.slice(1).join(" ") || "",
-      address: address.address_line_1,
-      city: address.city,
-      state: address.state,
-      zipCode: address.postal_code,
-      phone: address.phone || "",
-    }));
-  };
-
   // Handle address selection
   const handleAddressSelect = (addressId: string) => {
     setSelectedAddressId(addressId);
-    const selectedAddress = addresses.find((addr) => addr.id === addressId);
-    if (selectedAddress) {
-      populateFormWithAddress(selectedAddress);
-    }
   };
 
   // Handle adding new address
@@ -251,14 +218,15 @@ export default function CheckoutPage() {
                       name="email"
                       type="email"
                       required
+                      disabled
                       value={formData.email}
                       onChange={handleInputChange}
                       placeholder="john@example.com"
+                      className="bg-muted/50"
                     />
                   </div>
                 </div>
               </div>
-
               {/* Address Selection */}
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -365,152 +333,6 @@ export default function CheckoutPage() {
 
                 <Separator className="my-6" />
               </div>
-
-              {/* Manual Address Entry */}
-              <div>
-                <h3 className="text-md font-medium mb-4">
-                  Or enter address manually
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      required
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      placeholder="John"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      required
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      placeholder="Doe"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input
-                      id="address"
-                      name="address"
-                      required
-                      value={formData.address}
-                      onChange={handleInputChange}
-                      placeholder="123 Main Street"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      name="city"
-                      required
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      placeholder="New York"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      name="state"
-                      required
-                      value={formData.state}
-                      onChange={handleInputChange}
-                      placeholder="NY"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="zipCode">ZIP Code</Label>
-                    <Input
-                      id="zipCode"
-                      name="zipCode"
-                      required
-                      value={formData.zipCode}
-                      onChange={handleInputChange}
-                      placeholder="10001"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Information */}
-              <div>
-                <h2 className="text-lg font-medium mb-4">
-                  Payment Information
-                </h2>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="cardName">Name on Card</Label>
-                    <Input
-                      id="cardName"
-                      name="cardName"
-                      required
-                      value={formData.cardName}
-                      onChange={handleInputChange}
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="cardNumber">Card Number</Label>
-                    <Input
-                      id="cardNumber"
-                      name="cardNumber"
-                      required
-                      value={formData.cardNumber}
-                      onChange={handleInputChange}
-                      placeholder="1234 5678 9012 3456"
-                      maxLength={19}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="expiryDate">Expiry Date</Label>
-                      <Input
-                        id="expiryDate"
-                        name="expiryDate"
-                        required
-                        value={formData.expiryDate}
-                        onChange={handleInputChange}
-                        placeholder="MM/YY"
-                        maxLength={5}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="cvv">CVV</Label>
-                      <Input
-                        id="cvv"
-                        name="cvv"
-                        required
-                        value={formData.cvv}
-                        onChange={handleInputChange}
-                        placeholder="123"
-                        maxLength={4}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Security Features */}
               <div className="bg-muted/50 p-4 rounded-lg">
                 <div className="flex items-center gap-3 mb-2">
@@ -522,7 +344,6 @@ export default function CheckoutPage() {
                   store your card details.
                 </p>
               </div>
-
               {/* Submit Button */}
               <Button
                 type="submit"
@@ -537,7 +358,7 @@ export default function CheckoutPage() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4" />
+                    <Check className="w-4 h-4" />
                     Complete Order - ₹{total.toFixed(2)}
                   </div>
                 )}
