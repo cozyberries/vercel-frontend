@@ -18,16 +18,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Use only the environment variable for redirect
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
-
-  if (!baseUrl) {
-    console.error("NEXT_PUBLIC_SITE_URL environment variable is not set");
-    // Fallback to using request URL for this critical redirect
+  // Get the correct base URL for redirect
+  const getBaseUrl = () => {
+    // For Vercel deployments, use the request URL origin
     const { protocol, host } = requestUrl;
-    return NextResponse.redirect(new URL("/", `${protocol}//${host}`));
-  }
+    return `${protocol}//${host}`;
+  };
 
   // Redirect to home page after successful authentication
-  return NextResponse.redirect(new URL("/", baseUrl));
+  return NextResponse.redirect(new URL("/", getBaseUrl()));
 }
