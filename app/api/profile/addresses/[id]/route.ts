@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { 
-  validatePhoneNumber, 
-  validateFullName, 
-  validateAddress, 
-  validateCity, 
-  validateState, 
-  validatePostalCode 
+import {
+  validatePhoneNumber,
+  validateFullName,
+  validateAddress,
+  validateCity,
+  validateState,
+  validatePostalCode,
 } from "@/lib/utils/validation";
 
 export async function GET(
@@ -149,6 +149,74 @@ export async function PUT(
         { error: postalCodeValidation.error },
         { status: 400 }
       );
+    }
+
+    // Check if user has multiple addresses
+    const { data: userAddresses, error: countError } = await supabase
+      .from("user_addresses")
+      .select("id, is_default")
+      .eq("user_id", user.id)
+      .eq("is_active", true);
+
+    if (countError) {
+      console.error("Error checking user addresses:", countError);
+      return NextResponse.json(
+        {
+          error: "Failed to check user addresses",
+          details: countError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    // If trying to unset default and this is the only address, prevent it
+    if (!is_default && userAddresses.length === 1) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot unset default status - you must have at least one default address",
+        },
+        { status: 400 }
+      );
+    }
+
+    // If trying to unset default and this is currently the default address
+    const currentAddress = userAddresses.find((addr) => addr.id === params.id);
+    if (!is_default && currentAddress?.is_default) {
+      // Check if there are other addresses that can be default
+      const otherAddresses = userAddresses.filter(
+        (addr) => addr.id !== params.id
+      );
+      if (otherAddresses.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Cannot unset default status - you must have at least one default address",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // If setting as default, unset other default addresses first
+    if (is_default) {
+      const { error: unsetError } = await supabase
+        .from("user_addresses")
+        .update({ is_default: false })
+        .eq("user_id", user.id)
+        .eq("is_default", true)
+        .neq("id", params.id); // Don't update the current address being modified
+
+      if (unsetError) {
+        console.error("Error unsetting previous default address:", unsetError);
+        return NextResponse.json(
+          {
+            error: "Failed to update previous default address",
+            details: unsetError.message,
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Prepare update data

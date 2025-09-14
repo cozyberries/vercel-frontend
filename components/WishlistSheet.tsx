@@ -46,10 +46,10 @@ export default function WishlistSheet() {
         <Button
           variant="ghost"
           size="icon"
-          className="lg:inline-flex hidden  items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-10 w-10 relative"
+          className="lg:inline-flex hidden  items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground lg:h-10 lg:w-10 h-12 w-12 relative"
         >
           <Heart
-            className={`h-5 w-5 ${
+            className={`h-6 w-6 lg:h-5 lg:w-5 ${
               wishlist.length > 0 ? "fill-red-500 text-red-500" : ""
             }`}
           />

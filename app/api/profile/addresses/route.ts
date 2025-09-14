@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { 
-  validatePhoneNumber, 
-  validateFullName, 
-  validateAddress, 
-  validateCity, 
-  validateState, 
-  validatePostalCode 
+import {
+  validatePhoneNumber,
+  validateFullName,
+  validateAddress,
+  validateCity,
+  validateState,
+  validatePostalCode,
 } from "@/lib/utils/validation";
 
 export async function GET() {
@@ -140,6 +140,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if user has any existing addresses
+    const { data: existingAddresses, error: checkError } = await supabase
+      .from("user_addresses")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("is_active", true);
+
+    if (checkError) {
+      console.error("Error checking existing addresses:", checkError);
+      return NextResponse.json(
+        {
+          error: "Failed to check existing addresses",
+          details: checkError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    // If this is the user's first address, make it default
+    const isFirstAddress = !existingAddresses || existingAddresses.length === 0;
+    const shouldBeDefault = isFirstAddress || is_default;
+
+    // If setting as default and not first address, unset other default addresses
+    if (shouldBeDefault && !isFirstAddress) {
+      const { error: unsetError } = await supabase
+        .from("user_addresses")
+        .update({ is_default: false })
+        .eq("user_id", user.id)
+        .eq("is_default", true);
+
+      if (unsetError) {
+        console.error("Error unsetting previous default address:", unsetError);
+        return NextResponse.json(
+          {
+            error: "Failed to update previous default address",
+            details: unsetError.message,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     // Prepare address data
     const addressData = {
       user_id: user.id,
@@ -153,7 +195,7 @@ export async function POST(request: NextRequest) {
       state,
       postal_code,
       country,
-      is_default,
+      is_default: shouldBeDefault,
       is_active: true,
     };
 
