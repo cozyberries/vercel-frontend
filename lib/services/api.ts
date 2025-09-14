@@ -74,19 +74,9 @@ export interface PaginatedResponse<T> {
 }
 
 // ---------- Axios Client ----------
-const getBaseURL = () => {
-  // Use only the environment variable for all requests
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
-
-  if (!baseUrl) {
-    throw new Error("NEXT_PUBLIC_SITE_URL environment variable is required");
-  }
-
-  return baseUrl;
-};
-
+// For Next.js API routes, we don't need a baseURL since they're on the same domain
+// This completely avoids CORS issues
 const api = axios.create({
-  baseURL: getBaseURL(),
   headers: { "Content-Type": "application/json" },
   timeout: 10000, // 10 second timeout
 });
