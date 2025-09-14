@@ -24,6 +24,7 @@ import AddressFormModal from "@/components/profile/AddressFormModal";
 
 interface CheckoutFormData {
   email: string;
+  notes?: string;
 }
 
 export default function CheckoutPage() {
@@ -150,14 +151,55 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!selectedAddressId) {
+      alert("Please select a shipping address");
+      return;
+    }
+
     setIsProcessing(true);
 
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      // Create order in Supabase
+      const orderData = {
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+        })),
+        shipping_address_id: selectedAddressId,
+        notes: formData.notes || "",
+      };
 
-    setIsProcessing(false);
-    setOrderComplete(true);
-    clearCart();
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create order");
+      }
+
+      const { order, payment_url } = await response.json();
+
+      // Clear cart after successful order creation
+      clearCart();
+
+      // Redirect to payment page
+      router.push(payment_url);
+      
+    } catch (error) {
+      console.error("Order creation error:", error);
+      alert(error instanceof Error ? error.message : "Failed to create order. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (orderComplete) {
@@ -344,22 +386,34 @@ export default function CheckoutPage() {
                   store your card details.
                 </p>
               </div>
+              {/* Order Notes */}
+              <div>
+                <Label htmlFor="notes">Order Notes (Optional)</Label>
+                <Input
+                  id="notes"
+                  name="notes"
+                  placeholder="Any special instructions for your order..."
+                  value={formData.notes || ""}
+                  onChange={handleInputChange}
+                />
+              </div>
+
               {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={isProcessing}
+                disabled={isProcessing || !selectedAddressId}
               >
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Processing...
+                    Creating Order...
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4" />
-                    Complete Order - ₹{total.toFixed(2)}
+                    {selectedAddressId ? `Create Order - ₹${total.toFixed(2)}` : "Select Address to Continue"}
                   </div>
                 )}
               </Button>
