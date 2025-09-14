@@ -88,7 +88,7 @@ export default function Header() {
           </nav>
 
           {/* Icons + Auth */}
-          <div className="flex items-center justify-end flex-1 space-x-4">
+          <div className="flex items-center justify-end flex-1 space-x-1">
             {/* Search toggle */}
             <Button
               variant="ghost"
@@ -102,21 +102,6 @@ export default function Header() {
               )}
               <span className="sr-only">Search</span>
             </Button>
-
-            {/* Auth buttons */}
-            <>
-              {user ? (
-                <Button variant="ghost">
-                  <Link href="/profile">
-                    <User />
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="default" className="hidden lg:block">
-                  <Link href="/login">Login</Link>
-                </Button>
-              )}
-            </>
 
             <WishlistSheet />
             <CartSheet />
