@@ -74,20 +74,9 @@ export interface PaginatedResponse<T> {
 }
 
 // ---------- Axios Client ----------
-const getBaseURL = () => {
-  // Handle both client-side and server-side requests
-  if (typeof window !== "undefined") {
-    // Client-side: use environment variable or current origin
-    return process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-  }
-  // Server-side: use environment variable or default to localhost
-  return process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
-};
-
+// For Next.js API routes, we don't need a baseURL since they're on the same domain
+// This completely avoids CORS issues
 const api = axios.create({
-  baseURL: getBaseURL(),
   headers: { "Content-Type": "application/json" },
   timeout: 10000, // 10 second timeout
 });
@@ -96,12 +85,12 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout:', error.config.url);
+    if (error.code === "ECONNABORTED") {
+      console.error("Request timeout:", error.config.url);
     } else if (error.response?.status >= 500) {
-      console.error('Server error:', error.response.status, error.config.url);
+      console.error("Server error:", error.response.status, error.config.url);
     } else if (!error.response) {
-      console.error('Network error:', error.message, error.config.url);
+      console.error("Network error:", error.message, error.config.url);
     }
     return Promise.reject(error);
   }
@@ -114,132 +103,101 @@ export const getCategories = async (retries = 3) => {
       const { data } = await api.get("/api/categories");
       return data || [];
     } catch (error) {
-      console.error(`Error fetching categories (attempt ${i + 1}/${retries}):`, error);
-      
+      console.error(
+        `Error fetching categories (attempt ${i + 1}/${retries}):`,
+        error
+      );
+
       // If it's the last retry, return empty array
       if (i === retries - 1) {
         console.error("Failed to fetch categories after all retries");
         return [];
       }
-      
+
       // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
     }
   }
   return [];
 };
 
-export const getBestsellers = async (): Promise<SimplifiedProduct[]> => {
-  try {
-    const { data } = await api.get("/api/products/bestsellers");
-    return (data || []).map(normalizeProduct);
-  } catch (error) {
-    console.error("Error fetching bestsellers:", error);
-    return [];
-  }
-};
-
-export const getProductsByCategory = async (
-  slug: string
+export const getAllProducts = async (
+  retries = 3
 ): Promise<SimplifiedProduct[]> => {
-  try {
-    const { data } = await api.get("/api/products", {
-      params: { categorySlug: slug },
-    });
-    return (data || []).map(normalizeProduct);
-  } catch {
-    return [];
-  }
-};
-
-export const getAllProducts = async (params?: {
-  sort?: string;
-  type?: string;
-}, retries = 3): Promise<SimplifiedProduct[]> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/products", {
         params: {
-          ...params,
           limit: 100, // Maximum allowed by API
-          page: 1,
         },
       });
-      // The API returns { products: [...], pagination: {...} }
-      return (data?.products || []).map(normalizeProduct);
+      // The API now returns products array directly
+      return (data || []).map(normalizeProduct);
     } catch (error) {
-      console.error(`Error fetching products (attempt ${i + 1}/${retries}):`, error);
-      
+      console.error(
+        `Error fetching products (attempt ${i + 1}/${retries}):`,
+        error
+      );
+
       // If it's the last retry, return empty array
       if (i === retries - 1) {
         console.error("Failed to fetch products after all retries");
         return [];
       }
-      
+
       // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
     }
   }
   return [];
 };
 
-export const getPaginatedProducts = async (params?: {
-  page?: number;
-  limit?: number;
-  category?: string;
-  search?: string;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-  bestseller?: boolean;
-}): Promise<PaginatedResponse<SimplifiedProduct>> => {
-  try {
-    const { data } = await api.get("/api/products", {
-      params: {
-        page: params?.page || 1,
-        limit: params?.limit || 12,
-        category: params?.category,
-        search: params?.search,
-        sortBy: params?.sortBy || "created_at",
-        sortOrder: params?.sortOrder || "desc",
-        bestseller: params?.bestseller,
-      },
-    });
+export const getAllProductsDetailed = async (
+  retries = 3
+): Promise<Product[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/products", {
+        params: {
+          limit: 100, // Maximum allowed by API
+        },
+      });
+      // Return full product data without normalization
+      return data || [];
+    } catch (error) {
+      console.error(
+        `Error fetching detailed products (attempt ${i + 1}/${retries}):`,
+        error
+      );
 
-    return {
-      products: (data.products || []).map(normalizeProduct),
-      pagination: data.pagination || {
-        currentPage: 1,
-        totalPages: 1,
-        totalItems: 0,
-        itemsPerPage: 12,
-        hasNextPage: false,
-        hasPrevPage: false,
-      },
-    };
-  } catch (error) {
-    console.error("Error fetching paginated products:", error);
-    return {
-      products: [],
-      pagination: {
-        currentPage: 1,
-        totalPages: 1,
-        totalItems: 0,
-        itemsPerPage: 12,
-        hasNextPage: false,
-        hasPrevPage: false,
-      },
-    };
+      // If it's the last retry, return empty array
+      if (i === retries - 1) {
+        console.error("Failed to fetch detailed products after all retries");
+        return [];
+      }
+
+      // Wait before retrying (exponential backoff)
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
   }
+  return [];
 };
 
 export const getProductById = async (id: string): Promise<Product | null> => {
   try {
     const { data } = await api.get(`/api/products/${id}`);
 
-    const images: ProductImage[] = data.images?.map((img: any) => ({
-      ...img,
-      url: img.url || `/${img.storage_path}`,
-    })) || [];
+    const images: ProductImage[] =
+      data.images?.map((img: any) => ({
+        ...img,
+        url: img.url || `/${img.storage_path}`,
+      })) || [];
 
     const variants: ProductVariant[] = (data.variants || []).map((v: any) => ({
       id: v.id,

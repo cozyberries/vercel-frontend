@@ -42,37 +42,41 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
   );
 
   /**
-   * Load initial cart data
+   * Load initial cart data with faster local-first approach
    */
   const loadInitialCart = useCallback(async () => {
     if (authLoading || hasInitializedRef.current) return;
 
     isInitializingRef.current = true;
     try {
-      const localCart = cartService.getLocalCart();
-
-      if (user?.id) {
-        // User is authenticated - merge local and remote carts
-        const remoteCart = await cartService.getUserCart(user.id);
-        const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
-        
-        setCart(mergedCart);
-        // Save merged cart immediately since we're initializing
-        cartService.saveLocalCart(mergedCart);
-        if (mergedCart.length > 0) {
-          await cartService.saveUserCart(user.id, mergedCart);
-        }
-      } else {
-        // Anonymous user - use local cart only
-        setCart(localCart);
-      }
-
-      hasInitializedRef.current = true;
-    } catch (error) {
-      console.error("Error loading initial cart:", error);
-      // Fallback to local cart only
+      // Always load local cart immediately for instant UI
       const localCart = cartService.getLocalCart();
       setCart(localCart);
+      hasInitializedRef.current = true;
+
+      if (user?.id) {
+        // User is authenticated - merge with remote cart in background
+        try {
+          const remoteCart = await cartService.getUserCart(user.id);
+          const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
+          
+          // Only update if there's a difference
+          if (JSON.stringify(localCart) !== JSON.stringify(mergedCart)) {
+            setCart(mergedCart);
+            cartService.saveLocalCart(mergedCart);
+            if (mergedCart.length > 0) {
+              await cartService.saveUserCart(user.id, mergedCart);
+            }
+          }
+        } catch (error) {
+          console.error("Error syncing remote cart:", error);
+          // Continue with local cart - no need to show error to user
+        }
+      }
+    } catch (error) {
+      console.error("Error loading initial cart:", error);
+      // Fallback to empty cart
+      setCart([]);
       hasInitializedRef.current = true;
     } finally {
       isInitializingRef.current = false;

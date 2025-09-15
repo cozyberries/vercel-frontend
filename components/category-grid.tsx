@@ -1,46 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { images } from "@/app/assets/images";
 import Image from "next/image";
 import Link from "next/link";
-import { getCategories } from "@/lib/services/api";
 import { getPrimaryCategoryImageUrl } from "@/lib/utils/product";
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  images?: Array<{
-    id: string;
-    storage_path: string;
-    is_primary?: boolean;
-    display_order?: number;
-    metadata?: any;
-    url?: string;
-  }>;
-}
+import { usePreloadedData } from "@/components/data-preloader";
 
 export default function CategoryGrid() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const data = await getCategories();
-        setCategories(data);
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-        setCategories([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchCategories();
-  }, []);
+  const { categories, isLoading } = usePreloadedData();
 
   if (isLoading) {
     return (

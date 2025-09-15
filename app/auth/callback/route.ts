@@ -7,9 +7,24 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createServerSupabaseClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      console.error("Error exchanging code for session:", error);
+      // Redirect to login with error
+      return NextResponse.redirect(
+        new URL("/login?error=auth_callback_error", request.url)
+      );
+    }
   }
 
+  // Get the correct base URL for redirect
+  const getBaseUrl = () => {
+    // For Vercel deployments, use the request URL origin
+    const { protocol, host } = requestUrl;
+    return `${protocol}//${host}`;
+  };
+
   // Redirect to home page after successful authentication
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(new URL("/", getBaseUrl()));
 }

@@ -14,14 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { getProductById, Product } from "@/lib/services/api";
+import { Product } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
+import { usePreloadedData } from "./data-preloader";
 import { toast } from "sonner";
 
 export default function ProductDetails({ id: productId }: { id: string }) {
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -29,32 +28,23 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { getDetailedProductById, isLoading } = usePreloadedData();
+
+  const product = getDetailedProductById(productId);
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
 
   useEffect(() => {
-    const loadProduct = async () => {
-      try {
-        const productData = await getProductById(productId);
-        setProduct(productData);
-
-        // Set default selections if product is loaded
-        if (productData) {
-          if (productData.sizes.length > 0) {
-            setSelectedSize(productData.sizes[0]);
-          }
-          if (productData.colors.length > 0) {
-            setSelectedColor(productData.colors[0]);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading product:", error);
-      } finally {
-        setLoading(false);
+    // Set default selections if product is loaded
+    if (product) {
+      if (product.sizes.length > 0) {
+        setSelectedSize(product.sizes[0]);
       }
-    };
-    loadProduct();
-  }, [productId]);
+      if (product.colors.length > 0) {
+        setSelectedColor(product.colors[0]);
+      }
+    }
+  }, [product]);
 
   const incrementQuantity = () => {
     setQuantity((prev) => prev + 1);
@@ -66,7 +56,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         Loading product details...

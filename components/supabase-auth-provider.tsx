@@ -68,12 +68,23 @@ export function SupabaseAuthProvider({
   };
 
   const signInWithGoogle = async () => {
-    // Use NEXT_PUBLIC_APP_URL for production deployments, fallback to window.location.origin for development
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    // Get the current domain dynamically for redirect URL
+    const getRedirectUrl = () => {
+      if (typeof window !== "undefined") {
+        // Client-side: use current origin
+        return `${window.location.origin}/auth/callback`;
+      }
+
+      // Server-side fallback (shouldn't be used for OAuth)
+      return `${
+        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+      }/auth/callback`;
+    };
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${baseUrl}/auth/callback`,
+        redirectTo: getRedirectUrl(),
       },
     });
     return { error };

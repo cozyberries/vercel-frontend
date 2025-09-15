@@ -3,7 +3,17 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function GET() {
   try {
+    console.log("Categories API: Starting request");
+    console.log("Environment check:", {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      nodeEnv: process.env.NODE_ENV,
+      vercelUrl: process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'not set'
+    });
+
     const supabase = await createServerSupabaseClient();
+    console.log("Categories API: Supabase client created successfully");
+
     const { data, error } = await supabase
       .from("categories")
       .select(`
@@ -20,8 +30,9 @@ export async function GET() {
 
     if (error) {
       console.error("Error retrieving categories:", error);
+      console.error("Error details:", { message: error.message, details: error.details, hint: error.hint });
       return NextResponse.json(
-        { error: "Failed to retrieve categories" },
+        { error: "Failed to retrieve categories", details: error.message },
         { status: 500 }
       );
     }
@@ -52,6 +63,7 @@ export async function GET() {
       };
     });
 
+    console.log("Categories API: Successfully retrieved", data?.length || 0, "categories");
     return NextResponse.json(categories);
   } catch (error) {
     console.error("Error in GET /api/categories:", error);

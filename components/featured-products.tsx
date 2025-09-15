@@ -1,30 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getBestsellers, SimplifiedProduct } from "@/lib/services/api";
 import ProductCard from "./product-card";
+import { usePreloadedData } from "@/components/data-preloader";
 
 export default function FeaturedProducts() {
-  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const data = await getBestsellers();
-        setProducts(data);
-      } catch (error) {
-        console.error("Error fetching featured products:", error);
-        setProducts([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
+  const { products: allProducts, isLoading } = usePreloadedData();
+  
+  // Filter featured products from preloaded data
+  const products = allProducts.filter(product => product.is_featured).slice(0, 4);
 
   if (isLoading) {
     return (
