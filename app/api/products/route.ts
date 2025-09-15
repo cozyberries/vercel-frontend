@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
 export async function GET(request: NextRequest) {
@@ -23,6 +24,16 @@ export async function GET(request: NextRequest) {
         { error: "Limit must be between 1 and 100" },
         { status: 400 }
       );
+    }
+
+    // Create cache key based on limit
+    const cacheKey = `products:list:${limit}`;
+    
+    // Try to get from cache first
+    const cachedProducts = await UpstashService.get(cacheKey);
+    if (cachedProducts) {
+      console.log("Products loaded from Upstash cache");
+      return NextResponse.json(cachedProducts);
     }
 
     const supabase = await createServerSupabaseClient();
@@ -91,6 +102,9 @@ export async function GET(request: NextRequest) {
       count,
       "total"
     );
+
+    // Cache the results for 30 minutes
+    await UpstashService.set(cacheKey, products, 1800);
 
     return NextResponse.json(products);
   } catch (error) {

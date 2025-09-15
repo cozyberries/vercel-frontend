@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { UpstashService } from "@/lib/upstash";
 import type { WishlistItem } from "@/components/wishlist-context";
 
 export interface UserWishlist {
@@ -13,10 +14,18 @@ class WishlistService {
   private supabase = createClient();
 
   /**
-   * Fetch user's wishlist from Supabase
+   * Fetch user's wishlist from Supabase with Upstash caching
    */
   async getUserWishlist(userId: string): Promise<WishlistItem[]> {
     try {
+      // Try to get from cache first
+      const cachedWishlist = await UpstashService.getCachedUserWishlist(userId);
+      if (cachedWishlist) {
+        console.log("Wishlist loaded from Upstash cache");
+        return cachedWishlist;
+      }
+
+      // If not in cache, fetch from Supabase
       const { data, error } = await this.supabase
         .from("user_wishlists")
         .select("items")
@@ -29,7 +38,14 @@ class WishlistService {
         return [];
       }
 
-      return data?.items || [];
+      const wishlistItems = data?.items || [];
+      
+      // Cache the result for future requests
+      if (wishlistItems.length > 0) {
+        await UpstashService.cacheUserWishlist(userId, wishlistItems);
+      }
+
+      return wishlistItems;
     } catch (error) {
       console.error("Error fetching user wishlist:", error);
       return [];
@@ -37,7 +53,7 @@ class WishlistService {
   }
 
   /**
-   * Save wishlist to Supabase (upsert operation)
+   * Save wishlist to Supabase (upsert operation) with Upstash caching
    */
   async saveUserWishlist(userId: string, items: WishlistItem[]): Promise<void> {
     try {
@@ -58,6 +74,9 @@ class WishlistService {
         console.error("Error saving user wishlist:", error);
         throw error;
       }
+
+      // Update cache after successful save
+      await UpstashService.cacheUserWishlist(userId, items);
     } catch (error) {
       console.error("Error saving user wishlist:", error);
       throw error;
@@ -65,7 +84,7 @@ class WishlistService {
   }
 
   /**
-   * Delete user's wishlist from Supabase
+   * Delete user's wishlist from Supabase and clear cache
    */
   async clearUserWishlist(userId: string): Promise<void> {
     try {
@@ -78,6 +97,9 @@ class WishlistService {
         console.error("Error clearing user wishlist:", error);
         throw error;
       }
+
+      // Clear cache after successful deletion
+      await UpstashService.delete(`wishlist:${userId}`);
     } catch (error) {
       console.error("Error clearing user wishlist:", error);
       throw error;

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { UpstashService } from "@/lib/upstash";
 import type { CartItem } from "@/components/cart-context";
 
 export interface UserCart {
@@ -13,10 +14,18 @@ class CartService {
   private supabase = createClient();
 
   /**
-   * Fetch user's cart from Supabase
+   * Fetch user's cart from Supabase with Upstash caching
    */
   async getUserCart(userId: string): Promise<CartItem[]> {
     try {
+      // Try to get from cache first
+      const cachedCart = await UpstashService.getCachedUserCart(userId);
+      if (cachedCart) {
+        console.log("Cart loaded from Upstash cache");
+        return cachedCart;
+      }
+
+      // If not in cache, fetch from Supabase
       const { data, error } = await this.supabase
         .from("user_carts")
         .select("items")
@@ -29,7 +38,14 @@ class CartService {
         return [];
       }
 
-      return data?.items || [];
+      const cartItems = data?.items || [];
+      
+      // Cache the result for future requests
+      if (cartItems.length > 0) {
+        await UpstashService.cacheUserCart(userId, cartItems);
+      }
+
+      return cartItems;
     } catch (error) {
       console.error("Error fetching user cart:", error);
       return [];
@@ -37,27 +53,28 @@ class CartService {
   }
 
   /**
-   * Save cart to Supabase (upsert operation)
+   * Save cart to Supabase (upsert operation) with Upstash caching
    */
   async saveUserCart(userId: string, items: CartItem[]): Promise<void> {
     try {
-      const { error } = await this.supabase
-        .from("user_carts")
-        .upsert(
-          {
-            user_id: userId,
-            items: items,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "user_id",
-          }
-        );
+      const { error } = await this.supabase.from("user_carts").upsert(
+        {
+          user_id: userId,
+          items: items,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_id",
+        }
+      );
 
       if (error) {
         console.error("Error saving user cart:", error);
         throw error;
       }
+
+      // Update cache after successful save
+      await UpstashService.cacheUserCart(userId, items);
     } catch (error) {
       console.error("Error saving user cart:", error);
       throw error;
@@ -65,7 +82,7 @@ class CartService {
   }
 
   /**
-   * Delete user's cart from Supabase
+   * Delete user's cart from Supabase and clear cache
    */
   async clearUserCart(userId: string): Promise<void> {
     try {
@@ -78,6 +95,9 @@ class CartService {
         console.error("Error clearing user cart:", error);
         throw error;
       }
+
+      // Clear cache after successful deletion
+      await UpstashService.delete(`cart:${userId}`);
     } catch (error) {
       console.error("Error clearing user cart:", error);
       throw error;
@@ -103,7 +123,7 @@ class CartService {
         // Check if this looks like a refresh scenario (same items with same quantities)
         // If so, prefer remote data to avoid doubling
         const isLikelyRefresh = this.areSimilarCarts(localItems, remoteItems);
-        
+
         if (isLikelyRefresh) {
           // Prefer remote data on refresh scenarios
           // mergedItems already has the remote item, so do nothing
@@ -127,15 +147,22 @@ class CartService {
    * Check if local and remote carts are similar (indicating a refresh scenario)
    * rather than a true cross-device merge scenario
    */
-  private areSimilarCarts(localItems: CartItem[], remoteItems: CartItem[]): boolean {
+  private areSimilarCarts(
+    localItems: CartItem[],
+    remoteItems: CartItem[]
+  ): boolean {
     if (localItems.length !== remoteItems.length) {
       return false;
     }
 
-    // If both carts have the same items with the same quantities, 
+    // If both carts have the same items with the same quantities,
     // it's likely a refresh scenario where data was just synced
-    const localMap = new Map(localItems.map(item => [item.id, item.quantity]));
-    const remoteMap = new Map(remoteItems.map(item => [item.id, item.quantity]));
+    const localMap = new Map(
+      localItems.map((item) => [item.id, item.quantity])
+    );
+    const remoteMap = new Map(
+      remoteItems.map((item) => [item.id, item.quantity])
+    );
 
     for (const [id, quantity] of localMap) {
       if (remoteMap.get(id) !== quantity) {
