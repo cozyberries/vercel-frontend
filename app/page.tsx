@@ -32,14 +32,12 @@ export default function Home() {
         <div className="max-w-lg mx-auto text-center">
           {/* Boho Logo/Brand */}
           <div className="mb-8">
-            <div className="w-32 h-32 mx-auto bg-gradient-to-br from-amber-100 to-pink-100 rounded-full flex items-center justify-center shadow-lg border-4 border-white">
-              <svg
-                className="w-16 h-16 text-amber-600"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-              </svg>
+            <div className="w-32 h-32 mx-auto bg-gradient-to-br from-amber-100 to-pink-100 rounded-full flex items-center justify-center shadow-lg border-4 border-white p-4">
+              <img
+                src="/logo/logo.png"
+                alt="Cozyberries Logo"
+                className="w-full h-full object-contain"
+              />
             </div>
           </div>
 
