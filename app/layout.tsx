@@ -2,14 +2,12 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/header";
-import Footer from "@/components/footer";
-import MobileBottomHeader from "@/components/MobileBottomHeader";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
+import { ConditionalLayout } from "@/components/conditional-layout";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -57,12 +55,9 @@ export default function RootLayout({
                   enableSystem={false}
                   disableTransitionOnChange
                 >
-                  <div className="flex min-h-screen flex-col">
-                    <Header />
-                    <main className="flex-1 pb-16 lg:pb-0">{children}</main>
-                    <Footer />
-                    <MobileBottomHeader />
-                  </div>
+                  <ConditionalLayout>
+                    {children}
+                  </ConditionalLayout>
                 </ThemeProvider>
               </CartProvider>
             </WishlistProvider>
