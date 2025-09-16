@@ -21,6 +21,7 @@ import { useCart } from "@/components/cart-context";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
 import AddressFormModal from "@/components/profile/AddressFormModal";
+import { toast } from "sonner";
 
 interface CheckoutFormData {
   email: string;
@@ -151,7 +152,7 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedAddressId) {
       alert("Please select a shipping address");
       return;
@@ -162,7 +163,7 @@ export default function CheckoutPage() {
     try {
       // Create order in Supabase
       const orderData = {
-        items: cart.map(item => ({
+        items: cart.map((item) => ({
           id: item.id,
           name: item.name,
           price: item.price,
@@ -191,12 +192,18 @@ export default function CheckoutPage() {
       // Clear cart after successful order creation
       clearCart();
 
+      // Show success toast
+      toast.success("Order created successfully! Redirecting to payment...");
+
       // Redirect to payment page
       router.push(payment_url);
-      
     } catch (error) {
       console.error("Order creation error:", error);
-      alert(error instanceof Error ? error.message : "Failed to create order. Please try again.");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to create order. Please try again."
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -413,7 +420,9 @@ export default function CheckoutPage() {
                 ) : (
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4" />
-                    {selectedAddressId ? `Create Order - ₹${total.toFixed(2)}` : "Select Address to Continue"}
+                    {selectedAddressId
+                      ? `Create Order - ₹${total.toFixed(2)}`
+                      : "Select Address to Continue"}
                   </div>
                 )}
               </Button>

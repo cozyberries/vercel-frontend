@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, ShoppingBag, Heart, Package } from "lucide-react";
+import { Search, ShoppingBag, Heart, Package, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -56,6 +56,12 @@ export default function MobileBottomHeader() {
 
   const navItems = [
     {
+      name: "Home",
+      href: "/",
+      icon: Home,
+      isActive: pathname === "/",
+    },
+    {
       name: "Products",
       href: "/products",
       icon: ShoppingBag,
@@ -80,7 +86,7 @@ export default function MobileBottomHeader() {
     <>
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 lg:hidden">
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {/* Navigation Items */}
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -99,7 +105,7 @@ export default function MobileBottomHeader() {
                   className={className}
                 >
                   <div className="relative">
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-6 w-6" />
                     {item.badge && (
                       <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                         {item.badge}
@@ -115,7 +121,7 @@ export default function MobileBottomHeader() {
             return (
               <Link key={item.name} href={item.href!} className={className}>
                 <div className="relative">
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-6 w-6" />
                   {"badge" in item && (item as any).badge && (
                     <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                       {(item as any).badge}
@@ -132,7 +138,7 @@ export default function MobileBottomHeader() {
             onClick={handleSearchClick}
             className="flex flex-col items-center justify-center space-y-1 transition-colors duration-200 text-gray-600 hover:text-primary hover:bg-gray-50"
           >
-            <Search className="h-5 w-5" />
+            <Search className="h-6 w-6" />
             <span className="text-xs font-medium">Search</span>
           </button>
         </div>

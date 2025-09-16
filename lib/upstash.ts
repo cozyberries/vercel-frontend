@@ -15,14 +15,20 @@ export class UpstashService {
     ttl: number = 3600
   ) {
     try {
-      await redis.setex(
-        `user:session:${userId}`,
-        ttl,
-        JSON.stringify(sessionData)
-      );
+      // Validate session data before stringifying
+      if (sessionData === null || sessionData === undefined) {
+        console.warn(
+          `Attempting to cache null/undefined session data for user: ${userId}`
+        );
+        return false;
+      }
+
+      const serializedData = JSON.stringify(sessionData);
+      await redis.setex(`user:session:${userId}`, ttl, serializedData);
       return true;
     } catch (error) {
       console.error("Error caching user session:", error);
+      console.error("Session data that failed to serialize:", sessionData);
       return false;
     }
   }
@@ -31,7 +37,20 @@ export class UpstashService {
   static async getUserSession(userId: string) {
     try {
       const sessionData = await redis.get(`user:session:${userId}`);
-      return sessionData ? JSON.parse(sessionData as string) : null;
+      if (!sessionData) return null;
+
+      if (typeof sessionData === "object") return sessionData;
+      if (typeof sessionData === "string") {
+        if (
+          sessionData.trim().startsWith("<!DOCTYPE") ||
+          sessionData.trim().startsWith("<html")
+        ) {
+          console.warn(`Session cache returned HTML for user: ${userId}`);
+          return null;
+        }
+        return JSON.parse(sessionData);
+      }
+      return sessionData;
     } catch (error) {
       console.error("Error getting user session:", error);
       return null;
@@ -45,14 +64,20 @@ export class UpstashService {
     ttl: number = 1800
   ) {
     try {
-      await redis.setex(
-        `product:${productId}`,
-        ttl,
-        JSON.stringify(productData)
-      );
+      // Validate product data before stringifying
+      if (productData === null || productData === undefined) {
+        console.warn(
+          `Attempting to cache null/undefined product data for product: ${productId}`
+        );
+        return false;
+      }
+
+      const serializedData = JSON.stringify(productData);
+      await redis.setex(`product:${productId}`, ttl, serializedData);
       return true;
     } catch (error) {
       console.error("Error caching product:", error);
+      console.error("Product data that failed to serialize:", productData);
       return false;
     }
   }
@@ -61,7 +86,20 @@ export class UpstashService {
   static async getCachedProduct(productId: string) {
     try {
       const productData = await redis.get(`product:${productId}`);
-      return productData ? JSON.parse(productData as string) : null;
+      if (!productData) return null;
+
+      if (typeof productData === "object") return productData;
+      if (typeof productData === "string") {
+        if (
+          productData.trim().startsWith("<!DOCTYPE") ||
+          productData.trim().startsWith("<html")
+        ) {
+          console.warn(`Product cache returned HTML for product: ${productId}`);
+          return null;
+        }
+        return JSON.parse(productData);
+      }
+      return productData;
     } catch (error) {
       console.error("Error getting cached product:", error);
       return null;
@@ -75,10 +113,20 @@ export class UpstashService {
     ttl: number = 7200
   ) {
     try {
-      await redis.setex(`cart:${userId}`, ttl, JSON.stringify(cartData));
+      // Validate cart data before stringifying
+      if (cartData === null || cartData === undefined) {
+        console.warn(
+          `Attempting to cache null/undefined cart data for user: ${userId}`
+        );
+        return false;
+      }
+
+      const serializedData = JSON.stringify(cartData);
+      await redis.setex(`cart:${userId}`, ttl, serializedData);
       return true;
     } catch (error) {
       console.error("Error caching user cart:", error);
+      console.error("Cart data that failed to serialize:", cartData);
       return false;
     }
   }
@@ -87,7 +135,20 @@ export class UpstashService {
   static async getCachedUserCart(userId: string) {
     try {
       const cartData = await redis.get(`cart:${userId}`);
-      return cartData ? JSON.parse(cartData as string) : null;
+      if (!cartData) return null;
+
+      if (typeof cartData === "object") return cartData;
+      if (typeof cartData === "string") {
+        if (
+          cartData.trim().startsWith("<!DOCTYPE") ||
+          cartData.trim().startsWith("<html")
+        ) {
+          console.warn(`Cart cache returned HTML for user: ${userId}`);
+          return null;
+        }
+        return JSON.parse(cartData);
+      }
+      return cartData;
     } catch (error) {
       console.error("Error getting cached cart:", error);
       return null;
@@ -101,14 +162,20 @@ export class UpstashService {
     ttl: number = 7200
   ) {
     try {
-      await redis.setex(
-        `wishlist:${userId}`,
-        ttl,
-        JSON.stringify(wishlistData)
-      );
+      // Validate wishlist data before stringifying
+      if (wishlistData === null || wishlistData === undefined) {
+        console.warn(
+          `Attempting to cache null/undefined wishlist data for user: ${userId}`
+        );
+        return false;
+      }
+
+      const serializedData = JSON.stringify(wishlistData);
+      await redis.setex(`wishlist:${userId}`, ttl, serializedData);
       return true;
     } catch (error) {
       console.error("Error caching user wishlist:", error);
+      console.error("Wishlist data that failed to serialize:", wishlistData);
       return false;
     }
   }
@@ -117,7 +184,20 @@ export class UpstashService {
   static async getCachedUserWishlist(userId: string) {
     try {
       const wishlistData = await redis.get(`wishlist:${userId}`);
-      return wishlistData ? JSON.parse(wishlistData as string) : null;
+      if (!wishlistData) return null;
+
+      if (typeof wishlistData === "object") return wishlistData;
+      if (typeof wishlistData === "string") {
+        if (
+          wishlistData.trim().startsWith("<!DOCTYPE") ||
+          wishlistData.trim().startsWith("<html")
+        ) {
+          console.warn(`Wishlist cache returned HTML for user: ${userId}`);
+          return null;
+        }
+        return JSON.parse(wishlistData);
+      }
+      return wishlistData;
     } catch (error) {
       console.error("Error getting cached wishlist:", error);
       return null;
@@ -170,14 +250,24 @@ export class UpstashService {
   // Generic cache setter
   static async set(key: string, value: any, ttl?: number) {
     try {
+      // Validate value before stringifying
+      if (value === null || value === undefined) {
+        console.warn(
+          `Attempting to cache null/undefined value for key: ${key}`
+        );
+        return false;
+      }
+
+      const serializedValue = JSON.stringify(value);
       if (ttl) {
-        await redis.setex(key, ttl, JSON.stringify(value));
+        await redis.setex(key, ttl, serializedValue);
       } else {
-        await redis.set(key, JSON.stringify(value));
+        await redis.set(key, serializedValue);
       }
       return true;
     } catch (error) {
       console.error("Error setting cache:", error);
+      console.error("Value that failed to serialize:", value);
       return false;
     }
   }
@@ -186,7 +276,34 @@ export class UpstashService {
   static async get(key: string) {
     try {
       const data = await redis.get(key);
-      return data ? JSON.parse(data as string) : null;
+      if (!data) return null;
+
+      // Check if data is already an object (parsed)
+      if (typeof data === "object") {
+        return data;
+      }
+
+      // Check if data is a string that looks like JSON
+      if (typeof data === "string") {
+        // Check if it's HTML (error response) instead of JSON
+        if (
+          data.trim().startsWith("<!DOCTYPE") ||
+          data.trim().startsWith("<html")
+        ) {
+          console.warn(`Cache returned HTML instead of JSON for key: ${key}`);
+          return null;
+        }
+
+        // Check if it's an object string representation
+        if (data.startsWith("[object Object]")) {
+          console.warn(`Cache returned object string for key: ${key}`);
+          return null;
+        }
+
+        return JSON.parse(data);
+      }
+
+      return data;
     } catch (error) {
       console.error("Error getting cache:", error);
       return null;

@@ -50,7 +50,7 @@ const ageRanges = [
 
 export default function AgeGrid() {
   return (
-    <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-2 gap-6">
+    <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-3 gap-8">
       {ageRanges.map((ageRange) => (
         <Link
           key={ageRange.id}
