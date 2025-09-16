@@ -4,8 +4,8 @@ import { directRedis } from "./redis-client";
 
 // Create Redis client instance
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: process.env.NEXT_PUBLIC_UPSTASH_REDIS_REST_URL!,
+  token: process.env.NEXT_PUBLIC_UPSTASH_REDIS_REST_TOKEN!,
 });
 
 // Debug function to check Redis connection
@@ -14,29 +14,34 @@ async function testRedisConnection() {
     // First try the @upstash/redis library
     try {
       await redis.get("__connection_test__");
-      console.log("✅ Upstash Redis connection successful (using @upstash/redis)");
+      console.log(
+        "✅ Upstash Redis connection successful (using @upstash/redis)"
+      );
       return true;
     } catch (upstashError) {
-      console.warn("@upstash/redis failed, trying direct connection...", upstashError);
+      console.warn(
+        "@upstash/redis failed, trying direct connection...",
+        upstashError
+      );
     }
-    
+
     // Fallback to direct Redis client
     await directRedis.ping();
     console.log("✅ Upstash Redis connection successful (using direct client)");
     return true;
   } catch (error) {
     console.error("❌ Both Redis connection methods failed:", error);
-    
+
     // Additional debugging
     if (error instanceof Error) {
       console.error("Error details:", {
         message: error.message,
         name: error.name,
-        stack: error.stack?.split('\n')[0]
+        stack: error.stack?.split("\n")[0],
       });
-      
+
       // Check if it's the HTML response issue
-      if (error.message.includes('<!DOCTYPE')) {
+      if (error.message.includes("<!DOCTYPE")) {
         console.error("🚨 Redis is returning HTML - this usually means:");
         console.error("1. Invalid credentials");
         console.error("2. Network/proxy issues");
@@ -171,33 +176,39 @@ export class UpstashService {
         console.error("Cart data:", cartData);
         return false;
       }
-      
+
       // Test Redis connection before attempting to cache
       const connectionOk = await testRedisConnection();
       if (!connectionOk) {
         console.warn("Skipping cart caching due to Redis connection issues");
         return false;
       }
-      
+
       // Try @upstash/redis first, then fallback to direct client
       try {
         await redis.setex(`cart:${userId}`, ttl, serializedData);
-        console.log(`✅ Successfully cached cart for user: ${userId} (using @upstash/redis)`);
+        console.log(
+          `✅ Successfully cached cart for user: ${userId} (using @upstash/redis)`
+        );
       } catch (upstashError) {
         console.warn("@upstash/redis setex failed, trying direct client...");
         await directRedis.setex(`cart:${userId}`, ttl, serializedData);
-        console.log(`✅ Successfully cached cart for user: ${userId} (using direct client)`);
+        console.log(
+          `✅ Successfully cached cart for user: ${userId} (using direct client)`
+        );
       }
       return true;
     } catch (error) {
       console.error("Error caching user cart:", error);
       console.error("Cart data that failed to cache:", cartData);
-      
+
       // Check if error is related to HTML response (service issue)
-      if (error instanceof Error && error.message.includes('<!DOCTYPE')) {
-        console.error("🚨 Upstash is returning HTML instead of accepting JSON - check service status and credentials");
+      if (error instanceof Error && error.message.includes("<!DOCTYPE")) {
+        console.error(
+          "🚨 Upstash is returning HTML instead of accepting JSON - check service status and credentials"
+        );
       }
-      
+
       return false;
     }
   }
@@ -206,7 +217,7 @@ export class UpstashService {
   static async getCachedUserCart(userId: string) {
     try {
       let cartData;
-      
+
       // Try @upstash/redis first, then fallback to direct client
       try {
         cartData = await redis.get(`cart:${userId}`);
@@ -214,7 +225,7 @@ export class UpstashService {
         console.warn("@upstash/redis get failed, trying direct client...");
         cartData = await directRedis.get(`cart:${userId}`);
       }
-      
+
       if (!cartData) return null;
 
       if (typeof cartData === "object") return cartData;
