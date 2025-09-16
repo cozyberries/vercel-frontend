@@ -10,6 +10,7 @@ import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
+import DataSourceIndicator from "@/components/DataSourceIndicator";
 import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -65,6 +66,7 @@ export default function RootLayout({
                     <MobileBottomHeader />
                   </div>
                   <Toaster />
+                  {process.env.NODE_ENV === 'development' && <DataSourceIndicator />}
                 </ThemeProvider>
               </CartProvider>
             </WishlistProvider>

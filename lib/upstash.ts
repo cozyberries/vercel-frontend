@@ -4,10 +4,12 @@ import { directRedis } from "./redis-client";
 
 // Create Redis client instance
 export const redis = new Redis({
-  url: process.env.NEXT_PUBLIC_UPSTASH_REDIS_REST_URL!,
-  token: process.env.NEXT_PUBLIC_UPSTASH_REDIS_REST_TOKEN!,
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+console.log(process.env.UPSTASH_REDIS_REST_URL);
+console.log(process.env.UPSTASH_REDIS_REST_TOKEN);
 // Debug function to check Redis connection
 async function testRedisConnection() {
   try {
@@ -217,16 +219,33 @@ export class UpstashService {
   static async getCachedUserCart(userId: string) {
     try {
       let cartData;
+      let clientUsed = "@upstash/redis";
 
       // Try @upstash/redis first, then fallback to direct client
       try {
         cartData = await redis.get(`cart:${userId}`);
+        console.log("🔍 REDIS GET: Using @upstash/redis library", { userId });
       } catch (upstashError) {
         console.warn("@upstash/redis get failed, trying direct client...");
         cartData = await directRedis.get(`cart:${userId}`);
+        clientUsed = "direct-client";
+        console.log("🔍 REDIS GET: Using direct Redis client", { userId });
       }
 
-      if (!cartData) return null;
+      if (!cartData) {
+        console.log("🚫 CACHE EMPTY: No cart data found in Redis", {
+          userId,
+          clientUsed,
+        });
+        return null;
+      }
+
+      console.log("✅ CACHE FOUND: Cart data retrieved from Redis", {
+        userId,
+        clientUsed,
+        dataType: typeof cartData,
+        hasData: !!cartData,
+      });
 
       if (typeof cartData === "object") return cartData;
       if (typeof cartData === "string") {

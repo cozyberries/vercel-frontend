@@ -21,9 +21,21 @@ class CartService {
       // Try to get from cache first
       const cachedCart = await UpstashService.getCachedUserCart(userId);
       if (cachedCart) {
-        console.log("Cart loaded from Upstash cache");
+        console.log("🔄 CACHE HIT: Cart loaded from Upstash Redis cache", {
+          userId,
+          itemCount: cachedCart.length,
+          source: "UPSTASH_CACHE",
+        });
         return cachedCart;
       }
+
+      console.log(
+        "🔍 CACHE MISS: Cart not found in Upstash, fetching from Supabase",
+        {
+          userId,
+          source: "SUPABASE_FALLBACK",
+        }
+      );
 
       // If not in cache, fetch from Supabase
       const { data, error } = await this.supabase
@@ -39,13 +51,30 @@ class CartService {
       }
 
       const cartItems = data?.items || [];
-      
+
+      console.log("📦 DATA FETCHED: Cart retrieved from Supabase database", {
+        userId,
+        itemCount: cartItems.length,
+        source: "SUPABASE_DATABASE",
+        willCache: cartItems.length > 0,
+      });
+
       // Cache the result for future requests (best effort - don't fail if caching fails)
       if (cartItems.length > 0) {
         try {
           await UpstashService.cacheUserCart(userId, cartItems);
+          console.log(
+            "💾 CACHED: Cart data saved to Upstash for future requests",
+            {
+              userId,
+              itemCount: cartItems.length,
+            }
+          );
         } catch (cacheError) {
-          console.warn("Failed to cache cart items, continuing without cache:", cacheError);
+          console.warn(
+            "❌ CACHE FAILED: Unable to save cart to Upstash:",
+            cacheError
+          );
         }
       }
 
@@ -81,7 +110,10 @@ class CartService {
       try {
         await UpstashService.cacheUserCart(userId, items);
       } catch (cacheError) {
-        console.warn("Failed to update cart cache after save, continuing:", cacheError);
+        console.warn(
+          "Failed to update cart cache after save, continuing:",
+          cacheError
+        );
       }
     } catch (error) {
       console.error("Error saving user cart:", error);
@@ -108,7 +140,10 @@ class CartService {
       try {
         await UpstashService.delete(`cart:${userId}`);
       } catch (cacheError) {
-        console.warn("Failed to clear cart cache after deletion, continuing:", cacheError);
+        console.warn(
+          "Failed to clear cart cache after deletion, continuing:",
+          cacheError
+        );
       }
     } catch (error) {
       console.error("Error clearing user cart:", error);
