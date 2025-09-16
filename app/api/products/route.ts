@@ -5,15 +5,6 @@ import { Product, ProductCreate } from "@/lib/types/product";
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("Products API: Starting request");
-    console.log("Environment check:", {
-      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      nodeEnv: process.env.NODE_ENV,
-      vercelUrl: process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "not set",
-    });
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "100");
@@ -32,12 +23,10 @@ export async function GET(request: NextRequest) {
     // Try to get from cache first
     const cachedProducts = await UpstashService.get(cacheKey);
     if (cachedProducts) {
-      console.log("Products loaded from Upstash cache");
       return NextResponse.json(cachedProducts);
     }
 
     const supabase = await createServerSupabaseClient();
-    console.log("Products API: Supabase client created successfully");
 
     // Build query to get all products with category name join and product images
     const { data, error, count } = await supabase
@@ -58,12 +47,6 @@ export async function GET(request: NextRequest) {
       .limit(limit);
 
     if (error) {
-      console.error("Error retrieving products:", error);
-      console.error("Error details:", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
       return NextResponse.json(
         { error: "Failed to retrieve products", details: error.message },
         { status: 500 }
@@ -95,20 +78,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    console.log(
-      "Products API: Successfully retrieved",
-      products.length,
-      "products out of",
-      count,
-      "total"
-    );
 
     // Cache the results for 30 minutes
     await UpstashService.set(cacheKey, products, 1800);
 
     return NextResponse.json(products);
   } catch (error) {
-    console.error("Error in GET /api/products:", error);
 
     // Check if it's a Supabase client creation error
     if (
@@ -179,8 +154,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error("Error creating product:", error);
-      console.error("Error details:", error.message, error.details, error.hint);
       return NextResponse.json(
         { error: `Failed to create product: ${error.message}` },
         { status: 500 }
@@ -194,9 +167,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Invalidate product list cache when new product is created
+    await UpstashService.delete('products:list:100');
+
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Error in POST /api/products:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

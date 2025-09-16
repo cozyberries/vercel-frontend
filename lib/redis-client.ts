@@ -14,13 +14,14 @@ class DirectRedisClient {
 
   private async makeRequest(command: string[], body?: any) {
     try {
-      const response = await fetch(`${this.url}/${command.join('/')}`, {
+      // Upstash Redis REST API expects commands in the body, not in the URL
+      const response = await fetch(this.url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.token}`,
           'Content-Type': 'application/json'
         },
-        body: body ? JSON.stringify(body) : undefined
+        body: JSON.stringify(command)
       });
 
       if (!response.ok) {

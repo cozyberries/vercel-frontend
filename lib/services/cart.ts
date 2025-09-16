@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase";
-import { UpstashService } from "@/lib/upstash";
 import type { CartItem } from "@/components/cart-context";
 
 export interface UserCart {
@@ -13,25 +12,14 @@ export interface UserCart {
 class CartService {
   private supabase = createClient();
   private cacheRequests = new Map<string, Promise<CartItem[]>>();
-  private lastLogTime = new Map<string, number>();
-  private callCount = 0;
 
   /**
    * Fetch user's cart from Supabase with Upstash caching
    */
   async getUserCart(userId: string): Promise<CartItem[]> {
-    this.callCount++;
-    console.log(`🔢 getUserCart called ${this.callCount} times for user ${userId.substring(0, 8)}...`);
-    
-    // Log stack trace to see where calls are coming from
-    if (this.callCount <= 5) {
-      console.trace(`📍 Call #${this.callCount} stack trace:`);
-    }
-    
     try {
       // Check if we already have a pending request for this user
       if (this.cacheRequests.has(userId)) {
-        console.log("⏳ DEDUP: Reusing existing cart request", { userId });
         return await this.cacheRequests.get(userId)!;
       }
 
@@ -57,29 +45,6 @@ class CartService {
    */
   private async _getUserCartInternal(userId: string): Promise<CartItem[]> {
     try {
-      // Try to get from cache first
-      const cachedCart = await UpstashService.getCachedUserCart(userId);
-      if (cachedCart) {
-        this._logOnce("CACHE_HIT", userId, () => {
-          console.log("🔄 CACHE HIT: Cart loaded from Upstash Redis cache", {
-            userId,
-            itemCount: cachedCart.length,
-            source: "UPSTASH_CACHE",
-          });
-        });
-        return cachedCart;
-      }
-
-      this._logOnce("CACHE_MISS", userId, () => {
-        console.log(
-          "🔍 CACHE MISS: Cart not found in Upstash, fetching from Supabase",
-          {
-            userId,
-            source: "SUPABASE_FALLBACK",
-          }
-        );
-      });
-
       // If not in cache, fetch from Supabase
       const { data, error } = await this.supabase
         .from("user_carts")
@@ -95,55 +60,10 @@ class CartService {
 
       const cartItems = data?.items || [];
 
-      this._logOnce("DATA_FETCHED", userId, () => {
-        console.log("📦 DATA FETCHED: Cart retrieved from Supabase database", {
-          userId,
-          itemCount: cartItems.length,
-          source: "SUPABASE_DATABASE",
-          willCache: cartItems.length > 0,
-        });
-      });
-
-      // Cache the result for future requests (best effort - don't fail if caching fails)
-      if (cartItems.length > 0) {
-        try {
-          await UpstashService.cacheUserCart(userId, cartItems);
-          this._logOnce("CACHED", userId, () => {
-            console.log(
-              "💾 CACHED: Cart data saved to Upstash for future requests",
-              {
-                userId,
-                itemCount: cartItems.length,
-              }
-            );
-          });
-        } catch (cacheError) {
-          console.warn(
-            "❌ CACHE FAILED: Unable to save cart to Upstash:",
-            cacheError
-          );
-        }
-      }
-
       return cartItems;
     } catch (error) {
       console.error("Error fetching user cart:", error);
       return [];
-    }
-  }
-
-  /**
-   * Helper method to log only once per user per log type within a time window
-   */
-  private _logOnce(logType: string, userId: string, logFn: () => void) {
-    const key = `${logType}_${userId}`;
-    const now = Date.now();
-    const lastTime = this.lastLogTime.get(key) || 0;
-
-    // Only log if it's been more than 2 seconds since last log of this type
-    if (now - lastTime > 2000) {
-      logFn();
-      this.lastLogTime.set(key, now);
     }
   }
 
@@ -167,16 +87,6 @@ class CartService {
         console.error("Error saving user cart:", error);
         throw error;
       }
-
-      // Update cache after successful save (best effort - don't fail if caching fails)
-      try {
-        await UpstashService.cacheUserCart(userId, items);
-      } catch (cacheError) {
-        console.warn(
-          "Failed to update cart cache after save, continuing:",
-          cacheError
-        );
-      }
     } catch (error) {
       console.error("Error saving user cart:", error);
       throw error;
@@ -196,16 +106,6 @@ class CartService {
       if (error) {
         console.error("Error clearing user cart:", error);
         throw error;
-      }
-
-      // Clear cache after successful deletion (best effort)
-      try {
-        await UpstashService.delete(`cart:${userId}`);
-      } catch (cacheError) {
-        console.warn(
-          "Failed to clear cart cache after deletion, continuing:",
-          cacheError
-        );
       }
     } catch (error) {
       console.error("Error clearing user cart:", error);

@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { UpstashService } from "@/lib/upstash";
 import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -47,15 +46,6 @@ export function SupabaseAuthProvider({
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-
-      // Cache user session data for faster subsequent loads
-      if (session?.user) {
-        await UpstashService.cacheUserSession(session.user.id, {
-          user: session.user,
-          session: session,
-          timestamp: Date.now(),
-        });
-      }
     });
 
     return () => subscription.unsubscribe();
