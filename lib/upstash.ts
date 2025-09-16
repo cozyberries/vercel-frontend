@@ -56,6 +56,7 @@ async function testRedisConnection() {
 
 // Utility functions for common Redis operations
 export class UpstashService {
+  private static logThrottle = new Map<string, number>();
   // Cache user session data
   static async cacheUserSession(
     userId: string,
@@ -233,18 +234,22 @@ export class UpstashService {
       }
 
       if (!cartData) {
-        console.log("🚫 CACHE EMPTY: No cart data found in Redis", {
-          userId,
-          clientUsed,
+        this._throttleLog(`CACHE_EMPTY_${userId}`, () => {
+          console.log("🚫 CACHE EMPTY: No cart data found in Redis", {
+            userId,
+            clientUsed,
+          });
         });
         return null;
       }
 
-      console.log("✅ CACHE FOUND: Cart data retrieved from Redis", {
-        userId,
-        clientUsed,
-        dataType: typeof cartData,
-        hasData: !!cartData,
+      this._throttleLog(`CACHE_FOUND_${userId}`, () => {
+        console.log("✅ CACHE FOUND: Cart data retrieved from Redis", {
+          userId,
+          clientUsed,
+          dataType: typeof cartData,
+          hasData: !!cartData,
+        });
       });
 
       if (typeof cartData === "object") return cartData;
@@ -428,6 +433,20 @@ export class UpstashService {
     } catch (error) {
       console.error("Error deleting cache:", error);
       return false;
+    }
+  }
+
+  /**
+   * Helper method to throttle logging to prevent spam
+   */
+  private static _throttleLog(key: string, logFn: () => void) {
+    const now = Date.now();
+    const lastTime = this.logThrottle.get(key) || 0;
+    
+    // Only log if it's been more than 1 second since last log
+    if (now - lastTime > 1000) {
+      logFn();
+      this.logThrottle.set(key, now);
     }
   }
 }

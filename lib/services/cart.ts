@@ -12,30 +12,64 @@ export interface UserCart {
 
 class CartService {
   private supabase = createClient();
+  private cacheRequests = new Map<string, Promise<CartItem[]>>();
+  private lastLogTime = new Map<string, number>();
 
   /**
    * Fetch user's cart from Supabase with Upstash caching
    */
   async getUserCart(userId: string): Promise<CartItem[]> {
     try {
+      // Check if we already have a pending request for this user
+      if (this.cacheRequests.has(userId)) {
+        console.log("⏳ DEDUP: Reusing existing cart request", { userId });
+        return await this.cacheRequests.get(userId)!;
+      }
+
+      // Create a new request promise
+      const requestPromise = this._getUserCartInternal(userId);
+      this.cacheRequests.set(userId, requestPromise);
+
+      try {
+        const result = await requestPromise;
+        return result;
+      } finally {
+        // Clean up the request after completion
+        this.cacheRequests.delete(userId);
+      }
+    } catch (error) {
+      console.error("Error fetching user cart:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Internal method to fetch cart data
+   */
+  private async _getUserCartInternal(userId: string): Promise<CartItem[]> {
+    try {
       // Try to get from cache first
       const cachedCart = await UpstashService.getCachedUserCart(userId);
       if (cachedCart) {
-        console.log("🔄 CACHE HIT: Cart loaded from Upstash Redis cache", {
-          userId,
-          itemCount: cachedCart.length,
-          source: "UPSTASH_CACHE",
+        this._logOnce("CACHE_HIT", userId, () => {
+          console.log("🔄 CACHE HIT: Cart loaded from Upstash Redis cache", {
+            userId,
+            itemCount: cachedCart.length,
+            source: "UPSTASH_CACHE",
+          });
         });
         return cachedCart;
       }
 
-      console.log(
-        "🔍 CACHE MISS: Cart not found in Upstash, fetching from Supabase",
-        {
-          userId,
-          source: "SUPABASE_FALLBACK",
-        }
-      );
+      this._logOnce("CACHE_MISS", userId, () => {
+        console.log(
+          "🔍 CACHE MISS: Cart not found in Upstash, fetching from Supabase",
+          {
+            userId,
+            source: "SUPABASE_FALLBACK",
+          }
+        );
+      });
 
       // If not in cache, fetch from Supabase
       const { data, error } = await this.supabase
@@ -52,24 +86,28 @@ class CartService {
 
       const cartItems = data?.items || [];
 
-      console.log("📦 DATA FETCHED: Cart retrieved from Supabase database", {
-        userId,
-        itemCount: cartItems.length,
-        source: "SUPABASE_DATABASE",
-        willCache: cartItems.length > 0,
+      this._logOnce("DATA_FETCHED", userId, () => {
+        console.log("📦 DATA FETCHED: Cart retrieved from Supabase database", {
+          userId,
+          itemCount: cartItems.length,
+          source: "SUPABASE_DATABASE",
+          willCache: cartItems.length > 0,
+        });
       });
 
       // Cache the result for future requests (best effort - don't fail if caching fails)
       if (cartItems.length > 0) {
         try {
           await UpstashService.cacheUserCart(userId, cartItems);
-          console.log(
-            "💾 CACHED: Cart data saved to Upstash for future requests",
-            {
-              userId,
-              itemCount: cartItems.length,
-            }
-          );
+          this._logOnce("CACHED", userId, () => {
+            console.log(
+              "💾 CACHED: Cart data saved to Upstash for future requests",
+              {
+                userId,
+                itemCount: cartItems.length,
+              }
+            );
+          });
         } catch (cacheError) {
           console.warn(
             "❌ CACHE FAILED: Unable to save cart to Upstash:",
@@ -82,6 +120,21 @@ class CartService {
     } catch (error) {
       console.error("Error fetching user cart:", error);
       return [];
+    }
+  }
+
+  /**
+   * Helper method to log only once per user per log type within a time window
+   */
+  private _logOnce(logType: string, userId: string, logFn: () => void) {
+    const key = `${logType}_${userId}`;
+    const now = Date.now();
+    const lastTime = this.lastLogTime.get(key) || 0;
+
+    // Only log if it's been more than 2 seconds since last log of this type
+    if (now - lastTime > 2000) {
+      logFn();
+      this.lastLogTime.set(key, now);
     }
   }
 
