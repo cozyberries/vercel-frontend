@@ -1,10 +1,23 @@
 import { Redis } from "@upstash/redis";
+import { debugUpstashConfig } from "./debug-upstash";
 
 // Create Redis client instance
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+
+// Debug function to check Redis connection
+async function testRedisConnection() {
+  try {
+    await redis.ping();
+    console.log("✅ Upstash Redis connection successful");
+    return true;
+  } catch (error) {
+    console.error("❌ Upstash Redis connection failed:", error);
+    return false;
+  }
+}
 
 // Utility functions for common Redis operations
 export class UpstashService {
@@ -121,12 +134,35 @@ export class UpstashService {
         return false;
       }
 
-      const serializedData = JSON.stringify(cartData);
+      // Test data serialization first
+      let serializedData: string;
+      try {
+        serializedData = JSON.stringify(cartData);
+      } catch (serializationError) {
+        console.error("Failed to serialize cart data:", serializationError);
+        console.error("Cart data:", cartData);
+        return false;
+      }
+      
+      // Test Redis connection before attempting to cache
+      const connectionOk = await testRedisConnection();
+      if (!connectionOk) {
+        console.warn("Skipping cart caching due to Redis connection issues");
+        return false;
+      }
+      
       await redis.setex(`cart:${userId}`, ttl, serializedData);
+      console.log(`✅ Successfully cached cart for user: ${userId}`);
       return true;
     } catch (error) {
       console.error("Error caching user cart:", error);
-      console.error("Cart data that failed to serialize:", cartData);
+      console.error("Cart data that failed to cache:", cartData);
+      
+      // Check if error is related to HTML response (service issue)
+      if (error instanceof Error && error.message.includes('<!DOCTYPE')) {
+        console.error("🚨 Upstash is returning HTML instead of accepting JSON - check service status and credentials");
+      }
+      
       return false;
     }
   }

@@ -40,9 +40,13 @@ class CartService {
 
       const cartItems = data?.items || [];
       
-      // Cache the result for future requests
+      // Cache the result for future requests (best effort - don't fail if caching fails)
       if (cartItems.length > 0) {
-        await UpstashService.cacheUserCart(userId, cartItems);
+        try {
+          await UpstashService.cacheUserCart(userId, cartItems);
+        } catch (cacheError) {
+          console.warn("Failed to cache cart items, continuing without cache:", cacheError);
+        }
       }
 
       return cartItems;
@@ -73,8 +77,12 @@ class CartService {
         throw error;
       }
 
-      // Update cache after successful save
-      await UpstashService.cacheUserCart(userId, items);
+      // Update cache after successful save (best effort - don't fail if caching fails)
+      try {
+        await UpstashService.cacheUserCart(userId, items);
+      } catch (cacheError) {
+        console.warn("Failed to update cart cache after save, continuing:", cacheError);
+      }
     } catch (error) {
       console.error("Error saving user cart:", error);
       throw error;
@@ -96,8 +104,12 @@ class CartService {
         throw error;
       }
 
-      // Clear cache after successful deletion
-      await UpstashService.delete(`cart:${userId}`);
+      // Clear cache after successful deletion (best effort)
+      try {
+        await UpstashService.delete(`cart:${userId}`);
+      } catch (cacheError) {
+        console.warn("Failed to clear cart cache after deletion, continuing:", cacheError);
+      }
     } catch (error) {
       console.error("Error clearing user cart:", error);
       throw error;
