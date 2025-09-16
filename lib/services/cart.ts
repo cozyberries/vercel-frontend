@@ -14,11 +14,20 @@ class CartService {
   private supabase = createClient();
   private cacheRequests = new Map<string, Promise<CartItem[]>>();
   private lastLogTime = new Map<string, number>();
+  private callCount = 0;
 
   /**
    * Fetch user's cart from Supabase with Upstash caching
    */
   async getUserCart(userId: string): Promise<CartItem[]> {
+    this.callCount++;
+    console.log(`🔢 getUserCart called ${this.callCount} times for user ${userId.substring(0, 8)}...`);
+    
+    // Log stack trace to see where calls are coming from
+    if (this.callCount <= 5) {
+      console.trace(`📍 Call #${this.callCount} stack trace:`);
+    }
+    
     try {
       // Check if we already have a pending request for this user
       if (this.cacheRequests.has(userId)) {

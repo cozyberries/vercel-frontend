@@ -442,7 +442,7 @@ export class UpstashService {
   private static _throttleLog(key: string, logFn: () => void) {
     const now = Date.now();
     const lastTime = this.logThrottle.get(key) || 0;
-    
+
     // Only log if it's been more than 1 second since last log
     if (now - lastTime > 1000) {
       logFn();
