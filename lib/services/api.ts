@@ -123,27 +123,31 @@ export const getCategories = async (retries = 3) => {
   return [];
 };
 
-export const getAllProducts = async (
+// Note: getAllProducts function removed - use getAllProductsDetailed() and transform with normalizeProduct() instead
+
+export const getFeaturedProducts = async (
+  limit = 4,
   retries = 3
 ): Promise<SimplifiedProduct[]> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/products", {
         params: {
-          limit: 100, // Maximum allowed by API
+          limit,
+          featured: true,
         },
       });
-      // The API now returns products array directly
+      // Transform the data to simplified format
       return (data || []).map(normalizeProduct);
     } catch (error) {
       console.error(
-        `Error fetching products (attempt ${i + 1}/${retries}):`,
+        `Error fetching featured products (attempt ${i + 1}/${retries}):`,
         error
       );
 
       // If it's the last retry, return empty array
       if (i === retries - 1) {
-        console.error("Failed to fetch products after all retries");
+        console.error("Failed to fetch featured products after all retries");
         return [];
       }
 

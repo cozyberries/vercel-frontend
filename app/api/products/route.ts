@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "100");
+    const featured = searchParams.get("featured") === "true";
 
     // Validate limit parameter
     if (limit < 1 || limit > 100) {
@@ -17,8 +18,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create cache key based on limit
-    const cacheKey = `products:list:${limit}`;
+    // Create cache key based on limit and featured filter
+    const cacheKey = `products:list:${limit}${featured ? ':featured' : ''}`;
     
     // Try to get from cache first
     const cachedProducts = await UpstashService.get(cacheKey);
@@ -34,8 +35,8 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
-    // Build query to get all products with category name join and product images
-    const { data, error, count } = await supabase
+    // Build query to get products with category name join and product images
+    let query = supabase
       .from("products")
       .select(
         `
@@ -49,8 +50,14 @@ export async function GET(request: NextRequest) {
         )
       `,
         { count: "exact" }
-      )
-      .limit(limit);
+      );
+
+    // Add featured filter if requested
+    if (featured) {
+      query = query.eq("is_featured", true);
+    }
+
+    const { data, error, count } = await query.limit(limit);
 
     if (error) {
       return NextResponse.json(

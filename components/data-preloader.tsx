@@ -9,11 +9,11 @@ import {
 } from "react";
 import {
   getCategories,
-  getAllProducts,
   getAllProductsDetailed,
   SimplifiedProduct,
   Product,
 } from "@/lib/services/api";
+import { normalizeProduct } from "@/lib/utils/product";
 
 interface Category {
   id: string;
@@ -38,6 +38,7 @@ interface PreloadedData {
   error: string | null;
   getProductById: (id: string) => SimplifiedProduct | null;
   getDetailedProductById: (id: string) => Product | null;
+  loadProducts: () => Promise<void>;
 }
 
 const DataPreloaderContext = createContext<PreloadedData>({
@@ -48,6 +49,7 @@ const DataPreloaderContext = createContext<PreloadedData>({
   error: null,
   getProductById: () => null,
   getDetailedProductById: () => null,
+  loadProducts: async () => {},
 });
 
 export function DataPreloader({ children }: { children: ReactNode }) {
@@ -60,17 +62,12 @@ export function DataPreloader({ children }: { children: ReactNode }) {
   useEffect(() => {
     const preloadData = async () => {
       try {
-        // Load categories and products in parallel
-        const [categoriesData, productsData, detailedProductsData] =
-          await Promise.all([
-            getCategories(),
-            getAllProducts(), // Load products initially
-            getAllProductsDetailed(), // Load detailed product data
-          ]);
+        // Only load categories initially - products will be loaded on-demand
+        const categoriesData = await getCategories();
 
         setCategories(categoriesData);
-        setProducts(productsData);
-        setDetailedProducts(detailedProductsData);
+        setProducts([]); // Products will be loaded when needed
+        setDetailedProducts([]); // Detailed products will be loaded when needed
         setError(null);
       } catch (err) {
         console.error("DataPreloader: Error preloading data:", err);
@@ -95,6 +92,25 @@ export function DataPreloader({ children }: { children: ReactNode }) {
     return detailedProducts.find((product) => product.id === id) || null;
   };
 
+  const loadProducts = async () => {
+    if (products.length > 0) return; // Already loaded
+    
+    try {
+      setIsLoading(true);
+      const rawProductsData = await getAllProductsDetailed();
+      const simplifiedProducts = rawProductsData.map(normalizeProduct);
+      
+      setProducts(simplifiedProducts);
+      setDetailedProducts(rawProductsData);
+      setError(null);
+    } catch (err) {
+      console.error("DataPreloader: Error loading products:", err);
+      setError(err instanceof Error ? err.message : "Failed to load products");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <DataPreloaderContext.Provider
       value={{
@@ -105,6 +121,7 @@ export function DataPreloader({ children }: { children: ReactNode }) {
         error,
         getProductById,
         getDetailedProductById,
+        loadProducts,
       }}
     >
       {children}

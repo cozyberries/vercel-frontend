@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,12 @@ import { usePreloadedData } from "@/components/data-preloader";
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { products: allProducts, categories, isLoading, error } = usePreloadedData();
+  const { products: allProducts, categories, isLoading, error, loadProducts } = usePreloadedData();
+
+  // Load products when component mounts
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   // Get current URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1");
