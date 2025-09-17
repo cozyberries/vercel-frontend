@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { usePreloadedData } from "@/components/data-preloader";
@@ -68,15 +68,16 @@ export const HamburgerSheet = () => {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild className="lg:hidden">
-        <Button variant="ghost" size="icon">
+        <button className="z-10 p-0">
           <Menu className="h-6 w-6" />
           <span className="sr-only">Open menu</span>
-        </Button>
+        </button>
       </SheetTrigger>
       <SheetContent side="left" className="w-80">
         <div className="flex flex-col h-full">
-          {/* Logo */}
+          {/* Header with Title */}
           <div className="border-b py-4">
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <Link
               href="/"
               className="flex items-center justify-center"

@@ -31,9 +31,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
       syncTimeoutRef.current = setTimeout(async () => {
         try {
           await cartService.saveUserCart(user.id, items);
-          console.log("Cart synced to Supabase in background");
         } catch (error) {
-          console.error("Failed to sync cart to Supabase:", error);
           // Optionally, you could implement retry logic here
         }
       }, 1000); // 1 second debounce

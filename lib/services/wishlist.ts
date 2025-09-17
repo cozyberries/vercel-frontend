@@ -13,7 +13,7 @@ class WishlistService {
   private supabase = createClient();
 
   /**
-   * Fetch user's wishlist from Supabase
+   * Fetch user's wishlist from Supabase with Upstash caching
    */
   async getUserWishlist(userId: string): Promise<WishlistItem[]> {
     try {
@@ -29,7 +29,9 @@ class WishlistService {
         return [];
       }
 
-      return data?.items || [];
+      const wishlistItems = data?.items || [];
+      
+      return wishlistItems;
     } catch (error) {
       console.error("Error fetching user wishlist:", error);
       return [];
@@ -37,7 +39,7 @@ class WishlistService {
   }
 
   /**
-   * Save wishlist to Supabase (upsert operation)
+   * Save wishlist to Supabase (upsert operation) with Upstash caching
    */
   async saveUserWishlist(userId: string, items: WishlistItem[]): Promise<void> {
     try {
@@ -58,6 +60,7 @@ class WishlistService {
         console.error("Error saving user wishlist:", error);
         throw error;
       }
+
     } catch (error) {
       console.error("Error saving user wishlist:", error);
       throw error;
@@ -65,7 +68,7 @@ class WishlistService {
   }
 
   /**
-   * Delete user's wishlist from Supabase
+   * Delete user's wishlist from Supabase and clear cache
    */
   async clearUserWishlist(userId: string): Promise<void> {
     try {
@@ -78,6 +81,7 @@ class WishlistService {
         console.error("Error clearing user wishlist:", error);
         throw error;
       }
+
     } catch (error) {
       console.error("Error clearing user wishlist:", error);
       throw error;

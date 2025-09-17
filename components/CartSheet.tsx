@@ -16,7 +16,8 @@ import CartItem from "@/components/CartItem";
 import Link from "next/link";
 
 export default function CartSheet() {
-  const { cart, updateQuantity, removeFromCart, clearCart, isLoading } = useCart();
+  const { cart, updateQuantity, removeFromCart, clearCart, isLoading } =
+    useCart();
   const [open, setOpen] = useState(false);
   const subtotal = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -28,7 +29,11 @@ export default function CartSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative lg:w-10 lg:h-10 w-12 h-12">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative lg:w-10 lg:h-10 w-12 h-12"
+        >
           <ShoppingBag className="h-6 w-6 lg:h-5 lg:w-5" />
           {cart.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-primary text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">

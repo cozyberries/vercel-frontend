@@ -60,8 +60,6 @@ export function DataPreloader({ children }: { children: ReactNode }) {
   useEffect(() => {
     const preloadData = async () => {
       try {
-        console.log("DataPreloader: Starting data preload...");
-
         // Load categories and products in parallel
         const [categoriesData, productsData, detailedProductsData] =
           await Promise.all([
@@ -69,16 +67,6 @@ export function DataPreloader({ children }: { children: ReactNode }) {
             getAllProducts(), // Load products initially
             getAllProductsDetailed(), // Load detailed product data
           ]);
-
-        console.log(
-          "DataPreloader: Loaded",
-          categoriesData.length,
-          "categories and",
-          productsData.length,
-          "products and",
-          detailedProductsData.length,
-          "detailed products"
-        );
 
         setCategories(categoriesData);
         setProducts(productsData);

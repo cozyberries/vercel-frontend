@@ -90,7 +90,7 @@ export function useProfile(user: any) {
         } else {
           const errorData = await response.json();
           if (errorData.migration_needed) {
-            console.log("Migration needed for profiles table");
+            // Migration needed for profiles table
           }
         }
       } catch (error) {
