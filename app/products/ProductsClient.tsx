@@ -20,11 +20,22 @@ import { getProducts, ProductsResponse, Product } from "@/lib/services/api";
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { categories, isLoading: categoriesLoading, error: categoriesError } = usePreloadedData();
-  
+  const {
+    categories,
+    isLoading: categoriesLoading,
+    error: categoriesError,
+  } = usePreloadedData();
+
   const [productsData, setProductsData] = useState<ProductsResponse>({
     products: [],
-    pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false }
+    pagination: {
+      currentPage: 1,
+      totalPages: 0,
+      totalItems: 0,
+      itemsPerPage: 12,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +54,7 @@ export default function ProductsClient() {
       try {
         setIsLoading(true);
         setError(null);
-        
+
         const response = await getProducts({
           limit: 12,
           page: currentPage,
@@ -52,14 +63,23 @@ export default function ProductsClient() {
           sortOrder: currentSortOrder,
           featured: currentBestseller || undefined,
         });
-        
+
         setProductsData(response);
       } catch (err) {
         console.error("Error loading products:", err);
-        setError(err instanceof Error ? err.message : "Failed to load products");
+        setError(
+          err instanceof Error ? err.message : "Failed to load products"
+        );
         setProductsData({
           products: [],
-          pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false }
+          pagination: {
+            currentPage: 1,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: 12,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
         });
       } finally {
         setIsLoading(false);
@@ -67,14 +87,20 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentPage, currentSort, currentSortOrder, currentCategory, currentBestseller]);
+  }, [
+    currentPage,
+    currentSort,
+    currentSortOrder,
+    currentCategory,
+    currentBestseller,
+  ]);
 
   // Client-side search filtering (search happens on frontend with autocomplete)
   const filteredProducts = useMemo(() => {
     if (!currentSearch) {
       return productsData.products;
     }
-    
+
     const searchLower = currentSearch.toLowerCase();
     return productsData.products.filter(
       (product) =>
@@ -139,6 +165,16 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
+  // Check if any filters are applied
+  const hasActiveFilters = useMemo(() => {
+    return (
+      currentCategory !== "all" ||
+      currentSort !== "default" ||
+      currentBestseller ||
+      currentSearch !== ""
+    );
+  }, [currentCategory, currentSort, currentBestseller, currentSearch]);
+
   if (isLoading || categoriesLoading) {
     return (
       <div className="text-center p-12">
@@ -153,11 +189,23 @@ export default function ProductsClient() {
       <div className="text-center p-12">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
           <div className="text-red-600 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-red-800 mb-2">Connection Error</h3>
+          <h3 className="text-lg font-medium text-red-800 mb-2">
+            Connection Error
+          </h3>
           <p className="text-red-700 mb-4">{error || categoriesError}</p>
           <Button onClick={() => window.location.reload()} variant="outline">
             Try Again
@@ -190,7 +238,8 @@ export default function ProductsClient() {
             No products available
           </h3>
           <p className="text-gray-500 mb-6">
-            Our product catalog is currently empty. Please check back later or contact us for more information.
+            Our product catalog is currently empty. Please check back later or
+            contact us for more information.
           </p>
           <div className="space-y-3">
             <Button asChild variant="default">
@@ -214,17 +263,29 @@ export default function ProductsClient() {
         {/* Mobile Filter Button */}
         <div className="flex justify-between items-center md:hidden">
           <h2 className="text-lg font-medium">Products</h2>
-          <FilterSheet
-            categories={categories}
-            currentCategory={currentCategory}
-            currentSort={currentSort}
-            currentSortOrder={currentSortOrder}
-            currentBestseller={currentBestseller}
-            onCategoryChange={handleCategoryChange}
-            onSortChange={handleSortChange}
-            onBestsellerToggle={handleBestsellerToggle}
-            onClearFilters={handleClearFilters}
-          />
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Clear All
+              </Button>
+            )}
+            <FilterSheet
+              categories={categories}
+              currentCategory={currentCategory}
+              currentSort={currentSort}
+              currentSortOrder={currentSortOrder}
+              currentBestseller={currentBestseller}
+              onCategoryChange={handleCategoryChange}
+              onSortChange={handleSortChange}
+              onBestsellerToggle={handleBestsellerToggle}
+              onClearFilters={handleClearFilters}
+            />
+          </div>
         </div>
 
         {/* Desktop Filters */}
@@ -267,12 +328,24 @@ export default function ProductsClient() {
           >
             {currentBestseller ? "✓ Bestsellers" : "Show Bestsellers"}
           </Button>
+
+          {/* Clear All Filters Button */}
+          {hasActiveFilters && (
+            <Button
+              variant="outline"
+              onClick={handleClearFilters}
+              className="whitespace-nowrap text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              Clear All
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Results Info */}
       <div className="mb-6 text-sm text-gray-600">
-        Showing {filteredProducts.length} of {productsData.pagination.totalItems} products
+        Showing {filteredProducts.length} of{" "}
+        {productsData.pagination.totalItems} products
         {currentSearch && ` for "${currentSearch}"`}
         {currentCategory !== "all" &&
           ` in ${
@@ -326,7 +399,9 @@ export default function ProductsClient() {
                 : "No products are currently available. Please check back later."}
             </p>
             <div className="space-y-3">
-              {(currentSearch || currentCategory !== "all" || currentBestseller) && (
+              {(currentSearch ||
+                currentCategory !== "all" ||
+                currentBestseller) && (
                 <Button
                   variant="outline"
                   onClick={() => {
