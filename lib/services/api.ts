@@ -137,7 +137,7 @@ export const getFeaturedProducts = async (
         },
       });
       // Transform the data to simplified format
-      return (data || []).map(normalizeProduct);
+      return (data?.products || []).map(normalizeProduct);
     } catch (error) {
       console.error(
         `Error fetching featured products (attempt ${i + 1}/${retries}):`,
