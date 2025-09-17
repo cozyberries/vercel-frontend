@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,6 @@ export default function ProductsClient() {
           limit: 12,
           page: currentPage,
           category: currentCategory !== "all" ? currentCategory : undefined,
-          search: currentSearch || undefined,
           sortBy: currentSort !== "default" ? currentSort : undefined,
           sortOrder: currentSortOrder,
           featured: currentBestseller || undefined,
@@ -68,7 +67,22 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentPage, currentSort, currentSortOrder, currentCategory, currentSearch, currentBestseller]);
+  }, [currentPage, currentSort, currentSortOrder, currentCategory, currentBestseller]);
+
+  // Client-side search filtering (search happens on frontend with autocomplete)
+  const filteredProducts = useMemo(() => {
+    if (!currentSearch) {
+      return productsData.products;
+    }
+    
+    const searchLower = currentSearch.toLowerCase();
+    return productsData.products.filter(
+      (product) =>
+        product.name.toLowerCase().includes(searchLower) ||
+        (product.description &&
+          product.description.toLowerCase().includes(searchLower))
+    );
+  }, [productsData.products, currentSearch]);
 
   const handleSortChange = (sort: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -258,7 +272,7 @@ export default function ProductsClient() {
 
       {/* Results Info */}
       <div className="mb-6 text-sm text-gray-600">
-        Showing {productsData.products.length} of {productsData.pagination.totalItems} products
+        Showing {filteredProducts.length} of {productsData.pagination.totalItems} products
         {currentSearch && ` for "${currentSearch}"`}
         {currentCategory !== "all" &&
           ` in ${
@@ -269,10 +283,10 @@ export default function ProductsClient() {
       </div>
 
       {/* Products Grid or No Results Message */}
-      {productsData.products.length > 0 ? (
+      {filteredProducts.length > 0 ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-            {productsData.products.map((product) => (
+            {filteredProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>

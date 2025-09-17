@@ -169,7 +169,6 @@ export const getProducts = async (
     limit?: number;
     page?: number;
     category?: string;
-    search?: string;
     sortBy?: string;
     sortOrder?: string;
     featured?: boolean;
@@ -183,7 +182,6 @@ export const getProducts = async (
           limit: params.limit || 12,
           page: params.page || 1,
           category: params.category,
-          search: params.search,
           sortBy: params.sortBy,
           sortOrder: params.sortOrder,
           featured: params.featured,
