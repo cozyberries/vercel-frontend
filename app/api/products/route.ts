@@ -8,7 +8,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "100");
+    const page = parseInt(searchParams.get("page") || "1");
     const featured = searchParams.get("featured") === "true";
+    const category = searchParams.get("category");
+    const search = searchParams.get("search");
+    const sortBy = searchParams.get("sortBy") || "default";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
 
     // Validate limit parameter
     if (limit < 1 || limit > 100) {
@@ -18,17 +23,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create cache key based on limit and featured filter
-    const cacheKey = `products:list:${limit}${featured ? ':featured' : ''}`;
+    // Validate page parameter
+    if (page < 1) {
+      return NextResponse.json(
+        { error: "Page must be greater than 0" },
+        { status: 400 }
+      );
+    }
+
+    // Create cache key based on all parameters
+    // Use shorter, more efficient cache key format with version to force cache invalidation
+    const cacheVersion = 'v2'; // Increment this to invalidate all caches
+    const cacheKey = `products:${cacheVersion}:${limit}:${page}:${featured ? 'f' : 'a'}:${category || 'a'}:${search ? search.substring(0, 10) : 'n'}:${sortBy}:${sortOrder}`;
     
     // Try to get from cache first
-    const cachedProducts = await UpstashService.get(cacheKey);
-    if (cachedProducts) {
-      return NextResponse.json(cachedProducts, {
+    const cachedResponse = await UpstashService.get(cacheKey);
+    if (cachedResponse) {
+      return NextResponse.json(cachedResponse, {
         headers: {
           'X-Cache-Status': 'HIT',
           'X-Cache-Key': cacheKey,
-          'X-Data-Source': 'REDIS_CACHE'
+          'X-Data-Source': 'REDIS_CACHE',
+          'X-Query-Params': JSON.stringify({ limit, page, featured, category, search, sortBy, sortOrder })
         }
       });
     }
@@ -41,7 +57,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        categories(name),
+        categories(name, slug),
         product_images(
           id,
           storage_path,
@@ -52,12 +68,32 @@ export async function GET(request: NextRequest) {
         { count: "exact" }
       );
 
-    // Add featured filter if requested
+    // Add filters
     if (featured) {
       query = query.eq("is_featured", true);
     }
 
-    const { data, error, count } = await query.limit(limit);
+    if (category && category !== "all") {
+      query = query.eq("categories.slug", category);
+    }
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    // Add sorting
+    if (sortBy === "price") {
+      query = query.order("price", { ascending: sortOrder === "asc" });
+    } else if (sortBy === "name") {
+      query = query.order("name", { ascending: sortOrder === "asc" });
+    } else {
+      // Default sorting by creation date
+      query = query.order("created_at", { ascending: false });
+    }
+
+    // Add pagination
+    const offset = (page - 1) * limit;
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       return NextResponse.json(
@@ -92,15 +128,34 @@ export async function GET(request: NextRequest) {
     });
 
 
-    // Cache the results for 30 minutes
-    const cacheResult = await UpstashService.set(cacheKey, products, 1800);
+    // Calculate pagination info
+    const totalItems = count || 0;
+    const totalPages = Math.ceil(totalItems / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
 
-    return NextResponse.json(products, {
+    const response = {
+      products,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPrevPage,
+      }
+    };
+
+    // Cache the results for 30 minutes
+    const cacheResult = await UpstashService.set(cacheKey, response, 1800);
+
+    return NextResponse.json(response, {
       headers: {
         'X-Cache-Status': 'MISS',
         'X-Cache-Key': cacheKey,
         'X-Data-Source': 'SUPABASE_DATABASE',
-        'X-Cache-Set': cacheResult ? 'SUCCESS' : 'FAILED'
+        'X-Cache-Set': cacheResult ? 'SUCCESS' : 'FAILED',
+        'X-Query-Params': JSON.stringify({ limit, page, featured, category, search, sortBy, sortOrder })
       }
     });
   } catch (error) {

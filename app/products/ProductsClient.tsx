@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -15,16 +15,19 @@ import ProductCard from "@/components/product-card";
 import Pagination from "@/components/ui/pagination";
 import FilterSheet from "@/components/FilterSheet";
 import { usePreloadedData } from "@/components/data-preloader";
+import { getProducts, ProductsResponse, Product } from "@/lib/services/api";
 
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { products: allProducts, categories, isLoading, error, loadProducts } = usePreloadedData();
-
-  // Load products when component mounts
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+  const { categories, isLoading: categoriesLoading, error: categoriesError } = usePreloadedData();
+  
+  const [productsData, setProductsData] = useState<ProductsResponse>({
+    products: [],
+    pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false }
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Get current URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1");
@@ -34,89 +37,38 @@ export default function ProductsClient() {
   const currentSearch = searchParams.get("search") || "";
   const currentBestseller = searchParams.get("bestseller") === "true";
 
-  // Client-side filtering, sorting, and pagination
-  const { filteredProducts, pagination } = useMemo(() => {
-    let filtered = [...allProducts];
-
-    // Filter by category
-    if (currentCategory !== "all") {
-      const category = categories.find((cat) => cat.slug === currentCategory);
-      if (category) {
-        filtered = filtered.filter(
-          (product) => product.categoryId === category.id
-        );
+  // Load products with server-side filtering, sorting, and pagination
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const response = await getProducts({
+          limit: 12,
+          page: currentPage,
+          category: currentCategory !== "all" ? currentCategory : undefined,
+          search: currentSearch || undefined,
+          sortBy: currentSort !== "default" ? currentSort : undefined,
+          sortOrder: currentSortOrder,
+          featured: currentBestseller || undefined,
+        });
+        
+        setProductsData(response);
+      } catch (err) {
+        console.error("Error loading products:", err);
+        setError(err instanceof Error ? err.message : "Failed to load products");
+        setProductsData({
+          products: [],
+          pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false }
+        });
+      } finally {
+        setIsLoading(false);
       }
-    }
-
-    // Filter by search
-    if (currentSearch) {
-      const searchLower = currentSearch.toLowerCase();
-      filtered = filtered.filter(
-        (product) =>
-          product.name.toLowerCase().includes(searchLower) ||
-          (product.description &&
-            product.description.toLowerCase().includes(searchLower))
-      );
-    }
-
-    // Filter by bestseller
-    if (currentBestseller) {
-      filtered = filtered.filter((product) => product.is_featured);
-    }
-
-    // Sort products
-    if (currentSort === "price") {
-      filtered.sort((a, b) => {
-        if (currentSortOrder === "asc") {
-          return a.price - b.price;
-        } else {
-          return b.price - a.price;
-        }
-      });
-    } else if (currentSort === "name") {
-      filtered.sort((a, b) => {
-        if (currentSortOrder === "asc") {
-          return a.name.localeCompare(b.name);
-        } else {
-          return b.name.localeCompare(a.name);
-        }
-      });
-    }
-    // Default sorting (by creation date or original order)
-    else if (currentSort === "default") {
-      // Keep original order or sort by creation date if available
-      // filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    }
-
-    // Pagination
-    const itemsPerPage = 12;
-    const totalItems = filtered.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedProducts = filtered.slice(startIndex, endIndex);
-
-    return {
-      filteredProducts: paginatedProducts,
-      pagination: {
-        currentPage,
-        totalPages,
-        totalItems,
-        itemsPerPage,
-        hasNextPage: currentPage < totalPages,
-        hasPrevPage: currentPage > 1,
-      },
     };
-  }, [
-    allProducts,
-    categories,
-    currentCategory,
-    currentSearch,
-    currentBestseller,
-    currentSort,
-    currentSortOrder,
-    currentPage,
-  ]);
+
+    loadProducts();
+  }, [currentPage, currentSort, currentSortOrder, currentCategory, currentSearch, currentBestseller]);
 
   const handleSortChange = (sort: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -173,7 +125,7 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
-  if (isLoading) {
+  if (isLoading || categoriesLoading) {
     return (
       <div className="text-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -182,7 +134,7 @@ export default function ProductsClient() {
     );
   }
 
-  if (error) {
+  if (error || categoriesError) {
     return (
       <div className="text-center p-12">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -192,7 +144,7 @@ export default function ProductsClient() {
             </svg>
           </div>
           <h3 className="text-lg font-medium text-red-800 mb-2">Connection Error</h3>
-          <p className="text-red-700 mb-4">{error}</p>
+          <p className="text-red-700 mb-4">{error || categoriesError}</p>
           <Button onClick={() => window.location.reload()} variant="outline">
             Try Again
           </Button>
@@ -201,7 +153,7 @@ export default function ProductsClient() {
     );
   }
 
-  if (!allProducts || allProducts.length === 0) {
+  if (!productsData.products || productsData.products.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="max-w-md mx-auto">
@@ -306,7 +258,7 @@ export default function ProductsClient() {
 
       {/* Results Info */}
       <div className="mb-6 text-sm text-gray-600">
-        Showing {filteredProducts.length} of {pagination.totalItems} products
+        Showing {productsData.products.length} of {productsData.pagination.totalItems} products
         {currentSearch && ` for "${currentSearch}"`}
         {currentCategory !== "all" &&
           ` in ${
@@ -317,18 +269,18 @@ export default function ProductsClient() {
       </div>
 
       {/* Products Grid or No Results Message */}
-      {filteredProducts.length > 0 ? (
+      {productsData.products.length > 0 ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-            {filteredProducts.map((product) => (
+            {productsData.products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
 
           {/* Pagination */}
           <Pagination
-            currentPage={pagination.currentPage}
-            totalPages={pagination.totalPages}
+            currentPage={productsData.pagination.currentPage}
+            totalPages={productsData.pagination.totalPages}
             onPageChange={handlePageChange}
             className="mt-8"
           />
