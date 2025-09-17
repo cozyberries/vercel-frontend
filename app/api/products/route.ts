@@ -32,9 +32,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Create cache key based on all parameters
-    // Use shorter, more efficient cache key format with version to force cache invalidation
-    const cacheVersion = 'v2'; // Increment this to invalidate all caches
-    const cacheKey = `products:${cacheVersion}:${limit}:${page}:${featured ? 'f' : 'a'}:${category || 'a'}:${search ? search.substring(0, 10) : 'n'}:${sortBy}:${sortOrder}`;
+    // Use shorter, more efficient cache key format
+    const cacheKey = `products:${limit}:${page}:${featured ? 'f' : 'a'}:${category || 'a'}:${search ? search.substring(0, 10) : 'n'}:${sortBy}:${sortOrder}`;
     
     // Try to get from cache first
     const cachedResponse = await UpstashService.get(cacheKey);
