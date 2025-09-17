@@ -1,5 +1,4 @@
 import axios from "axios";
-// import { normalizeProduct } from "@/utils/product";
 import { normalizeProduct } from "@/lib/utils/product";
 // ---------- Types ----------
 export interface ProductVariant {
@@ -123,27 +122,31 @@ export const getCategories = async (retries = 3) => {
   return [];
 };
 
-export const getAllProducts = async (
+// Note: getAllProducts function removed - use getAllProductsDetailed() and transform with normalizeProduct() instead
+
+export const getFeaturedProducts = async (
+  limit = 4,
   retries = 3
 ): Promise<SimplifiedProduct[]> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/products", {
         params: {
-          limit: 100, // Maximum allowed by API
+          limit,
+          featured: true,
         },
       });
-      // The API now returns products array directly
-      return (data || []).map(normalizeProduct);
+      // Transform the data to simplified format
+      return (data?.products || []).map(normalizeProduct);
     } catch (error) {
       console.error(
-        `Error fetching products (attempt ${i + 1}/${retries}):`,
+        `Error fetching featured products (attempt ${i + 1}/${retries}):`,
         error
       );
 
       // If it's the last retry, return empty array
       if (i === retries - 1) {
-        console.error("Failed to fetch products after all retries");
+        console.error("Failed to fetch featured products after all retries");
         return [];
       }
 
@@ -156,6 +159,63 @@ export const getAllProducts = async (
   return [];
 };
 
+export interface ProductsResponse {
+  products: Product[];
+  pagination: PaginationInfo;
+}
+
+export const getProducts = async (
+  params: {
+    limit?: number;
+    page?: number;
+    category?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    featured?: boolean;
+    search?: string;
+  } = {},
+  retries = 3
+): Promise<ProductsResponse> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/products", {
+        params: {
+          limit: params.limit || 12,
+          page: params.page || 1,
+          category: params.category,
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder,
+          featured: params.featured,
+          search: params.search,
+        },
+      });
+      // Transform products to simplified format
+      const simplifiedProducts = (data?.products || []).map(normalizeProduct);
+      return {
+        products: simplifiedProducts,
+        pagination: data?.pagination || { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false }
+      };
+    } catch (error) {
+      console.error(
+        `Error fetching products (attempt ${i + 1}/${retries}):`,
+        error
+      );
+
+      // If it's the last retry, return empty response
+      if (i === retries - 1) {
+        console.error("Failed to fetch products after all retries");
+        return { products: [], pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false } };
+      }
+
+      // Wait before retrying (exponential backoff)
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
+  }
+  return { products: [], pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false } };
+};
+
 export const getAllProductsDetailed = async (
   retries = 3
 ): Promise<Product[]> => {
@@ -166,8 +226,13 @@ export const getAllProductsDetailed = async (
           limit: 100, // Maximum allowed by API
         },
       });
-      // Return full product data without normalization
-      return data || [];
+      // Handle both old format (array) and new format (object with products array)
+      if (Array.isArray(data)) {
+        return data;
+      } else if (data && data.products) {
+        return data.products;
+      }
+      return [];
     } catch (error) {
       console.error(
         `Error fetching detailed products (attempt ${i + 1}/${retries}):`,

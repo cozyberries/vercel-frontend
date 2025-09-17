@@ -31,9 +31,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
       syncTimeoutRef.current = setTimeout(async () => {
         try {
           await wishlistService.saveUserWishlist(user.id, items);
-          console.log("Wishlist synced to Supabase in background");
         } catch (error) {
-          console.error("Failed to sync wishlist to Supabase:", error);
           // Optionally, you could implement retry logic here
         }
       }, 1000); // 1 second debounce

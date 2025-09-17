@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Product } from "@/lib/services/api";
+import { Product, getProductById } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
@@ -25,22 +25,51 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<number>(0);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
 
   const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { getDetailedProductById, isLoading } = usePreloadedData();
 
-  const product = getDetailedProductById(productId);
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
+
+  // Fetch product data
+  useEffect(() => {
+    const fetchProduct = async () => {
+      // First try to get from preloaded data
+      const preloadedProduct = getDetailedProductById(productId);
+      if (preloadedProduct) {
+        setProduct(preloadedProduct);
+        return;
+      }
+
+      // If not found in preloaded data, fetch from API
+      setIsLoadingProduct(true);
+      try {
+        const fetchedProduct = await getProductById(productId);
+        setProduct(fetchedProduct);
+      } catch (error) {
+        console.error("Error fetching product:", error);
+        setProduct(null);
+      } finally {
+        setIsLoadingProduct(false);
+      }
+    };
+
+    if (productId) {
+      fetchProduct();
+    }
+  }, [productId, getDetailedProductById]);
 
   useEffect(() => {
     // Set default selections if product is loaded
     if (product) {
-      if (product.sizes.length > 0) {
+      if (product.sizes && product.sizes.length > 0) {
         setSelectedSize(product.sizes[0]);
       }
-      if (product.colors.length > 0) {
+      if (product.colors && product.colors.length > 0) {
         setSelectedColor(product.colors[0]);
       }
     }
@@ -56,7 +85,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingProduct) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         Loading product details...
@@ -82,7 +111,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         <div className="space-y-4">
           <div className="aspect-square overflow-hidden bg-[#f5f5f5]">
             <Image
-              src={product.images[selectedImage]?.url || "/placeholder.svg"}
+              src={product.images?.[selectedImage]?.url || "/placeholder.svg"}
               alt={product.name}
               width={600}
               height={600}
@@ -90,7 +119,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               priority
             />
           </div>
-          {product.images.length > 1 && (
+          {product.images && product.images.length > 1 && (
             <div className="grid grid-cols-4 gap-4">
               {product.images.map((image, index) => (
                 <div
@@ -116,12 +145,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         {/* Product Details */}
         <div className="flex flex-col">
           <div>
-            <Link
-              href={`/collections/${product.category?.toLowerCase()}`}
-              className="text-sm text-muted-foreground hover:text-primary"
-            >
-              {product.category}
-            </Link>
+            {product.category && (
+              <Link
+                href={`/collections/${product.category.toLowerCase()}`}
+                className="text-sm text-muted-foreground hover:text-primary"
+              >
+                {product.category}
+              </Link>
+            )}
             <h1 className="text-2xl md:text-3xl font-light mt-2 mb-4">
               {product.name}
             </h1>
@@ -130,7 +161,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             </p>
 
             <div className="space-y-6 mb-8">
-              {product.colors.length > 0 && (
+              {product.colors && product.colors.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium mb-3">Color</h3>
                   <div className="flex gap-3">
@@ -151,7 +182,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 </div>
               )}
 
-              {product.sizes.length > 0 && (
+              {product.sizes && product.sizes.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium mb-3">Size</h3>
                   <Select value={selectedSize} onValueChange={setSelectedSize}>
@@ -209,7 +240,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                       id: product.id,
                       name: product.name,
                       price: product.price,
-                      image: product.images[0]?.url,
+                      image: product.images?.[0]?.url,
                       quantity,
                       ...(selectedColor ? { color: selectedColor } : {}),
                       ...(selectedSize ? { size: selectedSize } : {}),
@@ -245,7 +276,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                       id: product.id,
                       name: product.name,
                       price: product.price,
-                      image: product.images[0]?.url,
+                      image: product.images?.[0]?.url,
                     });
                     toast.success(`${product.name} added to wishlist!`);
                   }
@@ -288,18 +319,21 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 <TabsTrigger value="care">Care</TabsTrigger>
               </TabsList>
               <TabsContent value="description" className="pt-4">
-                <p className="text-muted-foreground">{product.description}</p>
+                <p className="text-muted-foreground">
+                  {product.description || "No description available."}
+                </p>
               </TabsContent>
               <TabsContent value="features" className="pt-4">
                 <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
-                  {product.features.map((feature) => (
+                  {product.features?.map((feature) => (
                     <li key={feature}>{feature}</li>
-                  ))}
+                  )) || <li>No features listed.</li>}
                 </ul>
               </TabsContent>
               <TabsContent value="care" className="pt-4">
                 <p className="text-muted-foreground">
-                  {product.care_instructions}
+                  {product.care_instructions ||
+                    "No care instructions available."}
                 </p>
               </TabsContent>
             </Tabs>

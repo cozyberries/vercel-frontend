@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { UpstashService } from "@/lib/upstash";
 import { Product, ProductUpdate } from "@/lib/types/product";
 
 interface RouteParams {
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { error: "Product ID is required" },
         { status: 400 }
       );
+    }
+
+    // Create cache key for individual product
+    const cacheKey = `product:${id}`;
+    
+    // Try to get from cache first
+    const cachedProduct = await UpstashService.getCachedProduct(id);
+    if (cachedProduct) {
+      return NextResponse.json(cachedProduct);
     }
 
     const supabase = await createServerSupabaseClient();
@@ -35,13 +45,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        console.warn(`Product not found with id: ${id}`);
         return NextResponse.json(
           { error: "Product not found" },
           { status: 404 }
         );
       }
-      console.error("Error retrieving product:", error);
       return NextResponse.json(
         { error: "Failed to retrieve product" },
         { status: 500 }
@@ -69,9 +77,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }),
     };
 
+    // Cache the product for 30 minutes
+    await UpstashService.cacheProduct(id, product, 1800);
+
     return NextResponse.json(product);
   } catch (error) {
-    console.error("Error in GET /api/products/[id]:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -114,22 +124,25 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        console.warn(`Product not found with id: ${id}`);
         return NextResponse.json(
           { error: "Product not found" },
           { status: 404 }
         );
       }
-      console.error("Error updating product:", error);
       return NextResponse.json(
         { error: "Failed to update product" },
         { status: 500 }
       );
     }
 
+    // Invalidate cache for this product and product list
+    await Promise.all([
+      UpstashService.delete(`product:${id}`),
+      UpstashService.delete('products:list:100'), // Invalidate main product list cache
+    ]);
+
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error in PUT /api/products/[id]:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -158,22 +171,25 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        console.warn(`Product not found with id: ${id}`);
         return NextResponse.json(
           { error: "Product not found" },
           { status: 404 }
         );
       }
-      console.error("Error deleting product:", error);
       return NextResponse.json(
         { error: "Failed to delete product" },
         { status: 500 }
       );
     }
 
+    // Invalidate cache for this product and product list
+    await Promise.all([
+      UpstashService.delete(`product:${id}`),
+      UpstashService.delete('products:list:100'), // Invalidate main product list cache
+    ]);
+
     return NextResponse.json({ success: true, deleted: data });
   } catch (error) {
-    console.error("Error in DELETE /api/products/[id]:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

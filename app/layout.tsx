@@ -10,6 +10,7 @@ import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -63,6 +64,7 @@ export default function RootLayout({
                     <Footer />
                     <MobileBottomHeader />
                   </div>
+                  <Toaster />
                 </ThemeProvider>
               </CartProvider>
             </WishlistProvider>
