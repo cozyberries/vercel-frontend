@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, Plus, Trash2, Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Heart, Plus, Trash2, Eye, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SimplifiedProduct } from "@/lib/services/api";
 import { useCart } from "./cart-context";
@@ -18,10 +19,26 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const { addToCart, removeFromCart, cart } = useCart();
+  const { addToCart, removeFromCart, cart, addToCartTemporary } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const router = useRouter();
   const isInCart = cart.some((item) => item.id === product.id);
   const inWishlist = isInWishlist(product.id);
+
+  const handleBuyNow = () => {
+    // Add to cart temporarily (without persisting to localStorage/Supabase)
+    addToCartTemporary({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      quantity: 1,
+    });
+
+    // Redirect to checkout
+    router.push("/checkout");
+    toast.success(`${product.name} added to cart! Redirecting to checkout...`);
+  };
   return (
     <div key={product.id} className="group flex flex-col h-full">
       {/* Image Section */}
@@ -39,7 +56,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-4 left-4 bg-white/80 hover:bg-white rounded-full h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          className="absolute top-4 left-4 bg-white/80 hover:bg-white rounded-full h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200"
           onClick={(e) => {
             e.preventDefault();
             setIsQuickViewOpen(true);
@@ -116,26 +133,37 @@ export default function ProductCard({ product }: ProductCardProps) {
           </div>
         </div>
 
-        {/* Add to Cart Button */}
-        <div className="mt-auto">
+        {/* Action Buttons */}
+        <div className="mt-auto space-y-2">
           {!isInCart ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                addToCart({
-                  id: product.id,
-                  name: product.name,
-                  price: product.price,
-                  image: product.image,
-                  quantity: 1,
-                });
-                toast.success(`${product.name} added to cart!`);
-              }}
-            >
-              Add to Cart
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  addToCart({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    image: product.image,
+                    quantity: 1,
+                  });
+                  toast.success(`${product.name} added to cart!`);
+                }}
+              >
+                Add to Cart
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full"
+                onClick={handleBuyNow}
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Buy Now
+              </Button>
+            </>
           ) : (
             <Button
               variant="default"

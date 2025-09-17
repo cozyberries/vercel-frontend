@@ -70,7 +70,7 @@ export function DataPreloader({ children }: { children: ReactNode }) {
         setDetailedProducts([]); // Detailed products will be loaded when needed
         setError(null);
       } catch (err) {
-        console.error("DataPreloader: Error preloading data:", err);
+        console.error("Error preloading data:", err);
         setError(err instanceof Error ? err.message : "Failed to load data");
         // Set empty arrays as fallback
         setCategories([]);
@@ -104,7 +104,7 @@ export function DataPreloader({ children }: { children: ReactNode }) {
       setDetailedProducts(rawProductsData);
       setError(null);
     } catch (err) {
-      console.error("DataPreloader: Error loading products:", err);
+      console.error("Error loading products:", err);
       setError(err instanceof Error ? err.message : "Failed to load products");
     } finally {
       setIsLoading(false);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Heart, Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Product } from "@/lib/services/api";
+import { Product, getProductById } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
@@ -41,14 +42,44 @@ export default function ProductQuickViewModal({
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<number>(0);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
 
-  const { addToCart, removeFromCart, cart } = useCart();
+  const { addToCart, removeFromCart, cart, addToCartTemporary } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { getDetailedProductById, isLoading } = usePreloadedData();
+  const { getDetailedProductById } = usePreloadedData();
+  const router = useRouter();
 
-  const product = productId ? getDetailedProductById(productId) : null;
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
+
+  // Fetch product data when modal opens
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!productId || !isOpen) return;
+
+      // First try to get from preloaded data
+      const preloadedProduct = getDetailedProductById(productId);
+      if (preloadedProduct) {
+        setProduct(preloadedProduct);
+        return;
+      }
+
+      // If not found in preloaded data, fetch from API
+      setIsLoadingProduct(true);
+      try {
+        const fetchedProduct = await getProductById(productId);
+        setProduct(fetchedProduct);
+      } catch (error) {
+        console.error("Error fetching product:", error);
+        setProduct(null);
+      } finally {
+        setIsLoadingProduct(false);
+      }
+    };
+
+    fetchProduct();
+  }, [productId, isOpen, getDetailedProductById]);
 
   useEffect(() => {
     // Reset state when modal opens/closes
@@ -92,8 +123,8 @@ export default function ProductQuickViewModal({
   const handleBuyNow = () => {
     if (!product) return;
 
-    // Add to cart first
-    addToCart({
+    // Add to cart temporarily (without persisting to localStorage/Supabase)
+    addToCartTemporary({
       id: product.id,
       name: product.name,
       price: product.price,
@@ -105,7 +136,7 @@ export default function ProductQuickViewModal({
 
     // Close modal and redirect to checkout
     onClose();
-    // You can add navigation to checkout here if needed
+    router.push("/checkout");
     toast.success(`${product.name} added to cart! Redirecting to checkout...`);
   };
 
@@ -126,13 +157,40 @@ export default function ProductQuickViewModal({
     }
   };
 
+  if (!product && isLoadingProduct) {
+    return (
+      <Sheet open={isOpen} onOpenChange={onClose}>
+        <SheetContent
+          side="right"
+          className="w-full sm:w-96 lg:w-[500px] xl:w-[600px] overflow-y-auto"
+        >
+          <SheetHeader>
+            <SheetTitle className="text-left">Loading...</SheetTitle>
+            <SheetDescription className="text-left">
+              Loading product details...
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Loading product details...
+            </p>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
   if (!product) {
     return null;
   }
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent
+        side="right"
+        className="w-full sm:w-96 lg:w-[500px] xl:w-[600px] overflow-y-auto"
+      >
         <SheetHeader>
           <SheetTitle className="text-left">{product.name}</SheetTitle>
           <SheetDescription className="text-left">
@@ -168,7 +226,7 @@ export default function ProductQuickViewModal({
                     }`}
                   >
                     <Image
-                      src={image.url}
+                      src={image.url || images.staticProductImage}
                       alt={`${product.name} ${index + 1}`}
                       fill
                       className="object-cover"

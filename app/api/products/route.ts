@@ -5,7 +5,6 @@ import { Product, ProductCreate } from "@/lib/types/product";
 
 export async function GET(request: NextRequest) {
   try {
-
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "100");
     const page = parseInt(searchParams.get("page") || "1");
@@ -39,29 +38,37 @@ export async function GET(request: NextRequest) {
     } else if (search) {
       cacheKey = `products:search:${search}:lt_${limit}:pg_${page}`;
     } else {
-      cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || 'all'}:sortb_${sortBy}:sorto_${sortOrder}`;
+      cacheKey = `products:lt_${limit}:pg_${page}:cat_${
+        category || "all"
+      }:sortb_${sortBy}:sorto_${sortOrder}`;
     }
-    
+
     // Try to get from cache first
     const cachedResponse = await UpstashService.get(cacheKey);
     if (cachedResponse) {
       return NextResponse.json(cachedResponse, {
         headers: {
-          'X-Cache-Status': 'HIT',
-          'X-Cache-Key': cacheKey,
-          'X-Data-Source': 'REDIS_CACHE',
-          'X-Query-Params': JSON.stringify({ limit, page, featured, category, search, sortBy, sortOrder })
-        }
+          "X-Cache-Status": "HIT",
+          "X-Cache-Key": cacheKey,
+          "X-Data-Source": "REDIS_CACHE",
+          "X-Query-Params": JSON.stringify({
+            limit,
+            page,
+            featured,
+            category,
+            search,
+            sortBy,
+            sortOrder,
+          }),
+        },
       });
     }
 
     const supabase = await createServerSupabaseClient();
 
     // Build query to get products with category name join and product images
-    let query = supabase
-      .from("products")
-      .select(
-        `
+    let query = supabase.from("products").select(
+      `
         *,
         categories(name, slug),
         product_images(
@@ -71,8 +78,8 @@ export async function GET(request: NextRequest) {
           display_order
         )
       `,
-        { count: "exact" }
-      );
+      { count: "exact" }
+    );
 
     // Add filters
     if (featured) {
@@ -80,7 +87,39 @@ export async function GET(request: NextRequest) {
     }
 
     if (category && category !== "all") {
-      query = query.eq("categories.slug", category);
+      // Check if category is already an ID (UUID format) or a slug
+      const isUUID =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          category
+        );
+
+      if (isUUID) {
+        // Category is already an ID, use it directly
+        query = query.eq("category_id", category);
+      } else {
+        // Category is a slug, look up the ID
+        const { data: categoryData, error: categoryError } = await supabase
+          .from("categories")
+          .select("id")
+          .eq("slug", category)
+          .single();
+
+        if (categoryError) {
+          return NextResponse.json(
+            { error: "Invalid category", details: categoryError.message },
+            { status: 400 }
+          );
+        }
+
+        if (categoryData) {
+          query = query.eq("category_id", categoryData.id);
+        } else {
+          return NextResponse.json(
+            { error: "Category not found" },
+            { status: 404 }
+          );
+        }
+      }
     }
 
     // Add search filtering
@@ -100,7 +139,10 @@ export async function GET(request: NextRequest) {
 
     // Add pagination
     const offset = (page - 1) * limit;
-    const { data, error, count } = await query.range(offset, offset + limit - 1);
+    const { data, error, count } = await query.range(
+      offset,
+      offset + limit - 1
+    );
 
     if (error) {
       return NextResponse.json(
@@ -134,7 +176,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-
     // Calculate pagination info
     const totalItems = count || 0;
     const totalPages = Math.ceil(totalItems / limit);
@@ -150,7 +191,7 @@ export async function GET(request: NextRequest) {
         itemsPerPage: limit,
         hasNextPage,
         hasPrevPage,
-      }
+      },
     };
 
     // Cache the results for 30 minutes
@@ -158,15 +199,22 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        'X-Cache-Status': 'MISS',
-        'X-Cache-Key': cacheKey,
-        'X-Data-Source': 'SUPABASE_DATABASE',
-        'X-Cache-Set': cacheResult ? 'SUCCESS' : 'FAILED',
-        'X-Query-Params': JSON.stringify({ limit, page, featured, category, search, sortBy, sortOrder })
-      }
+        "X-Cache-Status": "MISS",
+        "X-Cache-Key": cacheKey,
+        "X-Data-Source": "SUPABASE_DATABASE",
+        "X-Cache-Set": cacheResult ? "SUCCESS" : "FAILED",
+        "X-Query-Params": JSON.stringify({
+          limit,
+          page,
+          featured,
+          category,
+          search,
+          sortBy,
+          sortOrder,
+        }),
+      },
     });
   } catch (error) {
-
     // Check if it's a Supabase client creation error
     if (
       error instanceof Error &&
@@ -250,7 +298,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Invalidate product list cache when new product is created
-    await UpstashService.delete('products:list:100');
+    await UpstashService.delete("products:list:100");
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

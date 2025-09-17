@@ -6,9 +6,14 @@ import type { CartItem } from "@/components/cart-context";
 interface UseCartPersistenceProps {
   cart: CartItem[];
   setCart: (items: CartItem[]) => void;
+  isTemporaryCart?: boolean;
 }
 
-export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
+export function useCartPersistence({
+  cart,
+  setCart,
+  isTemporaryCart = false,
+}: UseCartPersistenceProps) {
   const { user, loading: authLoading } = useAuth();
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
@@ -57,7 +62,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
         try {
           const remoteCart = await cartService.getUserCart(user.id);
           const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
-          
+
           // Only update if there's a difference
           if (JSON.stringify(localCart) !== JSON.stringify(mergedCart)) {
             setCart(mergedCart);
@@ -99,7 +104,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
         const localCart = cartService.getLocalCart();
         const remoteCart = await cartService.getUserCart(currentUserId);
         const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
-        
+
         setCart(mergedCart);
         // Note: persistence effect will handle saving merged cart
       } catch (error) {
@@ -119,6 +124,11 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
    */
   const persistCart = useCallback(
     (items: CartItem[]) => {
+      // Don't persist if this is a temporary cart
+      if (isTemporaryCart) {
+        return;
+      }
+
       // Always save to localStorage immediately
       cartService.saveLocalCart(items);
 
@@ -127,7 +137,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
         debouncedSyncToSupabase(items);
       }
     },
-    [user?.id, debouncedSyncToSupabase]
+    [user?.id, debouncedSyncToSupabase, isTemporaryCart]
   );
 
   /**
@@ -135,7 +145,7 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
    */
   const clearAllCart = useCallback(async () => {
     cartService.clearLocalCart();
-    
+
     if (user?.id) {
       try {
         await cartService.clearUserCart(user.id);
@@ -162,7 +172,12 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
   // Persist cart changes (but skip during initialization to avoid duplicate saves)
   useEffect(() => {
     // Only persist if initialized, not currently loading, and not initializing
-    if (hasInitializedRef.current && cart.length >= 0 && !authLoading && !isInitializingRef.current) {
+    if (
+      hasInitializedRef.current &&
+      cart.length >= 0 &&
+      !authLoading &&
+      !isInitializingRef.current
+    ) {
       persistCart(cart);
     }
   }, [cart, persistCart, authLoading]);
