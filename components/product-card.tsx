@@ -1,20 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, Plus, Trash2 } from "lucide-react";
+import { Heart, Plus, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SimplifiedProduct } from "@/lib/services/api";
 import { useCart } from "./cart-context";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
+import ProductQuickViewModal from "./ProductQuickViewModal";
 
 interface ProductCardProps {
   product: SimplifiedProduct;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const isInCart = cart.some((item) => item.id === product.id);
@@ -32,6 +35,21 @@ export default function ProductCard({ product }: ProductCardProps) {
             className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
           />
         </Link>
+        {/* Eye Icon Button for Quick View */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-4 left-4 bg-white/80 hover:bg-white rounded-full h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          onClick={(e) => {
+            e.preventDefault();
+            setIsQuickViewOpen(true);
+          }}
+        >
+          <Eye className="h-4 w-4" />
+          <span className="sr-only">Quick view</span>
+        </Button>
+
+        {/* Heart Icon Button for Wishlist */}
         <Button
           variant="ghost"
           size="icon"
@@ -62,7 +80,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </span>
         </Button>
         {isInCart && (
-          <div className="absolute top-4 left-4 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow z-10">
+          <div className="absolute bottom-4 left-4 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow z-10">
             Added
           </div>
         )}
@@ -134,6 +152,13 @@ export default function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
       </div>
+
+      {/* Product Quick View Modal */}
+      <ProductQuickViewModal
+        productId={product.id}
+        isOpen={isQuickViewOpen}
+        onClose={() => setIsQuickViewOpen(false)}
+      />
     </div>
   );
 }
