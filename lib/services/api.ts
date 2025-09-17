@@ -172,6 +172,7 @@ export const getProducts = async (
     sortBy?: string;
     sortOrder?: string;
     featured?: boolean;
+    search?: string;
   } = {},
   retries = 3
 ): Promise<ProductsResponse> => {
@@ -185,6 +186,7 @@ export const getProducts = async (
           sortBy: params.sortBy,
           sortOrder: params.sortOrder,
           featured: params.featured,
+          search: params.search,
         },
       });
       // Transform products to simplified format

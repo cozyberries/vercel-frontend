@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const featured = searchParams.get("featured") === "true";
     const category = searchParams.get("category");
-    // Remove search from server-side - will be handled client-side with autocomplete
+    const search = searchParams.get("search");
     const sortBy = searchParams.get("sortBy") || "default";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
@@ -31,11 +31,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create cache key based on all parameters (excluding search - handled client-side)
+    // Create cache key based on all parameters
     // Use descriptive key pattern for better readability
     let cacheKey;
     if (featured) {
       cacheKey = `featured:products:lt_${limit}`;
+    } else if (search) {
+      cacheKey = `products:search:${search}:lt_${limit}:pg_${page}`;
     } else {
       cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || 'all'}:sortb_${sortBy}:sorto_${sortOrder}`;
     }
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
           'X-Cache-Status': 'HIT',
           'X-Cache-Key': cacheKey,
           'X-Data-Source': 'REDIS_CACHE',
-          'X-Query-Params': JSON.stringify({ limit, page, featured, category, sortBy, sortOrder })
+          'X-Query-Params': JSON.stringify({ limit, page, featured, category, search, sortBy, sortOrder })
         }
       });
     }
@@ -81,7 +83,10 @@ export async function GET(request: NextRequest) {
       query = query.eq("categories.slug", category);
     }
 
-    // Search filtering removed - handled client-side with autocomplete
+    // Add search filtering
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
 
     // Add sorting
     if (sortBy === "price") {
@@ -157,7 +162,7 @@ export async function GET(request: NextRequest) {
         'X-Cache-Key': cacheKey,
         'X-Data-Source': 'SUPABASE_DATABASE',
         'X-Cache-Set': cacheResult ? 'SUCCESS' : 'FAILED',
-        'X-Query-Params': JSON.stringify({ limit, page, featured, category, sortBy, sortOrder })
+        'X-Query-Params': JSON.stringify({ limit, page, featured, category, search, sortBy, sortOrder })
       }
     });
   } catch (error) {
