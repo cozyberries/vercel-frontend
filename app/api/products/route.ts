@@ -32,8 +32,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Create cache key based on all parameters
-    // Use readable 3-letter format for filters
-    const cacheKey = `products:${limit}:${page}:${featured ? 'feat' : 'all'}:${category || 'all'}:${search ? search.substring(0, 10) : 'none'}:${sortBy}:${sortOrder}`;
+    // Use descriptive key pattern for better readability
+    let cacheKey;
+    if (featured) {
+      cacheKey = `featured:products:lt_${limit}`;
+    } else {
+      cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || 'all'}:search_${search ? search.substring(0, 10) : 'none'}:sortb_${sortBy}:sorto_${sortOrder}`;
+    }
     
     // Try to get from cache first
     const cachedResponse = await UpstashService.get(cacheKey);
