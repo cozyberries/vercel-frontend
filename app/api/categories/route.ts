@@ -11,7 +11,13 @@ export async function GET() {
     // Try to get from cache first
     const cachedCategories = await UpstashService.get(cacheKey);
     if (cachedCategories) {
-      return NextResponse.json(cachedCategories);
+      return NextResponse.json(cachedCategories, {
+        headers: {
+          'X-Cache-Status': 'HIT',
+          'X-Cache-Key': cacheKey,
+          'X-Data-Source': 'REDIS_CACHE'
+        }
+      });
     }
 
     const supabase = await createServerSupabaseClient();
@@ -65,9 +71,16 @@ export async function GET() {
 
     
     // Cache the results for 1 hour (categories don't change often)
-    await UpstashService.set(cacheKey, categories, 3600);
+    const cacheResult = await UpstashService.set(cacheKey, categories, 3600);
     
-    return NextResponse.json(categories);
+    return NextResponse.json(categories, {
+      headers: {
+        'X-Cache-Status': 'MISS',
+        'X-Cache-Key': cacheKey,
+        'X-Data-Source': 'SUPABASE_DATABASE',
+        'X-Cache-Set': cacheResult ? 'SUCCESS' : 'FAILED'
+      }
+    });
   } catch (error) {
     
     // Check if it's a Supabase client creation error
