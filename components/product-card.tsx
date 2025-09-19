@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Plus, Trash2, Eye, ShoppingCart } from "lucide-react";
+import { Heart, Plus, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SimplifiedProduct } from "@/lib/services/api";
 import { useCart } from "./cart-context";
@@ -19,44 +19,33 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const { addToCart, removeFromCart, cart, addToCartTemporary } = useCart();
+  const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const router = useRouter();
   const isInCart = cart.some((item) => item.id === product.id);
   const inWishlist = isInWishlist(product.id);
 
-  const handleBuyNow = () => {
-    // Add to cart temporarily (without persisting to localStorage/Supabase)
-    addToCartTemporary({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity: 1,
-    });
-
-    // Redirect to checkout
-    router.push("/checkout");
-    toast.success(`${product.name} added to cart! Redirecting to checkout...`);
-  };
   return (
-    <div key={product.id} className="group flex flex-col h-full">
+    <div
+      key={product.id}
+      className="group flex flex-col h-full overflow-hidden "
+    >
       {/* Image Section */}
-      <div className="relative mb-4 overflow-hidden bg-[#f5f5f5] flex-shrink-0">
+      <div className="relative overflow-hidden bg-[#f5f5f5] border md:h-[76%] h-4/6">
         <Link href={`/products/${product.id}`}>
           <Image
             src={product.image || images.staticProductImage}
             alt={product.name}
-            width={400}
-            height={400}
-            className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+            width={500}
+            height={500}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         </Link>
         {/* Eye Icon Button for Quick View */}
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-4 left-4 bg-white/80 hover:bg-white rounded-full h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200"
+          className="absolute top-4 left-4 bg-white/80 hover:bg-white rounded-full h-8 w-8 opacity-60 sm:opacity-0 sm:group-hover:opacity-60 transition-opacity duration-200"
           onClick={(e) => {
             e.preventDefault();
             setIsQuickViewOpen(true);
@@ -104,12 +93,12 @@ export default function ProductCard({ product }: ProductCardProps) {
       </div>
 
       {/* Content Section */}
-      <div className="flex flex-col flex-grow">
+      <div className="flex flex-col md:h-[24%] h-2/6 py-1  justify-between">
         {/* Product Info and Price Row */}
-        <div className="flex justify-between items-start mb-3">
+        <div className="flex justify-between items-start">
           {/* Product Info Block */}
           <div className="flex-1 pr-2">
-            <h3 className="text-sm font-medium mb-1">
+            <h3 className="text-sm font-medium mb-1 line-clamp-1">
               <Link
                 href={`/products/${product.id}`}
                 className="hover:text-primary"
@@ -134,36 +123,25 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-auto space-y-2">
+        <div className="mt-auto">
           {!isInCart ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => {
-                  addToCart({
-                    id: product.id,
-                    name: product.name,
-                    price: product.price,
-                    image: product.image,
-                    quantity: 1,
-                  });
-                  toast.success(`${product.name} added to cart!`);
-                }}
-              >
-                Add to Cart
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                className="w-full"
-                onClick={handleBuyNow}
-              >
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Buy Now
-              </Button>
-            </>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                addToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.image,
+                  quantity: 1,
+                });
+                toast.success(`${product.name} added to cart!`);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
           ) : (
             <Button
               variant="default"
@@ -174,8 +152,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                 toast.success(`${product.name} removed from cart!`);
               }}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove from Cart
+              <Trash2 className="h-4 w-4" />
             </Button>
           )}
         </div>

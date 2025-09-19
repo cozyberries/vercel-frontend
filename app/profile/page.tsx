@@ -3,7 +3,6 @@
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import ProfileForm from "@/components/profile/ProfileForm";
 import AddressList from "@/components/profile/AddressList";
 import AddressFormModal from "@/components/profile/AddressFormModal";
@@ -64,91 +63,71 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link href="/">
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Home
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
-                <p className="text-gray-600">
-                  Manage your personal information and addresses
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              onClick={async () => {
+    <div className="flex flex-col">
+      {/* Personal Information Section */}
+      <section className="py-20 bg-[#f9f7f4]">
+        <div className="container mx-auto px-4">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-12">
+            Personal Information
+          </h2>
+          <p className="hidden md:block text-lg text-muted-foreground text-center mb-12">
+            Manage your personal information and addresses
+          </p>
+          <div className="max-w-4xl mx-auto">
+            <ProfileForm
+              profile={profile}
+              isEditing={isEditing}
+              isSaving={isSaving}
+              validationErrors={validationErrors}
+              editData={editData}
+              onEdit={handleEdit}
+              onSave={handleSave}
+              onCancel={handleCancel}
+              onInputChange={handleInputChange}
+              addresses={addresses}
+              onAddAddress={() => setShowAddAddress(true)}
+              onEditAddress={handleEditAddress}
+              onSetDefault={handleSetDefault}
+              onSignOut={async () => {
                 await signOut();
                 window.location.href = "/";
               }}
-            >
-              Logout
-            </Button>
+            />
           </div>
         </div>
+      </section>
 
-        {/* Profile Form */}
-        <ProfileForm
-          profile={profile}
-          isEditing={isEditing}
-          isSaving={isSaving}
-          validationErrors={validationErrors}
-          editData={editData}
-          onEdit={handleEdit}
-          onSave={handleSave}
-          onCancel={handleCancel}
-          onInputChange={handleInputChange}
-        />
-
-        {/* Address List */}
-        <AddressList
-          addresses={addresses}
-          onAddAddress={() => setShowAddAddress(true)}
-          onEditAddress={handleEditAddress}
-          onDeleteAddress={handleDeleteAddress}
-          onSetDefault={handleSetDefault}
-        />
-
-        {/* Account Information
-        <AccountInfo profile={profile} user={user} /> */}
-
-        {/* Address Form Modal */}
-        <AddressFormModal
-          isOpen={showAddAddress || !!editingAddress}
-          isEditing={!!editingAddress}
-          isSaving={isSaving}
-          addressData={addressData}
-          validationErrors={addressValidationErrors}
-          addresses={addresses}
-          onClose={handleCloseAddressModal}
-          onSave={() =>
-            editingAddress
-              ? handleUpdateAddress(editingAddress)
-              : handleAddAddress()
+      {/* Address Form Modal */}
+      <AddressFormModal
+        isOpen={showAddAddress || !!editingAddress}
+        isEditing={!!editingAddress}
+        isSaving={isSaving}
+        addressData={addressData}
+        validationErrors={addressValidationErrors}
+        addresses={addresses}
+        onClose={handleCloseAddressModal}
+        onSave={() =>
+          editingAddress
+            ? handleUpdateAddress(editingAddress)
+            : handleAddAddress()
+        }
+        onInputChange={(field: string, value: string) => {
+          if (field === "is_default") {
+            setAddressData((prev) => ({
+              ...prev,
+              is_default: value === "true",
+            }));
+          } else {
+            setAddressData((prev) => ({
+              ...prev,
+              [field]: value,
+            }));
           }
-          onInputChange={(field: string, value: string) => {
-            if (field === "is_default") {
-              setAddressData((prev) => ({
-                ...prev,
-                is_default: value === "true",
-              }));
-            } else {
-              setAddressData((prev) => ({
-                ...prev,
-                [field]: value,
-              }));
-            }
-          }}
-        />
-      </div>
+        }}
+        onDelete={
+          editingAddress ? () => handleDeleteAddress(editingAddress) : undefined
+        }
+      />
     </div>
   );
 }
