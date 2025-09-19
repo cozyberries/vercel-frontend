@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { ProductCreate } from "@/lib/types/product";
+import { UpstashService } from "@/lib/upstash";
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -16,7 +20,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: ProductCreate & { stock_quantity?: number; is_featured?: boolean; category_id?: string } = await request.json();
+    const body: ProductCreate & {
+      stock_quantity?: number;
+      is_featured?: boolean;
+      category_id?: string;
+    } = await request.json();
 
     // Validate required fields
     if (!body.name || typeof body.price !== "number") {
@@ -46,10 +54,12 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from("products")
       .insert([productData])
-      .select(`
+      .select(
+        `
         *,
         categories(name, slug)
-      `)
+      `
+      )
       .single();
 
     if (error) {
@@ -64,6 +74,22 @@ export async function POST(request: NextRequest) {
         { error: "No data returned from database" },
         { status: 500 }
       );
+    }
+
+    // Clear relevant cache entries after successful creation
+    try {
+      await Promise.all([
+        // Clear all product list caches
+        UpstashService.deletePattern("products:*"),
+        // Clear featured products cache
+        UpstashService.deletePattern("featured:products:*"),
+        // Clear search caches
+        UpstashService.deletePattern("products:search:*"),
+      ]);
+      console.log(`Cache cleared for new product ${data.id}`);
+    } catch (cacheError) {
+      console.error("Error clearing cache:", cacheError);
+      // Don't fail the request if cache clearing fails
     }
 
     return NextResponse.json(data, { status: 201 });

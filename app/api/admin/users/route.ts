@@ -1,118 +1,105 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { authenticateRequest, isAdminUser } from "@/lib/jwt-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    // Authenticate the request using JWT
+    const auth = await authenticateRequest(request);
+
+    if (!auth.isAuthenticated || !auth.isAdmin) {
       return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
+        { error: "Admin access required" },
+        { status: 403 }
       );
     }
+
+    const supabase = await createServerSupabaseClient();
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Get users from auth (this requires admin privileges)
-    // For now, we'll get users from the orders table to show users who have made orders
-    const { data: orders, error: ordersError } = await supabase
-      .from("orders")
-      .select(`
-        user_id,
-        customer_email,
-        total_amount,
-        created_at
-      `)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Use the admin function to get auth.users data
+    const { data: authUsers, error: authUsersError } = await supabase.rpc(
+      "get_auth_users",
+      {
+        limit_count: limit,
+        offset_count: offset,
+      }
+    );
 
-    if (ordersError) {
+    if (authUsersError) {
+      console.error("Error fetching auth users:", authUsersError);
       return NextResponse.json(
-        { error: "Failed to fetch users" },
+        { error: "Failed to fetch users: " + authUsersError.message },
         { status: 500 }
       );
     }
 
-    // Group orders by user to get user statistics
-    const userMap = new Map();
-    
-    orders?.forEach(order => {
+    // Get user profiles to combine with auth data
+    const userIds = authUsers?.map((user) => user.id) || [];
+    const { data: profiles, error: profilesError } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .in("id", userIds);
+
+    if (profilesError) {
+      console.error("Error fetching user profiles:", profilesError);
+      return NextResponse.json(
+        { error: "Failed to fetch user profiles" },
+        { status: 500 }
+      );
+    }
+
+    // Get order statistics for each user
+    const { data: orderStats, error: orderStatsError } = await supabase
+      .from("orders")
+      .select("user_id, total_amount")
+      .in("user_id", userIds);
+
+    // Create user statistics map
+    const userStatsMap = new Map();
+    orderStats?.forEach((order) => {
       const userId = order.user_id;
-      if (!userMap.has(userId)) {
-        userMap.set(userId, {
-          id: userId,
-          email: order.customer_email,
-          created_at: order.created_at,
+      if (!userStatsMap.has(userId)) {
+        userStatsMap.set(userId, { order_count: 0, total_spent: 0 });
+      }
+      const stats = userStatsMap.get(userId);
+      stats.order_count += 1;
+      stats.total_spent += order.total_amount || 0;
+    });
+
+    // Combine all user data
+    const users =
+      authUsers?.map((authUser) => {
+        const profile = profiles?.find((p) => p.id === authUser.id);
+        const stats = userStatsMap.get(authUser.id) || {
           order_count: 0,
           total_spent: 0,
-          last_order_date: order.created_at,
-        });
-      }
-      
-      const userData = userMap.get(userId);
-      userData.order_count += 1;
-      userData.total_spent += order.total_amount;
-      userData.last_order_date = order.created_at;
-    });
+        };
 
-    // Convert map to array and sort by last order date
-    const users = Array.from(userMap.values())
-      .sort((a, b) => new Date(b.last_order_date).getTime() - new Date(a.last_order_date).getTime());
-
-    // For demo purposes, let's add some mock users to show more data
-    const mockUsers = [
-      {
-        id: "mock-user-1",
-        email: "john.doe@example.com",
-        created_at: "2024-01-15T10:30:00Z",
-        last_sign_in_at: "2024-12-01T14:20:00Z",
-        email_confirmed_at: "2024-01-15T10:35:00Z",
-        order_count: 3,
-        total_spent: 1250,
-      },
-      {
-        id: "mock-user-2",
-        email: "jane.smith@example.com",
-        created_at: "2024-02-20T09:15:00Z",
-        last_sign_in_at: "2024-11-28T16:45:00Z",
-        email_confirmed_at: "2024-02-20T09:20:00Z",
-        order_count: 7,
-        total_spent: 2890,
-      },
-      {
-        id: "mock-user-3",
-        email: "mike.wilson@example.com",
-        created_at: "2024-03-10T11:00:00Z",
-        last_sign_in_at: "2024-12-02T08:30:00Z",
-        email_confirmed_at: null,
-        order_count: 1,
-        total_spent: 450,
-      },
-      {
-        id: "mock-user-4",
-        email: "sarah.johnson@example.com",
-        created_at: "2024-04-05T13:45:00Z",
-        last_sign_in_at: "2024-11-25T12:15:00Z",
-        email_confirmed_at: "2024-04-05T13:50:00Z",
-        order_count: 5,
-        total_spent: 1875,
-      },
-    ];
-
-    // Combine real users with mock users
-    const allUsers = [...users, ...mockUsers];
+        return {
+          id: authUser.id,
+          email: authUser.email,
+          created_at: authUser.created_at,
+          last_sign_in_at: authUser.last_sign_in_at,
+          email_confirmed_at: authUser.email_confirmed_at,
+          role: profile?.role || "customer",
+          full_name: profile?.full_name,
+          phone: profile?.phone,
+          is_active: profile?.is_active ?? true,
+          is_verified: profile?.is_verified ?? false,
+          order_count: stats.order_count,
+          total_spent: stats.total_spent,
+          admin_notes: profile?.admin_notes,
+        };
+      }) || [];
 
     return NextResponse.json({
-      users: allUsers,
-      total: allUsers.length,
+      users,
+      total: users.length,
     });
-
   } catch (error) {
     console.error("Error fetching users:", error);
     return NextResponse.json(

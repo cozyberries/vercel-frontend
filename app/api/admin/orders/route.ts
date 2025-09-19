@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { authenticateRequest } from "@/lib/jwt-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    // Authenticate the request using JWT
+    const auth = await authenticateRequest(request);
+
+    if (!auth.isAuthenticated || !auth.isAdmin) {
       return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
+        { error: "Admin access required" },
+        { status: 403 }
       );
     }
+
+    const supabase = await createServerSupabaseClient();
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "50");
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43210",
           address_type: "home",
-          label: "Home"
+          label: "Home",
         },
         billing_address: {
           full_name: "John Doe",
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43210",
           address_type: "home",
-          label: "Home"
+          label: "Home",
         },
         items: [
           {
@@ -77,8 +78,8 @@ export async function GET(request: NextRequest) {
             name: "Baby Onesie Set",
             price: 450,
             quantity: 2,
-            image: "/products/baby-onesie.jpg"
-          }
+            image: "/products/baby-onesie.jpg",
+          },
         ],
         subtotal: 900,
         delivery_charge: 50,
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
         status: "delivered",
         created_at: "2024-11-15T10:30:00Z",
         updated_at: "2024-11-20T14:20:00Z",
-        notes: "Handle with care"
+        notes: "Handle with care",
       },
       {
         id: "mock-order-2",
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43211",
           address_type: "home",
-          label: "Home"
+          label: "Home",
         },
         billing_address: {
           full_name: "Jane Smith",
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43211",
           address_type: "home",
-          label: "Home"
+          label: "Home",
         },
         items: [
           {
@@ -124,15 +125,15 @@ export async function GET(request: NextRequest) {
             name: "Cotton Baby Dress",
             price: 650,
             quantity: 1,
-            image: "/products/baby-dress.jpg"
+            image: "/products/baby-dress.jpg",
           },
           {
             id: "item-3",
             name: "Baby Hat",
             price: 200,
             quantity: 1,
-            image: "/products/baby-hat.jpg"
-          }
+            image: "/products/baby-hat.jpg",
+          },
         ],
         subtotal: 850,
         delivery_charge: 50,
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
         currency: "INR",
         status: "shipped",
         created_at: "2024-11-20T14:15:00Z",
-        updated_at: "2024-11-22T09:30:00Z"
+        updated_at: "2024-11-22T09:30:00Z",
       },
       {
         id: "mock-order-3",
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43212",
           address_type: "office",
-          label: "Office"
+          label: "Office",
         },
         billing_address: {
           full_name: "Mike Wilson",
@@ -169,7 +170,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43212",
           address_type: "office",
-          label: "Office"
+          label: "Office",
         },
         items: [
           {
@@ -177,8 +178,8 @@ export async function GET(request: NextRequest) {
             name: "Baby Romper",
             price: 550,
             quantity: 1,
-            image: "/products/baby-romper.jpg"
-          }
+            image: "/products/baby-romper.jpg",
+          },
         ],
         subtotal: 550,
         delivery_charge: 50,
@@ -187,7 +188,7 @@ export async function GET(request: NextRequest) {
         currency: "INR",
         status: "processing",
         created_at: "2024-12-01T11:45:00Z",
-        updated_at: "2024-12-01T11:45:00Z"
+        updated_at: "2024-12-01T11:45:00Z",
       },
       {
         id: "mock-order-4",
@@ -204,7 +205,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43213",
           address_type: "home",
-          label: "Home"
+          label: "Home",
         },
         billing_address: {
           full_name: "Sarah Johnson",
@@ -215,7 +216,7 @@ export async function GET(request: NextRequest) {
           country: "India",
           phone: "+91 98765 43213",
           address_type: "home",
-          label: "Home"
+          label: "Home",
         },
         items: [
           {
@@ -223,8 +224,8 @@ export async function GET(request: NextRequest) {
             name: "Baby Sleepsuit",
             price: 750,
             quantity: 2,
-            image: "/products/baby-sleepsuit.jpg"
-          }
+            image: "/products/baby-sleepsuit.jpg",
+          },
         ],
         subtotal: 1500,
         delivery_charge: 50,
@@ -233,8 +234,8 @@ export async function GET(request: NextRequest) {
         currency: "INR",
         status: "payment_pending",
         created_at: "2024-12-02T16:20:00Z",
-        updated_at: "2024-12-02T16:20:00Z"
-      }
+        updated_at: "2024-12-02T16:20:00Z",
+      },
     ];
 
     // Combine real orders with mock orders
@@ -244,7 +245,6 @@ export async function GET(request: NextRequest) {
       orders: allOrders,
       total: allOrders.length,
     });
-
   } catch (error) {
     console.error("Error fetching orders:", error);
     return NextResponse.json(

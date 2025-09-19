@@ -98,6 +98,7 @@ export default function ProductManagement() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(productData),
+        credentials: "include", // Ensure cookies are sent
       });
 
       if (response.ok) {
@@ -106,6 +107,7 @@ export default function ProductManagement() {
         fetchProducts(); // Refresh the list
       } else {
         const error = await response.json();
+        console.error("Error response:", error);
         alert(
           `Failed to ${editingProduct ? "update" : "create"} product: ${
             error.error

@@ -1,12 +1,34 @@
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
 
-  const supabase = await createServerSupabaseClient();
+  // Create Supabase client for middleware
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
@@ -16,8 +38,29 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Protect admin routes - rely on client-side admin checking
+  // since JWT verification doesn't work in Edge Runtime
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    // Skip setup page - it has its own protection
+    if (request.nextUrl.pathname === "/admin/setup") {
+      return supabaseResponse;
+    }
+
+    // For admin routes, just ensure user is authenticated
+    // The actual admin role checking will be done on the client side and in API routes
+    if (!user) {
+      return NextResponse.redirect(
+        new URL("/login?redirect=/admin", request.url)
+      );
+    }
+  }
+
   // Protect routes that require authentication
-  if ((request.nextUrl.pathname.startsWith("/profile") || request.nextUrl.pathname.startsWith("/checkout")) && !user) {
+  if (
+    (request.nextUrl.pathname.startsWith("/profile") ||
+      request.nextUrl.pathname.startsWith("/checkout")) &&
+    !user
+  ) {
     // Redirect to login page if user is not authenticated
     return NextResponse.redirect(new URL("/login", request.url));
   }
