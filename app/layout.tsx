@@ -2,9 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/header";
-import Footer from "@/components/footer";
-import MobileBottomHeader from "@/components/MobileBottomHeader";
+import ConditionalLayout from "@/components/ConditionalLayout";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
@@ -58,12 +56,9 @@ export default function RootLayout({
                   enableSystem={false}
                   disableTransitionOnChange
                 >
-                  <div className="flex min-h-screen flex-col">
-                    <Header />
-                    <main className="flex-1 pb-16 lg:pb-0">{children}</main>
-                    <Footer />
-                    <MobileBottomHeader />
-                  </div>
+                  <ConditionalLayout>
+                    {children}
+                  </ConditionalLayout>
                   <Toaster />
                 </ThemeProvider>
               </CartProvider>
