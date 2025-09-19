@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Plus, Star, Trash2 } from "lucide-react";
+import { MapPin, Plus, Star, Trash2, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UserAddress {
@@ -38,91 +38,103 @@ export default function AddressList({
   onSetDefault,
 }: AddressListProps) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-medium flex items-center">
-          <MapPin className="w-5 h-5 mr-2" />
-          Addresses
-        </h3>
-        <Button
-          onClick={onAddAddress}
-          className="flex items-center space-x-2"
-          size="sm"
-        >
+    <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center space-x-3">
+          <MapPin className="w-6 h-6 text-primary" />
+          <h3 className="text-xl font-light">Addresses</h3>
+        </div>
+        <Button onClick={onAddAddress} size="icon" variant="outline">
           <Plus className="w-4 h-4" />
-          <span>Add Address</span>
         </Button>
       </div>
 
       <div className="space-y-4">
         {addresses.length === 0 ? (
-          <div className="text-center py-4">
-            <p className="text-gray-500 mb-2">No addresses added yet</p>
-            <p className="text-sm text-gray-400">
-              Click "Add Address" to create your first address
+          <div className="text-center py-12 px-4">
+            <div className="w-16 h-16 mx-auto mb-4 bg-muted/30 rounded-full flex items-center justify-center">
+              <MapPin className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground mb-2 font-medium">
+              No addresses added yet
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Click the + button to create your first address
             </p>
           </div>
         ) : (
           addresses.map((address) => (
-            <div key={address.id} className="border rounded-lg p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-sm font-medium capitalize">
+            <div
+              key={address.id}
+              className="border border-border rounded-xl p-6 bg-muted/20 hover:bg-muted/30 transition-colors"
+            >
+              <div className="flex flex-col space-y-4">
+                {/* Header with type and default badge */}
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium capitalize text-foreground bg-background px-3 py-1 rounded-full border">
                       {address.address_type}
                     </span>
                     {address.label && (
-                      <span className="text-sm text-gray-500">
-                        ({address.label})
+                      <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                        {address.label}
                       </span>
                     )}
                     {address.is_default && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                         <Star className="w-3 h-3 mr-1" />
                         Default
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-600">
-                    {address.full_name && (
-                      <p className="font-medium">{address.full_name}</p>
-                    )}
+                </div>
+
+                {/* Address Details */}
+                <div className="space-y-2">
+                  {address.full_name && (
+                    <p className="font-medium text-foreground text-base">
+                      {address.full_name}
+                    </p>
+                  )}
+                  <div className="text-sm text-muted-foreground space-y-1">
                     <p>{address.address_line_1}</p>
-                    {address.address_line_2 && (
-                      <p>{address.address_line_2}</p>
-                    )}
-                    <p>
-                      {address.city}, {address.state}{" "}
-                      {address.postal_code}
+                    {address.address_line_2 && <p>{address.address_line_2}</p>}
+                    <p className="font-medium">
+                      {address.city}, {address.state} {address.postal_code}
                     </p>
                     <p>{address.country}</p>
                     {address.phone && (
-                      <p className="mt-1">Phone: {address.phone}</p>
+                      <p className="mt-2 text-muted-foreground">
+                        <span className="font-medium">Phone:</span>{" "}
+                        {address.phone}
+                      </p>
                     )}
                   </div>
                 </div>
-                <div className="flex space-x-2">
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-2 border-t border-border">
                   {!address.is_default && (
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       onClick={() => onSetDefault(address.id)}
                     >
-                      Set Default
+                      <Star className="w-4 h-4" />
                     </Button>
                   )}
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
                     onClick={() => onEditAddress(address)}
                   >
-                    Edit
+                    <Edit3 className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
                     onClick={() => onDeleteAddress(address.id)}
-                    className="text-red-600 hover:text-red-700"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

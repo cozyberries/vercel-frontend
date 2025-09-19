@@ -5,64 +5,20 @@ import Image from "next/image";
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { usePreloadedData } from "@/components/data-preloader";
-
-// Age ranges data
-const ageRanges = [
-  {
-    id: "0-3m",
-    name: "0-3 Months",
-    slug: "0-3-months",
-    description: "Newborn essentials",
-    image: "/age/age_zero_three_m.png",
-  },
-  {
-    id: "3-6m",
-    name: "3-6 Months",
-    slug: "3-6-months",
-    description: "Growing baby comfort",
-    image: "/age/age_three_six_m.png",
-  },
-  {
-    id: "6-12m",
-    name: "6-12 Months",
-    slug: "6-12-months",
-    description: "Active crawler styles",
-    image: "/age/age_six_twelve_m.png",
-  },
-  {
-    id: "1-2y",
-    name: "1-2 Years",
-    slug: "1-2-years",
-    description: "Toddler adventures",
-    image: "/age/age_one_two_y.png",
-  },
-  {
-    id: "2-3y",
-    name: "2-3 Years",
-    slug: "2-3-years",
-    description: "Independent explorer",
-    image: "/age/age_two_three_y.png",
-  },
-  {
-    id: "3-6y",
-    name: "3-6 Years",
-    slug: "3-6-years",
-    description: "Little personality",
-    image: "/age/age_three_six_y.png",
-  },
-];
 
 export const HamburgerSheet = () => {
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
   const { categories, isLoading: categoriesLoading } = usePreloadedData();
-  const [activeTab, setActiveTab] = useState<"categories" | "age">(
-    "categories"
-  );
   const [open, setOpen] = useState(false);
 
   return (
@@ -93,77 +49,31 @@ export const HamburgerSheet = () => {
             </Link>
           </div>
 
-          {/* Tabbed Navigation */}
+          {/* Categories Navigation */}
           <div className="flex-1 py-6 overflow-y-auto">
-            {/* Tab Headers */}
-            <div className="flex border-b border-gray-200 mb-6">
-              <button
-                onClick={() => setActiveTab("categories")}
-                className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
-                  activeTab === "categories"
-                    ? "text-primary border-b-2 border-primary"
-                    : "text-foreground/60 hover:text-foreground"
-                }`}
-              >
-                Categories
-              </button>
-              <button
-                onClick={() => setActiveTab("age")}
-                className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
-                  activeTab === "age"
-                    ? "text-primary border-b-2 border-primary"
-                    : "text-foreground/60 hover:text-foreground"
-                }`}
-              >
-                Shop by Age
-              </button>
-            </div>
-
-            {/* Tab Content */}
             <div className="px-4">
-              {activeTab === "categories" && (
-                <div>
-                  {categoriesLoading ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <div
-                          key={index}
-                          className="h-10 bg-gray-200 animate-pulse rounded-lg"
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {categories.map((category) => (
-                        <Link
-                          key={category.id}
-                          href={`/products?category=${category.slug}`}
-                          className="block px-3 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
-                          onClick={() => setOpen(false)}
-                        >
-                          {category.name}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
+              <h3 className="text-lg font-semibold text-foreground mb-4">
+                Categories
+              </h3>
+              {categoriesLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-10 bg-gray-200 animate-pulse rounded-lg"
+                    />
+                  ))}
                 </div>
-              )}
-
-              {activeTab === "age" && (
+              ) : (
                 <div className="space-y-2">
-                  {ageRanges.map((ageRange) => (
+                  {categories.map((category) => (
                     <Link
-                      key={ageRange.id}
-                      href={`/products?age=${ageRange.slug}`}
-                      className="block px-3 py-3 hover:bg-gray-50 rounded-lg transition-colors"
+                      key={category.id}
+                      href={`/products?category=${category.slug}`}
+                      className="block px-3 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
                       onClick={() => setOpen(false)}
                     >
-                      <div className="text-base font-medium text-foreground">
-                        {ageRange.name}
-                      </div>
-                      <div className="text-sm text-foreground/60">
-                        {ageRange.description}
-                      </div>
+                      {category.name}
                     </Link>
                   ))}
                 </div>

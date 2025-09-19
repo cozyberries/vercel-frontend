@@ -1,6 +1,6 @@
 "use client";
 
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,7 @@ interface AddressFormModalProps {
   onClose: () => void;
   onSave: () => void;
   onInputChange: (field: string, value: string) => void;
+  onDelete?: () => void;
 }
 
 export default function AddressFormModal({
@@ -50,6 +51,7 @@ export default function AddressFormModal({
   onClose,
   onSave,
   onInputChange,
+  onDelete,
 }: AddressFormModalProps) {
   if (!isOpen) return null;
 
@@ -102,13 +104,9 @@ export default function AddressFormModal({
                 <Input
                   id="full_name"
                   value={addressData.full_name}
-                  onChange={(e) =>
-                    onInputChange("full_name", e.target.value)
-                  }
+                  onChange={(e) => onInputChange("full_name", e.target.value)}
                   placeholder="Recipient name"
-                  className={
-                    validationErrors.full_name ? "border-red-500" : ""
-                  }
+                  className={validationErrors.full_name ? "border-red-500" : ""}
                 />
                 {validationErrors.full_name && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
@@ -185,9 +183,7 @@ export default function AddressFormModal({
                   onChange={(e) => onInputChange("city", e.target.value)}
                   placeholder="City"
                   required
-                  className={
-                    validationErrors.city ? "border-red-500" : ""
-                  }
+                  className={validationErrors.city ? "border-red-500" : ""}
                 />
                 {validationErrors.city && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
@@ -204,9 +200,7 @@ export default function AddressFormModal({
                   onChange={(e) => onInputChange("state", e.target.value)}
                   placeholder="State"
                   required
-                  className={
-                    validationErrors.state ? "border-red-500" : ""
-                  }
+                  className={validationErrors.state ? "border-red-500" : ""}
                 />
                 {validationErrors.state && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
@@ -220,9 +214,7 @@ export default function AddressFormModal({
                 <Input
                   id="postal_code"
                   value={addressData.postal_code}
-                  onChange={(e) =>
-                    onInputChange("postal_code", e.target.value)
-                  }
+                  onChange={(e) => onInputChange("postal_code", e.target.value)}
                   placeholder="PIN Code (6 digits)"
                   required
                   className={
@@ -261,7 +253,7 @@ export default function AddressFormModal({
                   addresses.length === 1 ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               />
-              <Label 
+              <Label
                 htmlFor="is_default"
                 className={addresses.length === 1 ? "opacity-50" : ""}
               >
@@ -275,32 +267,47 @@ export default function AddressFormModal({
             </div>
           </div>
 
-          <div className="flex justify-end space-x-3 mt-6">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={onSave}
-              disabled={
-                isSaving ||
-                !addressData.address_line_1 ||
-                !addressData.city ||
-                !addressData.state ||
-                !addressData.postal_code ||
-                !!validationErrors.full_name ||
-                !!validationErrors.phone ||
-                !!validationErrors.address_line_1 ||
-                !!validationErrors.city ||
-                !!validationErrors.state ||
-                !!validationErrors.postal_code
-              }
-            >
-              {isSaving
-                ? "Saving..."
-                : isEditing
-                ? "Update Address"
-                : "Add Address"}
-            </Button>
+          <div className="flex justify-between mt-6">
+            {/* Delete Button - Only show when editing */}
+            {isEditing && onDelete && (
+              <Button
+                variant="outline"
+                onClick={onDelete}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Address
+              </Button>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 ml-auto">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                onClick={onSave}
+                disabled={
+                  isSaving ||
+                  !addressData.address_line_1 ||
+                  !addressData.city ||
+                  !addressData.state ||
+                  !addressData.postal_code ||
+                  !!validationErrors.full_name ||
+                  !!validationErrors.phone ||
+                  !!validationErrors.address_line_1 ||
+                  !!validationErrors.city ||
+                  !!validationErrors.state ||
+                  !!validationErrors.postal_code
+                }
+              >
+                {isSaving
+                  ? "Saving..."
+                  : isEditing
+                  ? "Update Address"
+                  : "Add Address"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
