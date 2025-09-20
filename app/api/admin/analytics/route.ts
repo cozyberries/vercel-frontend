@@ -50,14 +50,18 @@ export async function GET(request: NextRequest) {
     const monthlyRevenue = monthlyRevenueData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
 
     // Fetch total users (from auth.users)
-    const { count: totalUsers } = await supabase.auth.admin.listUsers();
-    const totalUsersCount = totalUsers?.total || 0;
+    const { data: totalUsersData } = await supabase.auth.admin.listUsers();
+    const totalUsersCount = totalUsersData?.users?.length || 0;
 
     // Fetch monthly users (approximate - count users created this month)
-    const { count: monthlyUsers } = await supabase.auth.admin.listUsers({
-      created: startOfMonth.toISOString()
+    const { data: monthlyUsersData } = await supabase.auth.admin.listUsers({
+      perPage: 1000 // Get a large number to count users created this month
     });
-    const monthlyUsersCount = monthlyUsers?.total || 0;
+    
+    // Filter users created this month
+    const monthlyUsersCount = monthlyUsersData?.users?.filter(user => 
+      new Date(user.created_at) >= startOfMonth
+    ).length || 0;
 
     // Fetch total products
     const { count: totalProducts } = await supabase
@@ -88,11 +92,15 @@ export async function GET(request: NextRequest) {
 
       const monthRevenue = monthRevenueData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
 
-      // Get users for this month (approximate)
-      const { count: monthUsers } = await supabase.auth.admin.listUsers({
-        created: date.toISOString()
+      // Get users for this month (approximate) - this is expensive but necessary for chart data
+      const { data: monthUsersData } = await supabase.auth.admin.listUsers({
+        perPage: 1000
       });
-      const monthUsersCount = monthUsers?.total || 0;
+      
+      const monthUsersCount = monthUsersData?.users?.filter(user => {
+        const userCreatedAt = new Date(user.created_at);
+        return userCreatedAt >= date && userCreatedAt < nextDate;
+      }).length || 0;
 
       chartData.push({
         month: monthName,

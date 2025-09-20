@@ -20,6 +20,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
 interface User {
   id: string;
@@ -35,18 +36,25 @@ export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const { get } = useAuthenticatedFetch();
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [get]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/users');
+      console.log('UserManagement - Fetching users...');
+      const response = await get('/api/admin/users', { requireAuth: true, requireAdmin: true });
+      console.log('UserManagement - Response:', response.status, response.statusText);
       if (response.ok) {
         const data = await response.json();
+        console.log('UserManagement - Users data:', data);
         setUsers(data.users || []);
+      } else {
+        const errorData = await response.text();
+        console.error('Failed to fetch users:', response.status, response.statusText, errorData);
       }
     } catch (error) {
       console.error('Error fetching users:', error);

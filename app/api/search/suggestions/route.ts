@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
           type: "product",
           slug: product.slug,
           image: primaryImage ? `/${primaryImage.storage_path}` : undefined,
-          categoryName: product.categories?.name,
+          categoryName: Array.isArray(product.categories) ? product.categories[0]?.name : (product.categories as any)?.name,
         });
       }
     }

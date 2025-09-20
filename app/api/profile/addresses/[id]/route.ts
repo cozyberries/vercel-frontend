@@ -11,7 +11,7 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -26,11 +26,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const resolvedParams = await params;
     // Get specific address
     const { data: address, error } = await supabase
       .from("user_addresses")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", resolvedParams.id)
       .eq("user_id", user.id)
       .single();
 
@@ -60,7 +61,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -74,6 +75,8 @@ export async function PUT(
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const resolvedParams = await params;
 
     const body = await request.json();
     const {
@@ -181,11 +184,11 @@ export async function PUT(
     }
 
     // If trying to unset default and this is currently the default address
-    const currentAddress = userAddresses.find((addr) => addr.id === params.id);
+    const currentAddress = userAddresses.find((addr) => addr.id === resolvedParams.id);
     if (!is_default && currentAddress?.is_default) {
       // Check if there are other addresses that can be default
       const otherAddresses = userAddresses.filter(
-        (addr) => addr.id !== params.id
+        (addr) => addr.id !== resolvedParams.id
       );
       if (otherAddresses.length === 0) {
         return NextResponse.json(
@@ -205,7 +208,7 @@ export async function PUT(
         .update({ is_default: false })
         .eq("user_id", user.id)
         .eq("is_default", true)
-        .neq("id", params.id); // Don't update the current address being modified
+        .neq("id", resolvedParams.id); // Don't update the current address being modified
 
       if (unsetError) {
         console.error("Error unsetting previous default address:", unsetError);
@@ -239,7 +242,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from("user_addresses")
       .update(updateData)
-      .eq("id", params.id)
+      .eq("id", resolvedParams.id)
       .eq("user_id", user.id)
       .select()
       .single();
@@ -270,7 +273,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -285,11 +288,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const resolvedParams = await params;
     // Soft delete by setting is_active to false
     const { data, error } = await supabase
       .from("user_addresses")
       .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("id", params.id)
+      .eq("id", resolvedParams.id)
       .eq("user_id", user.id)
       .select()
       .single();

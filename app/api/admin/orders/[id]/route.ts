@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -19,7 +19,8 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const orderId = params.id;
+    const resolvedParams = await params;
+    const orderId = resolvedParams.id;
 
     // Update order status
     const { data, error } = await supabase

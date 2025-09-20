@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         is_active: true,
         is_verified: true,
         created_by: auth.user.id, // Track who created this admin
-        admin_notes: `Created by ${auth.user.email || 'super admin'} on ${new Date().toISOString()}`
+        admin_notes: `Created by ${!auth.user.isAnonymous ? auth.user.email || 'super admin' : 'super admin'} on ${new Date().toISOString()}`
       });
 
     if (profileError) {

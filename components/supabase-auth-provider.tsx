@@ -14,6 +14,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   userProfile: UserProfile | null;
+  jwtToken: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
@@ -35,7 +36,29 @@ export function SupabaseAuthProvider({
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
   const supabase = createClient();
+
+  // Helper function to generate JWT token
+  const generateJwtToken = async (userId: string, userEmail?: string) => {
+    try {
+      const response = await fetch('/api/auth/generate-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId, userEmail }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.token;
+      }
+    } catch (error) {
+      console.error('Error generating JWT token:', error);
+    }
+    return null;
+  };
 
   // Helper function to update user profile
   const updateUserProfile = async (currentSession: Session | null) => {
@@ -62,6 +85,11 @@ export function SupabaseAuthProvider({
           };
           setUserProfile(userProfile);
         }
+
+        // Generate JWT token for API authentication
+        const token = await generateJwtToken(currentSession.user.id, currentSession.user.email);
+        console.log('Auth Provider - JWT token generated (success path):', !!token, token ? 'Token exists' : 'No token');
+        setJwtToken(token);
       } catch (error) {
         console.error('Error updating user profile:', error);
         // Set default customer profile on error
@@ -70,10 +98,16 @@ export function SupabaseAuthProvider({
           role: 'customer',
         };
         setUserProfile(userProfile);
+        
+        // Generate JWT token for API authentication
+        const token = await generateJwtToken(currentSession.user.id, currentSession.user.email);
+        console.log('Auth Provider - JWT token generated (error path):', !!token, token ? 'Token exists' : 'No token');
+        setJwtToken(token);
       }
     } else {
-      // No session, clear profile
+      // No session, clear profile and token
       setUserProfile(null);
+      setJwtToken(null);
     }
   };
 
@@ -147,12 +181,14 @@ export function SupabaseAuthProvider({
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // Clear profile after sign out
+    // Clear profile and token after sign out
     setUserProfile(null);
+    setJwtToken(null);
   };
 
   const refreshProfile = async () => {
     if (session?.user) {
+      console.log('Auth Provider - Refreshing profile and JWT token...');
       await updateUserProfile(session);
     }
   };
@@ -167,6 +203,7 @@ export function SupabaseAuthProvider({
     session,
     loading,
     userProfile,
+    jwtToken,
     isAuthenticated,
     isAdmin,
     isSuperAdmin,
