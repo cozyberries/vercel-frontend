@@ -3,22 +3,25 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
-import { UserPayload, AnonymousUserPayload, generateAnonymousToken, verifyToken, generateAuthToken } from "@/lib/jwt-auth";
+
+interface UserProfile {
+  id: string;
+  role: 'customer' | 'admin' | 'super_admin';
+}
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  userProfile: UserPayload | AnonymousUserPayload | null;
+  userProfile: UserProfile | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  jwtToken: string | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,11 +34,10 @@ export function SupabaseAuthProvider({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<UserPayload | AnonymousUserPayload | null>(null);
-  const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const supabase = createClient();
 
-  // Helper function to update user profile and JWT token
+  // Helper function to update user profile
   const updateUserProfile = async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
@@ -47,44 +49,31 @@ export function SupabaseAuthProvider({
           .single();
 
         if (!error && profile) {
-          // Generate JWT token for authenticated user
-          const token = await generateAuthToken(currentSession.user.id, currentSession.user.email);
-          setJwtToken(token);
-          
-          const userPayload: UserPayload = {
+          const userProfile: UserProfile = {
             id: currentSession.user.id,
-            email: currentSession.user.email,
             role: profile.role,
-            isAnonymous: false,
           };
-          setUserProfile(userPayload);
+          setUserProfile(userProfile);
         } else {
           // Fallback for users without profile
-          const token = await generateAuthToken(currentSession.user.id, currentSession.user.email);
-          setJwtToken(token);
-          
-          const userPayload: UserPayload = {
+          const userProfile: UserProfile = {
             id: currentSession.user.id,
-            email: currentSession.user.email,
             role: 'customer',
-            isAnonymous: false,
           };
-          setUserProfile(userPayload);
+          setUserProfile(userProfile);
         }
       } catch (error) {
         console.error('Error updating user profile:', error);
-        // Set anonymous user on error
-        const anonymousToken = generateAnonymousToken();
-        setJwtToken(anonymousToken);
-        const anonymousUser = verifyToken(anonymousToken) as AnonymousUserPayload;
-        setUserProfile(anonymousUser);
+        // Set default customer profile on error
+        const userProfile: UserProfile = {
+          id: currentSession.user.id,
+          role: 'customer',
+        };
+        setUserProfile(userProfile);
       }
     } else {
-      // No session, create anonymous user
-      const anonymousToken = generateAnonymousToken();
-      setJwtToken(anonymousToken);
-      const anonymousUser = verifyToken(anonymousToken) as AnonymousUserPayload;
-      setUserProfile(anonymousUser);
+      // No session, clear profile
+      setUserProfile(null);
     }
   };
 
@@ -158,23 +147,20 @@ export function SupabaseAuthProvider({
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // After sign out, create anonymous user
-    const anonymousToken = generateAnonymousToken();
-    setJwtToken(anonymousToken);
-    const anonymousUser = verifyToken(anonymousToken) as AnonymousUserPayload;
-    setUserProfile(anonymousUser);
+    // Clear profile after sign out
+    setUserProfile(null);
   };
 
-  const refreshToken = async () => {
+  const refreshProfile = async () => {
     if (session?.user) {
       await updateUserProfile(session);
     }
   };
 
   // Computed values
-  const isAuthenticated = userProfile ? !userProfile.isAnonymous : false;
-  const isAdmin = userProfile ? !userProfile.isAnonymous && ['admin', 'super_admin'].includes(userProfile.role) : false;
-  const isSuperAdmin = userProfile ? !userProfile.isAnonymous && userProfile.role === 'super_admin' : false;
+  const isAuthenticated = !!user;
+  const isAdmin = userProfile ? ['admin', 'super_admin'].includes(userProfile.role) : false;
+  const isSuperAdmin = userProfile ? userProfile.role === 'super_admin' : false;
 
   const value = {
     user,
@@ -184,12 +170,11 @@ export function SupabaseAuthProvider({
     isAuthenticated,
     isAdmin,
     isSuperAdmin,
-    jwtToken,
     signIn,
     signUp,
     signInWithGoogle,
     signOut,
-    refreshToken,
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

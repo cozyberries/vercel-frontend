@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import { sign, verify, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import { createAdminSupabaseClient } from './supabase-server';
 
 // JWT secret key - in production, use a strong secret from environment variables
@@ -50,7 +50,7 @@ export async function generateAuthToken(userId: string, userEmail?: string): Pro
       isAnonymous: false,
     };
 
-    return jwt.sign(payload, JWT_SECRET, {
+    return sign(payload, JWT_SECRET, {
       expiresIn: '7d', // Token expires in 7 days
       issuer: 'your-app-name',
       audience: 'your-app-users',
@@ -76,7 +76,7 @@ export function generateAnonymousToken(): string {
     createdAt: new Date().toISOString(),
   };
 
-  return jwt.sign(payload, JWT_SECRET, {
+  return sign(payload, JWT_SECRET, {
     expiresIn: '30d', // Anonymous tokens last longer
     issuer: 'your-app-name',
     audience: 'your-app-anonymous',
@@ -88,13 +88,13 @@ export function generateAnonymousToken(): string {
  */
 export function verifyToken(token: string): UserPayload | AnonymousUserPayload {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as UserPayload | AnonymousUserPayload;
+    const decoded = verify(token, JWT_SECRET) as UserPayload | AnonymousUserPayload;
     return decoded;
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (error instanceof JsonWebTokenError) {
       throw new Error('Invalid token');
     }
-    if (error instanceof jwt.TokenExpiredError) {
+    if (error instanceof TokenExpiredError) {
       throw new Error('Token expired');
     }
     throw new Error('Token verification failed');
@@ -185,7 +185,7 @@ export function generateAdminToken(userId: string, email: string): string {
     isAnonymous: false,
   };
 
-  return jwt.sign(payload, JWT_SECRET, {
+  return sign(payload, JWT_SECRET, {
     expiresIn: '7d',
     issuer: 'your-app-name',
     audience: 'your-app-users',
@@ -203,7 +203,7 @@ export function generateSuperAdminToken(userId: string, email: string): string {
     isAnonymous: false,
   };
 
-  return jwt.sign(payload, JWT_SECRET, {
+  return sign(payload, JWT_SECRET, {
     expiresIn: '7d',
     issuer: 'your-app-name',
     audience: 'your-app-users',
