@@ -4,14 +4,24 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
+interface UserProfile {
+  id: string;
+  role: 'customer' | 'admin' | 'super_admin';
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  userProfile: UserProfile | null;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,7 +34,48 @@ export function SupabaseAuthProvider({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const supabase = createClient();
+
+  // Helper function to update user profile
+  const updateUserProfile = async (currentSession: Session | null) => {
+    if (currentSession?.user) {
+      try {
+        // Get user profile with role
+        const { data: profile, error } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', currentSession.user.id)
+          .single();
+
+        if (!error && profile) {
+          const userProfile: UserProfile = {
+            id: currentSession.user.id,
+            role: profile.role,
+          };
+          setUserProfile(userProfile);
+        } else {
+          // Fallback for users without profile
+          const userProfile: UserProfile = {
+            id: currentSession.user.id,
+            role: 'customer',
+          };
+          setUserProfile(userProfile);
+        }
+      } catch (error) {
+        console.error('Error updating user profile:', error);
+        // Set default customer profile on error
+        const userProfile: UserProfile = {
+          id: currentSession.user.id,
+          role: 'customer',
+        };
+        setUserProfile(userProfile);
+      }
+    } else {
+      // No session, clear profile
+      setUserProfile(null);
+    }
+  };
 
   useEffect(() => {
     // Get initial session
@@ -34,6 +85,8 @@ export function SupabaseAuthProvider({
       } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
+      
+      await updateUserProfile(session);
       setLoading(false);
     };
 
@@ -45,6 +98,8 @@ export function SupabaseAuthProvider({
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
+      await updateUserProfile(session);
       setLoading(false);
     });
 
@@ -92,16 +147,34 @@ export function SupabaseAuthProvider({
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Clear profile after sign out
+    setUserProfile(null);
   };
+
+  const refreshProfile = async () => {
+    if (session?.user) {
+      await updateUserProfile(session);
+    }
+  };
+
+  // Computed values
+  const isAuthenticated = !!user;
+  const isAdmin = userProfile ? ['admin', 'super_admin'].includes(userProfile.role) : false;
+  const isSuperAdmin = userProfile ? userProfile.role === 'super_admin' : false;
 
   const value = {
     user,
     session,
     loading,
+    userProfile,
+    isAuthenticated,
+    isAdmin,
+    isSuperAdmin,
     signIn,
     signUp,
     signInWithGoogle,
     signOut,
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

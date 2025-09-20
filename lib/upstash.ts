@@ -143,4 +143,19 @@ export class UpstashService {
       return false;
     }
   }
+
+  // Delete cache entries by pattern
+  static async deletePattern(pattern: string) {
+    try {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(...keys);
+        console.log(`Deleted ${keys.length} cache keys matching pattern: ${pattern}`);
+      }
+      return true;
+    } catch (error) {
+      console.error('Error deleting cache pattern:', error);
+      return false;
+    }
+  }
 }
