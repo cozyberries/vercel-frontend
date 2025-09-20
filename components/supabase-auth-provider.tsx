@@ -88,7 +88,6 @@ export function SupabaseAuthProvider({
 
         // Generate JWT token for API authentication
         const token = await generateJwtToken(currentSession.user.id, currentSession.user.email);
-        console.log('Auth Provider - JWT token generated (success path):', !!token, token ? 'Token exists' : 'No token');
         setJwtToken(token);
       } catch (error) {
         console.error('Error updating user profile:', error);
@@ -101,7 +100,6 @@ export function SupabaseAuthProvider({
         
         // Generate JWT token for API authentication
         const token = await generateJwtToken(currentSession.user.id, currentSession.user.email);
-        console.log('Auth Provider - JWT token generated (error path):', !!token, token ? 'Token exists' : 'No token');
         setJwtToken(token);
       }
     } else {
@@ -188,7 +186,6 @@ export function SupabaseAuthProvider({
 
   const refreshProfile = async () => {
     if (session?.user) {
-      console.log('Auth Provider - Refreshing profile and JWT token...');
       await updateUserProfile(session);
     }
   };

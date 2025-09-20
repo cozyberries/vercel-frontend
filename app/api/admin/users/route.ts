@@ -7,21 +7,7 @@ export async function GET(request: NextRequest) {
     // Authenticate the request using JWT
     const auth = await authenticateRequest(request);
 
-    console.log('Admin users API - Auth check:', {
-      isAuthenticated: auth.isAuthenticated,
-      isAdmin: auth.isAdmin,
-      isSuperAdmin: auth.isSuperAdmin,
-      userId: auth.user.id,
-      userRole: !auth.user.isAnonymous ? auth.user.role : 'anonymous',
-      userEmail: !auth.user.isAnonymous ? auth.user.email : 'none'
-    });
-
     if (!auth.isAuthenticated || !auth.isAdmin) {
-      console.log('Admin users API - Access denied:', {
-        isAuthenticated: auth.isAuthenticated,
-        isAdmin: auth.isAdmin,
-        reason: !auth.isAuthenticated ? 'Not authenticated' : 'Not admin'
-      });
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }
