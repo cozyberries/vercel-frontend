@@ -48,7 +48,9 @@ export function useCartPersistence({
    * Load initial cart data with faster local-first approach
    */
   const loadInitialCart = useCallback(async () => {
-    if (authLoading || hasInitializedRef.current) return;
+    if (authLoading || hasInitializedRef.current || isTemporaryCart) {
+      return;
+    }
 
     isInitializingRef.current = true;
     try {
@@ -84,13 +86,13 @@ export function useCartPersistence({
     } finally {
       isInitializingRef.current = false;
     }
-  }, [user?.id, authLoading, setCart]);
+  }, [user?.id, authLoading, setCart, isTemporaryCart]);
 
   /**
    * Handle user authentication changes
    */
   const handleAuthChange = useCallback(async () => {
-    if (authLoading) return;
+    if (authLoading || isTemporaryCart) return;
 
     const currentUserId = user?.id || null;
     const previousUserId = previousUserIdRef.current;
@@ -117,7 +119,7 @@ export function useCartPersistence({
     }
 
     previousUserIdRef.current = currentUserId;
-  }, [user?.id, authLoading, setCart]);
+  }, [user?.id, authLoading, setCart, isTemporaryCart]);
 
   /**
    * Persist cart changes
@@ -155,19 +157,19 @@ export function useCartPersistence({
     }
   }, [user?.id]);
 
-  // Load initial cart on mount only
+  // Load initial cart on mount only (skip if temporary cart)
   useEffect(() => {
-    if (!authLoading && !hasInitializedRef.current) {
+    if (!authLoading && !hasInitializedRef.current && !isTemporaryCart) {
       loadInitialCart();
     }
-  }, [authLoading, loadInitialCart]);
+  }, [authLoading, loadInitialCart, isTemporaryCart]);
 
-  // Handle auth changes separately (only when user ID actually changes)
+  // Handle auth changes separately (only when user ID actually changes, skip if temporary cart)
   useEffect(() => {
-    if (!authLoading && hasInitializedRef.current) {
+    if (!authLoading && hasInitializedRef.current && !isTemporaryCart) {
       handleAuthChange();
     }
-  }, [user?.id, handleAuthChange]);
+  }, [user?.id, handleAuthChange, isTemporaryCart]);
 
   // Persist cart changes (but skip during initialization to avoid duplicate saves)
   useEffect(() => {
