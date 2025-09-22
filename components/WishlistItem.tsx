@@ -15,13 +15,11 @@ export interface WishlistLineItem {
 interface WishlistItemProps {
   item: WishlistLineItem;
   onRemove: (id: string) => void;
-  onAddToCart: (item: WishlistLineItem) => void;
 }
 
 export default function WishlistItem({
   item,
   onRemove,
-  onAddToCart,
 }: WishlistItemProps) {
   return (
     <div className="flex items-center gap-4 border-b pb-4">
@@ -36,15 +34,6 @@ export default function WishlistItem({
         </div>
         <div className="text-sm font-semibold mt-1">
           ₹{item.price.toFixed(2)}
-        </div>
-        <div className="mt-2">
-          <Button
-            size="sm"
-            variant={"outline"}
-            onClick={() => onAddToCart(item)}
-          >
-            Add to Cart
-          </Button>
         </div>
       </div>
       <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)}>

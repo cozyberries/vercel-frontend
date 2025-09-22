@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/sheet";
 import { SimplifiedProduct } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
-import { useCart } from "./cart-context";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 
@@ -43,7 +42,6 @@ export default function SearchResultsSheet({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
-  const { addToCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
 
   // Close suggestions when clicking outside
@@ -312,7 +310,6 @@ export default function SearchResultsSheet({
                   Found {searchResults.length} product{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
                 </div>
                 {searchResults.map((product) => {
-                  const isInCart = cart.some((item) => item.id === product.id);
                   const inWishlist = isInWishlist(product.id);
                   
                   return (
@@ -369,30 +366,6 @@ export default function SearchResultsSheet({
                         >
                           <Heart className={`h-4 w-4 ${inWishlist ? "fill-red-500 text-red-500" : ""}`} />
                         </Button>
-                        
-                        {!isInCart ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => {
-                              addToCart({
-                                id: product.id,
-                                name: product.name,
-                                price: product.price,
-                                image: product.image,
-                                quantity: 1,
-                              });
-                              toast.success(`${product.name} added to cart!`);
-                            }}
-                          >
-                            Add
-                          </Button>
-                        ) : (
-                          <div className="text-xs text-green-600 font-medium px-2 py-1 bg-green-50 rounded">
-                            Added
-                          </div>
-                        )}
                       </div>
                     </div>
                   );

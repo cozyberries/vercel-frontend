@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Facebook, Instagram, Twitter } from "lucide-react";
+import { Facebook, Instagram, MessageCircle } from "lucide-react";
 import { images } from "@/app/assets/images";
 
 const footerLinks = [
@@ -15,7 +15,6 @@ const footerLinks = [
     links: [
       { name: "Contact Us", href: "/contact" },
       { name: "Shipping & Returns", href: "/shipping-returns" },
-      { name: "Size Guide", href: "/size-guide" },
       { name: "FAQs", href: "/faqs" },
       { name: "Track Order", href: "/track-order" },
     ],
@@ -24,10 +23,7 @@ const footerLinks = [
     title: "About",
     links: [
       { name: "Our Story", href: "/about" },
-      { name: "Sustainability", href: "/sustainability" },
       { name: "Blog", href: "/blog" },
-      { name: "Careers", href: "/careers" },
-      { name: "Press", href: "/press" },
     ],
   },
 ];
@@ -54,25 +50,31 @@ export default function Footer() {
             </p>
             <div className="flex space-x-4">
               <a
-                href="#"
-                className="text-muted-foreground hover:text-primary"
-                aria-label="Facebook"
+                href="https://facebook.com/cozyberries"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                aria-label="Follow us on Facebook"
               >
                 <Facebook className="h-5 w-5" />
               </a>
               <a
-                href="#"
-                className="text-muted-foreground hover:text-primary"
-                aria-label="Instagram"
+                href="https://instagram.com/cozyberries"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                aria-label="Follow us on Instagram"
               >
                 <Instagram className="h-5 w-5" />
               </a>
               <a
-                href="#"
-                className="text-muted-foreground hover:text-primary"
-                aria-label="Twitter"
+                href="https://wa.me/15551234567"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                aria-label="Contact us on WhatsApp"
               >
-                <Twitter className="h-5 w-5" />
+                <MessageCircle className="h-5 w-5" />
               </a>
             </div>
           </div>
@@ -102,14 +104,17 @@ export default function Footer() {
             © {new Date().getFullYear()} CozyBerries. All rights reserved.
           </p>
           <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
-            <Link href="/privacy-policy" className="hover:text-primary">
+            <Link
+              href="/privacy-policy"
+              className="hover:text-primary transition-colors"
+            >
               Privacy Policy
             </Link>
-            <Link href="/terms-of-service" className="hover:text-primary">
+            <Link
+              href="/terms-of-service"
+              className="hover:text-primary transition-colors"
+            >
               Terms of Service
-            </Link>
-            <Link href="/cookie-policy" className="hover:text-primary">
-              Cookie Policy
             </Link>
           </div>
         </div>
