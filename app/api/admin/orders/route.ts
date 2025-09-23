@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
     const status = searchParams.get("status");
+    const fromDate = searchParams.get("from_date");
+    const toDate = searchParams.get("to_date");
 
     let query = supabase
       .from("orders")
@@ -29,6 +31,17 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== "all") {
       query = query.eq("status", status);
+    }
+
+    // Apply date filters
+    if (fromDate) {
+      query = query.gte("created_at", fromDate);
+    }
+    if (toDate) {
+      // Add end of day to toDate to include the entire day
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      query = query.lte("created_at", endOfDay.toISOString());
     }
 
     const { data: orders, error: ordersError } = await query;

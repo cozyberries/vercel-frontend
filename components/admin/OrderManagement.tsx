@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,16 +31,45 @@ export default function OrderManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+
+  // Date filter states - default to last 1 week
+  const getOneWeekAgo = () => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date.toISOString().split("T")[0];
+  };
+
+  const [fromDate, setFromDate] = useState<string>(getOneWeekAgo());
+  const [toDate, setToDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+
   const { get, put } = useAuthenticatedFetch();
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fromDate, toDate, statusFilter]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await get("/api/admin/orders", { requireAdmin: true });
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter);
+      }
+      if (fromDate) {
+        params.append("from_date", fromDate);
+      }
+      if (toDate) {
+        params.append("to_date", toDate);
+      }
+
+      const queryString = params.toString();
+      const url = `/api/admin/orders${queryString ? `?${queryString}` : ""}`;
+
+      const response = await get(url, { requireAdmin: true });
       const data = await response.json();
       setOrders(data.orders || []);
     } catch (error) {
@@ -170,7 +200,8 @@ export default function OrderManagement() {
       {/* Filters */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="space-y-4">
+            {/* Search Bar */}
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -182,6 +213,66 @@ export default function OrderManagement() {
                 />
               </div>
             </div>
+
+            {/* Date Filters */}
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  Date Range:
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 items-center">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="from-date" className="text-sm text-gray-600">
+                    From:
+                  </label>
+                  <Input
+                    id="from-date"
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-auto"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="to-date" className="text-sm text-gray-600">
+                    To:
+                  </label>
+                  <Input
+                    id="to-date"
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="w-auto"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFromDate(getOneWeekAgo());
+                    setToDate(new Date().toISOString().split("T")[0]);
+                  }}
+                >
+                  Last Week
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const oneMonthAgo = new Date();
+                    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+                    setFromDate(oneMonthAgo.toISOString().split("T")[0]);
+                    setToDate(new Date().toISOString().split("T")[0]);
+                  }}
+                >
+                  Last Month
+                </Button>
+              </div>
+            </div>
+
+            {/* Status Filters */}
             <div className="flex gap-2 flex-wrap">
               {statusOptions.map((option) => (
                 <Button
@@ -203,7 +294,43 @@ export default function OrderManagement() {
       {/* Orders Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Orders ({filteredOrders.length})</CardTitle>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Orders ({filteredOrders.length})</CardTitle>
+              <p className="text-sm text-gray-500 mt-1">
+                {fromDate && toDate ? (
+                  <>
+                    Showing orders from{" "}
+                    {new Date(fromDate).toLocaleDateString()} to{" "}
+                    {new Date(toDate).toLocaleDateString()}
+                  </>
+                ) : fromDate ? (
+                  <>
+                    Showing orders from{" "}
+                    {new Date(fromDate).toLocaleDateString()}
+                  </>
+                ) : toDate ? (
+                  <>
+                    Showing orders up to {new Date(toDate).toLocaleDateString()}
+                  </>
+                ) : (
+                  <>Showing all orders</>
+                )}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFromDate(getOneWeekAgo());
+                setToDate(new Date().toISOString().split("T")[0]);
+                setStatusFilter("all");
+                setSearchTerm("");
+              }}
+            >
+              Reset to Default
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
