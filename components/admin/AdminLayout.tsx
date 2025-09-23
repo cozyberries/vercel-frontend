@@ -11,7 +11,8 @@ import {
   Settings,
   Menu,
   X,
-  LogOut
+  LogOut,
+  Receipt
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
@@ -25,6 +26,7 @@ const adminNavItems = [
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
+  { name: "Expenses", href: "/admin/expenses", icon: Receipt },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
