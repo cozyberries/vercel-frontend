@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.2",
+    "framer-motion": "^12.23.18",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.454.0",
     "next": "^15.5.3",

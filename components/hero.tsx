@@ -35,22 +35,8 @@ export default function Hero() {
     setTimeout(() => setIsAutoPlaying(true), 8000);
   };
 
-  const nextSlide = () => {
-    setCurrentIndex((prev) => (prev + 1) % HERO_IMAGES.length);
-    setIsAutoPlaying(false);
-    setTimeout(() => setIsAutoPlaying(true), 8000);
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex(
-      (prev) => (prev - 1 + HERO_IMAGES.length) % HERO_IMAGES.length
-    );
-    setIsAutoPlaying(false);
-    setTimeout(() => setIsAutoPlaying(true), 8000);
-  };
-
   return (
-    <section className="relative h-[500px] md:h-[600px] bg-[#f5eee0] overflow-hidden group">
+    <section className="relative h-[600px] md:h-[700px] bg-[#f5eee0] overflow-hidden group">
       <div className="container mx-auto px-4 h-full flex items-center">
         <div className="max-w-xl z-10">
           <h1 className="text-3xl md:text-5xl font-light mb-4">
@@ -89,47 +75,6 @@ export default function Hero() {
               </div>
             ))}
           </div>
-
-          {/* Navigation Arrows */}
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"
-            aria-label="Previous image"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"
-            aria-label="Next image"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
         </div>
       </div>
 

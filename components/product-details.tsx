@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Heart, Minus, Plus, Share2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,9 +29,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
 
-  const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
   const { getDetailedProductById, isLoading } = usePreloadedData();
+  const router = useRouter();
 
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
@@ -105,7 +107,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
         <div className="space-y-4">
@@ -153,9 +155,39 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 {product.category}
               </Link>
             )}
-            <h1 className="text-2xl md:text-3xl font-light mt-2 mb-4">
-              {product.name}
-            </h1>
+            <div className="flex items-center justify-between mt-2 mb-4">
+              <h1 className="text-2xl md:text-3xl font-light">
+                {product.name}
+              </h1>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                onClick={() => {
+                  if (inWishlist) {
+                    removeFromWishlist(product.id);
+                    toast.success(`${product.name} removed from wishlist!`);
+                  } else {
+                    addToWishlist({
+                      id: product.id,
+                      name: product.name,
+                      price: product.price,
+                      image: product.images?.[0]?.url,
+                    });
+                    toast.success(`${product.name} added to wishlist!`);
+                  }
+                }}
+              >
+                <Heart
+                  className={`h-5 w-5 ${
+                    inWishlist ? "fill-red-500 text-red-500" : ""
+                  }`}
+                />
+                <span className="sr-only">
+                  {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+                </span>
+              </Button>
+            </div>
             <p className="text-2xl font-medium mb-6">
               ${product.price.toFixed(2)}
             </p>
@@ -230,12 +262,38 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-8">
-              {!isInCart ? (
-                <Button
-                  size="lg"
-                  className="flex-1"
-                  onClick={() => {
+            <div className="hidden md:flex flex-col sm:flex-row gap-4 mb-8">
+              <Button
+                size="lg"
+                className="flex-1 bg-black hover:bg-gray-800"
+                onClick={() => {
+                  // Add to cart temporarily (replaces existing cart), then redirect to checkout
+                  addToCartTemporary({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    image: product.images?.[0]?.url,
+                    quantity,
+                    ...(selectedColor ? { color: selectedColor } : {}),
+                    ...(selectedSize ? { size: selectedSize } : {}),
+                  });
+                  // Use router navigation with small delay to ensure state update
+                  setTimeout(() => {
+                    router.push("/checkout");
+                  }, 100);
+                }}
+              >
+                Buy Now
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  if (isInCart) {
+                    removeFromCart(product.id);
+                    toast.success(`${product.name} removed from cart!`);
+                  } else {
                     addToCart({
                       id: product.id,
                       name: product.name,
@@ -246,48 +304,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                       ...(selectedSize ? { size: selectedSize } : {}),
                     });
                     toast.success(`${product.name} added to cart!`);
-                  }}
-                >
-                  Add to Cart
-                </Button>
-              ) : (
-                <Button
-                  size="lg"
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={() => {
-                    removeFromCart(product.id);
-                    toast.success(`${product.name} removed from cart!`);
-                  }}
-                >
-                  Remove from Cart
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1"
-                onClick={() => {
-                  if (inWishlist) {
-                    removeFromWishlist(product.id);
-                    toast.success(`${product.name} removed from wishlist!`);
-                  } else {
-                    addToWishlist({
-                      id: product.id,
-                      name: product.name,
-                      price: product.price,
-                      image: product.images?.[0]?.url,
-                    });
-                    toast.success(`${product.name} added to wishlist!`);
                   }
                 }}
               >
-                <Heart
-                  className={`h-4 w-4 mr-2 ${
-                    inWishlist ? "fill-red-500 text-red-500" : ""
-                  }`}
-                />
-                {inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+                {isInCart ? "Remove from Cart" : "Add to Cart"}
               </Button>
             </div>
 
@@ -368,14 +388,6 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                     <Heart className="h-4 w-4" />
                     <span className="sr-only">Add to wishlist</span>
                   </Button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      className="w-full rounded-none py-3"
-                    >
-                      Add to Cart
-                    </Button>
-                  </div>
                 </div>
                 <div className="text-center">
                   <h3 className="text-sm font-medium mb-1">
@@ -398,6 +410,58 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           </div>
         </section>
       )}
+
+      {/* Sticky Mobile Buttons */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 md:hidden">
+        <div className="flex gap-3">
+          <Button
+            size="lg"
+            className="flex-1 h-12 bg-black hover:bg-gray-800"
+            onClick={() => {
+              // Add to cart temporarily (replaces existing cart), then redirect to checkout
+              addToCartTemporary({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image: product.images?.[0]?.url,
+                quantity,
+                ...(selectedColor ? { color: selectedColor } : {}),
+                ...(selectedSize ? { size: selectedSize } : {}),
+              });
+              // Use router navigation with small delay to ensure state update
+              setTimeout(() => {
+                router.push("/checkout");
+              }, 100);
+            }}
+          >
+            Buy Now
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            className="flex-1 h-12"
+            onClick={() => {
+              if (isInCart) {
+                removeFromCart(product.id);
+                toast.success(`${product.name} removed from cart!`);
+              } else {
+                addToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.images?.[0]?.url,
+                  quantity,
+                  ...(selectedColor ? { color: selectedColor } : {}),
+                  ...(selectedSize ? { size: selectedSize } : {}),
+                });
+                toast.success(`${product.name} added to cart!`);
+              }
+            }}
+          >
+            {isInCart ? "Remove from Cart" : "Add to Cart"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

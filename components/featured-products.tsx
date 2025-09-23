@@ -20,7 +20,11 @@ export default function FeaturedProducts() {
         setError(null);
       } catch (err) {
         console.error("Error loading featured products:", err);
-        setError(err instanceof Error ? err.message : "Failed to load featured products");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load featured products"
+        );
         setProducts([]);
       } finally {
         setIsLoading(false);
@@ -44,11 +48,23 @@ export default function FeaturedProducts() {
       <div className="text-center p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
           <div className="text-red-600 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-red-800 mb-2">Error Loading Featured Products</h3>
+          <h3 className="text-lg font-medium text-red-800 mb-2">
+            Error Loading Featured Products
+          </h3>
           <p className="text-red-700 mb-4">{error}</p>
           <Button onClick={() => window.location.reload()} variant="outline">
             Try Again
@@ -92,7 +108,7 @@ export default function FeaturedProducts() {
   }
 
   return (
-    <div className="grid lg:grid-cols-4 grid-cols-2 gap-8">
+    <div className="grid lg:grid-cols-4 grid-cols-2 gap-5 md:gap-8 ">
       {products.slice(0, 4).map((product) => (
         <ProductCard product={product} key={product.id} />
       ))}

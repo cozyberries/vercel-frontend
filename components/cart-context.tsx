@@ -26,16 +26,27 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isTemporaryCart, setIsTemporaryCart] = useState(false);
+  const [temporaryCartItem, setTemporaryCartItem] = useState<CartItem | null>(
+    null
+  );
 
   // Use cart persistence hook for Supabase integration
   const { isLoading, clearAllCart } = useCartPersistence({
     cart,
-    setCart,
+    setCart: (items: CartItem[]) => {
+      // If we have a temporary cart item, don't let persistence override it
+      if (isTemporaryCart && temporaryCartItem) {
+        setCart([temporaryCartItem]);
+      } else {
+        setCart(items);
+      }
+    },
     isTemporaryCart,
   });
 
   const addToCart = (item: CartItem) => {
     setIsTemporaryCart(false); // Reset temporary cart flag
+    setTemporaryCartItem(null); // Clear temporary cart item
     setCart((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
@@ -56,6 +67,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const clearCart = async () => {
+    setIsTemporaryCart(false);
+    setTemporaryCartItem(null);
     setCart([]);
     await clearAllCart();
   };
@@ -63,6 +76,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addToCartTemporary = (item: CartItem) => {
     // Add to cart temporarily without persisting to localStorage/Supabase
     setIsTemporaryCart(true);
+    setTemporaryCartItem(item);
     setCart([item]);
   };
 

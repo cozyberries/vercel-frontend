@@ -63,7 +63,11 @@ export default function CategoryGrid() {
             categoryImage = dynamicImage;
           }
         } catch (error) {
-          console.warn('Error getting category image for', category.name, error);
+          console.warn(
+            "Error getting category image for",
+            category.name,
+            error
+          );
           // categoryImage already set to fallback
         }
 
@@ -71,9 +75,9 @@ export default function CategoryGrid() {
           <Link
             key={category.id}
             href={`/products?category=${category.slug}`}
-            className="group relative overflow-hidden lg:rounded-lg rounded-full"
+            className="group flex flex-col"
           >
-            <div className="aspect-square overflow-hidden">
+            <div className="relative aspect-square overflow-hidden lg:rounded-lg rounded-full mb-3 ">
               <Image
                 src={categoryImage}
                 alt={category.name}
@@ -81,9 +85,10 @@ export default function CategoryGrid() {
                 height={200}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
+              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500" />
             </div>
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
-              <h3 className="text-white text-xl font-medium">
+            <div className="text-center">
+              <h3 className="text-gray-900 text-lg font-medium group-hover:text-primary transition-colors">
                 {category.name}
               </h3>
             </div>
