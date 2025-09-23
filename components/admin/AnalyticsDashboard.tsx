@@ -10,6 +10,7 @@ import {
   Calendar
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import ExpenseDashboard from "@/components/admin/ExpenseDashboard";
 
 interface DashboardStats {
   totalOrders: number;
@@ -266,6 +267,9 @@ export default function AnalyticsDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Expense Management Section */}
+      <ExpenseDashboard />
 
       {/* Recent Activity */}
       <Card>
