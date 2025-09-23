@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,6 +109,16 @@ export const HamburgerSheet = () => {
                 >
                   About Us
                 </Link>
+                {user && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center px-3 py-2 text-base font-medium text-foreground/80 hover:text-primary transition-colors"
+                    onClick={() => setOpen(false)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </Link>
+                )}
               </div>
             </div>
           </div>
