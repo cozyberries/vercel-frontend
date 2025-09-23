@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Search, 
+import {
+  Search,
   Calendar,
   Package,
   MoreHorizontal,
@@ -10,25 +10,27 @@ import {
   Truck,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Order, OrderStatus } from "@/lib/types/order";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
 export default function OrderManagement() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const { get, put } = useAuthenticatedFetch();
 
   useEffect(() => {
     fetchOrders();
@@ -37,56 +39,57 @@ export default function OrderManagement() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/orders');
-      if (response.ok) {
-        const data = await response.json();
-        setOrders(data.orders || []);
-      }
+      const response = await get("/api/admin/orders", { requireAdmin: true });
+      const data = await response.json();
+      setOrders(data.orders || []);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error("Error fetching orders:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
+  const handleStatusUpdate = async (
+    orderId: string,
+    newStatus: OrderStatus
+  ) => {
     try {
-      const response = await fetch(`/api/admin/orders/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const response = await put(
+        `/api/admin/orders/${orderId}`,
+        { status: newStatus },
+        { requireAdmin: true }
+      );
 
       if (response.ok) {
-        setOrders(orders.map(order => 
-          order.id === orderId ? { ...order, status: newStatus } : order
-        ));
+        setOrders(
+          orders.map((order) =>
+            order.id === orderId ? { ...order, status: newStatus } : order
+          )
+        );
       } else {
-        alert('Failed to update order status');
+        alert("Failed to update order status");
       }
     } catch (error) {
-      console.error('Error updating order status:', error);
-      alert('Error updating order status');
+      console.error("Error updating order status:", error);
+      alert("Error updating order status");
     }
   };
 
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
-      case 'payment_pending':
+      case "payment_pending":
         return <Clock className="h-4 w-4" />;
-      case 'payment_confirmed':
+      case "payment_confirmed":
         return <CheckCircle className="h-4 w-4" />;
-      case 'processing':
+      case "processing":
         return <Package className="h-4 w-4" />;
-      case 'shipped':
+      case "shipped":
         return <Truck className="h-4 w-4" />;
-      case 'delivered':
+      case "delivered":
         return <CheckCircle className="h-4 w-4" />;
-      case 'cancelled':
+      case "cancelled":
         return <XCircle className="h-4 w-4" />;
-      case 'refunded':
+      case "refunded":
         return <XCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
@@ -95,50 +98,53 @@ export default function OrderManagement() {
 
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
-      case 'payment_pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'payment_confirmed':
-        return 'bg-blue-100 text-blue-800';
-      case 'processing':
-        return 'bg-purple-100 text-purple-800';
-      case 'shipped':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'refunded':
-        return 'bg-gray-100 text-gray-800';
+      case "payment_pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "payment_confirmed":
+        return "bg-blue-100 text-blue-800";
+      case "processing":
+        return "bg-purple-100 text-purple-800";
+      case "shipped":
+        return "bg-indigo-100 text-indigo-800";
+      case "delivered":
+        return "bg-green-100 text-green-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
+      case "refunded":
+        return "bg-gray-100 text-gray-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
     }).format(amount);
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
       order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.shipping_address.full_name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    
+      order.shipping_address.full_name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === "all" || order.status === statusFilter;
+
     return matchesSearch && matchesStatus;
   });
 
@@ -180,7 +186,9 @@ export default function OrderManagement() {
               {statusOptions.map((option) => (
                 <Button
                   key={option.value}
-                  variant={statusFilter === option.value ? "default" : "outline"}
+                  variant={
+                    statusFilter === option.value ? "default" : "outline"
+                  }
                   size="sm"
                   onClick={() => setStatusFilter(option.value)}
                 >
@@ -209,7 +217,10 @@ export default function OrderManagement() {
           ) : (
             <div className="space-y-4">
               {filteredOrders.map((order) => (
-                <div key={order.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                <div
+                  key={order.id}
+                  className="border rounded-lg p-4 hover:bg-gray-50"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-4 mb-2">
@@ -220,32 +231,53 @@ export default function OrderManagement() {
                           <span className="flex items-center">
                             {getStatusIcon(order.status)}
                             <span className="ml-1 capitalize">
-                              {order.status.replace('_', ' ')}
+                              {order.status.replace("_", " ")}
                             </span>
                           </span>
                         </Badge>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
                         <div>
-                          <p><strong>Customer:</strong> {order.customer_email}</p>
-                          <p><strong>Name:</strong> {order.shipping_address.full_name}</p>
+                          <p>
+                            <strong>Customer:</strong> {order.customer_email}
+                          </p>
+                          <p>
+                            <strong>Name:</strong>{" "}
+                            {order.shipping_address.full_name}
+                          </p>
                         </div>
                         <div>
-                          <p><strong>Items:</strong> {order.items.length} items</p>
-                          <p><strong>Total:</strong> {formatCurrency(order.total_amount)}</p>
+                          <p>
+                            <strong>Items:</strong> {order.items.length} items
+                          </p>
+                          <p>
+                            <strong>Total:</strong>{" "}
+                            {formatCurrency(order.total_amount)}
+                          </p>
                         </div>
                         <div>
-                          <p><strong>Ordered:</strong> {formatDate(order.created_at)}</p>
-                          <p><strong>Location:</strong> {order.shipping_address.city}, {order.shipping_address.state}</p>
+                          <p>
+                            <strong>Ordered:</strong>{" "}
+                            {formatDate(order.created_at)}
+                          </p>
+                          <p>
+                            <strong>Location:</strong>{" "}
+                            {order.shipping_address.city},{" "}
+                            {order.shipping_address.state}
+                          </p>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -254,27 +286,42 @@ export default function OrderManagement() {
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          {order.status === 'payment_confirmed' && (
-                            <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'processing')}>
+                          {order.status === "payment_confirmed" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleStatusUpdate(order.id, "processing")
+                              }
+                            >
                               <Package className="h-4 w-4 mr-2" />
                               Mark as Processing
                             </DropdownMenuItem>
                           )}
-                          {order.status === 'processing' && (
-                            <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'shipped')}>
+                          {order.status === "processing" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleStatusUpdate(order.id, "shipped")
+                              }
+                            >
                               <Truck className="h-4 w-4 mr-2" />
                               Mark as Shipped
                             </DropdownMenuItem>
                           )}
-                          {order.status === 'shipped' && (
-                            <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'delivered')}>
+                          {order.status === "shipped" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleStatusUpdate(order.id, "delivered")
+                              }
+                            >
                               <CheckCircle className="h-4 w-4 mr-2" />
                               Mark as Delivered
                             </DropdownMenuItem>
                           )}
-                          {(order.status === 'payment_pending' || order.status === 'processing') && (
-                            <DropdownMenuItem 
-                              onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                          {(order.status === "payment_pending" ||
+                            order.status === "processing") && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleStatusUpdate(order.id, "cancelled")
+                              }
                               className="text-red-600"
                             >
                               <XCircle className="h-4 w-4 mr-2" />
@@ -295,12 +342,13 @@ export default function OrderManagement() {
               <div className="text-gray-400 mb-4">
                 <Package className="h-12 w-12 mx-auto" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No orders found
+              </h3>
               <p className="text-gray-500">
-                {searchTerm || statusFilter !== "all" 
-                  ? 'Try adjusting your search or filter criteria' 
-                  : 'No orders have been placed yet'
-                }
+                {searchTerm || statusFilter !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "No orders have been placed yet"}
               </p>
             </div>
           )}

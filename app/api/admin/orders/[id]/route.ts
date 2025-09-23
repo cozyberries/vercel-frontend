@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
+import { authenticateRequest } from "@/lib/jwt-auth";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    // Authenticate the request using JWT
+    const auth = await authenticateRequest(request);
+
+    if (!auth.isAuthenticated || !auth.isAdmin) {
       return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
+        { error: "Admin access required" },
+        { status: 403 }
       );
     }
+
+    const supabase = createAdminSupabaseClient();
 
     const body = await request.json();
     const resolvedParams = await params;
