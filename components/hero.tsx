@@ -4,11 +4,21 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { images } from "@/app/assets/images";
 
-const HERO_IMAGES =
-  images.heroImages.length > 0 ? images.heroImages : ["/placeholder.jpg"];
+// Hero images - using desktop images as default for SSR consistency
+const HERO_IMAGES = ["/hero/1.jpeg", "/hero/2.jpg", "/hero/3.jpg"];
 const FALLBACK_IMAGE = "/placeholder.jpg";
+
+// Mobile image sources
+const MOBILE_IMAGES = [
+  "/hero/mobile1.jpg",
+  "/hero/mobile2.webp",
+  "/hero/3.jpg",
+];
+
+const getMobileImageSrc = (index: number) => {
+  return MOBILE_IMAGES[index] || FALLBACK_IMAGE;
+};
 
 export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -37,43 +47,61 @@ export default function Hero() {
 
   return (
     <section className="relative h-[600px] md:h-[700px] bg-[#f5eee0] overflow-hidden group">
-      <div className="container mx-auto px-4 h-full flex items-center">
-        <div className="max-w-xl z-10">
-          <h1 className="text-3xl md:text-5xl font-light mb-4">
+      {/* Image Carousel - Full Width Background */}
+      <div className="absolute inset-0 w-full h-full overflow-hidden">
+        <div
+          className="flex h-full transition-transform duration-700 ease-in-out"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {HERO_IMAGES.map((src, index) => (
+            <div key={src} className="w-full h-full flex-shrink-0 relative">
+              {/* Desktop Image */}
+              <Image
+                src={imageErrors.has(index) ? FALLBACK_IMAGE : src}
+                alt="Baby clothing collection"
+                fill
+                sizes="100vw"
+                className="object-cover hidden md:block"
+                priority={index === 0}
+                onError={() => handleImageError(index)}
+              />
+              {/* Mobile Image */}
+              <Image
+                src={
+                  imageErrors.has(index)
+                    ? FALLBACK_IMAGE
+                    : getMobileImageSrc(index)
+                }
+                alt="Baby clothing collection"
+                fill
+                sizes="100vw"
+                className="object-cover block md:hidden"
+                priority={index === 0}
+                onError={() => handleImageError(index)}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="absolute inset-0 lg:bg-black/15 bg-black/30" />
+      </div>
+
+      {/* Content Overlay */}
+      <div className="container mx-auto px-4 h-full flex items-center relative z-10">
+        <div className="max-w-xl">
+          <h1 className="text-3xl md:text-5xl font-light mb-4 text-white drop-shadow-lg">
             Adorable Clothing for Your Little Treasures
           </h1>
-          <p className="text-lg mb-8 text-muted-foreground">
+          <p className="text-lg mb-8 text-white/90 drop-shadow-md">
             Crafted with love, designed for comfort, and made to last
           </p>
-          <div className="flex gap-4">
-            <Button asChild size="lg">
-              <Link href="/products?type=new-arrivals">Shop New Arrivals</Link>
+          <div>
+            <Button
+              asChild
+              size="lg"
+              className="bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+            >
+              <Link href="/products">Shop Now</Link>
             </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link href="/products?type=bestseller">Bestsellers</Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* Image Carousel */}
-        <div className="absolute right-0 bottom-0 w-full md:w-1/2 h-full overflow-hidden">
-          <div
-            className="flex h-full transition-transform duration-700 ease-in-out lg:opacity-100 opacity-65"
-            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-          >
-            {HERO_IMAGES.map((src, index) => (
-              <div key={src} className="w-full h-full flex-shrink-0 relative">
-                <Image
-                  src={imageErrors.has(index) ? FALLBACK_IMAGE : src}
-                  alt="Baby clothing collection"
-                  fill
-                  sizes="50vw"
-                  className="object-cover"
-                  priority={index === 0}
-                  onError={() => handleImageError(index)}
-                />
-              </div>
-            ))}
           </div>
         </div>
       </div>

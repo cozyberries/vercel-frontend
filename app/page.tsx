@@ -7,6 +7,7 @@ import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
 import Newsletter from "@/components/newsletter";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
+import ContactSidebar from "@/components/ContactSidebar";
 
 export default function Home() {
   return (
@@ -127,6 +128,9 @@ export default function Home() {
 
       {/* Newsletter */}
       <Newsletter />
+      
+      {/* Contact Sidebar */}
+      <ContactSidebar />
     </div>
   );
 }

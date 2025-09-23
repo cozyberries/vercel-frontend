@@ -189,7 +189,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               </Button>
             </div>
             <p className="text-2xl font-medium mb-6">
-              ${product.price.toFixed(2)}
+              ₹{product.price.toFixed(2)}
             </p>
 
             <div className="space-y-6 mb-8">
@@ -322,7 +322,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
-                <span>Free shipping over $50</span>
+                <span>Free shipping over ₹50</span>
               </div>
               <Button variant="ghost" size="sm" className="p-0 h-auto">
                 <Share2 className="h-4 w-4 mr-1" />
@@ -402,7 +402,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                     {relatedProduct.category}
                   </p>
                   <p className="font-medium">
-                    ${relatedProduct.price.toFixed(2)}
+                    ₹{relatedProduct.price.toFixed(2)}
                   </p>
                 </div>
               </div>

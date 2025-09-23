@@ -3,8 +3,8 @@ export const images = {
     staticProductImage: "/placeholder.jpg", // Default fallback image for products
     staticCategoryImage: "/placeholder.jpg", // Default fallback image for categories
     heroImages: [
-        "/hero/1.webp",
-        "/hero/2.jpg", 
+        "/hero/1.jpeg",
+        "/hero/2.jpg",
         "/hero/3.jpg"
     ]
 }
