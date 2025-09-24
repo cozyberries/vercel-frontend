@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "vercel-build": "next build",
-    "create-admin": "node scripts/create-admin.js"
+    "create-admin": "node scripts/create-admin.js",
+    "warm-cache": "node scripts/warm-cache.js",
+    "warm-cache:prod": "node scripts/warm-cache.js --url=$VERCEL_URL"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

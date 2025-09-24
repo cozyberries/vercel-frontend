@@ -134,6 +134,36 @@ export class UpstashService {
     }
   }
 
+  // Get cache with TTL information for stale-while-revalidate
+  static async getWithTTL(key: string) {
+    try {
+      const [data, ttl] = await Promise.all([
+        redis.get(key),
+        redis.ttl(key)
+      ]);
+      
+      if (!data) return { data: null, ttl: -1, isStale: false };
+
+      let parsedData = data;
+      
+      // Parse data if it's a string
+      if (typeof data === "string" && !data.trim().startsWith("<!DOCTYPE") && !data.trim().startsWith("<html") && !data.startsWith("[object Object]")) {
+        try {
+          parsedData = JSON.parse(data);
+        } catch {
+          parsedData = data;
+        }
+      }
+
+      // Consider data stale if TTL is less than 5 minutes (300 seconds)
+      const isStale = ttl > 0 && ttl < 300;
+      
+      return { data: parsedData, ttl, isStale };
+    } catch (error) {
+      return { data: null, ttl: -1, isStale: false };
+    }
+  }
+
   // Delete cache entry
   static async delete(key: string) {
     try {
