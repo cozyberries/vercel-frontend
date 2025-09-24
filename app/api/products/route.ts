@@ -3,6 +3,132 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
+// Background cache refresh function
+async function refreshCacheInBackground(cacheKey: string, params: {
+  limit: number;
+  page: number;
+  featured: boolean;
+  category: string | null;
+  search: string | null;
+  sortBy: string;
+  sortOrder: string;
+}) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Build the same optimized query
+  let query = supabase.from("products").select(
+    `
+      id,
+      name,
+      description,
+      price,
+      slug,
+      stock_quantity,
+      is_featured,
+      created_at,
+      updated_at,
+      category_id,
+      categories(name, slug),
+      product_images(
+        id,
+        storage_path,
+        is_primary,
+        display_order
+      )
+    `,
+    { count: "exact" }
+  );
+
+  // Apply the same filters
+  if (params.featured) {
+    query = query.eq("is_featured", true);
+  }
+
+  if (params.category && params.category !== "all") {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.category);
+    
+    if (isUUID) {
+      query = query.eq("category_id", params.category);
+    } else {
+      const { data: categoryData } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("slug", params.category)
+        .single();
+      
+      if (categoryData) {
+        query = query.eq("category_id", categoryData.id);
+      }
+    }
+  }
+
+  if (params.search) {
+    query = query.or(`name.ilike.%${params.search}%,description.ilike.%${params.search}%`);
+  }
+
+  // Apply sorting
+  if (params.sortBy === "price") {
+    query = query.order("price", { ascending: params.sortOrder === "asc" });
+  } else if (params.sortBy === "name") {
+    query = query.order("name", { ascending: params.sortOrder === "asc" });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  // Apply pagination
+  const offset = (params.page - 1) * params.limit;
+  const { data, count } = await query.range(offset, offset + params.limit - 1);
+
+  if (data) {
+    // Process the data the same way
+    const products: Product[] = data.map((product: any) => {
+      let images = (product.product_images || [])
+        .filter((img: any) => img.storage_path)
+        .map((img: any) => ({
+          id: img.id,
+          storage_path: img.storage_path,
+          is_primary: img.is_primary,
+          display_order: img.display_order,
+          url: `/${img.storage_path}`,
+        }))
+        .sort((a: any, b: any) => {
+          if (a.is_primary !== b.is_primary) {
+            return b.is_primary ? 1 : -1;
+          }
+          return (a.display_order || 0) - (b.display_order || 0);
+        });
+
+      images = images.slice(0, 3);
+
+      return {
+        ...product,
+        images,
+      };
+    });
+
+    const totalItems = count || 0;
+    const totalPages = Math.ceil(totalItems / params.limit);
+    const hasNextPage = params.page < totalPages;
+    const hasPrevPage = params.page > 1;
+
+    const response = {
+      products,
+      pagination: {
+        currentPage: params.page,
+        totalPages,
+        totalItems,
+        itemsPerPage: params.limit,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
+
+    // Update cache with fresh data
+    await UpstashService.set(cacheKey, response, 1800);
+    console.log(`Cache refreshed for key: ${cacheKey}`);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -43,33 +169,62 @@ export async function GET(request: NextRequest) {
       }:sortb_${sortBy}:sorto_${sortOrder}`;
     }
 
-    // Try to get from cache first
-    const cachedResponse = await UpstashService.get(cacheKey);
+    // Try to get from cache first with TTL info for stale-while-revalidate
+    const { data: cachedResponse, ttl, isStale } = await UpstashService.getWithTTL(cacheKey);
+    
+    // If we have cached data, return it immediately
     if (cachedResponse) {
-      return NextResponse.json(cachedResponse, {
-        headers: {
-          "X-Cache-Status": "HIT",
-          "X-Cache-Key": cacheKey,
-          "X-Data-Source": "REDIS_CACHE",
-          "X-Query-Params": JSON.stringify({
-            limit,
-            page,
-            featured,
-            category,
-            search,
-            sortBy,
-            sortOrder,
-          }),
-        },
-      });
+      const headers = {
+        "X-Cache-Status": isStale ? "STALE" : "HIT",
+        "X-Cache-Key": cacheKey,
+        "X-Data-Source": "REDIS_CACHE",
+        "X-Cache-TTL": ttl.toString(),
+        "X-Query-Params": JSON.stringify({
+          limit,
+          page,
+          featured,
+          category,
+          search,
+          sortBy,
+          sortOrder,
+        }),
+      };
+
+      // If data is stale, trigger background revalidation
+      if (isStale) {
+        // Background revalidation - don't await this
+        (async () => {
+          try {
+            console.log(`Background revalidation for cache key: ${cacheKey}`);
+            // Re-run the same query logic to refresh cache
+            await refreshCacheInBackground(cacheKey, {
+              limit, page, featured, category, search, sortBy, sortOrder
+            });
+          } catch (error) {
+            console.error(`Background revalidation failed for ${cacheKey}:`, error);
+          }
+        })();
+      }
+
+      return NextResponse.json(cachedResponse, { headers });
     }
 
     const supabase = await createServerSupabaseClient();
 
-    // Build query to get products with category name join and product images
+    // Build optimized query - limit image data for better performance
+    // Only fetch essential fields and limit images to primary + first few
     let query = supabase.from("products").select(
       `
-        *,
+        id,
+        name,
+        description,
+        price,
+        slug,
+        stock_quantity,
+        is_featured,
+        created_at,
+        updated_at,
+        category_id,
         categories(name, slug),
         product_images(
           id,
@@ -151,9 +306,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Process products to add image URLs
+    // Process products to add image URLs - optimized for list view performance
     const products: Product[] = (data || []).map((product: any) => {
-      const images = (product.product_images || [])
+      let images = (product.product_images || [])
         .filter((img: any) => img.storage_path) // Filter out images with null storage_path
         .map((img: any) => ({
           id: img.id,
@@ -163,12 +318,16 @@ export async function GET(request: NextRequest) {
           url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
         }))
         .sort((a: any, b: any) => {
-          // Sort by display_order, then by is_primary
-          if (a.display_order !== b.display_order) {
-            return (a.display_order || 0) - (b.display_order || 0);
+          // Sort by is_primary first, then by display_order for better performance
+          if (a.is_primary !== b.is_primary) {
+            return b.is_primary ? 1 : -1;
           }
-          return b.is_primary ? 1 : -1;
+          return (a.display_order || 0) - (b.display_order || 0);
         });
+
+      // For list view performance, limit to first 3 images (primary + 2 others max)
+      // This reduces payload size significantly for product lists
+      images = images.slice(0, 3);
 
       return {
         ...product,
@@ -194,15 +353,18 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Cache the results for 30 minutes
-    const cacheResult = await UpstashService.set(cacheKey, response, 1800);
+    // Cache the results asynchronously (non-blocking) for 30 minutes
+    // This improves first-time load performance by not waiting for cache write
+    UpstashService.set(cacheKey, response, 1800).catch((error) => {
+      console.error(`Failed to cache products data for key: ${cacheKey}`, error);
+    });
 
     return NextResponse.json(response, {
       headers: {
         "X-Cache-Status": "MISS",
         "X-Cache-Key": cacheKey,
         "X-Data-Source": "SUPABASE_DATABASE",
-        "X-Cache-Set": cacheResult ? "SUCCESS" : "FAILED",
+        "X-Cache-Set": "ASYNC", // Indicates cache is being set asynchronously
         "X-Query-Params": JSON.stringify({
           limit,
           page,

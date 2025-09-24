@@ -77,10 +77,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }),
     };
 
-    // Cache the product for 30 minutes
-    await UpstashService.cacheProduct(id, product, 1800);
+    // Cache the product asynchronously (non-blocking) for 30 minutes
+    // This improves first-time load performance by not waiting for cache write
+    UpstashService.cacheProduct(id, product, 1800).catch((error) => {
+      console.error(`Failed to cache product ${id}:`, error);
+    });
 
-    return NextResponse.json(product);
+    return NextResponse.json(product, {
+      headers: {
+        "X-Cache-Status": "MISS",
+        "X-Cache-Key": cacheKey,
+        "X-Data-Source": "SUPABASE_DATABASE",
+        "X-Cache-Set": "ASYNC", // Indicates cache is being set asynchronously
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "Internal server error" },
