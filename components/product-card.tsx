@@ -22,10 +22,10 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <div
       key={product.id}
-      className="group flex flex-col h-full min-h-[320px] md:min-h-[400px] overflow-hidden"
+      className="group border-gray-200 flex flex-col h-full min-h-[320px] md:min-h-[400px] overflow-hidden"
     >
       {/* Image Section */}
-      <div className="relative overflow-hidden bg-[#f5f5f5] border md:h-[76%] h-[81%]">
+      <div className="relative overflow-hidden bg-[#f5f5f5] border md:h-[82%] h-[81%]">
         <Link href={`/products/${product.id}`}>
           <Image
             src={product.image || images.staticProductImage}
@@ -69,12 +69,12 @@ export default function ProductCard({ product }: ProductCardProps) {
       </div>
 
       {/* Content Section */}
-      <div className="flex flex-col md:h-[24%] h-[19%] py-2 md:py-1 justify-between">
+      <div className="flex flex-col md:h-[18%] h-[19%] py-2 md:py-1 justify-between">
         {/* Product Info and Price Row */}
         <div className="flex justify-between items-start">
           {/* Product Info Block */}
           <div className="flex-1 pr-2">
-            <h3 className="text-sm md:text-sm font-medium mb-1 line-clamp-1">
+            <h3 className="text-base md:text-lg font-medium mb-1 line-clamp-1">
               <Link
                 href={`/products/${product.id}`}
                 className="hover:text-primary"
@@ -92,7 +92,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
           {/* Price Block */}
           <div className="flex-shrink-0">
-            <p className="font-medium text-right text-sm md:text-base">
+            <p className="font-medium text-right text-base md:text-lg">
               ₹{product.price.toFixed(2)}
             </p>
           </div>

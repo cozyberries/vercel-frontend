@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import ProductCard from "./product-card";
+import FeaturedProductCard from "./featured-product-card";
 import { getFeaturedProducts, SimplifiedProduct } from "@/lib/services/api";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export default function FeaturedProducts() {
   const [products, setProducts] = useState<SimplifiedProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const loadFeaturedProducts = async () => {
@@ -33,6 +36,36 @@ export default function FeaturedProducts() {
 
     loadFeaturedProducts();
   }, []);
+
+  // Track screen size for responsive behavior
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+
+    checkScreenSize();
+    window.addEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener("resize", checkScreenSize);
+  }, []);
+
+  // Auto-scroll animation with jerk effect
+  useEffect(() => {
+    if (products.length <= 1) return;
+
+    // On mobile, show one product at a time, on desktop show 2
+    const maxIndex = isMobile
+      ? products.length - 1
+      : Math.ceil(products.length / 2) - 1;
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % (maxIndex + 1);
+        return nextIndex;
+      });
+    }, 3000); // Change every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [products.length, isMobile]);
 
   if (isLoading) {
     return (
@@ -108,15 +141,58 @@ export default function FeaturedProducts() {
   }
 
   return (
-    <div className="grid lg:grid-cols-4 grid-cols-2 gap-5 md:gap-8 ">
-      {products.slice(0, 4).map((product) => (
-        <ProductCard product={product} key={product.id} />
-      ))}
-      <div className="col-span-full flex justify-center items-center">
-        <Button>
-          <Link href="/products">View More</Link>
-        </Button>
+    <section className="py-2 px-2">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-12 items-center">
+          {/* Text Content Section - 2/5 width - Hidden on mobile */}
+          <div className="hidden lg:flex lg:w-2/5 flex-col justify-center">
+            <div className="space-y-10">
+              <div className="inline-block">
+                <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
+                  Featured Collection
+                </span>
+              </div>
+              <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
+                Popular <span className="">Lookbooks</span>
+              </h2>
+              <div className="flex flex-col gap-2">
+                <h3 className="text-xl lg:text-4xl font-semibold text-gray-700">
+                  Check
+                </h3>
+                <h3 className="text-xl lg:text-4xl font-semibold text-gray-700">
+                  Our Gallery
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          {/* Products Auto-Scroll Section - Full width on mobile, 3/5 on desktop */}
+          <div className="w-full lg:w-3/5">
+            <div className="relative overflow-hidden rounded-2xl ">
+              <div className="relative">
+                <div
+                  ref={scrollContainerRef}
+                  className="flex transition-transform duration-700 ease-out"
+                  style={{
+                    transform: `translateX(-${
+                      currentIndex * (isMobile ? 100 : 50)
+                    }%)`,
+                  }}
+                >
+                  {products.map((product, index) => (
+                    <div
+                      key={product.id}
+                      className="w-full lg:w-1/2 flex-shrink-0 px-2 lg:px-3"
+                    >
+                      <FeaturedProductCard product={product} index={index} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
