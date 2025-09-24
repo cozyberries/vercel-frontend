@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { authenticateRequest } from "@/lib/jwt-auth";
 
 export async function GET(request: NextRequest) {
@@ -14,12 +14,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = createAdminSupabaseClient();
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
     const status = searchParams.get("status");
+    const fromDate = searchParams.get("from_date");
+    const toDate = searchParams.get("to_date");
 
     let query = supabase
       .from("orders")
@@ -31,219 +33,32 @@ export async function GET(request: NextRequest) {
       query = query.eq("status", status);
     }
 
+    // Apply date filters
+    if (fromDate) {
+      query = query.gte("created_at", fromDate);
+    }
+    if (toDate) {
+      // Add end of day to toDate to include the entire day
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      query = query.lte("created_at", endOfDay.toISOString());
+    }
+
     const { data: orders, error: ordersError } = await query;
 
     if (ordersError) {
+      console.error("Database query error:", ordersError);
       return NextResponse.json(
-        { error: "Failed to fetch orders" },
+        { error: "Failed to fetch orders: " + ordersError.message },
         { status: 500 }
       );
     }
 
-    // Add mock orders for demo purposes
-    const mockOrders = [
-      {
-        id: "mock-order-1",
-        order_number: "ORD-2024-001",
-        user_id: "mock-user-1",
-        customer_email: "john.doe@example.com",
-        customer_phone: "+91 98765 43210",
-        shipping_address: {
-          full_name: "John Doe",
-          address_line_1: "123 Main Street",
-          address_line_2: "Apt 4B",
-          city: "Mumbai",
-          state: "Maharashtra",
-          postal_code: "400001",
-          country: "India",
-          phone: "+91 98765 43210",
-          address_type: "home",
-          label: "Home",
-        },
-        billing_address: {
-          full_name: "John Doe",
-          address_line_1: "123 Main Street",
-          address_line_2: "Apt 4B",
-          city: "Mumbai",
-          state: "Maharashtra",
-          postal_code: "400001",
-          country: "India",
-          phone: "+91 98765 43210",
-          address_type: "home",
-          label: "Home",
-        },
-        items: [
-          {
-            id: "item-1",
-            name: "Baby Onesie Set",
-            price: 450,
-            quantity: 2,
-            image: "/products/baby-onesie.jpg",
-          },
-        ],
-        subtotal: 900,
-        delivery_charge: 50,
-        tax_amount: 95,
-        total_amount: 1045,
-        currency: "INR",
-        status: "delivered",
-        created_at: "2024-11-15T10:30:00Z",
-        updated_at: "2024-11-20T14:20:00Z",
-        notes: "Handle with care",
-      },
-      {
-        id: "mock-order-2",
-        order_number: "ORD-2024-002",
-        user_id: "mock-user-2",
-        customer_email: "jane.smith@example.com",
-        customer_phone: "+91 98765 43211",
-        shipping_address: {
-          full_name: "Jane Smith",
-          address_line_1: "456 Park Avenue",
-          city: "Delhi",
-          state: "Delhi",
-          postal_code: "110001",
-          country: "India",
-          phone: "+91 98765 43211",
-          address_type: "home",
-          label: "Home",
-        },
-        billing_address: {
-          full_name: "Jane Smith",
-          address_line_1: "456 Park Avenue",
-          city: "Delhi",
-          state: "Delhi",
-          postal_code: "110001",
-          country: "India",
-          phone: "+91 98765 43211",
-          address_type: "home",
-          label: "Home",
-        },
-        items: [
-          {
-            id: "item-2",
-            name: "Cotton Baby Dress",
-            price: 650,
-            quantity: 1,
-            image: "/products/baby-dress.jpg",
-          },
-          {
-            id: "item-3",
-            name: "Baby Hat",
-            price: 200,
-            quantity: 1,
-            image: "/products/baby-hat.jpg",
-          },
-        ],
-        subtotal: 850,
-        delivery_charge: 50,
-        tax_amount: 90,
-        total_amount: 990,
-        currency: "INR",
-        status: "shipped",
-        created_at: "2024-11-20T14:15:00Z",
-        updated_at: "2024-11-22T09:30:00Z",
-      },
-      {
-        id: "mock-order-3",
-        order_number: "ORD-2024-003",
-        user_id: "mock-user-3",
-        customer_email: "mike.wilson@example.com",
-        customer_phone: "+91 98765 43212",
-        shipping_address: {
-          full_name: "Mike Wilson",
-          address_line_1: "789 Garden Road",
-          city: "Bangalore",
-          state: "Karnataka",
-          postal_code: "560001",
-          country: "India",
-          phone: "+91 98765 43212",
-          address_type: "office",
-          label: "Office",
-        },
-        billing_address: {
-          full_name: "Mike Wilson",
-          address_line_1: "789 Garden Road",
-          city: "Bangalore",
-          state: "Karnataka",
-          postal_code: "560001",
-          country: "India",
-          phone: "+91 98765 43212",
-          address_type: "office",
-          label: "Office",
-        },
-        items: [
-          {
-            id: "item-4",
-            name: "Baby Romper",
-            price: 550,
-            quantity: 1,
-            image: "/products/baby-romper.jpg",
-          },
-        ],
-        subtotal: 550,
-        delivery_charge: 50,
-        tax_amount: 60,
-        total_amount: 660,
-        currency: "INR",
-        status: "processing",
-        created_at: "2024-12-01T11:45:00Z",
-        updated_at: "2024-12-01T11:45:00Z",
-      },
-      {
-        id: "mock-order-4",
-        order_number: "ORD-2024-004",
-        user_id: "mock-user-4",
-        customer_email: "sarah.johnson@example.com",
-        customer_phone: "+91 98765 43213",
-        shipping_address: {
-          full_name: "Sarah Johnson",
-          address_line_1: "321 Oak Street",
-          city: "Chennai",
-          state: "Tamil Nadu",
-          postal_code: "600001",
-          country: "India",
-          phone: "+91 98765 43213",
-          address_type: "home",
-          label: "Home",
-        },
-        billing_address: {
-          full_name: "Sarah Johnson",
-          address_line_1: "321 Oak Street",
-          city: "Chennai",
-          state: "Tamil Nadu",
-          postal_code: "600001",
-          country: "India",
-          phone: "+91 98765 43213",
-          address_type: "home",
-          label: "Home",
-        },
-        items: [
-          {
-            id: "item-5",
-            name: "Baby Sleepsuit",
-            price: 750,
-            quantity: 2,
-            image: "/products/baby-sleepsuit.jpg",
-          },
-        ],
-        subtotal: 1500,
-        delivery_charge: 50,
-        tax_amount: 155,
-        total_amount: 1705,
-        currency: "INR",
-        status: "payment_pending",
-        created_at: "2024-12-02T16:20:00Z",
-        updated_at: "2024-12-02T16:20:00Z",
-      },
-    ];
-
-    // Combine real orders with mock orders
-    const allOrders = [...(orders || []), ...mockOrders];
+    console.log(`Fetched ${orders?.length || 0} orders from database`);
 
     return NextResponse.json({
-      orders: allOrders,
-      total: allOrders.length,
+      orders: orders || [],
+      total: orders?.length || 0,
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
