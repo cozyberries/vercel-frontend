@@ -546,7 +546,7 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
                       <TableCell>
                         <div className="flex items-center">
                           <User className="mr-1 h-3 w-3" />
-                          {expense.user?.full_name || expense.user?.email}
+                          {expense.user_profiles?.full_name || expense.user_profiles?.email}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -731,8 +731,8 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
                     Submitted By
                   </label>
                   <p>
-                    {selectedExpense.user?.full_name ||
-                      selectedExpense.user?.email}
+                    {selectedExpense.user_profiles?.full_name ||
+                      selectedExpense.user_profiles?.email}
                   </p>
                 </div>
                 <div>

@@ -53,6 +53,7 @@ const expenseFormSchema = z.object({
   description: z.string().optional(),
   amount: z.number().min(0.01, "Amount must be greater than 0"),
   category_id: z.string().min(1, "Category is required"),
+  custom_category: z.string().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]),
   expense_date: z.string().min(1, "Expense date is required"),
   vendor: z.string().optional(),
@@ -108,6 +109,8 @@ export default function ExpenseForm({
   const [tags, setTags] = useState<string[]>(initialData?.tags || []);
   const [categories, setCategories] = useState<ExpenseCategoryData[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
+  const [otherCategoryId, setOtherCategoryId] = useState<string | null>(null);
 
   const { fetch: authenticatedFetch } = useAuthenticatedFetch();
 
@@ -118,6 +121,7 @@ export default function ExpenseForm({
       description: initialData?.description || "",
       amount: initialData?.amount || 0,
       category_id: initialData?.category_id || "",
+      custom_category: "",
       priority: initialData?.priority || "medium",
       expense_date:
         initialData?.expense_date || new Date().toISOString().split("T")[0],
@@ -133,12 +137,22 @@ export default function ExpenseForm({
   const fetchCategories = async () => {
     try {
       setCategoriesLoading(true);
-      const response = await authenticatedFetch("/api/admin/expense-categories");
+      const response = await authenticatedFetch(
+        "/api/admin/expense-categories"
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch categories");
       }
       const data = await response.json();
       setCategories(data.categories || []);
+
+      // Find the "Other" category ID for custom category logic
+      const otherCategory = data.categories?.find(
+        (cat: ExpenseCategoryData) => cat.name === "other"
+      );
+      if (otherCategory) {
+        setOtherCategoryId(otherCategory.id);
+      }
     } catch (error) {
       console.error("Error fetching categories:", error);
       toast.error("Failed to load expense categories");
@@ -151,19 +165,108 @@ export default function ExpenseForm({
     fetchCategories();
   }, []);
 
+  // Initialize showCustomCategory state when editing an expense
+  React.useEffect(() => {
+    if (
+      initialData?.category_id &&
+      otherCategoryId &&
+      initialData.category_id === otherCategoryId
+    ) {
+      setShowCustomCategory(true);
+    }
+  }, [initialData?.category_id, otherCategoryId]);
+
+  // Function to create a new custom category
+  const createCustomCategory = async (
+    categoryName: string
+  ): Promise<string> => {
+    try {
+      const categoryData = {
+        name: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+        display_name: categoryName,
+        description: `Custom category: ${categoryName}`,
+        color: "#6B7280",
+        icon: "folder",
+      };
+
+      const response = await authenticatedFetch(
+        "/api/admin/expense-categories",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(categoryData),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to create custom category");
+      }
+
+      const newCategory = await response.json();
+
+      // Refresh categories list to include the new category
+      await fetchCategories();
+
+      return newCategory.id;
+    } catch (error) {
+      console.error("Error creating custom category:", error);
+      throw error;
+    }
+  };
+
   const onSubmit = async (data: ExpenseFormData) => {
     try {
       setLoading(true);
 
+      // Validate custom category when "Other" is selected
+      if (
+        data.category_id === otherCategoryId &&
+        !data.custom_category?.trim()
+      ) {
+        form.setError("custom_category", {
+          type: "required",
+          message: 'Custom category name is required when "Other" is selected',
+        });
+        setLoading(false);
+        return;
+      }
+
+      let finalCategoryId = data.category_id;
+
+      // If "Other" category is selected and custom category is provided
+      if (
+        data.category_id === otherCategoryId &&
+        data.custom_category?.trim()
+      ) {
+        try {
+          finalCategoryId = await createCustomCategory(
+            data.custom_category.trim()
+          );
+          toast.success(
+            `Custom category "${data.custom_category.trim()}" created successfully`
+          );
+        } catch (error) {
+          toast.error("Failed to create custom category");
+          throw error;
+        }
+      }
+
       const expenseData = {
         ...data,
+        category_id: finalCategoryId,
         tags: tags,
       };
 
-      const url = isEdit && expenseId 
-        ? `/api/admin/expenses/${expenseId}` 
-        : "/api/admin/expenses";
-      
+      // Remove custom_category from the data sent to the API
+      delete expenseData.custom_category;
+
+      const url =
+        isEdit && expenseId
+          ? `/api/admin/expenses/${expenseId}`
+          : "/api/admin/expenses";
+
       const method = isEdit ? "PUT" : "POST";
 
       const response = await authenticatedFetch(url, {
@@ -176,7 +279,9 @@ export default function ExpenseForm({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || `Failed to ${isEdit ? "update" : "create"} expense`);
+        throw new Error(
+          error.error || `Failed to ${isEdit ? "update" : "create"} expense`
+        );
       }
 
       toast.success(
@@ -285,13 +390,26 @@ export default function ExpenseForm({
               <FormItem>
                 <FormLabel>Category *</FormLabel>
                 <Select
-                  onValueChange={field.onChange}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    setShowCustomCategory(value === otherCategoryId);
+                    // Clear custom category when switching away from "Other"
+                    if (value !== otherCategoryId) {
+                      form.setValue("custom_category", "");
+                    }
+                  }}
                   value={field.value}
                   disabled={categoriesLoading}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select category"} />
+                      <SelectValue
+                        placeholder={
+                          categoriesLoading
+                            ? "Loading categories..."
+                            : "Select category"
+                        }
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -312,6 +430,30 @@ export default function ExpenseForm({
               </FormItem>
             )}
           />
+
+          {/* Custom Category Input - shown when "Other" is selected */}
+          {showCustomCategory && (
+            <FormField
+              control={form.control}
+              name="custom_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Custom Category Name *</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter custom category name"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    This will create a new category that can be reused for
+                    future expenses
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}

@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     const amount_max = searchParams.get("amount_max");
     const search = searchParams.get("search");
 
+    // First, get the expenses with category data
     let query = supabase
       .from("expenses")
       .select(
@@ -51,11 +52,6 @@ export async function GET(request: NextRequest) {
           color,
           icon,
           sort_order
-        ),
-        user:user_profiles(
-          id,
-          full_name,
-          email
         )
       `
       )
@@ -111,148 +107,67 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Add mock expenses for demo purposes
-    const mockExpenses = [
-      {
-        id: "mock-expense-1",
-        title: "Office Supplies Purchase",
-        description: "Purchased stationery items for the office",
-        amount: 2500,
-        category: "office_supplies",
-        priority: "medium",
-        expense_date: "2024-11-15",
-        vendor: "Stationery World",
-        payment_method: "company_card",
-        status: "approved",
-        user_id: "mock-user-1",
-        approved_by: "mock-admin-1",
-        approved_at: "2024-11-16T10:30:00Z",
-        created_at: "2024-11-15T14:20:00Z",
-        updated_at: "2024-11-16T10:30:00Z",
-        notes: "Monthly office supplies",
-        tags: ["office", "supplies"],
-        user: {
-          id: "mock-user-1",
-          email: "john.doe@company.com",
-          full_name: "John Doe",
-        },
-        approver: {
-          id: "mock-admin-1",
-          email: "admin@company.com",
-          full_name: "Admin User",
-        },
-      },
-      {
-        id: "mock-expense-2",
-        title: "Business Travel - Mumbai",
-        description: "Flight and hotel expenses for client meeting",
-        amount: 15000,
-        category: "travel",
-        priority: "high",
-        expense_date: "2024-11-20",
-        vendor: "Travel Agency",
-        payment_method: "company_card",
-        status: "pending",
-        user_id: "mock-user-2",
-        created_at: "2024-11-20T09:15:00Z",
-        updated_at: "2024-11-20T09:15:00Z",
-        notes: "Client meeting in Mumbai",
-        tags: ["travel", "client", "meeting"],
-        user: {
-          id: "mock-user-2",
-          email: "jane.smith@company.com",
-          full_name: "Jane Smith",
-        },
-      },
-      {
-        id: "mock-expense-3",
-        title: "Software License Renewal",
-        description: "Annual subscription for design software",
-        amount: 5000,
-        category: "software",
-        priority: "medium",
-        expense_date: "2024-11-25",
-        vendor: "Adobe Inc.",
-        payment_method: "direct_payment",
-        status: "paid",
-        user_id: "mock-user-3",
-        approved_by: "mock-admin-1",
-        approved_at: "2024-11-26T11:00:00Z",
-        created_at: "2024-11-25T16:45:00Z",
-        updated_at: "2024-11-27T14:30:00Z",
-        notes: "Annual Adobe Creative Suite license",
-        tags: ["software", "subscription", "design"],
-        user: {
-          id: "mock-user-3",
-          email: "mike.wilson@company.com",
-          full_name: "Mike Wilson",
-        },
-        approver: {
-          id: "mock-admin-1",
-          email: "admin@company.com",
-          full_name: "Admin User",
-        },
-      },
-      {
-        id: "mock-expense-4",
-        title: "Marketing Campaign Materials",
-        description: "Printed materials for product launch campaign",
-        amount: 8000,
-        category: "marketing",
-        priority: "high",
-        expense_date: "2024-12-01",
-        vendor: "Print Solutions",
-        payment_method: "company_card",
-        status: "rejected",
-        user_id: "mock-user-4",
-        approved_by: "mock-admin-1",
-        approved_at: "2024-12-02T15:20:00Z",
-        rejected_reason: "Budget exceeded for this quarter",
-        created_at: "2024-12-01T10:30:00Z",
-        updated_at: "2024-12-02T15:20:00Z",
-        notes: "Product launch campaign materials",
-        tags: ["marketing", "print", "campaign"],
-        user: {
-          id: "mock-user-4",
-          email: "sarah.johnson@company.com",
-          full_name: "Sarah Johnson",
-        },
-        approver: {
-          id: "mock-admin-1",
-          email: "admin@company.com",
-          full_name: "Admin User",
-        },
-      },
-      {
-        id: "mock-expense-5",
-        title: "Equipment Maintenance",
-        description: "Servicing of office printers and computers",
-        amount: 3500,
-        category: "maintenance",
-        priority: "low",
-        expense_date: "2024-12-03",
-        vendor: "Tech Services Ltd",
-        payment_method: "reimbursement",
-        status: "pending",
-        user_id: "mock-user-1",
-        created_at: "2024-12-03T13:15:00Z",
-        updated_at: "2024-12-03T13:15:00Z",
-        notes: "Quarterly equipment maintenance",
-        tags: ["maintenance", "equipment", "quarterly"],
-        user: {
-          id: "mock-user-1",
-          email: "john.doe@company.com",
-          full_name: "John Doe",
-        },
-      },
-    ];
+    // If we have expenses, fetch the associated user profiles
+    let expensesWithUsers = expenses || [];
+    if (expenses && expenses.length > 0) {
+      const userIds = [...new Set(expenses.map((expense) => expense.user_id))];
 
-    // Combine real expenses with mock expenses
-    const allExpenses = [...(expenses || []), ...mockExpenses];
+      try {
+        // Get user profiles
+        const { data: userProfiles, error: userError } = await supabase
+          .from("user_profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+
+        // Get auth users data using Admin API
+        const adminSupabase = createAdminSupabaseClient();
+        const { data: authUsersResponse, error: authError } =
+          await adminSupabase.auth.admin.listUsers();
+
+        if (userError) {
+          console.error("Error fetching user profiles:", userError);
+        }
+
+        if (authError) {
+          console.error("Error fetching auth users:", authError);
+        }
+
+        // Filter auth users to only include those we need
+        const authUsers =
+          authUsersResponse?.users?.filter((user) =>
+            userIds.includes(user.id)
+          ) || [];
+
+        // Join the user profiles with expenses
+        expensesWithUsers = expenses.map((expense) => {
+          const userProfile = userProfiles?.find(
+            (user) => user.id === expense.user_id
+          );
+          const authUser = authUsers?.find(
+            (user) => user.id === expense.user_id
+          );
+
+          return {
+            ...expense,
+            user_profiles: userProfile
+              ? {
+                  ...userProfile,
+                  email: authUser?.email,
+                }
+              : null,
+          };
+        });
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        // Continue without user data rather than failing completely
+      }
+    }
+
+    // Return only real expenses from the database
 
     return NextResponse.json({
-      expenses: allExpenses,
-      total: allExpenses.length,
+      expenses: expensesWithUsers,
+      total: expensesWithUsers.length,
     });
   } catch (error) {
     console.error("Error fetching expenses:", error);
@@ -283,7 +198,7 @@ export async function POST(request: NextRequest) {
     if (
       !body.title ||
       typeof body.amount !== "number" ||
-      !body.category ||
+      (!body.category && !body.category_id) ||
       !body.expense_date
     ) {
       return NextResponse.json(
@@ -303,13 +218,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get category_id if category is provided
+    // Handle category_id and category relationship
     let categoryId = body.category_id;
-    if (!categoryId && body.category) {
+    let categoryName = body.category;
+
+    // If only category_id is provided, get the category data
+    if (categoryId && !categoryName) {
+      const { data: categoryData } = await supabase
+        .from("expense_categories")
+        .select("name, is_system")
+        .eq("id", categoryId)
+        .eq("is_active", true)
+        .single();
+
+      if (categoryData) {
+        // For system categories, use the actual name
+        // For custom categories, use "other" to satisfy the enum constraint
+        categoryName = categoryData.is_system ? categoryData.name : "other";
+      }
+    }
+
+    // If only category name is provided, get the category_id
+    if (!categoryId && categoryName) {
       const { data: categoryData } = await supabase
         .from("expense_categories")
         .select("id")
-        .eq("name", body.category)
+        .eq("name", categoryName)
         .eq("is_active", true)
         .single();
 
@@ -321,7 +255,7 @@ export async function POST(request: NextRequest) {
       title: body.title,
       description: body.description || null,
       amount: body.amount,
-      category: body.category,
+      category: categoryName,
       category_id: categoryId,
       priority: body.priority || "medium",
       expense_date: body.expense_date,

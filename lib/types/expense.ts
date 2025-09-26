@@ -115,7 +115,7 @@ export interface Expense extends ExpenseBase {
   // Category details for display
   category_data?: ExpenseCategoryData;
   // User details for display
-  user?: {
+  user_profiles?: {
     id: string;
     email: string;
     full_name?: string;

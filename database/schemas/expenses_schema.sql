@@ -234,7 +234,7 @@ ORDER BY total_amount DESC;
 CREATE OR REPLACE VIEW user_expense_summary AS
 SELECT 
   e.user_id,
-  up.email,
+  au.email,
   up.full_name,
   COUNT(*) as total_expenses,
   SUM(e.amount) as total_amount,
@@ -244,8 +244,9 @@ SELECT
   SUM(CASE WHEN e.status = 'rejected' THEN e.amount ELSE 0 END) as rejected_amount,
   SUM(CASE WHEN e.status = 'paid' THEN e.amount ELSE 0 END) as paid_amount
 FROM expenses e
-LEFT JOIN user_profiles up ON e.user_id = up.user_id
-GROUP BY e.user_id, up.email, up.full_name
+LEFT JOIN user_profiles up ON e.user_id = up.id
+LEFT JOIN auth.users au ON e.user_id = au.id
+GROUP BY e.user_id, au.email, up.full_name
 ORDER BY total_amount DESC;
 
 -- Grant permissions
