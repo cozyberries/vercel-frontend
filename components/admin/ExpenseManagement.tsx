@@ -66,8 +66,10 @@ import {
   Expense,
   ExpenseStatus,
   ExpenseCategory,
+  ExpenseCategoryData,
   ExpensePriority,
 } from "@/lib/types/expense";
+import ExpenseForm from "./ExpenseForm";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { toast } from "sonner";
 
@@ -96,18 +98,7 @@ const priorityColors = {
   urgent: "bg-red-100 text-red-800",
 };
 
-const categoryLabels = {
-  office_supplies: "Office Supplies",
-  travel: "Travel",
-  marketing: "Marketing",
-  software: "Software",
-  equipment: "Equipment",
-  utilities: "Utilities",
-  professional_services: "Professional Services",
-  training: "Training",
-  maintenance: "Maintenance",
-  other: "Other",
-};
+// Dynamic category labels will be loaded from API
 
 export default function ExpenseManagement({}: ExpenseManagementProps) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -120,8 +111,10 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
     search: "",
   });
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [categories, setCategories] = useState<ExpenseCategoryData[]>([]);
 
   const { fetch: authenticatedFetch } = useAuthenticatedFetch();
 
@@ -155,8 +148,24 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await authenticatedFetch(
+        "/api/admin/expense-categories"
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      const data = await response.json();
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
+
   useEffect(() => {
     fetchExpenses();
+    fetchCategories();
   }, [filters]);
 
   const handleStatusUpdate = async (
@@ -267,6 +276,36 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
     }
   };
 
+  const handleEditExpense = (expense: Expense) => {
+    setSelectedExpense(expense);
+    setShowEditDialog(true);
+  };
+
+  const handleFormSuccess = () => {
+    setShowCreateDialog(false);
+    setShowEditDialog(false);
+    setSelectedExpense(null);
+    fetchExpenses();
+  };
+
+  const getCategoryLabel = (expense: Expense) => {
+    if (expense.category_data) {
+      return expense.category_data.display_name;
+    }
+    // Fallback for legacy data
+    const category = categories.find((cat) => cat.name === expense.category);
+    return category?.display_name || expense.category;
+  };
+
+  const getCategoryColor = (expense: Expense) => {
+    if (expense.category_data) {
+      return expense.category_data.color;
+    }
+    // Fallback for legacy data
+    const category = categories.find((cat) => cat.name === expense.category);
+    return category?.color || "#6B7280";
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -345,9 +384,15 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {Object.entries(categoryLabels).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.name}>
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: category.color }}
+                      />
+                      <span>{category.display_name}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -473,8 +518,15 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
                         {formatCurrency(expense.amount)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">
-                          {categoryLabels[expense.category]}
+                        <Badge
+                          variant="secondary"
+                          style={{
+                            backgroundColor: `${getCategoryColor(expense)}20`,
+                            color: getCategoryColor(expense),
+                            borderColor: getCategoryColor(expense),
+                          }}
+                        >
+                          {getCategoryLabel(expense)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -514,6 +566,12 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
                             >
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleEditExpense(expense)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Expense
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {expense.status === "pending" && (
@@ -604,7 +662,7 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
                   <label className="text-sm font-medium text-gray-500">
                     Category
                   </label>
-                  <p>{categoryLabels[selectedExpense.category]}</p>
+                  <p>{getCategoryLabel(selectedExpense)}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">
@@ -685,6 +743,44 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
                 </div>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Expense Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Expense</DialogTitle>
+            <DialogDescription>
+              Add a new expense entry to the system.
+            </DialogDescription>
+          </DialogHeader>
+          <ExpenseForm
+            onSuccess={handleFormSuccess}
+            onCancel={() => setShowCreateDialog(false)}
+            isEdit={false}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Expense Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Expense</DialogTitle>
+            <DialogDescription>
+              Update the expense information.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedExpense && (
+            <ExpenseForm
+              onSuccess={handleFormSuccess}
+              onCancel={() => setShowEditDialog(false)}
+              initialData={selectedExpense}
+              expenseId={selectedExpense.id}
+              isEdit={true}
+            />
           )}
         </DialogContent>
       </Dialog>

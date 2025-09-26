@@ -39,7 +39,26 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("expenses")
-      .select("*")
+      .select(
+        `
+        *,
+        category_data:expense_categories(
+          id,
+          name,
+          slug,
+          display_name,
+          description,
+          color,
+          icon,
+          sort_order
+        ),
+        user:user_profiles(
+          id,
+          full_name,
+          email
+        )
+      `
+      )
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -85,8 +104,9 @@ export async function GET(request: NextRequest) {
     const { data: expenses, error: expensesError } = await query;
 
     if (expensesError) {
+      console.error("Supabase query error:", expensesError);
       return NextResponse.json(
-        { error: "Failed to fetch expenses" },
+        { error: `Failed to fetch expenses: ${expensesError.message}` },
         { status: 500 }
       );
     }
@@ -283,12 +303,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get category_id if category is provided
+    let categoryId = body.category_id;
+    if (!categoryId && body.category) {
+      const { data: categoryData } = await supabase
+        .from("expense_categories")
+        .select("id")
+        .eq("name", body.category)
+        .eq("is_active", true)
+        .single();
+
+      categoryId = categoryData?.id;
+    }
+
     // Prepare data for insertion
     const expenseData = {
       title: body.title,
       description: body.description || null,
       amount: body.amount,
       category: body.category,
+      category_id: categoryId,
       priority: body.priority || "medium",
       expense_date: body.expense_date,
       vendor: body.vendor || null,

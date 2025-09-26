@@ -27,7 +27,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   ExpenseCreate,
+  ExpenseUpdate,
+  Expense,
   ExpenseCategory,
+  ExpenseCategoryData,
   ExpensePriority,
   PaymentMethod,
 } from "@/lib/types/expense";
@@ -37,7 +40,8 @@ import { toast } from "sonner";
 interface ExpenseFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
-  initialData?: Partial<ExpenseCreate>;
+  initialData?: Partial<Expense>;
+  expenseId?: string;
   isEdit?: boolean;
 }
 
@@ -48,18 +52,7 @@ const expenseFormSchema = z.object({
     .max(200, "Title must be less than 200 characters"),
   description: z.string().optional(),
   amount: z.number().min(0.01, "Amount must be greater than 0"),
-  category: z.enum([
-    "office_supplies",
-    "travel",
-    "marketing",
-    "software",
-    "equipment",
-    "utilities",
-    "professional_services",
-    "training",
-    "maintenance",
-    "other",
-  ]),
+  category_id: z.string().min(1, "Category is required"),
   priority: z.enum(["low", "medium", "high", "urgent"]),
   expense_date: z.string().min(1, "Expense date is required"),
   vendor: z.string().optional(),
@@ -107,11 +100,14 @@ export default function ExpenseForm({
   onSuccess,
   onCancel,
   initialData,
+  expenseId,
   isEdit = false,
 }: ExpenseFormProps) {
   const [loading, setLoading] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(initialData?.tags || []);
+  const [categories, setCategories] = useState<ExpenseCategoryData[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const { fetch: authenticatedFetch } = useAuthenticatedFetch();
 
@@ -121,7 +117,7 @@ export default function ExpenseForm({
       title: initialData?.title || "",
       description: initialData?.description || "",
       amount: initialData?.amount || 0,
-      category: initialData?.category || "office_supplies",
+      category_id: initialData?.category_id || "",
       priority: initialData?.priority || "medium",
       expense_date:
         initialData?.expense_date || new Date().toISOString().split("T")[0],
@@ -133,17 +129,45 @@ export default function ExpenseForm({
     },
   });
 
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      const response = await authenticatedFetch("/api/admin/expense-categories");
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      const data = await response.json();
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      toast.error("Failed to load expense categories");
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchCategories();
+  }, []);
+
   const onSubmit = async (data: ExpenseFormData) => {
     try {
       setLoading(true);
 
-      const expenseData: ExpenseCreate = {
+      const expenseData = {
         ...data,
         tags: tags,
       };
 
-      const response = await authenticatedFetch("/api/admin/expenses", {
-        method: "POST",
+      const url = isEdit && expenseId 
+        ? `/api/admin/expenses/${expenseId}` 
+        : "/api/admin/expenses";
+      
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await authenticatedFetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -152,7 +176,7 @@ export default function ExpenseForm({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to create expense");
+        throw new Error(error.error || `Failed to ${isEdit ? "update" : "create"} expense`);
       }
 
       toast.success(
@@ -256,23 +280,30 @@ export default function ExpenseForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField
             control={form.control}
-            name="category"
+            name="category_id"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Category *</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value}
+                  disabled={categoriesLoading}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select category"} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {Object.entries(categoryLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: category.color }}
+                          />
+                          <span>{category.display_name}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

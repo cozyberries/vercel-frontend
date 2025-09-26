@@ -22,7 +22,29 @@ export async function GET(
 
     const { data: expense, error } = await supabase
       .from("expenses")
-      .select("*")
+      .select(`
+        *,
+        category_data:expense_categories(
+          id,
+          name,
+          slug,
+          display_name,
+          description,
+          color,
+          icon,
+          sort_order
+        ),
+        user:user_profiles(
+          id,
+          full_name,
+          email
+        ),
+        approver:user_profiles!expenses_approved_by_fkey(
+          id,
+          full_name,
+          email
+        )
+      `)
       .eq("id", params.id)
       .single();
 
@@ -67,8 +89,26 @@ export async function PUT(
       );
     }
 
+    // Handle category updates
+    let categoryId = body.category_id;
+    if (!categoryId && body.category) {
+      const { data: categoryData } = await supabase
+        .from("expense_categories")
+        .select("id")
+        .eq("name", body.category)
+        .eq("is_active", true)
+        .single();
+      
+      categoryId = categoryData?.id;
+    }
+
     // Prepare update data
     const updateData: any = { ...body };
+    
+    if (categoryId) {
+      updateData.category_id = categoryId;
+    }
+
     if (body.status === "approved") {
       updateData.approved_by = auth.userId;
       updateData.approved_at = new Date().toISOString();
@@ -78,7 +118,29 @@ export async function PUT(
       .from("expenses")
       .update(updateData)
       .eq("id", params.id)
-      .select("*")
+      .select(`
+        *,
+        category_data:expense_categories(
+          id,
+          name,
+          slug,
+          display_name,
+          description,
+          color,
+          icon,
+          sort_order
+        ),
+        user:user_profiles(
+          id,
+          full_name,
+          email
+        ),
+        approver:user_profiles!expenses_approved_by_fkey(
+          id,
+          full_name,
+          email
+        )
+      `)
       .single();
 
     if (error) {
