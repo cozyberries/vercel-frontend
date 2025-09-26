@@ -8,6 +8,7 @@ import {
   validateState,
   validatePostalCode,
 } from "@/lib/utils/validation";
+import CacheService from "@/lib/services/cache";
 
 export async function GET() {
   try {
@@ -23,7 +24,33 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user addresses
+    // Try to get from cache first
+    const { data: cachedAddresses, ttl, isStale } = await CacheService.getAddresses(user.id);
+    
+    if (cachedAddresses) {
+      const headers = {
+        "X-Cache-Status": isStale ? "STALE" : "HIT",
+        "X-Cache-Key": CacheService.getCacheKey("ADDRESSES", user.id),
+        "X-Data-Source": "REDIS_CACHE",
+        "X-Cache-TTL": ttl.toString(),
+      };
+
+      // If data is stale, trigger background revalidation
+      if (isStale) {
+        (async () => {
+          try {
+            console.log(`Background revalidation for addresses: ${user.id}`);
+            await refreshAddressesInBackground(user.id, supabase);
+          } catch (error) {
+            console.error(`Background addresses refresh failed for user ${user.id}:`, error);
+          }
+        })();
+      }
+
+      return NextResponse.json(cachedAddresses, { headers });
+    }
+
+    // No cache hit, fetch from database
     const { data: addresses, error } = await supabase
       .from("user_addresses")
       .select("*")
@@ -40,13 +67,49 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(addresses || []);
+    const addressList = addresses || [];
+    
+    // Cache the result
+    await CacheService.setAddresses(user.id, addressList);
+
+    const headers = {
+      "X-Cache-Status": "MISS",
+      "X-Cache-Key": CacheService.getCacheKey("ADDRESSES", user.id),
+      "X-Data-Source": "SUPABASE_DATABASE",
+      "X-Cache-Set": "SUCCESS",
+    };
+
+    return NextResponse.json(addressList, { headers });
   } catch (error) {
     console.error("Error in GET /api/profile/addresses:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Background refresh function for addresses stale-while-revalidate pattern
+ */
+async function refreshAddressesInBackground(userId: string, supabase: any): Promise<void> {
+  try {
+    const { data: addresses, error } = await supabase
+      .from("user_addresses")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error in background addresses refresh:", error);
+      return;
+    }
+
+    await CacheService.setAddresses(userId, addresses || []);
+  } catch (error) {
+    console.error("Error in background addresses refresh:", error);
   }
 }
 
@@ -213,6 +276,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Clear addresses cache since we added a new address
+    await CacheService.clearAddresses(user.id);
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

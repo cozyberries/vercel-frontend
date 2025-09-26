@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import type { Order, Payment, CreateOrderRequest, CreateOrderResponse } from "@/lib/types/order";
+import CacheService from "@/lib/services/cache";
 
 class OrderService {
   private supabase = createClient();
