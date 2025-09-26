@@ -82,7 +82,8 @@ export default function PaymentPage() {
   const orderId = params?.orderId as string;
 
   const [order, setOrder] = useState<Order | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("credit_card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<PaymentMethod>("credit_card");
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function PaymentPage() {
     try {
       setOrderLoading(true);
       const response = await fetch(`/api/orders/${orderId}`);
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch order");
       }
@@ -131,29 +132,30 @@ export default function PaymentPage() {
 
   const handleCardInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
+
     let formattedValue = value;
-    
+
     // Format card number
     if (name === "cardNumber") {
       formattedValue = value.replace(/\D/g, "").substring(0, 16);
       formattedValue = formattedValue.replace(/(\d{4})(?=\d)/g, "$1 ");
     }
-    
+
     // Format expiry date
     if (name === "expiryDate") {
       formattedValue = value.replace(/\D/g, "").substring(0, 4);
       if (formattedValue.length >= 2) {
-        formattedValue = formattedValue.substring(0, 2) + "/" + formattedValue.substring(2);
+        formattedValue =
+          formattedValue.substring(0, 2) + "/" + formattedValue.substring(2);
       }
     }
-    
+
     // Format CVV
     if (name === "cvv") {
       formattedValue = value.replace(/\D/g, "").substring(0, 3);
     }
 
-    setCardForm(prev => ({ ...prev, [name]: formattedValue }));
+    setCardForm((prev) => ({ ...prev, [name]: formattedValue }));
   };
 
   const simulatePayment = async () => {
@@ -162,7 +164,7 @@ export default function PaymentPage() {
 
     try {
       // Simulate payment processing time
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Simulate payment success/failure (90% success rate)
       const isSuccess = Math.random() > 0.1;
@@ -174,7 +176,9 @@ export default function PaymentPage() {
       // Create payment record
       const paymentData = {
         order_id: orderId,
-        payment_reference: `dummy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        payment_reference: `dummy_${Date.now()}_${Math.random()
+          .toString(36)
+          .substr(2, 9)}`,
         payment_method: selectedPaymentMethod,
         gateway_provider: "manual" as const,
         amount: order!.total_amount,
@@ -269,7 +273,7 @@ export default function PaymentPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild>
-                <Link href="/profile">View Orders</Link>
+                <Link href="/orders">View Orders</Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/products">Continue Shopping</Link>
@@ -313,8 +317,12 @@ export default function PaymentPage() {
                       selectedPaymentMethod === option.id
                         ? "border-primary bg-primary/5"
                         : "border-gray-200 hover:border-gray-300"
-                    } ${!option.enabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                    onClick={() => option.enabled && setSelectedPaymentMethod(option.id)}
+                    } ${
+                      !option.enabled ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    onClick={() =>
+                      option.enabled && setSelectedPaymentMethod(option.id)
+                    }
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -344,7 +352,8 @@ export default function PaymentPage() {
             </div>
 
             {/* Payment Form Based on Selected Method */}
-            {(selectedPaymentMethod === "credit_card" || selectedPaymentMethod === "debit_card") && (
+            {(selectedPaymentMethod === "credit_card" ||
+              selectedPaymentMethod === "debit_card") && (
               <div>
                 <h3 className="text-md font-medium mb-4">Card Details</h3>
                 <div className="space-y-4">
@@ -416,7 +425,8 @@ export default function PaymentPage() {
               <div>
                 <h3 className="text-md font-medium mb-4">Net Banking</h3>
                 <p className="text-sm text-muted-foreground">
-                  You will be redirected to your bank's website to complete the payment.
+                  You will be redirected to your bank's website to complete the
+                  payment.
                 </p>
               </div>
             )}
@@ -425,7 +435,8 @@ export default function PaymentPage() {
               <div>
                 <h3 className="text-md font-medium mb-4">Digital Wallet</h3>
                 <p className="text-sm text-muted-foreground">
-                  You will be redirected to your wallet provider to complete the payment.
+                  You will be redirected to your wallet provider to complete the
+                  payment.
                 </p>
               </div>
             )}
@@ -434,7 +445,8 @@ export default function PaymentPage() {
               <div>
                 <h3 className="text-md font-medium mb-4">Cash on Delivery</h3>
                 <p className="text-sm text-muted-foreground">
-                  You can pay in cash when your order is delivered to your address.
+                  You can pay in cash when your order is delivered to your
+                  address.
                 </p>
               </div>
             )}
@@ -457,7 +469,8 @@ export default function PaymentPage() {
                 <span className="font-medium">Secure Payment</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Your payment information is encrypted and secure. This is a demo payment page.
+                Your payment information is encrypted and secure. This is a demo
+                payment page.
               </p>
             </div>
 
@@ -489,8 +502,12 @@ export default function PaymentPage() {
 
               {/* Order Info */}
               <div className="mb-4">
-                <p className="text-sm text-muted-foreground">Order #{order.order_number}</p>
-                <p className="text-xs text-muted-foreground">Status: {order.status.replace("_", " ").toUpperCase()}</p>
+                <p className="text-sm text-muted-foreground">
+                  Order #{order.order_number}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Status: {order.status.replace("_", " ").toUpperCase()}
+                </p>
               </div>
 
               <Separator className="mb-4" />
@@ -549,13 +566,16 @@ export default function PaymentPage() {
               <div className="bg-background p-4 rounded-md">
                 <h4 className="font-medium text-sm mb-2">Shipping Address</h4>
                 <div className="text-xs text-muted-foreground">
-                  <p className="font-medium">{order.shipping_address.full_name}</p>
+                  <p className="font-medium">
+                    {order.shipping_address.full_name}
+                  </p>
                   <p>{order.shipping_address.address_line_1}</p>
                   {order.shipping_address.address_line_2 && (
                     <p>{order.shipping_address.address_line_2}</p>
                   )}
                   <p>
-                    {order.shipping_address.city}, {order.shipping_address.state}{" "}
+                    {order.shipping_address.city},{" "}
+                    {order.shipping_address.state}{" "}
                     {order.shipping_address.postal_code}
                   </p>
                   <p>{order.shipping_address.country}</p>

@@ -61,9 +61,17 @@ class OrderService {
       if (options.status) params.append("status", options.status);
 
       const headers = await this.getHeaders();
+      
+      // Create an AbortController for request timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       const response = await fetch(`/api/orders?${params.toString()}`, {
         headers,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -71,9 +79,14 @@ class OrderService {
       }
 
       const data = await response.json();
-      return data.orders;
+      return data.orders || [];
     } catch (error) {
       console.error("Error fetching orders:", error);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error("Request timeout - please check your connection and try again");
+      }
+      
       throw error;
     }
   }

@@ -215,6 +215,16 @@ export async function PATCH(
       );
     }
 
+    // Clear orders cache to ensure fresh data on next fetch
+    try {
+      await CacheService.clearAllOrders(user.id);
+      await CacheService.clearOrderDetails(user.id, id);
+      console.log(`Orders cache cleared for user: ${user.id} after order update`);
+    } catch (cacheError) {
+      console.error("Error clearing orders cache after update:", cacheError);
+      // Don't fail the update if cache clearing fails
+    }
+
     return NextResponse.json({ order });
     
   } catch (error) {

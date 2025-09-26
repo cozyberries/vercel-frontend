@@ -132,6 +132,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Clear orders cache to ensure fresh data on next fetch
+    try {
+      await CacheService.clearAllOrders(user.id);
+      console.log(`Orders cache cleared for user: ${user.id}`);
+    } catch (cacheError) {
+      console.error("Error clearing orders cache:", cacheError);
+      // Don't fail the order creation if cache clearing fails
+    }
+
     // Generate payment URL for the dummy payment page
     const paymentUrl = `/payment/${order.id}`;
 
