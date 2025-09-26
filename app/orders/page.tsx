@@ -18,6 +18,8 @@ import {
   Search,
   Loader2,
   AlertCircle,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,10 @@ import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
+import { reviewService } from "@/lib/services/reviews";
+import ReviewModal from "@/components/ReviewModal";
 import type { Order, OrderStatus } from "@/lib/types/order";
+import type { OrderReviewableItem, Review } from "@/lib/types/review";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,
@@ -50,13 +55,24 @@ const statusColors: Record<OrderStatus, string> = {
 export default function OrdersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+
+  // Review modal state
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [reviewableItems, setReviewableItems] = useState<OrderReviewableItem[]>(
+    []
+  );
+  const [selectedItem, setSelectedItem] = useState<OrderReviewableItem | null>(
+    null
+  );
+  const [loadingReviewableItems, setLoadingReviewableItems] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -92,15 +108,16 @@ export default function OrdersPage() {
 
     // Filter by status
     if (statusFilter !== "all") {
-      filtered = filtered.filter(order => order.status === statusFilter);
+      filtered = filtered.filter((order) => order.status === statusFilter);
     }
 
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(order =>
-        order.order_number.toLowerCase().includes(query) ||
-        order.items.some(item => item.name.toLowerCase().includes(query))
+      filtered = filtered.filter(
+        (order) =>
+          order.order_number.toLowerCase().includes(query) ||
+          order.items.some((item) => item.name.toLowerCase().includes(query))
       );
     }
 
@@ -109,6 +126,49 @@ export default function OrdersPage() {
 
   const handlePayNow = (orderId: string) => {
     router.push(`/payment/${orderId}`);
+  };
+
+  const handleReviewOrder = async (orderId: string) => {
+    try {
+      setLoadingReviewableItems(true);
+      const { items } = await reviewService.getOrderReviewableItems(orderId);
+      setReviewableItems(items);
+      setSelectedOrderId(orderId);
+
+      // If there's only one item, auto-select it
+      if (items.length === 1) {
+        setSelectedItem(items[0]);
+        setReviewModalOpen(true);
+      } else if (items.length > 1) {
+        // For multiple items, show the first one for now
+        // In a real implementation, you might want to show an item selection modal
+        setSelectedItem(items[0]);
+        setReviewModalOpen(true);
+      } else {
+        setError("No items available for review in this order.");
+      }
+    } catch (err) {
+      console.error("Error fetching reviewable items:", err);
+      setError("Failed to load review options. Please try again.");
+    } finally {
+      setLoadingReviewableItems(false);
+    }
+  };
+
+  const handleReviewSubmitted = (review: Review) => {
+    // Refresh the orders to update review status
+    fetchOrders();
+    setReviewModalOpen(false);
+    setSelectedItem(null);
+    setSelectedOrderId("");
+    setReviewableItems([]);
+  };
+
+  const handleCloseReviewModal = () => {
+    setReviewModalOpen(false);
+    setSelectedItem(null);
+    setSelectedOrderId("");
+    setReviewableItems([]);
   };
 
   const formatDate = (dateString: string) => {
@@ -218,7 +278,10 @@ export default function OrdersPage() {
         ) : (
           <div className="space-y-6">
             {filteredOrders.map((order) => (
-              <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-6">
+              <div
+                key={order.id}
+                className="bg-white border border-gray-200 rounded-lg p-6"
+              >
                 {/* Order Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
                   <div className="flex items-center gap-4 mb-2 sm:mb-0">
@@ -233,14 +296,21 @@ export default function OrdersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${statusColors[order.status]}`}>
+                    <div
+                      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                        statusColors[order.status]
+                      }`}
+                    >
                       {statusIcons[order.status]}
                       {orderService.formatOrderStatus(order.status)}
                     </div>
                     <div className="text-right">
-                      <div className="font-semibold">₹{order.total_amount.toFixed(2)}</div>
+                      <div className="font-semibold">
+                        ₹{order.total_amount.toFixed(2)}
+                      </div>
                       <div className="text-sm text-muted-foreground">
-                        {order.items.length} item{order.items.length !== 1 ? "s" : ""}
+                        {order.items.length} item
+                        {order.items.length !== 1 ? "s" : ""}
                       </div>
                     </div>
                   </div>
@@ -273,7 +343,8 @@ export default function OrdersPage() {
                   ))}
                   {order.items.length > 3 && (
                     <p className="text-sm text-muted-foreground pl-15">
-                      +{order.items.length - 3} more item{order.items.length - 3 !== 1 ? "s" : ""}
+                      +{order.items.length - 3} more item
+                      {order.items.length - 3 !== 1 ? "s" : ""}
                     </p>
                   )}
                 </div>
@@ -285,20 +356,28 @@ export default function OrdersPage() {
                   <div className="flex items-center gap-4">
                     {order.tracking_number && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Tracking: </span>
-                        <span className="font-medium">{order.tracking_number}</span>
+                        <span className="text-muted-foreground">
+                          Tracking:{" "}
+                        </span>
+                        <span className="font-medium">
+                          {order.tracking_number}
+                        </span>
                       </div>
                     )}
                     {order.estimated_delivery_date && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Est. Delivery: </span>
+                        <span className="text-muted-foreground">
+                          Est. Delivery:{" "}
+                        </span>
                         <span className="font-medium">
-                          {new Date(order.estimated_delivery_date).toLocaleDateString()}
+                          {new Date(
+                            order.estimated_delivery_date
+                          ).toLocaleDateString()}
                         </span>
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     {order.status === "payment_pending" && (
                       <Button
@@ -307,6 +386,20 @@ export default function OrdersPage() {
                       >
                         <CreditCard className="w-4 h-4" />
                         Pay Now
+                      </Button>
+                    )}
+                    {order.status === "delivered" && (
+                      <Button
+                        onClick={() => handleReviewOrder(order.id)}
+                        disabled={loadingReviewableItems}
+                        className="flex items-center gap-2"
+                      >
+                        {loadingReviewableItems ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Star className="w-4 h-4" />
+                        )}
+                        Add Review
                       </Button>
                     )}
                     <Button
@@ -326,7 +419,9 @@ export default function OrdersPage() {
                 <div className="mt-4 p-3 bg-muted/30 rounded-md">
                   <h5 className="font-medium text-sm mb-1">Shipping Address</h5>
                   <p className="text-sm text-muted-foreground">
-                    {order.shipping_address.full_name} • {order.shipping_address.city}, {order.shipping_address.state}
+                    {order.shipping_address.full_name} •{" "}
+                    {order.shipping_address.city},{" "}
+                    {order.shipping_address.state}
                   </p>
                 </div>
               </div>
@@ -335,12 +430,27 @@ export default function OrdersPage() {
         )}
 
         {/* Load More Button (for future pagination) */}
-        {filteredOrders.length > 0 && filteredOrders.length === orders.length && orders.length >= 50 && (
-          <div className="text-center mt-8">
-            <Button variant="outline" onClick={fetchOrders}>
-              Load More Orders
-            </Button>
-          </div>
+        {filteredOrders.length > 0 &&
+          filteredOrders.length === orders.length &&
+          orders.length >= 50 && (
+            <div className="text-center mt-8">
+              <Button variant="outline" onClick={fetchOrders}>
+                Load More Orders
+              </Button>
+            </div>
+          )}
+
+        {/* Review Modal */}
+        {reviewModalOpen && selectedItem && (
+          <ReviewModal
+            isOpen={reviewModalOpen}
+            onClose={handleCloseReviewModal}
+            item={selectedItem}
+            orderId={selectedOrderId}
+            onReviewSubmitted={handleReviewSubmitted}
+            allItems={reviewableItems}
+            onItemChange={setSelectedItem}
+          />
         )}
       </div>
     </div>
