@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,30 +50,16 @@ const statusColors: Record<OrderStatus, string> = {
 export default function OrdersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+  const [authTimeout, setAuthTimeout] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user) {
-      fetchOrders();
-    }
-  }, [user, loading, router]);
-
-  useEffect(() => {
-    filterOrders();
-  }, [orders, statusFilter, searchQuery]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -85,22 +71,50 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Add authentication timeout to prevent infinite loading
+  useEffect(() => {
+    const authTimeoutId = setTimeout(() => {
+      if (loading) {
+        setAuthTimeout(true);
+        setIsLoading(false);
+      }
+    }, 10000); // 10 second timeout for auth
+
+    return () => clearTimeout(authTimeoutId);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!loading && !user && !authTimeout) {
+      router.push("/login");
+      return;
+    }
+
+    if (user && !authTimeout) {
+      fetchOrders();
+    }
+  }, [user, loading, router, fetchOrders, authTimeout]);
+
+  useEffect(() => {
+    filterOrders();
+  }, [orders, statusFilter, searchQuery]);
 
   const filterOrders = () => {
     let filtered = orders;
 
     // Filter by status
     if (statusFilter !== "all") {
-      filtered = filtered.filter(order => order.status === statusFilter);
+      filtered = filtered.filter((order) => order.status === statusFilter);
     }
 
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(order =>
-        order.order_number.toLowerCase().includes(query) ||
-        order.items.some(item => item.name.toLowerCase().includes(query))
+      filtered = filtered.filter(
+        (order) =>
+          order.order_number.toLowerCase().includes(query) ||
+          order.items.some((item) => item.name.toLowerCase().includes(query))
       );
     }
 
@@ -121,7 +135,7 @@ export default function OrdersPage() {
     });
   };
 
-  if (loading || isLoading) {
+  if ((loading && !authTimeout) || isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
@@ -129,6 +143,33 @@ export default function OrdersPage() {
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
               <p>Loading your orders...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authTimeout) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-20">
+            <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">
+              Authentication Timeout
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Authentication is taking longer than expected. Please try
+              refreshing the page or logging in again.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/login">Login Again</Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -218,7 +259,10 @@ export default function OrdersPage() {
         ) : (
           <div className="space-y-6">
             {filteredOrders.map((order) => (
-              <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-6">
+              <div
+                key={order.id}
+                className="bg-white border border-gray-200 rounded-lg p-6"
+              >
                 {/* Order Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
                   <div className="flex items-center gap-4 mb-2 sm:mb-0">
@@ -233,14 +277,21 @@ export default function OrdersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${statusColors[order.status]}`}>
+                    <div
+                      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                        statusColors[order.status]
+                      }`}
+                    >
                       {statusIcons[order.status]}
                       {orderService.formatOrderStatus(order.status)}
                     </div>
                     <div className="text-right">
-                      <div className="font-semibold">₹{order.total_amount.toFixed(2)}</div>
+                      <div className="font-semibold">
+                        ₹{order.total_amount.toFixed(2)}
+                      </div>
                       <div className="text-sm text-muted-foreground">
-                        {order.items.length} item{order.items.length !== 1 ? "s" : ""}
+                        {order.items.length} item
+                        {order.items.length !== 1 ? "s" : ""}
                       </div>
                     </div>
                   </div>
@@ -273,7 +324,8 @@ export default function OrdersPage() {
                   ))}
                   {order.items.length > 3 && (
                     <p className="text-sm text-muted-foreground pl-15">
-                      +{order.items.length - 3} more item{order.items.length - 3 !== 1 ? "s" : ""}
+                      +{order.items.length - 3} more item
+                      {order.items.length - 3 !== 1 ? "s" : ""}
                     </p>
                   )}
                 </div>
@@ -285,20 +337,28 @@ export default function OrdersPage() {
                   <div className="flex items-center gap-4">
                     {order.tracking_number && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Tracking: </span>
-                        <span className="font-medium">{order.tracking_number}</span>
+                        <span className="text-muted-foreground">
+                          Tracking:{" "}
+                        </span>
+                        <span className="font-medium">
+                          {order.tracking_number}
+                        </span>
                       </div>
                     )}
                     {order.estimated_delivery_date && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Est. Delivery: </span>
+                        <span className="text-muted-foreground">
+                          Est. Delivery:{" "}
+                        </span>
                         <span className="font-medium">
-                          {new Date(order.estimated_delivery_date).toLocaleDateString()}
+                          {new Date(
+                            order.estimated_delivery_date
+                          ).toLocaleDateString()}
                         </span>
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     {order.status === "payment_pending" && (
                       <Button
@@ -326,7 +386,9 @@ export default function OrdersPage() {
                 <div className="mt-4 p-3 bg-muted/30 rounded-md">
                   <h5 className="font-medium text-sm mb-1">Shipping Address</h5>
                   <p className="text-sm text-muted-foreground">
-                    {order.shipping_address.full_name} • {order.shipping_address.city}, {order.shipping_address.state}
+                    {order.shipping_address.full_name} •{" "}
+                    {order.shipping_address.city},{" "}
+                    {order.shipping_address.state}
                   </p>
                 </div>
               </div>
@@ -335,13 +397,15 @@ export default function OrdersPage() {
         )}
 
         {/* Load More Button (for future pagination) */}
-        {filteredOrders.length > 0 && filteredOrders.length === orders.length && orders.length >= 50 && (
-          <div className="text-center mt-8">
-            <Button variant="outline" onClick={fetchOrders}>
-              Load More Orders
-            </Button>
-          </div>
-        )}
+        {filteredOrders.length > 0 &&
+          filteredOrders.length === orders.length &&
+          orders.length >= 50 && (
+            <div className="text-center mt-8">
+              <Button variant="outline" onClick={fetchOrders}>
+                Load More Orders
+              </Button>
+            </div>
+          )}
       </div>
     </div>
   );

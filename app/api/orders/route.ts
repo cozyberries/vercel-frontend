@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest, OrderCreate, OrderSummary } from "@/lib/types/order";
 import type { CartItem } from "@/components/cart-context";
+import CacheService from "@/lib/services/cache";
 
 export async function POST(request: NextRequest) {
   try {
@@ -131,6 +132,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Clear orders cache to ensure fresh data on next fetch
+    try {
+      await CacheService.clearAllOrders(user.id);
+      console.log(`Orders cache cleared for user: ${user.id}`);
+    } catch (cacheError) {
+      console.error("Error clearing orders cache:", cacheError);
+      // Don't fail the order creation if cache clearing fails
+    }
+
     // Generate payment URL for the dummy payment page
     const paymentUrl = `/payment/${order.id}`;
 
@@ -167,6 +177,36 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get("offset") || "0");
     const status = searchParams.get("status");
 
+    // Create cache key based on filters
+    const filters = `limit:${limit}-offset:${offset}${status ? `-status:${status}` : ''}`;
+    
+    // Try to get from cache first
+    const { data: cachedOrders, ttl, isStale } = await CacheService.getOrders(user.id, filters);
+    
+    if (cachedOrders) {
+      const headers = {
+        "X-Cache-Status": isStale ? "STALE" : "HIT",
+        "X-Cache-Key": CacheService.getCacheKey("ORDERS", user.id, `list:${filters}`),
+        "X-Data-Source": "REDIS_CACHE",
+        "X-Cache-TTL": ttl.toString(),
+      };
+
+      // If data is stale, trigger background revalidation
+      if (isStale) {
+        (async () => {
+          try {
+            console.log(`Background revalidation for orders: ${user.id}`);
+            await refreshOrdersInBackground(user.id, { limit, offset, status }, supabase);
+          } catch (error) {
+            console.error(`Background orders refresh failed for user ${user.id}:`, error);
+          }
+        })();
+      }
+
+      return NextResponse.json({ orders: cachedOrders }, { headers });
+    }
+
+    // No cache hit, fetch from database
     let query = supabase
       .from("orders")
       .select("*")
@@ -188,7 +228,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ orders });
+    // Cache the result
+    await CacheService.setOrders(user.id, orders || [], filters);
+
+    const headers = {
+      "X-Cache-Status": "MISS",
+      "X-Cache-Key": CacheService.getCacheKey("ORDERS", user.id, `list:${filters}`),
+      "X-Data-Source": "SUPABASE_DATABASE",
+      "X-Cache-Set": "SUCCESS",
+    };
+
+    return NextResponse.json({ orders }, { headers });
     
   } catch (error) {
     console.error("Error in order fetching:", error);
@@ -196,6 +246,40 @@ export async function GET(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Background refresh function for stale-while-revalidate pattern
+ */
+async function refreshOrdersInBackground(
+  userId: string, 
+  options: { limit: number; offset: number; status: string | null }, 
+  supabase: any
+): Promise<void> {
+  try {
+    let query = supabase
+      .from("orders")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(options.offset, options.offset + options.limit - 1);
+
+    if (options.status) {
+      query = query.eq("status", options.status);
+    }
+
+    const { data: orders, error } = await query;
+
+    if (error) {
+      console.error("Error in background orders refresh:", error);
+      return;
+    }
+
+    const filters = `limit:${options.limit}-offset:${options.offset}${options.status ? `-status:${options.status}` : ''}`;
+    await CacheService.setOrders(userId, orders || [], filters);
+  } catch (error) {
+    console.error("Error in background orders refresh:", error);
   }
 }
 
