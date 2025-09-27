@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ProductCard from "@/components/product-card";
-import Pagination from "@/components/ui/pagination";
 import FilterSheet from "@/components/FilterSheet";
 import { usePreloadedData } from "@/components/data-preloader";
 import { getProducts, ProductsResponse, Product } from "@/lib/services/api";
+import { ChevronUp, Loader2 } from "lucide-react";
 
 export default function ProductsClient() {
   const router = useRouter();
@@ -26,93 +26,136 @@ export default function ProductsClient() {
     error: categoriesError,
   } = usePreloadedData();
 
-  const [productsData, setProductsData] = useState<ProductsResponse>({
-    products: [],
-    pagination: {
-      currentPage: 1,
-      totalPages: 0,
-      totalItems: 0,
-      itemsPerPage: 12,
-      hasNextPage: false,
-      hasPrevPage: false,
-    },
-  });
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Get current URL parameters
-  const currentPage = parseInt(searchParams.get("page") || "1");
   const currentSort = searchParams.get("sortBy") || "default";
   const currentSortOrder = searchParams.get("sortOrder") || "desc";
   const currentCategory = searchParams.get("category") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentBestseller = searchParams.get("bestseller") === "true";
 
-  // Load products with server-side filtering, sorting, and pagination
+  // Load products with server-side filtering, sorting
   useEffect(() => {
     const loadProducts = async () => {
       try {
         setIsLoading(true);
         setError(null);
+        setCurrentPage(1);
+        setAllProducts([]);
 
         const response = await getProducts({
           limit: 12,
-          page: currentPage,
+          page: 1,
           category: currentCategory !== "all" ? currentCategory : undefined,
           sortBy: currentSort !== "default" ? currentSort : undefined,
           sortOrder: currentSortOrder,
           featured: currentBestseller || undefined,
         });
 
-        setProductsData(response);
+        // Ensure no duplicate products from the initial load
+        const uniqueProducts = response.products.filter(
+          (product, index, self) =>
+            index === self.findIndex((p) => p.id === product.id)
+        );
+        setAllProducts(uniqueProducts);
+        setTotalItems(response.pagination.totalItems);
+        setHasMoreProducts(response.pagination.hasNextPage);
       } catch (err) {
         console.error("Error loading products:", err);
         setError(
           err instanceof Error ? err.message : "Failed to load products"
         );
-        setProductsData({
-          products: [],
-          pagination: {
-            currentPage: 1,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: 12,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-        });
+        setAllProducts([]);
+        setTotalItems(0);
+        setHasMoreProducts(false);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadProducts();
-  }, [
-    currentPage,
-    currentSort,
-    currentSortOrder,
-    currentCategory,
-    currentBestseller,
-  ]);
+  }, [currentSort, currentSortOrder, currentCategory, currentBestseller]);
 
   // Client-side search filtering (search happens on frontend with autocomplete)
   const filteredProducts = useMemo(() => {
     if (!currentSearch) {
-      return productsData.products;
+      return allProducts;
     }
 
     const searchLower = currentSearch.toLowerCase();
-    return productsData.products.filter(
+    return allProducts.filter(
       (product) =>
         product.name.toLowerCase().includes(searchLower) ||
         (product.description &&
           product.description.toLowerCase().includes(searchLower))
     );
-  }, [productsData.products, currentSearch]);
+  }, [allProducts, currentSearch]);
+
+  // Load more products function
+  const loadMoreProducts = useCallback(async () => {
+    if (isLoadingMore || !hasMoreProducts) return;
+
+    try {
+      setIsLoadingMore(true);
+      const nextPage = currentPage + 1;
+
+      const response = await getProducts({
+        limit: 12,
+        page: nextPage,
+        category: currentCategory !== "all" ? currentCategory : undefined,
+        sortBy: currentSort !== "default" ? currentSort : undefined,
+        sortOrder: currentSortOrder,
+        featured: currentBestseller || undefined,
+      });
+
+      setAllProducts((prev) => {
+        // Create a Map to track unique products by ID
+        const productMap = new Map();
+
+        // Add existing products to the map
+        prev.forEach((product) => {
+          productMap.set(product.id, product);
+        });
+
+        // Add new products, skipping duplicates
+        response.products.forEach((product) => {
+          if (!productMap.has(product.id)) {
+            productMap.set(product.id, product);
+          }
+        });
+
+        // Convert back to array
+        return Array.from(productMap.values());
+      });
+      setCurrentPage(nextPage);
+      setHasMoreProducts(response.pagination.hasNextPage);
+    } catch (err) {
+      console.error("Error loading more products:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load more products"
+      );
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [
+    currentPage,
+    hasMoreProducts,
+    isLoadingMore,
+    currentCategory,
+    currentSort,
+    currentSortOrder,
+    currentBestseller,
+  ]);
 
   const handleSortChange = (sort: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete("page"); // Reset to page 1 when sorting changes
 
     if (sort === "default") {
       params.delete("sortBy");
@@ -130,7 +173,6 @@ export default function ProductsClient() {
 
   const handleCategoryChange = (category: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete("page"); // Reset to page 1 when category changes
 
     if (category === "all") {
       params.delete("category");
@@ -141,15 +183,8 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
-  const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("page", page.toString());
-    router.push(`/products?${params.toString()}`);
-  };
-
   const handleBestsellerToggle = () => {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete("page"); // Reset to page 1 when toggling bestsellers
 
     if (currentBestseller) {
       params.delete("bestseller");
@@ -158,6 +193,10 @@ export default function ProductsClient() {
     }
 
     router.push(`/products?${params.toString()}`);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleClearFilters = () => {
@@ -215,7 +254,7 @@ export default function ProductsClient() {
     );
   }
 
-  if (!productsData.products || productsData.products.length === 0) {
+  if (!allProducts || allProducts.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="max-w-md mx-auto">
@@ -344,8 +383,7 @@ export default function ProductsClient() {
 
       {/* Results Info */}
       <div className="mb-6 text-sm text-gray-600">
-        Showing {filteredProducts.length} of{" "}
-        {productsData.pagination.totalItems} products
+        Showing {filteredProducts.length} of {totalItems} products
         {currentSearch && ` for "${currentSearch}"`}
         {currentCategory !== "all" &&
           ` in ${
@@ -364,13 +402,40 @@ export default function ProductsClient() {
             ))}
           </div>
 
-          {/* Pagination */}
-          <Pagination
-            currentPage={productsData.pagination.currentPage}
-            totalPages={productsData.pagination.totalPages}
-            onPageChange={handlePageChange}
-            className="mt-8"
-          />
+          {/* Show More Button and Scroll to Top */}
+          <div className="flex flex-col items-center space-y-4 mt-8">
+            {hasMoreProducts && !currentSearch && (
+              <Button
+                onClick={loadMoreProducts}
+                disabled={isLoadingMore}
+                variant="outline"
+                size="lg"
+                className="px-8"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  "Show More Products"
+                )}
+              </Button>
+            )}
+
+            {/* Scroll to Top Button */}
+            {filteredProducts.length > 8 && (
+              <Button
+                onClick={scrollToTop}
+                variant="outline"
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                <ChevronUp className="w-4 h-4" />
+                <span>Back to Top</span>
+              </Button>
+            )}
+          </div>
         </>
       ) : (
         <div className="text-center py-16">
