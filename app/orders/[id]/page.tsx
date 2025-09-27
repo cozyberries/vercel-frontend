@@ -222,22 +222,32 @@ export default function OrderDetailsPage() {
 
             {/* Order Items */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold mb-4">Order Items</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Order Items</h2>
+                <p className="text-xs text-muted-foreground">Click on items to view product details</p>
+              </div>
               <div className="space-y-4">
                 {order.items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-4">
+                  <Link
+                    key={item.id}
+                    href={`/products/${item.id}`}
+                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                  >
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
                         <Image
                           src={item.image}
                           alt={item.name}
                           fill
-                          className="object-cover"
+                          className="object-cover group-hover:scale-105 transition-transform"
                         />
                       )}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-medium">{item.name}</h3>
+                      <h3 className="font-medium group-hover:text-primary transition-colors flex items-center gap-1">
+                        {item.name}
+                        <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </h3>
                       <div className="text-sm text-muted-foreground">
                         Quantity: {item.quantity}
                       </div>
@@ -248,7 +258,7 @@ export default function OrderDetailsPage() {
                         ₹{item.price.toFixed(2)} each
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

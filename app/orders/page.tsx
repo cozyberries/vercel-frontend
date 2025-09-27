@@ -18,6 +18,9 @@ import {
   Search,
   Loader2,
   AlertCircle,
+  Star,
+  MessageSquare,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +28,10 @@ import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
+import { reviewService } from "@/lib/services/reviews";
+import ReviewModal from "@/components/ReviewModal";
 import type { Order, OrderStatus } from "@/lib/types/order";
+import type { OrderReviewableItem, Review } from "@/lib/types/review";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,
@@ -58,6 +64,32 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [authTimeout, setAuthTimeout] = useState(false);
+
+  // Review modal state
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [reviewableItems, setReviewableItems] = useState<OrderReviewableItem[]>(
+    []
+  );
+  const [selectedItem, setSelectedItem] = useState<OrderReviewableItem | null>(
+    null
+  );
+  const [loadingReviewableItems, setLoadingReviewableItems] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      fetchOrders();
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    filterOrders();
+  }, [orders, statusFilter, searchQuery]);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -123,6 +155,49 @@ export default function OrdersPage() {
 
   const handlePayNow = (orderId: string) => {
     router.push(`/payment/${orderId}`);
+  };
+
+  const handleReviewOrder = async (orderId: string) => {
+    try {
+      setLoadingReviewableItems(true);
+      const { items } = await reviewService.getOrderReviewableItems(orderId);
+      setReviewableItems(items);
+      setSelectedOrderId(orderId);
+
+      // If there's only one item, auto-select it
+      if (items.length === 1) {
+        setSelectedItem(items[0]);
+        setReviewModalOpen(true);
+      } else if (items.length > 1) {
+        // For multiple items, show the first one for now
+        // In a real implementation, you might want to show an item selection modal
+        setSelectedItem(items[0]);
+        setReviewModalOpen(true);
+      } else {
+        setError("No items available for review in this order.");
+      }
+    } catch (err) {
+      console.error("Error fetching reviewable items:", err);
+      setError("Failed to load review options. Please try again.");
+    } finally {
+      setLoadingReviewableItems(false);
+    }
+  };
+
+  const handleReviewSubmitted = (review: Review) => {
+    // Refresh the orders to update review status
+    fetchOrders();
+    setReviewModalOpen(false);
+    setSelectedItem(null);
+    setSelectedOrderId("");
+    setReviewableItems([]);
+  };
+
+  const handleCloseReviewModal = () => {
+    setReviewModalOpen(false);
+    setSelectedItem(null);
+    setSelectedOrderId("");
+    setReviewableItems([]);
   };
 
   const formatDate = (dateString: string) => {
@@ -300,19 +375,26 @@ export default function OrdersPage() {
                 {/* Order Items */}
                 <div className="space-y-3 mb-4">
                   {order.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
+                    <Link
+                      key={item.id}
+                      href={`/products/${item.id}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                    >
                       <div className="relative w-12 h-12 bg-muted rounded-md overflow-hidden">
                         {item.image && (
                           <Image
                             src={item.image}
                             alt={item.name}
                             fill
-                            className="object-cover"
+                            className="object-cover group-hover:scale-105 transition-transform"
                           />
                         )}
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-medium text-sm">{item.name}</h4>
+                        <h4 className="font-medium text-sm group-hover:text-primary transition-colors flex items-center gap-1">
+                          {item.name}
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </h4>
                         <p className="text-sm text-muted-foreground">
                           Qty: {item.quantity} × ₹{item.price.toFixed(2)}
                         </p>
@@ -320,13 +402,19 @@ export default function OrdersPage() {
                       <div className="text-sm font-medium">
                         ₹{(item.price * item.quantity).toFixed(2)}
                       </div>
-                    </div>
+                    </Link>
                   ))}
                   {order.items.length > 3 && (
-                    <p className="text-sm text-muted-foreground pl-15">
-                      +{order.items.length - 3} more item
-                      {order.items.length - 3 !== 1 ? "s" : ""}
-                    </p>
+                    <div className="pl-15 text-sm text-muted-foreground">
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="hover:text-primary transition-colors inline-flex items-center gap-1"
+                      >
+                        +{order.items.length - 3} more item
+                        {order.items.length - 3 !== 1 ? "s" : ""} - View all
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
                   )}
                 </div>
 
@@ -369,6 +457,20 @@ export default function OrdersPage() {
                         Pay Now
                       </Button>
                     )}
+                    {order.status === "delivered" && (
+                      <Button
+                        onClick={() => handleReviewOrder(order.id)}
+                        disabled={loadingReviewableItems}
+                        className="flex items-center gap-2"
+                      >
+                        {loadingReviewableItems ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Star className="w-4 h-4" />
+                        )}
+                        Add Review
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       asChild
@@ -406,6 +508,19 @@ export default function OrdersPage() {
               </Button>
             </div>
           )}
+
+        {/* Review Modal */}
+        {reviewModalOpen && selectedItem && (
+          <ReviewModal
+            isOpen={reviewModalOpen}
+            onClose={handleCloseReviewModal}
+            item={selectedItem}
+            orderId={selectedOrderId}
+            onReviewSubmitted={handleReviewSubmitted}
+            allItems={reviewableItems}
+            onItemChange={setSelectedItem}
+          />
+        )}
       </div>
     </div>
   );
