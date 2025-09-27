@@ -33,6 +33,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get reviews for the product
+    // Show approved reviews for everyone, plus pending reviews for the current user
     let query = supabase
       .from('reviews')
       .select(`
@@ -48,8 +49,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           is_helpful
         )
       `)
-      .eq('product_id', productId)
-      .eq('status', 'approved');
+      .eq('product_id', productId);
+
+    // Apply status filter: show approved reviews for everyone, plus pending reviews for current user
+    if (user) {
+      query = query.or(`status.eq.approved,and(status.eq.pending,user_id.eq.${user.id})`);
+    } else {
+      query = query.eq('status', 'approved');
+    }
 
     // Apply sorting
     const sortColumn = filters.sort_by === 'helpful_votes' ? 'helpful_votes' : 

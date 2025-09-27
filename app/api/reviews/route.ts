@@ -204,6 +204,15 @@ export async function POST(request: NextRequest) {
 
     if (reviewError) {
       console.error('Error creating review:', reviewError);
+      
+      // Check if it's a unique constraint violation
+      if (reviewError.code === '23505' || reviewError.message?.includes('unique constraint')) {
+        return NextResponse.json(
+          { error: "You have already reviewed this product from this order" },
+          { status: 409 }
+        );
+      }
+      
       return NextResponse.json(
         { error: "Failed to create review" },
         { status: 500 }

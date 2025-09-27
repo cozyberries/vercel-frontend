@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Star,
   MessageSquare,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,19 +320,26 @@ export default function OrdersPage() {
                 {/* Order Items */}
                 <div className="space-y-3 mb-4">
                   {order.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
+                    <Link
+                      key={item.id}
+                      href={`/products/${item.id}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                    >
                       <div className="relative w-12 h-12 bg-muted rounded-md overflow-hidden">
                         {item.image && (
                           <Image
                             src={item.image}
                             alt={item.name}
                             fill
-                            className="object-cover"
+                            className="object-cover group-hover:scale-105 transition-transform"
                           />
                         )}
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-medium text-sm">{item.name}</h4>
+                        <h4 className="font-medium text-sm group-hover:text-primary transition-colors flex items-center gap-1">
+                          {item.name}
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </h4>
                         <p className="text-sm text-muted-foreground">
                           Qty: {item.quantity} × ₹{item.price.toFixed(2)}
                         </p>
@@ -339,13 +347,19 @@ export default function OrdersPage() {
                       <div className="text-sm font-medium">
                         ₹{(item.price * item.quantity).toFixed(2)}
                       </div>
-                    </div>
+                    </Link>
                   ))}
                   {order.items.length > 3 && (
-                    <p className="text-sm text-muted-foreground pl-15">
-                      +{order.items.length - 3} more item
-                      {order.items.length - 3 !== 1 ? "s" : ""}
-                    </p>
+                    <div className="pl-15 text-sm text-muted-foreground">
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="hover:text-primary transition-colors inline-flex items-center gap-1"
+                      >
+                        +{order.items.length - 3} more item
+                        {order.items.length - 3 !== 1 ? "s" : ""} - View all
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
                   )}
                 </div>
 

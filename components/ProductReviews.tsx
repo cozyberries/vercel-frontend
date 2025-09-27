@@ -204,6 +204,11 @@ export default function ProductReviews({
                           Verified Purchase
                         </span>
                       )}
+                      {review.status === 'pending' && (
+                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                          Pending Approval
+                        </span>
+                      )}
                     </div>
 
                     {review.title && (
