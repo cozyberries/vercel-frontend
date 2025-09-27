@@ -21,15 +21,9 @@ export default function FeaturedProductCard({
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const inWishlist = isInWishlist(product.id);
 
-  // Determine corner rounding based on index
+  // Use consistent rounded corners for all cards
   const getCornerRounding = () => {
-    if (index % 2 === 0) {
-      // Even index: rounded top-left and bottom-right
-      return "rounded-tl-2xl rounded-br-2xl";
-    } else {
-      // Odd index: rounded top-right and bottom-left
-      return "rounded-tr-2xl rounded-bl-2xl";
-    }
+    return "rounded-2xl";
   };
 
   return (

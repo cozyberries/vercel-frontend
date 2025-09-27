@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { authenticateRequest } from "@/lib/jwt-auth";
+import CacheService from "@/lib/services/cache";
 
 export async function PUT(
   request: NextRequest,
@@ -46,6 +47,16 @@ export async function PUT(
         { error: "Order not found" },
         { status: 404 }
       );
+    }
+
+    // Clear orders cache for the user to ensure fresh data
+    try {
+      await CacheService.clearAllOrders(data.user_id);
+      await CacheService.clearOrderDetails(data.user_id, orderId);
+      console.log(`Orders cache cleared for user: ${data.user_id} after admin update`);
+    } catch (cacheError) {
+      console.error("Error clearing orders cache after admin update:", cacheError);
+      // Don't fail the update if cache clearing fails
     }
 
     return NextResponse.json(data);

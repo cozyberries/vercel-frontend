@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -63,6 +63,7 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+  const [authTimeout, setAuthTimeout] = useState(false);
 
   // Review modal state
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -90,7 +91,7 @@ export default function OrdersPage() {
     filterOrders();
   }, [orders, statusFilter, searchQuery]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -102,7 +103,34 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Add authentication timeout to prevent infinite loading
+  useEffect(() => {
+    const authTimeoutId = setTimeout(() => {
+      if (loading) {
+        setAuthTimeout(true);
+        setIsLoading(false);
+      }
+    }, 10000); // 10 second timeout for auth
+
+    return () => clearTimeout(authTimeoutId);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!loading && !user && !authTimeout) {
+      router.push("/login");
+      return;
+    }
+
+    if (user && !authTimeout) {
+      fetchOrders();
+    }
+  }, [user, loading, router, fetchOrders, authTimeout]);
+
+  useEffect(() => {
+    filterOrders();
+  }, [orders, statusFilter, searchQuery]);
 
   const filterOrders = () => {
     let filtered = orders;
@@ -182,7 +210,7 @@ export default function OrdersPage() {
     });
   };
 
-  if (loading || isLoading) {
+  if ((loading && !authTimeout) || isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
@@ -190,6 +218,33 @@ export default function OrdersPage() {
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
               <p>Loading your orders...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authTimeout) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-20">
+            <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">
+              Authentication Timeout
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Authentication is taking longer than expected. Please try
+              refreshing the page or logging in again.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/login">Login Again</Link>
+              </Button>
             </div>
           </div>
         </div>
