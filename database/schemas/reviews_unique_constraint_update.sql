@@ -53,6 +53,6 @@ CREATE POLICY "Users can create reviews for their orders" ON reviews
         AND NOT EXISTS (
             SELECT 1 FROM reviews 
             WHERE user_id = auth.uid() 
-            AND product_id = reviews.product_id
+            AND product_id = product_id
         )
     );

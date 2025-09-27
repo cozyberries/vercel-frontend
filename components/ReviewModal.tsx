@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import type { OrderReviewableItem, Review } from "@/lib/types/review";
 
 interface ReviewModalProps {
@@ -36,6 +37,7 @@ export default function ReviewModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { post, patch } = useAuthenticatedFetch();
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -110,18 +112,17 @@ export default function ReviewModal({
         ? `/api/reviews/${item.existing_review.id}`
         : "/api/reviews";
 
-      const method = item.existing_review ? "PATCH" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        body: formData,
-      });
+      const response = item.existing_review 
+        ? await patch(url, { 
+            body: formData,
+            requireAuth: true
+          })
+        : await post(url, { 
+            body: formData,
+            requireAuth: true
+          });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to submit review");
-      }
 
       onReviewSubmitted(data.review);
       onClose();

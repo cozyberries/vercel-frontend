@@ -34,10 +34,11 @@ export function useAuthenticatedFetch() {
         headers.set("Authorization", `Bearer ${jwtToken}`);
       }
 
-      // Add content type for POST/PUT requests
+      // Add content type for POST/PUT requests (but not for FormData)
       if (
         !headers.has("Content-Type") &&
-        (fetchOptions.method === "POST" || fetchOptions.method === "PUT")
+        (fetchOptions.method === "POST" || fetchOptions.method === "PUT") &&
+        !(fetchOptions.body instanceof FormData)
       ) {
         headers.set("Content-Type", "application/json");
       }
@@ -84,10 +85,18 @@ export function useAuthenticatedFetch() {
       data?: any,
       options: Omit<FetchOptions, "method" | "body"> = {}
     ) => {
+      // Handle both direct data and options.body
+      let body: any;
+      if (options.body !== undefined) {
+        body = options.body;
+      } else if (data !== undefined) {
+        body = data instanceof FormData ? data : JSON.stringify(data);
+      }
+
       return authenticatedFetch(url, {
         ...options,
         method: "POST",
-        body: data ? JSON.stringify(data) : undefined,
+        body,
       });
     },
     [authenticatedFetch]
@@ -99,10 +108,41 @@ export function useAuthenticatedFetch() {
       data?: any,
       options: Omit<FetchOptions, "method" | "body"> = {}
     ) => {
+      // Handle both direct data and options.body
+      let body: any;
+      if (options.body !== undefined) {
+        body = options.body;
+      } else if (data !== undefined) {
+        body = data instanceof FormData ? data : JSON.stringify(data);
+      }
+
       return authenticatedFetch(url, {
         ...options,
         method: "PUT",
-        body: data ? JSON.stringify(data) : undefined,
+        body,
+      });
+    },
+    [authenticatedFetch]
+  );
+
+  const patch = useCallback(
+    (
+      url: string,
+      data?: any,
+      options: Omit<FetchOptions, "method" | "body"> = {}
+    ) => {
+      // Handle both direct data and options.body
+      let body: any;
+      if (options.body !== undefined) {
+        body = options.body;
+      } else if (data !== undefined) {
+        body = data instanceof FormData ? data : JSON.stringify(data);
+      }
+
+      return authenticatedFetch(url, {
+        ...options,
+        method: "PATCH",
+        body,
       });
     },
     [authenticatedFetch]
@@ -120,6 +160,7 @@ export function useAuthenticatedFetch() {
     get,
     post,
     put,
+    patch,
     delete: del,
     isAuthenticated,
     isAdmin,

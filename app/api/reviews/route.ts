@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { authenticateRequest } from "@/lib/jwt-auth";
 import type { ReviewFilters, ReviewResponse } from "@/lib/types/review";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    // Authenticate the request using JWT
+    const auth = await authenticateRequest(request);
     
-    // Get the current user from Supabase session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (!auth.isAuthenticated || !auth.userId) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
+
+    const supabase = await createServerSupabaseClient();
 
     const { searchParams } = new URL(request.url);
     const filters: ReviewFilters = {
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
         }))
         .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0)),
       // Only show votes for other users' reviews, not the reviewer's own votes
-      votes: review.user_id === user.id ? [] : (review.review_votes || []),
+      votes: review.user_id === auth.userId ? [] : (review.review_votes || []),
     }));
 
     // Calculate pagination info
@@ -136,17 +137,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    // Authenticate the request using JWT
+    const auth = await authenticateRequest(request);
     
-    // Get the current user from Supabase session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (!auth.isAuthenticated || !auth.userId) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
+
+    const supabase = await createServerSupabaseClient();
 
     const formData = await request.formData();
     const order_id = formData.get('order_id') as string;
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
     // Check if user can review this product from this order
     const { data: canReview, error: canReviewError } = await supabase
       .rpc('can_user_review_product', {
-        user_uuid: user.id,
+        user_uuid: auth.userId,
         order_uuid: order_id,
         product_uuid: product_id
       });
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest) {
     const { data: review, error: reviewError } = await supabase
       .from('reviews')
       .insert({
-        user_id: user.id,
+        user_id: auth.userId,
         order_id,
         product_id,
         rating,
