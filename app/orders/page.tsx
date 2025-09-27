@@ -25,6 +25,7 @@ import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
+import ReviewableProducts from "@/components/ReviewableProducts";
 import type { Order, OrderStatus } from "@/lib/types/order";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
@@ -381,6 +382,12 @@ export default function OrdersPage() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Reviewable Products for Delivered Orders */}
+                <ReviewableProducts 
+                  orderId={order.id} 
+                  orderStatus={order.status} 
+                />
 
                 {/* Shipping Address Preview */}
                 <div className="mt-4 p-3 bg-muted/30 rounded-md">

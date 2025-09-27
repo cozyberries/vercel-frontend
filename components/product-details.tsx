@@ -19,6 +19,7 @@ import { Product, getProductById } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
+import ProductReviews from "./ProductReviews";
 import { toast } from "sonner";
 
 export default function ProductDetails({ id: productId }: { id: string }) {
@@ -333,10 +334,11 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             <Separator className="my-6" />
 
             <Tabs defaultValue="description">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="description">Description</TabsTrigger>
                 <TabsTrigger value="features">Features</TabsTrigger>
                 <TabsTrigger value="care">Care</TabsTrigger>
+                <TabsTrigger value="reviews">Reviews</TabsTrigger>
               </TabsList>
               <TabsContent value="description" className="pt-4">
                 <p className="text-muted-foreground">
@@ -355,6 +357,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   {product.care_instructions ||
                     "No care instructions available."}
                 </p>
+              </TabsContent>
+              <TabsContent value="reviews" className="pt-4">
+                <ProductReviews productId={product.id} />
               </TabsContent>
             </Tabs>
           </div>
