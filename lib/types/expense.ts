@@ -1,33 +1,64 @@
-export type ExpenseStatus = 
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'paid'
-  | 'cancelled';
+export type ExpenseStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "paid"
+  | "cancelled";
 
-export type ExpenseCategory = 
-  | 'office_supplies'
-  | 'travel'
-  | 'marketing'
-  | 'software'
-  | 'equipment'
-  | 'utilities'
-  | 'professional_services'
-  | 'training'
-  | 'maintenance'
-  | 'other';
+export type ExpenseCategory =
+  | "office_supplies"
+  | "travel"
+  | "marketing"
+  | "software"
+  | "equipment"
+  | "utilities"
+  | "professional_services"
+  | "training"
+  | "maintenance"
+  | "other";
 
-export type ExpensePriority = 
-  | 'low'
-  | 'medium'
-  | 'high'
-  | 'urgent';
+export interface ExpenseCategoryData {
+  id: string;
+  name: string;
+  slug: string;
+  display_name: string;
+  description?: string;
+  color: string;
+  icon: string;
+  is_active: boolean;
+  is_system: boolean;
+  sort_order: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
 
-export type PaymentMethod = 
-  | 'company_card'
-  | 'reimbursement'
-  | 'direct_payment'
-  | 'bank_transfer';
+export interface ExpenseCategoryCreate {
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  sort_order?: number;
+}
+
+export interface ExpenseCategoryUpdate {
+  name?: string;
+  display_name?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export type ExpensePriority = "low" | "medium" | "high" | "urgent";
+
+export type PaymentMethod =
+  | "company_card"
+  | "reimbursement"
+  | "direct_payment"
+  | "bank_transfer";
 
 export interface ExpenseAttachment {
   id: string;
@@ -43,6 +74,7 @@ export interface ExpenseBase {
   description?: string;
   amount: number;
   category: ExpenseCategory;
+  category_id?: string;
   priority: ExpensePriority;
   expense_date: string;
   vendor?: string;
@@ -60,6 +92,7 @@ export interface ExpenseUpdate {
   description?: string;
   amount?: number;
   category?: ExpenseCategory;
+  category_id?: string;
   priority?: ExpensePriority;
   expense_date?: string;
   vendor?: string;
@@ -79,8 +112,10 @@ export interface Expense extends ExpenseBase {
   rejected_reason?: string;
   created_at: string;
   updated_at: string;
+  // Category details for display
+  category_data?: ExpenseCategoryData;
   // User details for display
-  user?: {
+  user_profiles?: {
     id: string;
     email: string;
     full_name?: string;

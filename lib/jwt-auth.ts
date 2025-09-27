@@ -133,6 +133,7 @@ export function isSuperAdminUser(user: UserPayload | AnonymousUserPayload): bool
  */
 export async function authenticateRequest(request: Request): Promise<{
   user: UserPayload | AnonymousUserPayload;
+  userId?: string;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
@@ -146,6 +147,7 @@ export async function authenticateRequest(request: Request): Promise<{
     
     return {
       user: anonymousUser,
+      userId: undefined,
       isAuthenticated: false,
       isAdmin: false,
       isSuperAdmin: false,
@@ -156,6 +158,7 @@ export async function authenticateRequest(request: Request): Promise<{
     const user = verifyToken(token);
     return {
       user,
+      userId: user.isAnonymous ? undefined : user.id,
       isAuthenticated: !user.isAnonymous,
       isAdmin: isAdminUser(user),
       isSuperAdmin: isSuperAdminUser(user),
@@ -167,6 +170,7 @@ export async function authenticateRequest(request: Request): Promise<{
     
     return {
       user: anonymousUser,
+      userId: undefined,
       isAuthenticated: false,
       isAdmin: false,
       isSuperAdmin: false,

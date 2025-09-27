@@ -24,7 +24,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Shield, AlertTriangle, Loader2, Plus, BarChart3, List } from "lucide-react";
+import {
+  Shield,
+  AlertTriangle,
+  Loader2,
+  Plus,
+  BarChart3,
+  List,
+} from "lucide-react";
 
 export default function AdminExpensesPage() {
   const { user, loading, isAuthenticated, isAdmin, userProfile } = useAuth();
@@ -128,15 +135,17 @@ export default function AdminExpensesPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Expense Management</h1>
-            <p className="text-gray-600">Manage company expenses, approvals, and analytics</p>
+            <p className="text-gray-600">
+              Manage company expenses, approvals, and analytics
+            </p>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Expense
-          </Button>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="list" className="flex items-center">
               <List className="mr-2 h-4 w-4" />

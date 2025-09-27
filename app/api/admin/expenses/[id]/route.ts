@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "@/lib/supabase-server";
 import { authenticateRequest } from "@/lib/jwt-auth";
 import { ExpenseUpdate } from "@/lib/types/expense";
 
@@ -20,9 +23,24 @@ export async function GET(
 
     const supabase = await createServerSupabaseClient();
 
+    // First, get the expense with category data
     const { data: expense, error } = await supabase
       .from("expenses")
-      .select("*")
+      .select(
+        `
+        *,
+        category_data:expense_categories(
+          id,
+          name,
+          slug,
+          display_name,
+          description,
+          color,
+          icon,
+          sort_order
+        )
+      `
+      )
       .eq("id", params.id)
       .single();
 
@@ -30,7 +48,69 @@ export async function GET(
       return NextResponse.json({ error: "Expense not found" }, { status: 404 });
     }
 
-    return NextResponse.json(expense);
+    // Fetch user profile and approver profile separately
+    const userIds = [expense.user_id, expense.approved_by].filter(Boolean);
+    let userProfiles: any[] = [];
+    let authUsers: any[] = [];
+
+    if (userIds.length > 0) {
+      try {
+        // Get user profiles
+        const { data: profiles, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+
+        // Get auth users data using Admin API
+        const adminSupabase = createAdminSupabaseClient();
+        const { data: authUsersResponse, error: authError } =
+          await adminSupabase.auth.admin.listUsers();
+
+        if (!profileError) {
+          userProfiles = profiles || [];
+        }
+
+        if (!authError) {
+          // Filter auth users to only include those we need
+          authUsers =
+            authUsersResponse?.users?.filter((user) =>
+              userIds.includes(user.id)
+            ) || [];
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    }
+
+    // Add user profiles to the expense object
+    const userProfile = userProfiles.find(
+      (user) => user.id === expense.user_id
+    );
+    const approverProfile = userProfiles.find(
+      (user) => user.id === expense.approved_by
+    );
+    const userAuth = authUsers.find((user) => user.id === expense.user_id);
+    const approverAuth = authUsers.find(
+      (user) => user.id === expense.approved_by
+    );
+
+    const expenseWithUsers = {
+      ...expense,
+      user_profiles: userProfile
+        ? {
+            ...userProfile,
+            email: userAuth?.email,
+          }
+        : null,
+      approver: approverProfile
+        ? {
+            ...approverProfile,
+            email: approverAuth?.email,
+          }
+        : null,
+    };
+
+    return NextResponse.json(expenseWithUsers);
   } catch (error) {
     console.error("Error fetching expense:", error);
     return NextResponse.json(
@@ -67,8 +147,46 @@ export async function PUT(
       );
     }
 
+    // Handle category updates
+    let categoryId = body.category_id;
+    let categoryName = body.category;
+
+    // If only category_id is provided, get the category data
+    if (categoryId && !categoryName) {
+      const { data: categoryData } = await supabase
+        .from("expense_categories")
+        .select("name, is_system")
+        .eq("id", categoryId)
+        .eq("is_active", true)
+        .single();
+
+      if (categoryData) {
+        // For system categories, use the actual name
+        // For custom categories, use "other" to satisfy the enum constraint
+        categoryName = categoryData.is_system ? categoryData.name : "other";
+      }
+    }
+
+    // If only category name is provided, get the category_id
+    if (!categoryId && categoryName) {
+      const { data: categoryData } = await supabase
+        .from("expense_categories")
+        .select("id")
+        .eq("name", categoryName)
+        .eq("is_active", true)
+        .single();
+
+      categoryId = categoryData?.id;
+    }
+
     // Prepare update data
     const updateData: any = { ...body };
+
+    if (categoryId) {
+      updateData.category_id = categoryId;
+      updateData.category = categoryName;
+    }
+
     if (body.status === "approved") {
       updateData.approved_by = auth.userId;
       updateData.approved_at = new Date().toISOString();
@@ -78,7 +196,21 @@ export async function PUT(
       .from("expenses")
       .update(updateData)
       .eq("id", params.id)
-      .select("*")
+      .select(
+        `
+        *,
+        category_data:expense_categories(
+          id,
+          name,
+          slug,
+          display_name,
+          description,
+          color,
+          icon,
+          sort_order
+        )
+      `
+      )
       .single();
 
     if (error) {
@@ -92,7 +224,65 @@ export async function PUT(
       return NextResponse.json({ error: "Expense not found" }, { status: 404 });
     }
 
-    return NextResponse.json(data);
+    // Fetch user profiles for the updated expense
+    const userIds = [data.user_id, data.approved_by].filter(Boolean);
+    let userProfiles: any[] = [];
+    let authUsers: any[] = [];
+
+    if (userIds.length > 0) {
+      try {
+        // Get user profiles
+        const { data: profiles, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+
+        // Get auth users data using Admin API
+        const adminSupabase = createAdminSupabaseClient();
+        const { data: authUsersResponse, error: authError } =
+          await adminSupabase.auth.admin.listUsers();
+
+        if (!profileError) {
+          userProfiles = profiles || [];
+        }
+
+        if (!authError) {
+          // Filter auth users to only include those we need
+          authUsers =
+            authUsersResponse?.users?.filter((user) =>
+              userIds.includes(user.id)
+            ) || [];
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    }
+
+    // Add user profiles to the expense object
+    const userProfile = userProfiles.find((user) => user.id === data.user_id);
+    const approverProfile = userProfiles.find(
+      (user) => user.id === data.approved_by
+    );
+    const userAuth = authUsers.find((user) => user.id === data.user_id);
+    const approverAuth = authUsers.find((user) => user.id === data.approved_by);
+
+    const expenseWithUsers = {
+      ...data,
+      user_profiles: userProfile
+        ? {
+            ...userProfile,
+            email: userAuth?.email,
+          }
+        : null,
+      approver: approverProfile
+        ? {
+            ...approverProfile,
+            email: approverAuth?.email,
+          }
+        : null,
+    };
+
+    return NextResponse.json(expenseWithUsers);
   } catch (error) {
     console.error("Error updating expense:", error);
     return NextResponse.json(
