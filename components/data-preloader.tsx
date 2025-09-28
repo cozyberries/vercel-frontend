@@ -20,6 +20,7 @@ interface Category {
   name: string;
   slug: string;
   description?: string;
+  display?: boolean;
   images?: Array<{
     id: string;
     storage_path: string;

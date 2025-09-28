@@ -18,7 +18,7 @@ import HeaderLinks from "./HeaderLinks";
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
@@ -94,15 +94,11 @@ export default function Header() {
               </Link>
             </div>
 
-            {/* Admin Link - Only visible when user is logged in */}
-            {user && (
+            {/* Admin Link - Only visible when user is admin */}
+            {isAdmin && (
               <div className="hidden lg:block">
                 <Link href="/admin">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                  >
+                  <Button variant="outline" size="sm" className="text-xs">
                     Admin
                   </Button>
                 </Link>
