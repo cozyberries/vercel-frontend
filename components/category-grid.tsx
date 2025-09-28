@@ -6,6 +6,16 @@ import Link from "next/link";
 import { getPrimaryCategoryImageUrl } from "@/lib/utils/product";
 import { usePreloadedData } from "@/components/data-preloader";
 
+// Static category images mapping
+const categoryImageMap: Record<string, string> = {
+  accessories: "/categories/accessories.jpg",
+  boy: "/categories/boy.jpg",
+  girl: "/categories/girl.jpg",
+  newborn: "/categories/newborn.jpg",
+  unisex: "/categories/unisex.webp",
+  // Add more mappings as needed
+};
+
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
 
@@ -55,20 +65,30 @@ export default function CategoryGrid() {
   return (
     <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
       {categories.map((category) => {
-        // Use dynamic category image if available, otherwise fallback to placeholder
-        let categoryImage = images.staticCategoryImage;
-        try {
-          const dynamicImage = getPrimaryCategoryImageUrl(category.images);
-          if (dynamicImage) {
-            categoryImage = dynamicImage;
+        // First try to get static category image based on slug/name
+        let categoryImage = images.staticCategoryImage; // Default fallback
+
+        // Check for static category image first
+        const staticImage =
+          categoryImageMap[category.slug] ||
+          categoryImageMap[category.name.toLowerCase()];
+        if (staticImage) {
+          categoryImage = staticImage;
+        } else {
+          // Fallback to dynamic category image if available
+          try {
+            const dynamicImage = getPrimaryCategoryImageUrl(category.images);
+            if (dynamicImage) {
+              categoryImage = dynamicImage;
+            }
+          } catch (error) {
+            console.warn(
+              "Error getting category image for",
+              category.name,
+              error
+            );
+            // categoryImage already set to fallback
           }
-        } catch (error) {
-          console.warn(
-            "Error getting category image for",
-            category.name,
-            error
-          );
-          // categoryImage already set to fallback
         }
 
         return (

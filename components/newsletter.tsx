@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 
 export default function Newsletter() {
   return (
-    <section className="py-24 bg-[#f5eee0]">
+    <section className="py-24 bg-[#f9f7f4]">
       <div className="container mx-auto px-4 max-w-xl text-center">
         <h2 className="text-2xl md:text-3xl font-light mb-4">
           Join Our Family
