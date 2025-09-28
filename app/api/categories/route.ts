@@ -34,6 +34,7 @@ export async function GET() {
           metadata
         )
       `)
+      .eq("display", true)
       .order("name", { ascending: true });
 
     if (error) {

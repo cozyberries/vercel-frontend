@@ -19,10 +19,15 @@ const categoryImageMap: Record<string, string> = {
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
 
+  // Filter categories to show only those with display=true
+  const displayCategories = categories.filter(
+    (category) => category.display === true
+  );
+
   if (isLoading) {
     return (
-      <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
-        {Array.from({ length: 5 }).map((_, index) => (
+      <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+        {Array.from({ length: 10 }).map((_, index) => (
           <div
             key={index}
             className="aspect-square bg-gray-200 animate-pulse rounded-lg"
@@ -32,7 +37,7 @@ export default function CategoryGrid() {
     );
   }
 
-  if (!categories.length) {
+  if (!displayCategories.length) {
     return (
       <div className="text-center py-12">
         <div className="max-w-sm mx-auto">
@@ -63,8 +68,8 @@ export default function CategoryGrid() {
   }
 
   return (
-    <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
-      {categories.map((category) => {
+    <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+      {displayCategories.map((category) => {
         // First try to get static category image based on slug/name
         let categoryImage = images.staticCategoryImage; // Default fallback
 
@@ -97,7 +102,7 @@ export default function CategoryGrid() {
             href={`/products?category=${category.slug}`}
             className="group flex flex-col"
           >
-            <div className="relative aspect-square overflow-hidden lg:rounded-lg rounded-full mb-3 ">
+            <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
               <Image
                 src={categoryImage}
                 alt={category.name}
@@ -108,7 +113,7 @@ export default function CategoryGrid() {
               <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500" />
             </div>
             <div className="text-center">
-              <h3 className="text-gray-900 text-lg font-medium group-hover:text-primary transition-colors">
+              <h3 className="text-gray-900 text-sm md:text-base lg:text-lg font-medium group-hover:text-primary transition-colors">
                 {category.name}
               </h3>
             </div>

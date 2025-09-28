@@ -20,7 +20,7 @@ export default function Home() {
       <Hero />
 
       {/* Shop by Age */}
-      <section className="lg:py-28 py-20 bg-[#f9f7f4] relative overflow-hidden">
+      <section className="lg:pt-16 lg:pb-28 pt-12 pb-20 bg-[#f9f7f4] relative overflow-hidden">
         <SnowflakeDecoration
           position="top-left"
           size="lg"
@@ -54,7 +54,7 @@ export default function Home() {
       </section>
 
       {/* Category Grid */}
-      <section className="lg:py-28 py-20 bg-background">
+      <section className="lg:pt-16 lg:pb-28 pt-12 pb-20 bg-background">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl md:text-3xl font-light text-center mb-16">
             Shop by Category
