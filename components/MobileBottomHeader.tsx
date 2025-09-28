@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, ShoppingBag, Heart, Package, Home } from "lucide-react";
+import { Search, ShoppingBag, Heart, Package, Home, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { useWishlist } from "@/components/wishlist-context";
 import { useCart } from "@/components/cart-context";
+import { useAuth } from "@/components/supabase-auth-provider";
 import WishlistItem from "@/components/WishlistItem";
 
 export default function MobileBottomHeader() {
@@ -20,16 +21,7 @@ export default function MobileBottomHeader() {
   const { wishlist, removeFromWishlist, clearWishlist, isLoading } =
     useWishlist();
   const { cart, updateQuantity } = useCart();
-
-  const handleSearchClick = () => {
-    // Trigger the header's search functionality
-    const searchButton = document.querySelector(
-      "[data-search-trigger]"
-    ) as HTMLButtonElement;
-    if (searchButton) {
-      searchButton.click();
-    }
-  };
+  const { user } = useAuth();
 
   const handleAddToCart = (item: {
     id: string;
@@ -79,6 +71,12 @@ export default function MobileBottomHeader() {
       href: "/orders",
       icon: Package,
       isActive: pathname.startsWith("/orders"),
+    },
+    {
+      name: "Profile",
+      href: user ? "/profile" : "/login",
+      icon: User,
+      isActive: pathname.startsWith("/profile") || pathname.startsWith("/login"),
     },
   ];
 
@@ -132,15 +130,6 @@ export default function MobileBottomHeader() {
               </Link>
             );
           })}
-
-          {/* Search Button */}
-          <button
-            onClick={handleSearchClick}
-            className="flex flex-col items-center justify-center space-y-1 transition-colors duration-200 text-gray-600 hover:text-primary hover:bg-gray-50"
-          >
-            <Search className="h-6 w-6" />
-            <span className="text-xs font-medium">Search</span>
-          </button>
         </div>
       </div>
 
