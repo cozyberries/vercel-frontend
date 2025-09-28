@@ -7,7 +7,10 @@ import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
 import Newsletter from "@/components/newsletter";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
+import GingerbreadDecoration from "@/components/GingerbreadDecoration";
 import ContactSidebar from "@/components/ContactSidebar";
+import NewbornGiftingSection from "@/components/newborn-gifting-section";
+import SustainabilitySection from "@/components/sustainability-section";
 
 export default function Home() {
   return (
@@ -60,8 +63,11 @@ export default function Home() {
         </div>
       </section>
 
+      {/* New Born Gifting */}
+      <NewbornGiftingSection />
+
       {/* Featured Products */}
-      <section className="pt-16 pb-28 bg-[#f9f7f4] relative overflow-hidden">
+      <section className="py-28 bg-background relative overflow-hidden">
         <SnowflakeDecoration
           position="top-right"
           size="lg"
@@ -95,7 +101,7 @@ export default function Home() {
       </section>
 
       {/* Story Section */}
-      <section className="lg:pt-16 lg:pb-28 pt-12 pb-20 bg-background relative overflow-hidden">
+      <section className="lg:py-28 py-20 bg-[#f9f7f4] relative overflow-hidden">
         <SnowflakeDecoration
           position="top-left"
           size="md"
@@ -104,6 +110,14 @@ export default function Home() {
           animationType="up-down"
           delay={0.8}
         />
+        <GingerbreadDecoration
+          position="top-right"
+          size="sm"
+          opacity={0.12}
+          rotation={-35}
+          animationType="gentle-sway"
+          delay={1.5}
+        />
         <SnowflakeDecoration
           position="bottom-right"
           size="lg"
@@ -111,6 +125,14 @@ export default function Home() {
           rotation={-25}
           animationType="diagonal"
           delay={2.2}
+        />
+        <GingerbreadDecoration
+          position="bottom-left"
+          size="md"
+          opacity={0.11}
+          rotation={40}
+          animationType="vertical-float"
+          delay={3.1}
         />
         <div className="container mx-auto px-4 max-w-4xl text-center relative z-10">
           <h2 className="text-2xl md:text-3xl font-light mb-6">Our Story</h2>
@@ -125,6 +147,9 @@ export default function Home() {
           </Button>
         </div>
       </section>
+
+      {/* Sustainability */}
+      <SustainabilitySection />
 
       {/* Newsletter */}
       <Newsletter />
