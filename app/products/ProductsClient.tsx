@@ -433,7 +433,7 @@ export default function ProductsClient() {
             ))}
           </div>
 
-          {/* Show More Button and Scroll to Top */}
+          {/* Show More Button */}
           <div className="flex flex-col items-center space-y-4 mt-8">
             {hasMoreProducts && !currentSearch && (
               <Button
@@ -449,21 +449,8 @@ export default function ProductsClient() {
                     Loading...
                   </>
                 ) : (
-                  "Show More Products"
+                  "Show More"
                 )}
-              </Button>
-            )}
-
-            {/* Scroll to Top Button */}
-            {filteredProducts.length > 8 && (
-              <Button
-                onClick={scrollToTop}
-                variant="outline"
-                size="sm"
-                className="flex items-center space-x-2"
-              >
-                <ChevronUp className="w-4 h-4" />
-                <span>Back to Top</span>
               </Button>
             )}
           </div>

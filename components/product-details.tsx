@@ -324,39 +324,53 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 <Truck className="h-4 w-4" />
                 <span>Free shipping over ₹50</span>
               </div>
-              <Button variant="ghost" size="sm" className="p-0 h-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-0 h-auto"
+                onClick={async () => {
+                  // Always copy clean URL to clipboard for consistency
+                  try {
+                    await navigator.clipboard.writeText(window.location.href);
+                    toast.success("Product link copied to clipboard!");
+                  } catch (err) {
+                    console.log("Error copying to clipboard:", err);
+                    // Fallback for older browsers
+                    const textArea = document.createElement("textarea");
+                    textArea.value = window.location.href;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textArea);
+                    toast.success("Product link copied to clipboard!");
+                  }
+                }}
+              >
                 <Share2 className="h-4 w-4 mr-1" />
                 Share
               </Button>
             </div>
 
-            <Separator className="my-6" />
+            <Separator className="my-8" />
 
-            <Tabs defaultValue="description">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="description">Description</TabsTrigger>
-                <TabsTrigger value="features">Features</TabsTrigger>
-                <TabsTrigger value="care">Care</TabsTrigger>
-              </TabsList>
-              <TabsContent value="description" className="pt-4">
-                <p className="text-muted-foreground">
-                  {product.description || "No description available."}
-                </p>
-              </TabsContent>
-              <TabsContent value="features" className="pt-4">
-                <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
-                  {product.features?.map((feature) => (
-                    <li key={feature}>{feature}</li>
-                  )) || <li>No features listed.</li>}
-                </ul>
-              </TabsContent>
-              <TabsContent value="care" className="pt-4">
-                <p className="text-muted-foreground">
-                  {product.care_instructions ||
-                    "No care instructions available."}
-                </p>
-              </TabsContent>
-            </Tabs>
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Description
+              </h2>
+              <div className="rounded-lg">
+                <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                  {product.description ? (
+                    <div className="whitespace-pre-wrap">
+                      {product.description}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 italic">
+                      No description available for this product.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
