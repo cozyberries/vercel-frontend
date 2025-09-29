@@ -327,8 +327,8 @@ export default function ProductsClient() {
           </div>
         </div>
 
-        {/* Desktop Filters */}
-        <div className="hidden md:flex flex-col sm:flex-row sm:items-center gap-4">
+        {/* Desktop Filters - Moved to end */}
+        <div className="hidden md:flex justify-end items-center gap-4">
           {/* Category Filter */}
           <Select value={currentCategory} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-[200px]">
@@ -344,20 +344,51 @@ export default function ProductsClient() {
             </SelectContent>
           </Select>
 
-          {/* Sort Filter */}
-          <Select
-            value={currentSort === "price" ? currentSortOrder : "default"}
-            onValueChange={handleSortChange}
+          {/* Sort Toggle Button */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (currentSort === "default") {
+                handleSortChange("asc");
+              } else if (
+                currentSort === "price" &&
+                currentSortOrder === "asc"
+              ) {
+                handleSortChange("desc");
+              } else {
+                handleSortChange("default");
+              }
+            }}
+            className="w-[200px] justify-between"
           >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">Default</SelectItem>
-              <SelectItem value="asc">Price: Low to High</SelectItem>
-              <SelectItem value="desc">Price: High to Low</SelectItem>
-            </SelectContent>
-          </Select>
+            <span>
+              {currentSort === "default"
+                ? "Sort"
+                : currentSortOrder === "asc"
+                ? "Price: Low to High"
+                : "Price: High to Low"}
+            </span>
+            <div className="flex flex-col">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <svg
+                className="w-3 h-3 -mt-1"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+          </Button>
 
           {/* Bestsellers Toggle */}
           <Button
