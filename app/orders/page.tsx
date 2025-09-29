@@ -194,28 +194,28 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 sm:py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <ShoppingBag className="w-8 h-8" />
+        <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <ShoppingBag className="w-6 h-6 sm:w-8 sm:h-8" />
           <div>
-            <h1 className="text-3xl font-light">My Orders</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-light">My Orders</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Track and manage your orders
             </p>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="flex flex-col gap-3 sm:gap-4 mb-6">
           <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by order number or product name..."
+                placeholder="Search orders..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-10 sm:h-11"
               />
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function OrdersPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-10 sm:h-11"
             >
               <option value="all">All Orders</option>
               <option value="payment_pending">Payment Pending</option>
@@ -257,51 +257,50 @@ export default function OrdersPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {filteredOrders.map((order) => (
               <div
                 key={order.id}
-                className="bg-white border border-gray-200 rounded-lg p-6"
+                className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6"
               >
                 {/* Order Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-                  <div className="flex items-center gap-4 mb-2 sm:mb-0">
-                    <div>
-                      <h3 className="font-semibold text-lg">
+                <div className="flex flex-col gap-3 mb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base sm:text-lg truncate">
                         Order #{order.order_number}
                       </h3>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="w-4 h-4" />
-                        <span>{formatDate(order.created_at)}</span>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mt-1">
+                        <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="truncate">{formatDate(order.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <div className="font-semibold text-sm sm:text-base">
+                        ₹{order.total_amount.toFixed(2)}
+                      </div>
+                      <div className="text-xs sm:text-sm text-muted-foreground">
+                        {order.items.length} item{order.items.length !== 1 ? "s" : ""}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between">
                     <div
-                      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                      className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
                         statusColors[order.status]
                       }`}
                     >
                       {statusIcons[order.status]}
-                      {orderService.formatOrderStatus(order.status)}
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">
-                        ₹{order.total_amount.toFixed(2)}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {order.items.length} item
-                        {order.items.length !== 1 ? "s" : ""}
-                      </div>
+                      <span className="truncate">{orderService.formatOrderStatus(order.status)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Order Items */}
-                <div className="space-y-3 mb-4">
+                <div className="space-y-2 sm:space-y-3 mb-4">
                   {order.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
-                      <div className="relative w-12 h-12 bg-muted rounded-md overflow-hidden">
+                    <div key={item.id} className="flex items-center gap-2 sm:gap-3">
+                      <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         {item.image && (
                           <Image
                             src={item.image}
@@ -311,19 +310,19 @@ export default function OrdersPage() {
                           />
                         )}
                       </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-sm">{item.name}</h4>
-                        <p className="text-sm text-muted-foreground">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-xs sm:text-sm truncate">{item.name}</h4>
+                        <p className="text-xs sm:text-sm text-muted-foreground">
                           Qty: {item.quantity} × ₹{item.price.toFixed(2)}
                         </p>
                       </div>
-                      <div className="text-sm font-medium">
+                      <div className="text-xs sm:text-sm font-medium flex-shrink-0">
                         ₹{(item.price * item.quantity).toFixed(2)}
                       </div>
                     </div>
                   ))}
                   {order.items.length > 3 && (
-                    <p className="text-sm text-muted-foreground pl-15">
+                    <p className="text-xs sm:text-sm text-muted-foreground pl-12 sm:pl-15">
                       +{order.items.length - 3} more item
                       {order.items.length - 3 !== 1 ? "s" : ""}
                     </p>
@@ -333,37 +332,30 @@ export default function OrdersPage() {
                 <Separator className="my-4" />
 
                 {/* Order Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                     {order.tracking_number && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">
-                          Tracking:{" "}
-                        </span>
-                        <span className="font-medium">
-                          {order.tracking_number}
-                        </span>
+                      <div className="text-xs sm:text-sm">
+                        <span className="text-muted-foreground">Tracking: </span>
+                        <span className="font-medium break-all">{order.tracking_number}</span>
                       </div>
                     )}
                     {order.estimated_delivery_date && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">
-                          Est. Delivery:{" "}
-                        </span>
+                      <div className="text-xs sm:text-sm">
+                        <span className="text-muted-foreground">Est. Delivery: </span>
                         <span className="font-medium">
-                          {new Date(
-                            order.estimated_delivery_date
-                          ).toLocaleDateString()}
+                          {new Date(order.estimated_delivery_date).toLocaleDateString()}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                     {order.status === "payment_pending" && (
                       <Button
                         onClick={() => handlePayNow(order.id)}
-                        className="flex items-center gap-2"
+                        className="flex items-center justify-center gap-2 h-9 sm:h-10 text-sm"
+                        size="sm"
                       >
                         <CreditCard className="w-4 h-4" />
                         Pay Now
@@ -372,7 +364,8 @@ export default function OrdersPage() {
                     <Button
                       variant="outline"
                       asChild
-                      className="flex items-center gap-2"
+                      className="flex items-center justify-center gap-2 h-9 sm:h-10 text-sm"
+                      size="sm"
                     >
                       <Link href={`/orders/${order.id}`}>
                         View Details
@@ -384,11 +377,9 @@ export default function OrdersPage() {
 
                 {/* Shipping Address Preview */}
                 <div className="mt-4 p-3 bg-muted/30 rounded-md">
-                  <h5 className="font-medium text-sm mb-1">Shipping Address</h5>
-                  <p className="text-sm text-muted-foreground">
-                    {order.shipping_address.full_name} •{" "}
-                    {order.shipping_address.city},{" "}
-                    {order.shipping_address.state}
+                  <h5 className="font-medium text-xs sm:text-sm mb-1">Shipping Address</h5>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    {order.shipping_address.full_name} • {order.shipping_address.city}, {order.shipping_address.state}
                   </p>
                 </div>
               </div>
