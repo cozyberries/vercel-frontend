@@ -4,13 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SimplifiedProduct } from "@/lib/services/api";
+import { Product } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 
 interface FeaturedProductCardProps {
-  product: SimplifiedProduct;
+  product: Product;
   index: number; // To determine which corner rounding to apply
 }
 
@@ -37,7 +37,13 @@ export default function FeaturedProductCard({
       >
         <Link href={`/products/${product.id}`}>
           <Image
-            src={product.image || images.staticProductImage}
+            src={
+              product.images?.[0] &&
+              typeof product.images[0] === "string" &&
+              product.images[0].trim() !== ""
+                ? product.images[0]
+                : images.staticProductImage
+            }
             alt={product.name}
             width={400}
             height={400}
@@ -63,7 +69,7 @@ export default function FeaturedProductCard({
                 id: product.id,
                 name: product.name,
                 price: product.price,
-                image: product.image,
+                image: product.images?.[0],
               });
               toast.success(`${product.name} added to wishlist!`);
             }
@@ -100,9 +106,9 @@ export default function FeaturedProductCard({
           <h3 className="text-sm sm:text-sm lg:text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors duration-200">
             <Link href={`/products/${product.id}`}>{product.name}</Link>
           </h3>
-          {product.categoryName && product.categoryName !== "Uncategorized" && (
+          {product.category && product.category !== "Uncategorized" && (
             <p className="text-xs text-gray-500 font-medium">
-              {product.categoryName}
+              {product.category}
             </p>
           )}
         </div>

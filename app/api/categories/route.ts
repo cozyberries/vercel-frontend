@@ -57,11 +57,8 @@ export async function GET() {
           url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
         }))
         .sort((a: any, b: any) => {
-          // Sort by display_order, then by is_primary
-          if (a.display_order !== b.display_order) {
-            return (a.display_order || 0) - (b.display_order || 0);
-          }
-          return b.is_primary ? 1 : -1;
+          // Sort by display_order only - first index is primary
+          return (a.display_order || 0) - (b.display_order || 0);
         });
 
       return {
