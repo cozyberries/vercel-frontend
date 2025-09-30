@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SimplifiedProduct } from "@/lib/services/api";
+import { Product } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 
 interface ProductCardProps {
-  product: SimplifiedProduct;
+  product: Product;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
@@ -28,7 +28,13 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="relative overflow-hidden bg-[#f5f5f5] border md:h-[82%] h-[81%]">
         <Link href={`/products/${product.id}`}>
           <Image
-            src={product.image || images.staticProductImage}
+            src={
+              product.images?.[0] &&
+              typeof product.images[0] === "string" &&
+              product.images[0].trim() !== ""
+                ? product.images[0]
+                : images.staticProductImage
+            }
             alt={product.name}
             width={500}
             height={500}
@@ -51,7 +57,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                 id: product.id,
                 name: product.name,
                 price: product.price,
-                image: product.image,
+                image: product.images?.[0],
               });
               toast.success(`${product.name} added to wishlist!`);
             }
@@ -82,12 +88,11 @@ export default function ProductCard({ product }: ProductCardProps) {
                 {product.name}
               </Link>
             </h3>
-            {product.categoryName &&
-              product.categoryName !== "Uncategorized" && (
-                <p className="text-sm text-muted-foreground">
-                  {product.categoryName}
-                </p>
-              )}
+            {product.category && product.category !== "Uncategorized" && (
+              <p className="text-sm text-muted-foreground">
+                {product.category}
+              </p>
+            )}
           </div>
 
           {/* Price Block */}

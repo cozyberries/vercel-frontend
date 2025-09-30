@@ -4,17 +4,20 @@ import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
 // Background cache refresh function
-async function refreshCacheInBackground(cacheKey: string, params: {
-  limit: number;
-  page: number;
-  featured: boolean;
-  category: string | null;
-  search: string | null;
-  sortBy: string;
-  sortOrder: string;
-}) {
+async function refreshCacheInBackground(
+  cacheKey: string,
+  params: {
+    limit: number;
+    page: number;
+    featured: boolean;
+    category: string | null;
+    search: string | null;
+    sortBy: string;
+    sortOrder: string;
+  }
+) {
   const supabase = await createServerSupabaseClient();
-  
+
   // Build the same optimized query
   let query = supabase.from("products").select(
     `
@@ -29,12 +32,7 @@ async function refreshCacheInBackground(cacheKey: string, params: {
       updated_at,
       category_id,
       categories(name, slug),
-      product_images(
-        id,
-        storage_path,
-        is_primary,
-        display_order
-      )
+      images
     `,
     { count: "exact" }
   );
@@ -45,8 +43,11 @@ async function refreshCacheInBackground(cacheKey: string, params: {
   }
 
   if (params.category && params.category !== "all") {
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.category);
-    
+    const isUUID =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        params.category
+      );
+
     if (isUUID) {
       query = query.eq("category_id", params.category);
     } else {
@@ -55,7 +56,7 @@ async function refreshCacheInBackground(cacheKey: string, params: {
         .select("id")
         .eq("slug", params.category)
         .single();
-      
+
       if (categoryData) {
         query = query.eq("category_id", categoryData.id);
       }
@@ -63,7 +64,9 @@ async function refreshCacheInBackground(cacheKey: string, params: {
   }
 
   if (params.search) {
-    query = query.or(`name.ilike.%${params.search}%,description.ilike.%${params.search}%`);
+    query = query.or(
+      `name.ilike.%${params.search}%,description.ilike.%${params.search}%`
+    );
   }
 
   // Apply sorting
@@ -82,23 +85,9 @@ async function refreshCacheInBackground(cacheKey: string, params: {
   if (data) {
     // Process the data the same way
     const products: Product[] = data.map((product: any) => {
-      let images = (product.product_images || [])
-        .filter((img: any) => img.storage_path)
-        .map((img: any) => ({
-          id: img.id,
-          storage_path: img.storage_path,
-          is_primary: img.is_primary,
-          display_order: img.display_order,
-          url: `/${img.storage_path}`,
-        }))
-        .sort((a: any, b: any) => {
-          if (a.is_primary !== b.is_primary) {
-            return b.is_primary ? 1 : -1;
-          }
-          return (a.display_order || 0) - (b.display_order || 0);
-        });
-
-      images = images.slice(0, 3);
+      const images = (product.images || [])
+        .filter((url: string) => url)
+        .slice(0, 3);
 
       return {
         ...product,
@@ -170,8 +159,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Try to get from cache first with TTL info for stale-while-revalidate
-    const { data: cachedResponse, ttl, isStale } = await UpstashService.getWithTTL(cacheKey);
-    
+    const {
+      data: cachedResponse,
+      ttl,
+      isStale,
+    } = await UpstashService.getWithTTL(cacheKey);
+
     // If we have cached data, return it immediately
     if (cachedResponse) {
       const headers = {
@@ -198,10 +191,19 @@ export async function GET(request: NextRequest) {
             console.log(`Background revalidation for cache key: ${cacheKey}`);
             // Re-run the same query logic to refresh cache
             await refreshCacheInBackground(cacheKey, {
-              limit, page, featured, category, search, sortBy, sortOrder
+              limit,
+              page,
+              featured,
+              category,
+              search,
+              sortBy,
+              sortOrder,
             });
           } catch (error) {
-            console.error(`Background revalidation failed for ${cacheKey}:`, error);
+            console.error(
+              `Background revalidation failed for ${cacheKey}:`,
+              error
+            );
           }
         })();
       }
@@ -226,12 +228,7 @@ export async function GET(request: NextRequest) {
         updated_at,
         category_id,
         categories(name, slug),
-        product_images(
-          id,
-          storage_path,
-          is_primary,
-          display_order
-        )
+        images
       `,
       { count: "exact" }
     );
@@ -306,28 +303,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Process products to add image URLs - optimized for list view performance
+    // Process products images
     const products: Product[] = (data || []).map((product: any) => {
-      let images = (product.product_images || [])
-        .filter((img: any) => img.storage_path) // Filter out images with null storage_path
-        .map((img: any) => ({
-          id: img.id,
-          storage_path: img.storage_path,
-          is_primary: img.is_primary,
-          display_order: img.display_order,
-          url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
-        }))
-        .sort((a: any, b: any) => {
-          // Sort by is_primary first, then by display_order for better performance
-          if (a.is_primary !== b.is_primary) {
-            return b.is_primary ? 1 : -1;
-          }
-          return (a.display_order || 0) - (b.display_order || 0);
-        });
-
-      // For list view performance, limit to first 3 images (primary + 2 others max)
-      // This reduces payload size significantly for product lists
-      images = images.slice(0, 3);
+      const images = (product.images || [])
+        .filter((url: string) => url)
+        .slice(0, 3);
 
       return {
         ...product,
@@ -356,7 +336,10 @@ export async function GET(request: NextRequest) {
     // Cache the results asynchronously (non-blocking) for 30 minutes
     // This improves first-time load performance by not waiting for cache write
     UpstashService.set(cacheKey, response, 1800).catch((error) => {
-      console.error(`Failed to cache products data for key: ${cacheKey}`, error);
+      console.error(
+        `Failed to cache products data for key: ${cacheKey}`,
+        error
+      );
     });
 
     return NextResponse.json(response, {

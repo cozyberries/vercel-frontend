@@ -12,7 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { SimplifiedProduct } from "@/lib/services/api";
+import { Product } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
@@ -36,7 +36,7 @@ export default function SearchResultsSheet({
   onOpenChange,
 }: SearchResultsSheetProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SimplifiedProduct[]>([]);
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -71,7 +71,9 @@ export default function SearchResultsSheet({
     }
 
     try {
-      const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`);
+      const response = await fetch(
+        `/api/search/suggestions?q=${encodeURIComponent(query)}`
+      );
       if (response.ok) {
         const data = await response.json();
         setSuggestions(data.suggestions || []);
@@ -90,7 +92,9 @@ export default function SearchResultsSheet({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/products?search=${encodeURIComponent(query.trim())}&limit=20`);
+      const response = await fetch(
+        `/api/products?search=${encodeURIComponent(query.trim())}&limit=20`
+      );
       if (response.ok) {
         const data = await response.json();
         setSearchResults(data.products || []);
@@ -110,7 +114,7 @@ export default function SearchResultsSheet({
     const value = e.target.value;
     setSearchQuery(value);
     setSelectedIndex(-1);
-    
+
     if (value.length >= 2) {
       fetchSuggestions(value);
       setShowSuggestions(true);
@@ -153,12 +157,12 @@ export default function SearchResultsSheet({
       }
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) => 
+      setSelectedIndex((prev) =>
         prev < suggestions.length - 1 ? prev + 1 : prev
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) => prev > 0 ? prev - 1 : -1);
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
       setSelectedIndex(-1);
@@ -247,32 +251,38 @@ export default function SearchResultsSheet({
                           }`}
                         >
                           {/* Icon */}
-                          <div className="flex-shrink-0">{getSuggestionIcon(suggestion)}</div>
+                          <div className="flex-shrink-0">
+                            {getSuggestionIcon(suggestion)}
+                          </div>
 
                           {/* Image (for products) */}
-                          {suggestion.type === "product" && suggestion.image && (
-                            <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
-                              <Image
-                                src={suggestion.image}
-                                alt={suggestion.name}
-                                fill
-                                className="object-cover"
-                              />
-                            </div>
-                          )}
+                          {suggestion.type === "product" &&
+                            suggestion.image && (
+                              <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                                <Image
+                                  src={suggestion.image}
+                                  alt={suggestion.name}
+                                  fill
+                                  className="object-cover"
+                                />
+                              </div>
+                            )}
 
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">
                               {highlightText(suggestion.name, searchQuery)}
                             </div>
-                            {suggestion.type === "product" && suggestion.categoryName && (
-                              <div className="text-xs text-muted-foreground truncate">
-                                in {suggestion.categoryName}
-                              </div>
-                            )}
+                            {suggestion.type === "product" &&
+                              suggestion.categoryName && (
+                                <div className="text-xs text-muted-foreground truncate">
+                                  in {suggestion.categoryName}
+                                </div>
+                              )}
                             {suggestion.type === "category" && (
-                              <div className="text-xs text-muted-foreground">Category</div>
+                              <div className="text-xs text-muted-foreground">
+                                Category
+                              </div>
                             )}
                           </div>
 
@@ -288,8 +298,10 @@ export default function SearchResultsSheet({
                     <div className="border-t border-border p-2 bg-muted/30">
                       <div className="text-xs text-muted-foreground text-center">
                         Press{" "}
-                        <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Enter</kbd> to
-                        search for "{searchQuery}"
+                        <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
+                          Enter
+                        </kbd>{" "}
+                        to search for "{searchQuery}"
                       </div>
                     </div>
                   </div>
@@ -307,18 +319,25 @@ export default function SearchResultsSheet({
             ) : searchResults.length > 0 ? (
               <div className="p-4 space-y-4">
                 <div className="text-sm text-muted-foreground mb-4">
-                  Found {searchResults.length} product{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                  Found {searchResults.length} product
+                  {searchResults.length !== 1 ? "s" : ""} for "{searchQuery}"
                 </div>
                 {searchResults.map((product) => {
                   const inWishlist = isInWishlist(product.id);
-                  
+
                   return (
-                    <div key={product.id} className="flex gap-4 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div
+                      key={product.id}
+                      className="flex gap-4 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
                       {/* Product Image */}
                       <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         <Link href={`/products/${product.id}`}>
                           <Image
-                            src={product.image || images.staticProductImage}
+                            src={
+                              product.images?.[0]?.url ||
+                              images.staticProductImage
+                            }
                             alt={product.name}
                             fill
                             className="object-cover"
@@ -333,11 +352,12 @@ export default function SearchResultsSheet({
                             {highlightText(product.name, searchQuery)}
                           </h3>
                         </Link>
-                        {product.categoryName && product.categoryName !== "Uncategorized" && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {product.categoryName}
-                          </p>
-                        )}
+                        {product.category &&
+                          product.category !== "Uncategorized" && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {product.category}
+                            </p>
+                          )}
                         <p className="font-medium text-sm mt-1">
                           ₹{product.price.toFixed(2)}
                         </p>
@@ -352,19 +372,27 @@ export default function SearchResultsSheet({
                           onClick={() => {
                             if (inWishlist) {
                               removeFromWishlist(product.id);
-                              toast.success(`${product.name} removed from wishlist!`);
+                              toast.success(
+                                `${product.name} removed from wishlist!`
+                              );
                             } else {
                               addToWishlist({
                                 id: product.id,
                                 name: product.name,
                                 price: product.price,
-                                image: product.image,
+                                image: product.images?.[0]?.url,
                               });
-                              toast.success(`${product.name} added to wishlist!`);
+                              toast.success(
+                                `${product.name} added to wishlist!`
+                              );
                             }
                           }}
                         >
-                          <Heart className={`h-4 w-4 ${inWishlist ? "fill-red-500 text-red-500" : ""}`} />
+                          <Heart
+                            className={`h-4 w-4 ${
+                              inWishlist ? "fill-red-500 text-red-500" : ""
+                            }`}
+                          />
                         </Button>
                       </div>
                     </div>
@@ -378,7 +406,8 @@ export default function SearchResultsSheet({
                   No products found
                 </h3>
                 <p className="text-gray-500 text-sm">
-                  We couldn't find any products matching "{searchQuery}". Try different keywords.
+                  We couldn't find any products matching "{searchQuery}". Try
+                  different keywords.
                 </p>
               </div>
             ) : (
@@ -388,7 +417,8 @@ export default function SearchResultsSheet({
                   Start searching
                 </h3>
                 <p className="text-gray-500 text-sm">
-                  Enter a product name or category to find what you're looking for.
+                  Enter a product name or category to find what you're looking
+                  for.
                 </p>
               </div>
             )}

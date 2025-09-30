@@ -70,31 +70,13 @@ export default function CategoryGrid() {
   return (
     <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
       {displayCategories.map((category) => {
-        // First try to get static category image based on slug/name
-        let categoryImage = images.staticCategoryImage; // Default fallback
+        // Use category.image directly, with fallback to static image
 
-        // Check for static category image first
-        const staticImage =
+        const categoryImage =
+          category.image ||
           categoryImageMap[category.slug] ||
-          categoryImageMap[category.name.toLowerCase()];
-        if (staticImage) {
-          categoryImage = staticImage;
-        } else {
-          // Fallback to dynamic category image if available
-          try {
-            const dynamicImage = getPrimaryCategoryImageUrl(category.images);
-            if (dynamicImage) {
-              categoryImage = dynamicImage;
-            }
-          } catch (error) {
-            console.warn(
-              "Error getting category image for",
-              category.name,
-              error
-            );
-            // categoryImage already set to fallback
-          }
-        }
+          categoryImageMap[category.name.toLowerCase()] ||
+          images.staticCategoryImage;
 
         return (
           <Link

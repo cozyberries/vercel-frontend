@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Create cache key for individual product
     const cacheKey = `product:${id}`;
-    
+
     // Try to get from cache first
     const cachedProduct = await UpstashService.getCachedProduct(id);
     if (cachedProduct) {
@@ -30,16 +30,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("products")
-      .select(`
+      .select(
+        `
         *,
-        categories(name),
-        product_images(
-          id,
-          storage_path,
-          is_primary,
-          display_order
-        )
-      `)
+        categories(name)
+      `
+      )
       .eq("id", id)
       .single();
 
@@ -56,25 +52,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Process product to add image URLs
+    // Process product images
     const product = {
       ...data,
-      images: (data.product_images || [])
-        .filter((img: any) => img.storage_path) // Filter out images with null storage_path
-        .map((img: any) => ({
-          id: img.id,
-          storage_path: img.storage_path,
-          is_primary: img.is_primary,
-          display_order: img.display_order,
-          url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
-        }))
-        .sort((a: any, b: any) => {
-          // Sort by display_order, then by is_primary
-          if (a.display_order !== b.display_order) {
-            return (a.display_order || 0) - (b.display_order || 0);
-          }
-          return b.is_primary ? 1 : -1;
-        }),
+      images: (data.images || []).filter((url: string) => url),
     };
 
     // Cache the product asynchronously (non-blocking) for 30 minutes
@@ -148,7 +129,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Invalidate cache for this product and product list
     await Promise.all([
       UpstashService.delete(`product:${id}`),
-      UpstashService.delete('products:list:100'), // Invalidate main product list cache
+      UpstashService.delete("products:list:100"), // Invalidate main product list cache
     ]);
 
     return NextResponse.json(data);
@@ -195,7 +176,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Invalidate cache for this product and product list
     await Promise.all([
       UpstashService.delete(`product:${id}`),
-      UpstashService.delete('products:list:100'), // Invalidate main product list cache
+      UpstashService.delete("products:list:100"), // Invalidate main product list cache
     ]);
 
     return NextResponse.json({ success: true, deleted: data });

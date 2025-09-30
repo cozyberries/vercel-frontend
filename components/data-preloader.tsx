@@ -10,10 +10,8 @@ import {
 import {
   getCategories,
   getAllProductsDetailed,
-  SimplifiedProduct,
   Product,
 } from "@/lib/services/api";
-import { normalizeProduct } from "@/lib/utils/product";
 
 interface Category {
   id: string;
@@ -33,11 +31,11 @@ interface Category {
 
 interface PreloadedData {
   categories: Category[];
-  products: SimplifiedProduct[];
+  products: Product[];
   detailedProducts: Product[];
   isLoading: boolean;
   error: string | null;
-  getProductById: (id: string) => SimplifiedProduct | null;
+  getProductById: (id: string) => Product | null;
   getDetailedProductById: (id: string) => Product | null;
   loadProducts: () => Promise<void>;
 }
@@ -55,7 +53,7 @@ const DataPreloaderContext = createContext<PreloadedData>({
 
 export function DataPreloader({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [detailedProducts, setDetailedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +83,7 @@ export function DataPreloader({ children }: { children: ReactNode }) {
     preloadData();
   }, []);
 
-  const getProductById = (id: string): SimplifiedProduct | null => {
+  const getProductById = (id: string): Product | null => {
     return products.find((product) => product.id === id) || null;
   };
 
@@ -95,13 +93,12 @@ export function DataPreloader({ children }: { children: ReactNode }) {
 
   const loadProducts = async () => {
     if (products.length > 0) return; // Already loaded
-    
+
     try {
       setIsLoading(true);
       const rawProductsData = await getAllProductsDetailed();
-      const simplifiedProducts = rawProductsData.map(normalizeProduct);
-      
-      setProducts(simplifiedProducts);
+
+      setProducts(rawProductsData);
       setDetailedProducts(rawProductsData);
       setError(null);
     } catch (err) {

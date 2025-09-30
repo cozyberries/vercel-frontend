@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import FeaturedProductCard from "./featured-product-card";
-import { getFeaturedProducts, SimplifiedProduct } from "@/lib/services/api";
+import { getFeaturedProducts, Product } from "@/lib/services/api";
 import { useEffect, useState, useRef } from "react";
 
 export default function FeaturedProducts() {
-  const [products, setProducts] = useState<SimplifiedProduct[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);

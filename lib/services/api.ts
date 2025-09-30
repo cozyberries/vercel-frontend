@@ -38,7 +38,7 @@ export interface Product {
   category_id: string;
   category: string;
   features: string[];
-  images: ProductImage[];
+  images: string[];
   colors: string[];
   sizes: string[];
   variants: ProductVariant[];
@@ -127,7 +127,7 @@ export const getCategories = async (retries = 3) => {
 export const getFeaturedProducts = async (
   limit = 4,
   retries = 3
-): Promise<SimplifiedProduct[]> => {
+): Promise<Product[]> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/products", {
@@ -136,8 +136,8 @@ export const getFeaturedProducts = async (
           featured: true,
         },
       });
-      // Transform the data to simplified format
-      return (data?.products || []).map(normalizeProduct);
+      // Return full product data
+      return data?.products || [];
     } catch (error) {
       console.error(
         `Error fetching featured products (attempt ${i + 1}/${retries}):`,
@@ -175,7 +175,7 @@ export const getProducts = async (
     search?: string;
   } = {},
   retries = 3
-): Promise<ProductsResponse> => {
+): Promise<{ products: Product[]; pagination: PaginationInfo }> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/products", {
@@ -189,11 +189,17 @@ export const getProducts = async (
           search: params.search,
         },
       });
-      // Transform products to simplified format
-      const simplifiedProducts = (data?.products || []).map(normalizeProduct);
+      // Return full product data
       return {
-        products: simplifiedProducts,
-        pagination: data?.pagination || { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false }
+        products: data?.products || [],
+        pagination: data?.pagination || {
+          currentPage: 1,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: 12,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
       };
     } catch (error) {
       console.error(
@@ -204,7 +210,17 @@ export const getProducts = async (
       // If it's the last retry, return empty response
       if (i === retries - 1) {
         console.error("Failed to fetch products after all retries");
-        return { products: [], pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false } };
+        return {
+          products: [],
+          pagination: {
+            currentPage: 1,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: 12,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
       }
 
       // Wait before retrying (exponential backoff)
@@ -213,7 +229,17 @@ export const getProducts = async (
       );
     }
   }
-  return { products: [], pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 12, hasNextPage: false, hasPrevPage: false } };
+  return {
+    products: [],
+    pagination: {
+      currentPage: 1,
+      totalPages: 0,
+      totalItems: 0,
+      itemsPerPage: 12,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+  };
 };
 
 export const getAllProductsDetailed = async (
@@ -258,11 +284,18 @@ export const getProductById = async (id: string): Promise<Product | null> => {
   try {
     const { data } = await api.get(`/api/products/${id}`);
 
-    const images: ProductImage[] =
-      data.images?.map((img: any) => ({
-        ...img,
-        url: img.url || `/${img.storage_path}`,
-      })) || [];
+    // Handle images as strings (new format) or objects (old format)
+    const images: string[] =
+      data.images
+        ?.map((img: any) => {
+          if (typeof img === "string") {
+            return img;
+          } else if (img && typeof img === "object") {
+            return img.url || `/${img.storage_path}`;
+          }
+          return "";
+        })
+        .filter((url: string) => url && url.trim() !== "") || [];
 
     const variants: ProductVariant[] = (data.variants || []).map((v: any) => ({
       id: v.id,
@@ -285,7 +318,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
         name: p.name,
         price: p.price,
         category: p.category,
-        image: p.image || "/placeholder.jpg",
+        image: p.images?.[0] || p.image || "/placeholder.jpg",
       })),
     };
   } catch {

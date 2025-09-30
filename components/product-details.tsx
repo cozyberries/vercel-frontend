@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, Minus, Plus, Share2, Truck } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -28,6 +29,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+  const [showZoomModal, setShowZoomModal] = useState(false);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [isMobile, setIsMobile] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -36,6 +41,18 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
+
+  // Check if mobile screen
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Fetch product data
   useEffect(() => {
@@ -87,6 +104,43 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     }
   };
 
+  const handleImageMouseEnter = () => {
+    if (!isMobile) {
+      setShowZoomModal(true);
+    }
+  };
+
+  const handleImageMouseLeave = () => {
+    if (!isMobile) {
+      setShowZoomModal(false);
+    }
+  };
+
+  const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMobile) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      setZoomPosition({ x, y });
+    }
+  };
+
+  const triggerShakeAnimation = () => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 600);
+  };
+
+  // Auto-shake every 3 seconds if not in cart
+  useEffect(() => {
+    if (!isInCart) {
+      const interval = setInterval(() => {
+        triggerShakeAnimation();
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isInCart]);
+
   if (isLoading || isLoadingProduct) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
@@ -111,18 +165,78 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
         <div className="space-y-4">
-          <div className="aspect-square overflow-hidden bg-[#f5f5f5]">
+          <div
+            className={`aspect-square bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
+              !isMobile
+                ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
+                : ""
+            }`}
+            onMouseEnter={handleImageMouseEnter}
+            onMouseLeave={handleImageMouseLeave}
+            onMouseMove={handleImageMouseMove}
+          >
             <Image
-              src={product.images?.[selectedImage]?.url || "/placeholder.svg"}
+              src={
+                product.images?.[selectedImage] &&
+                typeof product.images[selectedImage] === "string" &&
+                product.images[selectedImage].trim() !== ""
+                  ? product.images[selectedImage]
+                  : "/placeholder.svg"
+              }
               alt={product.name}
               width={600}
               height={600}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-300 ease-out"
               priority
             />
+
+            {showZoomModal && !isMobile && (
+              <div className="absolute top-0 -right-[86%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
+                <Image
+                  src={
+                    product.images?.[selectedImage] &&
+                    typeof product.images[selectedImage] === "string" &&
+                    product.images[selectedImage].trim() !== ""
+                      ? product.images[selectedImage]
+                      : "/placeholder.svg"
+                  }
+                  alt={product.name}
+                  width={600}
+                  height={600}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 ease-out"
+                  style={{
+                    transform: `scale(2.5)`,
+                    transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                  }}
+                />
+                {/* Zoom indicator */}
+                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded animate-in fade-in-0 slide-in-from-top-2 duration-500 delay-100">
+                  2.5x Zoom
+                </div>
+              </div>
+            )}
+
+            {/* Zoom area indicator on main image - Desktop Only */}
+            {showZoomModal && !isMobile && (
+              <div
+                className="absolute border-2 border-white shadow-lg pointer-events-none animate-in fade-in-0 zoom-in-50 duration-200 ease-out"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  left: `${zoomPosition.x}%`,
+                  top: `${zoomPosition.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(255, 255, 255, 0.3)",
+                  backdropFilter: "blur(1px)",
+                  transition: "all 0.1s ease-out",
+                  animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                }}
+              />
+            )}
           </div>
           {product.images && product.images.length > 1 && (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-6 gap-2">
               {product.images.map((image, index) => (
                 <div
                   key={index}
@@ -132,10 +246,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
-                    src={image.url || "/placeholder.svg"}
+                    src={
+                      image && typeof image === "string" && image.trim() !== ""
+                        ? image
+                        : "/placeholder.svg"
+                    }
                     alt={`${product.name} - View ${index + 1}`}
-                    width={150}
-                    height={150}
+                    width={100}
+                    height={100}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -172,7 +290,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                       id: product.id,
                       name: product.name,
                       price: product.price,
-                      image: product.images?.[0]?.url,
+                      image: product.images?.[0],
                     });
                     toast.success(`${product.name} added to wishlist!`);
                   }
@@ -272,7 +390,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                     id: product.id,
                     name: product.name,
                     price: product.price,
-                    image: product.images?.[0]?.url,
+                    image: product.images?.[0],
                     quantity,
                     ...(selectedColor ? { color: selectedColor } : {}),
                     ...(selectedSize ? { size: selectedSize } : {}),
@@ -285,30 +403,42 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               >
                 Buy Now
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
+              <motion.div
                 className="flex-1"
-                onClick={() => {
-                  if (isInCart) {
-                    removeFromCart(product.id);
-                    toast.success(`${product.name} removed from cart!`);
-                  } else {
-                    addToCart({
-                      id: product.id,
-                      name: product.name,
-                      price: product.price,
-                      image: product.images?.[0]?.url,
-                      quantity,
-                      ...(selectedColor ? { color: selectedColor } : {}),
-                      ...(selectedSize ? { size: selectedSize } : {}),
-                    });
-                    toast.success(`${product.name} added to cart!`);
-                  }
-                }}
+                animate={
+                  isShaking
+                    ? {
+                        x: [0, -10, 10, -10, 10, -5, 5, 0],
+                        transition: { duration: 0.6, ease: "easeInOut" },
+                      }
+                    : {}
+                }
               >
-                {isInCart ? "Remove from Cart" : "Add to Cart"}
-              </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    if (isInCart) {
+                      removeFromCart(product.id);
+                      toast.success(`${product.name} removed from cart!`);
+                    } else {
+                      addToCart({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        image: product.images?.[0],
+                        quantity,
+                        ...(selectedColor ? { color: selectedColor } : {}),
+                        ...(selectedSize ? { size: selectedSize } : {}),
+                      });
+                      toast.success(`${product.name} added to cart!`);
+                    }
+                  }}
+                >
+                  {isInCart ? "Remove from Cart" : "Add to Cart"}
+                </Button>
+              </motion.div>
             </div>
 
             {isInCart && (
@@ -437,7 +567,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 id: product.id,
                 name: product.name,
                 price: product.price,
-                image: product.images?.[0]?.url,
+                image: product.images?.[0],
                 quantity,
                 ...(selectedColor ? { color: selectedColor } : {}),
                 ...(selectedSize ? { size: selectedSize } : {}),
@@ -450,25 +580,26 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           >
             Buy Now
           </Button>
+
           <Button
             size="lg"
             variant="outline"
-            className="flex-1 h-12"
+            className="flex-1 overflow-hidden"
             onClick={() => {
               if (isInCart) {
                 removeFromCart(product.id);
-                toast.success(`${product.name} removed from cart!`);
+                // toast.success(`${product.name} removed from cart!`);
               } else {
                 addToCart({
                   id: product.id,
                   name: product.name,
                   price: product.price,
-                  image: product.images?.[0]?.url,
+                  image: product.images?.[0],
                   quantity,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize } : {}),
                 });
-                toast.success(`${product.name} added to cart!`);
+                // toast.success(`${product.name} added to cart!`);
               }
             }}
           >
