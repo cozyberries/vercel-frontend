@@ -37,7 +37,7 @@ export default function ScrollToTopButton() {
   return (
     <Button
       onClick={scrollToTop}
-      className="fixed bottom-20 left-4 z-50 rounded-full w-12 h-12 bg-primary hover:bg-primary/90 shadow-lg transition-all duration-300"
+      className="fixed bottom-20 right-4 z-50 rounded-full w-12 h-12 bg-primary hover:bg-primary/90 shadow-lg transition-all duration-300"
       size="icon"
       aria-label="Scroll to top"
     >

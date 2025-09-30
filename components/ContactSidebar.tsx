@@ -1,15 +1,9 @@
 "use client";
 
 import { Mail, MessageCircle, Instagram } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ContactSidebarProps {
   email?: string;
@@ -22,10 +16,32 @@ export default function ContactSidebar({
   whatsappNumber = "+1234567890",
   instagramHandle = "@cozyberries",
 }: ContactSidebarProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [showPopups, setShowPopups] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close popups when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setShowPopups(false);
+      }
+    };
+
+    if (showPopups) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showPopups]);
 
   const handleEmailClick = () => {
     window.location.href = `mailto:${email}`;
+    setShowPopups(false);
   };
 
   const handleWhatsAppClick = () => {
@@ -36,6 +52,7 @@ export default function ContactSidebar({
       `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, "")}?text=${message}`,
       "_blank"
     );
+    setShowPopups(false);
   };
 
   const handleInstagramClick = () => {
@@ -43,6 +60,7 @@ export default function ContactSidebar({
       `https://instagram.com/${instagramHandle.replace("@", "")}`,
       "_blank"
     );
+    setShowPopups(false);
   };
 
   return (
@@ -81,49 +99,88 @@ export default function ContactSidebar({
         </div>
       </div>
 
-      {/* Mobile Contact Button */}
-      <div className="fixed bottom-20 right-4 z-50 md:hidden">
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
-          <SheetTrigger asChild>
-            <Button
-              size="lg"
-              className="rounded-full w-14 h-14 bg-primary hover:bg-primary/90 shadow-lg"
+      {/* Mobile Contact Button with Popup */}
+      <div
+        ref={containerRef}
+        className="fixed bottom-36 right-4 z-50 md:hidden"
+      >
+        {/* Popup Buttons */}
+        <AnimatePresence>
+          {showPopups && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="absolute bottom-16 right-0 flex flex-col space-y-3 mb-2"
             >
-              <MessageCircle className="w-6 h-6 text-white" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="h-[300px]">
-            <SheetHeader>
-              <SheetTitle>Get in Touch</SheetTitle>
-            </SheetHeader>
-            <div className="flex flex-col space-y-4 mt-6">
-              <Button
-                onClick={handleEmailClick}
-                variant="outline"
-                className="w-full justify-start"
+              {/* Email Button */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1, duration: 0.2 }}
               >
-                <Mail className="w-5 h-5 mr-3" />
-                Email us
-              </Button>
-              <Button
-                onClick={handleWhatsAppClick}
-                variant="outline"
-                className="w-full justify-start"
+                <Button
+                  onClick={handleEmailClick}
+                  size="icon"
+                  className="rounded-full w-12 h-12 bg-secondary hover:bg-secondary/90 shadow-lg"
+                  title="Email us"
+                >
+                  <Mail className="w-5 h-5 text-secondary-foreground" />
+                </Button>
+              </motion.div>
+
+              {/* WhatsApp Button */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15, duration: 0.2 }}
               >
-                <MessageCircle className="w-5 h-5 mr-3" />
-                WhatsApp us
-              </Button>
-              <Button
-                onClick={handleInstagramClick}
-                variant="outline"
-                className="w-full justify-start"
+                <Button
+                  onClick={handleWhatsAppClick}
+                  size="icon"
+                  className="rounded-full w-12 h-12 bg-secondary hover:bg-secondary/90 shadow-lg"
+                  title="WhatsApp us"
+                >
+                  <MessageCircle className="w-5 h-5 text-secondary-foreground" />
+                </Button>
+              </motion.div>
+
+              {/* Instagram Button */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2, duration: 0.2 }}
               >
-                <Instagram className="w-5 h-5 mr-3" />
-                Follow us on Instagram
-              </Button>
-            </div>
-          </SheetContent>
-        </Sheet>
+                <Button
+                  onClick={handleInstagramClick}
+                  size="icon"
+                  className="rounded-full w-12 h-12 bg-secondary hover:bg-secondary/90 shadow-lg"
+                  title="Follow us on Instagram"
+                >
+                  <Instagram className="w-5 h-5 text-secondary-foreground" />
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main Contact Button */}
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.1 }}
+        >
+          <Button
+            onClick={() => setShowPopups(!showPopups)}
+            size="icon"
+            className="rounded-full w-12 h-12 bg-secondary hover:bg-secondary/90 shadow-lg"
+          >
+            <span className="text-secondary-foreground text-lg font-bold">
+              ?
+            </span>
+          </Button>
+        </motion.div>
       </div>
     </>
   );

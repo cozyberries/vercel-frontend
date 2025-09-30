@@ -112,13 +112,6 @@ export default function FeaturedProductCard({
           <p className="text-lg sm:text-lg lg:text-lg font-bold text-gray-900">
             ₹{product.price.toFixed(2)}
           </p>
-          <Button
-            asChild
-            size="sm"
-            className="bg-gray-900 hover:bg-gray-800 text-white text-sm px-4 py-2 sm:px-3 sm:py-1"
-          >
-            <Link href={`/products/${product.id}`}>View</Link>
-          </Button>
         </div>
       </div>
     </div>
