@@ -36,6 +36,7 @@ export default function FeaturedProductCard({
         className={`relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 h-[75%] `}
       >
         <Link href={`/products/${product.id}`}>
+          {/* First Image */}
           <Image
             src={
               product.images?.[0] &&
@@ -47,12 +48,24 @@ export default function FeaturedProductCard({
             alt={product.name}
             width={400}
             height={400}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
           />
+          {/* Second Image (shown on hover if available) */}
+          {product.images?.[1] &&
+            typeof product.images[1] === "string" &&
+            product.images[1].trim() !== "" && (
+              <Image
+                src={product.images[1]}
+                alt={product.name}
+                width={400}
+                height={400}
+                className="absolute inset-0 w-full h-full object-cover transition-all duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-110"
+              />
+            )}
         </Link>
 
         {/* Gradient overlay on hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Heart Icon Button for Wishlist */}
         <Button
@@ -94,7 +107,7 @@ export default function FeaturedProductCard({
             size="sm"
             className="bg-white text-gray-900 hover:bg-gray-100 shadow-lg"
           >
-            <Link href={`/products/${product.id}`}>Quick View</Link>
+            <Link href={`/products/${product.id}`}>View</Link>
           </Button>
         </div>
       </div>

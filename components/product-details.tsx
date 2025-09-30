@@ -164,79 +164,111 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
-        <div className="space-y-4">
-          <div
-            className={`aspect-square bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
-              !isMobile
-                ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
-                : ""
-            }`}
-            onMouseEnter={handleImageMouseEnter}
-            onMouseLeave={handleImageMouseLeave}
-            onMouseMove={handleImageMouseMove}
-          >
-            <Image
-              src={
-                product.images?.[selectedImage] &&
-                typeof product.images[selectedImage] === "string" &&
-                product.images[selectedImage].trim() !== ""
-                  ? product.images[selectedImage]
-                  : "/placeholder.svg"
-              }
-              alt={product.name}
-              width={600}
-              height={600}
-              className="w-full h-full object-cover transition-transform duration-300 ease-out"
-              priority
-            />
+        <div className="space-y-4 lg:space-y-0 lg:flex lg:gap-4">
+          {/* Thumbnail Gallery - Left Side (Large screens only) */}
+          {product.images && product.images.length > 1 && (
+            <div className="hidden lg:flex flex-col gap-2 w-20">
+              {product.images.map((image, index) => (
+                <div
+                  key={index}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
+                    index === selectedImage ? "ring-2 ring-primary" : ""
+                  }`}
+                  onClick={() => setSelectedImage(index)}
+                >
+                  <Image
+                    src={
+                      image && typeof image === "string" && image.trim() !== ""
+                        ? image
+                        : "/placeholder.svg"
+                    }
+                    alt={`${product.name} - View ${index + 1}`}
+                    width={80}
+                    height={80}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
 
-            {showZoomModal && !isMobile && (
-              <div className="absolute top-0 -right-[86%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
-                <Image
-                  src={
-                    product.images?.[selectedImage] &&
-                    typeof product.images[selectedImage] === "string" &&
-                    product.images[selectedImage].trim() !== ""
-                      ? product.images[selectedImage]
-                      : "/placeholder.svg"
-                  }
-                  alt={product.name}
-                  width={600}
-                  height={600}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 ease-out"
+          {/* Main Image */}
+          <div className="lg:flex-1">
+            <div
+              className={`aspect-square bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
+                !isMobile
+                  ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
+                  : ""
+              }`}
+              onMouseEnter={handleImageMouseEnter}
+              onMouseLeave={handleImageMouseLeave}
+              onMouseMove={handleImageMouseMove}
+            >
+              <Image
+                src={
+                  product.images?.[selectedImage] &&
+                  typeof product.images[selectedImage] === "string" &&
+                  product.images[selectedImage].trim() !== ""
+                    ? product.images[selectedImage]
+                    : "/placeholder.svg"
+                }
+                alt={product.name}
+                width={600}
+                height={600}
+                className="w-full h-full object-cover transition-transform duration-300 ease-out"
+                priority
+              />
+
+              {showZoomModal && !isMobile && (
+                <div className="absolute top-0 -right-[86%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
+                  <Image
+                    src={
+                      product.images?.[selectedImage] &&
+                      typeof product.images[selectedImage] === "string" &&
+                      product.images[selectedImage].trim() !== ""
+                        ? product.images[selectedImage]
+                        : "/placeholder.svg"
+                    }
+                    alt={product.name}
+                    width={600}
+                    height={600}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 ease-out"
+                    style={{
+                      transform: `scale(2.5)`,
+                      transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                    }}
+                  />
+                  {/* Zoom indicator */}
+                  <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded animate-in fade-in-0 slide-in-from-top-2 duration-500 delay-100">
+                    2.5x Zoom
+                  </div>
+                </div>
+              )}
+
+              {/* Zoom area indicator on main image - Desktop Only */}
+              {showZoomModal && !isMobile && (
+                <div
+                  className="absolute border-2 border-white shadow-lg pointer-events-none animate-in fade-in-0 zoom-in-50 duration-200 ease-out"
                   style={{
-                    transform: `scale(2.5)`,
-                    transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                    width: "40px",
+                    height: "40px",
+                    left: `${zoomPosition.x}%`,
+                    top: `${zoomPosition.y}%`,
+                    transform: "translate(-50%, -50%)",
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(255, 255, 255, 0.3)",
+                    backdropFilter: "blur(1px)",
+                    transition: "all 0.1s ease-out",
+                    animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
                   }}
                 />
-                {/* Zoom indicator */}
-                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded animate-in fade-in-0 slide-in-from-top-2 duration-500 delay-100">
-                  2.5x Zoom
-                </div>
-              </div>
-            )}
-
-            {/* Zoom area indicator on main image - Desktop Only */}
-            {showZoomModal && !isMobile && (
-              <div
-                className="absolute border-2 border-white shadow-lg pointer-events-none animate-in fade-in-0 zoom-in-50 duration-200 ease-out"
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  left: `${zoomPosition.x}%`,
-                  top: `${zoomPosition.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  borderRadius: "50%",
-                  backgroundColor: "rgba(255, 255, 255, 0.3)",
-                  backdropFilter: "blur(1px)",
-                  transition: "all 0.1s ease-out",
-                  animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                }}
-              />
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Thumbnail Gallery - Bottom (Small/Medium screens) */}
           {product.images && product.images.length > 1 && (
-            <div className="grid grid-cols-6 gap-2">
+            <div className="grid grid-cols-6 gap-2 lg:hidden">
               {product.images.map((image, index) => (
                 <div
                   key={index}
