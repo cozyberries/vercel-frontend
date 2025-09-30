@@ -21,7 +21,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ success: boolean; error?: any }>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -178,10 +178,20 @@ export function SupabaseAuthProvider({
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    // Clear profile and token after sign out
-    setUserProfile(null);
-    setJwtToken(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        throw error;
+      }
+      // Clear profile and token after sign out
+      setUserProfile(null);
+      setJwtToken(null);
+      return { success: true };
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      return { success: false, error };
+    }
   };
 
   const refreshProfile = async () => {

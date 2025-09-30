@@ -27,6 +27,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       {/* Image Section */}
       <div className="relative overflow-hidden bg-[#f5f5f5] border md:h-[82%] h-[81%]">
         <Link href={`/products/${product.id}`}>
+          {/* First Image */}
           <Image
             src={
               product.images?.[0] &&
@@ -38,8 +39,20 @@ export default function ProductCard({ product }: ProductCardProps) {
             alt={product.name}
             width={500}
             height={500}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-cover transition-all duration-300 group-hover:scale-105 group-hover:opacity-0"
           />
+          {/* Second Image (shown on hover if available) */}
+          {product.images?.[1] && 
+           typeof product.images[1] === "string" && 
+           product.images[1].trim() !== "" && (
+            <Image
+              src={product.images[1]}
+              alt={product.name}
+              width={500}
+              height={500}
+              className="absolute inset-0 w-full h-full object-cover transition-all duration-300 opacity-0 group-hover:opacity-100 group-hover:scale-105"
+            />
+          )}
         </Link>
 
         {/* Heart Icon Button for Wishlist */}

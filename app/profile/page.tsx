@@ -89,8 +89,19 @@ export default function ProfilePage() {
               onEditAddress={handleEditAddress}
               onSetDefault={handleSetDefault}
               onSignOut={async () => {
-                await signOut();
-                window.location.href = "/";
+                try {
+                  const result = await signOut();
+                  if (result.success) {
+                    window.location.href = "/";
+                  } else {
+                    console.error('Logout failed:', result.error);
+                    // You could add a toast notification here
+                    alert('Logout failed. Please try again.');
+                  }
+                } catch (error) {
+                  console.error('Logout error:', error);
+                  alert('Logout failed. Please try again.');
+                }
               }}
             />
           </div>
