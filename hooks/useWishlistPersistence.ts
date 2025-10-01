@@ -14,13 +14,30 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
   const isInitializingRef = useRef(false);
+  const isSyncingRef = useRef(false);
+  const lastSyncedWishlistRef = useRef<string>("");
+  const userIdRef = useRef<string | undefined>(user?.id);
+  const setWishlistRef = useRef(setWishlist);
+
+  // Update refs when props change
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
+
+  useEffect(() => {
+    setWishlistRef.current = setWishlist;
+  }, [setWishlist]);
 
   /**
    * Debounced sync to Supabase to avoid excessive API calls
    */
   const debouncedSyncToSupabase = useCallback(
-    (items: WishlistItem[]) => {
-      if (!user?.id) return;
+    (items: WishlistItem[], userId: string) => {
+      // Skip if already syncing the same wishlist
+      const wishlistHash = JSON.stringify(items);
+      if (isSyncingRef.current && lastSyncedWishlistRef.current === wishlistHash) {
+        return;
+      }
 
       // Clear previous timeout
       if (syncTimeoutRef.current) {
@@ -29,14 +46,20 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
 
       // Set new timeout for background sync
       syncTimeoutRef.current = setTimeout(async () => {
+        if (isSyncingRef.current) return;
+        
         try {
-          await wishlistService.saveUserWishlist(user.id, items);
+          isSyncingRef.current = true;
+          lastSyncedWishlistRef.current = wishlistHash;
+          await wishlistService.saveUserWishlist(userId, items);
         } catch (error) {
-          // Optionally, you could implement retry logic here
+          console.error("Error syncing wishlist:", error);
+        } finally {
+          isSyncingRef.current = false;
         }
       }, 1000); // 1 second debounce
     },
-    [user?.id]
+    []
   );
 
   /**
@@ -49,21 +72,26 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     try {
       // Always load local wishlist immediately for instant UI
       const localWishlist = wishlistService.getLocalWishlist();
-      setWishlist(localWishlist);
+      const currentSetWishlist = setWishlistRef.current;
+      currentSetWishlist(localWishlist);
       hasInitializedRef.current = true;
 
-      if (user?.id) {
+      const userId = userIdRef.current;
+      if (userId) {
         // User is authenticated - merge with remote wishlist in background
         try {
-          const remoteWishlist = await wishlistService.getUserWishlist(user.id);
+          const remoteWishlist = await wishlistService.getUserWishlist(userId);
           const mergedWishlist = wishlistService.mergeWishlistItems(localWishlist, remoteWishlist);
           
           // Only update if there's a difference
-          if (JSON.stringify(localWishlist) !== JSON.stringify(mergedWishlist)) {
-            setWishlist(mergedWishlist);
+          const localHash = JSON.stringify(localWishlist);
+          const mergedHash = JSON.stringify(mergedWishlist);
+          
+          if (localHash !== mergedHash) {
+            currentSetWishlist(mergedWishlist);
             wishlistService.saveLocalWishlist(mergedWishlist);
             if (mergedWishlist.length > 0) {
-              await wishlistService.saveUserWishlist(user.id, mergedWishlist);
+              await wishlistService.saveUserWishlist(userId, mergedWishlist);
             }
           }
         } catch (error) {
@@ -74,12 +102,12 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     } catch (error) {
       console.error("Error loading initial wishlist:", error);
       // Fallback to empty wishlist
-      setWishlist([]);
+      setWishlistRef.current([]);
       hasInitializedRef.current = true;
     } finally {
       isInitializingRef.current = false;
     }
-  }, [user?.id, authLoading, setWishlist]);
+  }, [authLoading]);
 
   /**
    * Handle user authentication changes
@@ -87,7 +115,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   const handleAuthChange = useCallback(async () => {
     if (authLoading) return;
 
-    const currentUserId = user?.id || null;
+    const currentUserId = userIdRef.current || null;
     const previousUserId = previousUserIdRef.current;
 
     // Skip if user hasn't changed
@@ -100,7 +128,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
         const remoteWishlist = await wishlistService.getUserWishlist(currentUserId);
         const mergedWishlist = wishlistService.mergeWishlistItems(localWishlist, remoteWishlist);
         
-        setWishlist(mergedWishlist);
+        setWishlistRef.current(mergedWishlist);
         wishlistService.saveLocalWishlist(mergedWishlist);
         
         if (mergedWishlist.length > 0) {
@@ -112,11 +140,11 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     } else if (!currentUserId && previousUserId) {
       // User just signed out - keep local wishlist only
       const localWishlist = wishlistService.getLocalWishlist();
-      setWishlist(localWishlist);
+      setWishlistRef.current(localWishlist);
     }
 
     previousUserIdRef.current = currentUserId;
-  }, [user?.id, authLoading, setWishlist]);
+  }, [authLoading]);
 
   /**
    * Persist wishlist changes
@@ -127,11 +155,12 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
       wishlistService.saveLocalWishlist(items);
 
       // If user is authenticated, sync to Supabase in background
-      if (user?.id) {
-        debouncedSyncToSupabase(items);
+      const userId = userIdRef.current;
+      if (userId) {
+        debouncedSyncToSupabase(items, userId);
       }
     },
-    [user?.id, debouncedSyncToSupabase]
+    [debouncedSyncToSupabase]
   );
 
   /**
@@ -140,14 +169,15 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   const clearAllWishlist = useCallback(async () => {
     wishlistService.clearLocalWishlist();
     
-    if (user?.id) {
+    const userId = userIdRef.current;
+    if (userId) {
       try {
-        await wishlistService.clearUserWishlist(user.id);
+        await wishlistService.clearUserWishlist(userId);
       } catch (error) {
         console.error("Failed to clear remote wishlist:", error);
       }
     }
-  }, [user?.id]);
+  }, []);
 
   // Load initial wishlist on mount only
   useEffect(() => {
@@ -161,7 +191,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     if (!authLoading && hasInitializedRef.current) {
       handleAuthChange();
     }
-  }, [user?.id, handleAuthChange]);
+  }, [user?.id, authLoading, handleAuthChange]);
 
   // Persist wishlist changes (but skip during initialization to avoid duplicate saves)
   useEffect(() => {

@@ -37,7 +37,9 @@ export function SupabaseAuthProvider({
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [jwtToken, setJwtToken] = useState<string | null>(null);
-  const supabase = createClient();
+  
+  // Create supabase client once and reuse it
+  const [supabase] = useState(() => createClient());
 
   // Helper function to generate JWT token
   const generateJwtToken = async (userId: string, userEmail?: string) => {
@@ -136,7 +138,7 @@ export function SupabaseAuthProvider({
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, []); // Empty dependency array - supabase is stable now
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

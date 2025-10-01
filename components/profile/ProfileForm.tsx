@@ -115,15 +115,6 @@ export default function ProfileForm({
               </Button>
             </div>
           )}
-          {/* Logout button - hidden on mobile, shown on desktop */}
-          <Button
-            variant="secondary"
-            onClick={onSignOut}
-            size="icon"
-            className="hidden sm:flex"
-          >
-            <LogOut className="w-4 h-4" />
-          </Button>
         </div>
       </div>
 
@@ -252,8 +243,12 @@ export default function ProfileForm({
       </div>
 
       {/* Mobile Logout Button - appears at bottom for mobile */}
-      <div className="mt-8 pt-6 border-t border-border sm:hidden">
-        <Button variant="outline" onClick={onSignOut} className="w-full">
+      <div className="mt-8 pt-6 border-t border-border">
+        <Button
+          variant="outline"
+          onClick={onSignOut}
+          className=" lg:w-fit w-full"
+        >
           <LogOut className="w-4 h-4 mr-2" />
           Logout
         </Button>

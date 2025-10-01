@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,33 +50,51 @@ const statusColors: Record<OrderStatus, string> = {
 export default function OrdersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const isMountedRef = useRef(true);
+  const fetchingRef = useRef(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [authTimeout, setAuthTimeout] = useState(false);
+  const [hasInitialFetch, setHasInitialFetch] = useState(false);
 
   const fetchOrders = useCallback(async () => {
+    if (fetchingRef.current) return;
+
+    fetchingRef.current = true;
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
       const fetchedOrders = await orderService.getUserOrders({ limit: 50 });
       setOrders(fetchedOrders);
+      setHasInitialFetch(true);
+      setIsLoading(false);
     } catch (err) {
       console.error("Error fetching orders:", err);
       setError("Failed to load orders. Please try again.");
-    } finally {
       setIsLoading(false);
+    } finally {
+      fetchingRef.current = false;
     }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // Add authentication timeout to prevent infinite loading
   useEffect(() => {
     const authTimeoutId = setTimeout(() => {
-      if (loading) {
+      if (loading && isMountedRef.current) {
         setAuthTimeout(true);
         setIsLoading(false);
       }
@@ -91,10 +109,11 @@ export default function OrdersPage() {
       return;
     }
 
-    if (user && !authTimeout) {
+    // Fetch orders when user is available and we haven't fetched yet
+    if (user && !authTimeout && !hasInitialFetch) {
       fetchOrders();
     }
-  }, [user, loading, router, fetchOrders, authTimeout]);
+  }, [user, loading, router, authTimeout, hasInitialFetch]);
 
   useEffect(() => {
     filterOrders();
@@ -196,14 +215,30 @@ export default function OrdersPage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-4 sm:py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <ShoppingBag className="w-6 h-6 sm:w-8 sm:h-8" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-light">My Orders</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Track and manage your orders
-            </p>
+        <div className="flex items-center justify-between mb-6 sm:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <ShoppingBag className="w-6 h-6 sm:w-8 sm:h-8" />
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-light">My Orders</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
+                Track and manage your orders
+              </p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchOrders}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ArrowRight className="w-4 h-4" />
+            )}
+            Refresh
+          </Button>
         </div>
 
         {/* Filters */}
@@ -272,7 +307,9 @@ export default function OrdersPage() {
                       </h3>
                       <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mt-1">
                         <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                        <span className="truncate">{formatDate(order.created_at)}</span>
+                        <span className="truncate">
+                          {formatDate(order.created_at)}
+                        </span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
@@ -280,7 +317,8 @@ export default function OrdersPage() {
                         ₹{order.total_amount.toFixed(2)}
                       </div>
                       <div className="text-xs sm:text-sm text-muted-foreground">
-                        {order.items.length} item{order.items.length !== 1 ? "s" : ""}
+                        {order.items.length} item
+                        {order.items.length !== 1 ? "s" : ""}
                       </div>
                     </div>
                   </div>
@@ -291,7 +329,9 @@ export default function OrdersPage() {
                       }`}
                     >
                       {statusIcons[order.status]}
-                      <span className="truncate">{orderService.formatOrderStatus(order.status)}</span>
+                      <span className="truncate">
+                        {orderService.formatOrderStatus(order.status)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -299,7 +339,10 @@ export default function OrdersPage() {
                 {/* Order Items */}
                 <div className="space-y-2 sm:space-y-3 mb-4">
                   {order.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="flex items-center gap-2 sm:gap-3">
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-2 sm:gap-3"
+                    >
                       <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         {item.image && (
                           <Image
@@ -311,7 +354,9 @@ export default function OrdersPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-xs sm:text-sm truncate">{item.name}</h4>
+                        <h4 className="font-medium text-xs sm:text-sm truncate">
+                          {item.name}
+                        </h4>
                         <p className="text-xs sm:text-sm text-muted-foreground">
                           Qty: {item.quantity} × ₹{item.price.toFixed(2)}
                         </p>
@@ -336,15 +381,23 @@ export default function OrdersPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                     {order.tracking_number && (
                       <div className="text-xs sm:text-sm">
-                        <span className="text-muted-foreground">Tracking: </span>
-                        <span className="font-medium break-all">{order.tracking_number}</span>
+                        <span className="text-muted-foreground">
+                          Tracking:{" "}
+                        </span>
+                        <span className="font-medium break-all">
+                          {order.tracking_number}
+                        </span>
                       </div>
                     )}
                     {order.estimated_delivery_date && (
                       <div className="text-xs sm:text-sm">
-                        <span className="text-muted-foreground">Est. Delivery: </span>
+                        <span className="text-muted-foreground">
+                          Est. Delivery:{" "}
+                        </span>
                         <span className="font-medium">
-                          {new Date(order.estimated_delivery_date).toLocaleDateString()}
+                          {new Date(
+                            order.estimated_delivery_date
+                          ).toLocaleDateString()}
                         </span>
                       </div>
                     )}
@@ -377,9 +430,13 @@ export default function OrdersPage() {
 
                 {/* Shipping Address Preview */}
                 <div className="mt-4 p-3 bg-muted/30 rounded-md">
-                  <h5 className="font-medium text-xs sm:text-sm mb-1">Shipping Address</h5>
+                  <h5 className="font-medium text-xs sm:text-sm mb-1">
+                    Shipping Address
+                  </h5>
                   <p className="text-xs sm:text-sm text-muted-foreground">
-                    {order.shipping_address.full_name} • {order.shipping_address.city}, {order.shipping_address.state}
+                    {order.shipping_address.full_name} •{" "}
+                    {order.shipping_address.city},{" "}
+                    {order.shipping_address.state}
                   </p>
                 </div>
               </div>
