@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
 
+// Track ongoing background refreshes to prevent duplicates
+const refreshingWishlists = new Set<string>();
+
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
@@ -28,14 +31,20 @@ export async function GET() {
         "X-Cache-TTL": ttl.toString(),
       };
 
-      // If data is stale, trigger background revalidation
-      if (isStale) {
+      // If data is stale and not already refreshing, trigger background revalidation
+      if (isStale && !refreshingWishlists.has(user.id)) {
+        refreshingWishlists.add(user.id);
         (async () => {
           try {
             console.log(`Background revalidation for wishlist: ${user.id}`);
             await refreshWishlistInBackground(user.id, supabase);
           } catch (error) {
             console.error(`Background wishlist refresh failed for user ${user.id}:`, error);
+          } finally {
+            // Remove from set after a delay to prevent rapid successive calls
+            setTimeout(() => {
+              refreshingWishlists.delete(user.id);
+            }, 5000); // 5 second cooldown
           }
         })();
       }

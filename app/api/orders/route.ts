@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { CreateOrderRequest, OrderCreate, OrderSummary } from "@/lib/types/order";
+import type {
+  CreateOrderRequest,
+  OrderCreate,
+  OrderSummary,
+} from "@/lib/types/order";
 import type { CartItem } from "@/components/cart-context";
 import CacheService from "@/lib/services/cache";
+
+// Track ongoing background refreshes to prevent duplicates
+const refreshingOrders = new Map<string, Set<string>>();
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     // Get the current user from Supabase session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -102,7 +112,7 @@ export async function POST(request: NextRequest) {
         address_type: billingAddress.address_type,
         label: billingAddress.label,
       },
-      items: items.map(item => ({
+      items: items.map((item) => ({
         id: item.id,
         name: item.name,
         price: item.price,
@@ -132,14 +142,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clear orders cache to ensure fresh data on next fetch
-    try {
-      await CacheService.clearAllOrders(user.id);
-      console.log(`Orders cache cleared for user: ${user.id}`);
-    } catch (cacheError) {
-      console.error("Error clearing orders cache:", cacheError);
-      // Don't fail the order creation if cache clearing fails
-    }
+    // Clear orders cache in background (fire and forget)
+    CacheService.clearAllOrders(user.id)
+      .then(() => {
+        console.log(`Cache cleared for user: ${user.id} after order creation`);
+      })
+      .catch((cacheError) => {
+        console.error("Error clearing orders cache:", cacheError);
+      });
 
     // Generate payment URL for the dummy payment page
     const paymentUrl = `/payment/${order.id}`;
@@ -148,7 +158,6 @@ export async function POST(request: NextRequest) {
       order,
       payment_url: paymentUrl,
     });
-    
   } catch (error) {
     console.error("Error in order creation:", error);
     return NextResponse.json(
@@ -161,10 +170,13 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     // Get the current user from Supabase session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -178,35 +190,53 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
 
     // Create cache key based on filters
-    const filters = `limit:${limit}-offset:${offset}${status ? `-status:${status}` : ''}`;
-    
-    // Try to get from cache first
-    const { data: cachedOrders, ttl, isStale } = await CacheService.getOrders(user.id, filters);
-    
-    if (cachedOrders) {
-      const headers = {
-        "X-Cache-Status": isStale ? "STALE" : "HIT",
-        "X-Cache-Key": CacheService.getCacheKey("ORDERS", user.id, `list:${filters}`),
-        "X-Data-Source": "REDIS_CACHE",
-        "X-Cache-TTL": ttl.toString(),
-      };
+    const filters = `limit:${limit}-offset:${offset}${
+      status ? `-status:${status}` : ""
+    }`;
 
-      // If data is stale, trigger background revalidation
-      if (isStale) {
-        (async () => {
-          try {
-            console.log(`Background revalidation for orders: ${user.id}`);
-            await refreshOrdersInBackground(user.id, { limit, offset, status }, supabase);
-          } catch (error) {
-            console.error(`Background orders refresh failed for user ${user.id}:`, error);
-          }
-        })();
+    // Step 1: Try to get from cache (with short timeout to avoid hanging)
+    let cachedOrders = null;
+    let cacheHit = false;
+
+    try {
+      const cachePromise = CacheService.getOrders(user.id, filters);
+      const timeoutPromise = new Promise<{
+        data: null;
+        ttl: number;
+        isStale: boolean;
+      }>((resolve) =>
+        setTimeout(() => resolve({ data: null, ttl: 0, isStale: false }), 1500)
+      );
+
+      const cacheResult = await Promise.race([cachePromise, timeoutPromise]);
+
+      if (cacheResult.data && Array.isArray(cacheResult.data)) {
+        cachedOrders = cacheResult.data;
+        cacheHit = true;
+        console.log(
+          `Cache HIT for user ${user.id}, found ${cachedOrders.length} orders`
+        );
       }
-
-      return NextResponse.json({ orders: cachedOrders }, { headers });
+    } catch (cacheError) {
+      console.error("Cache read error, falling back to database:", cacheError);
     }
 
-    // No cache hit, fetch from database
+    // Step 2: If cache has data, return it immediately
+    if (cacheHit && cachedOrders) {
+      return NextResponse.json(
+        { orders: cachedOrders },
+        {
+          headers: {
+            "X-Cache-Status": "HIT",
+            "X-Data-Source": "CACHE",
+          },
+        }
+      );
+    }
+
+    // Step 3: Cache miss - fetch from database
+    console.log(`Cache MISS for user ${user.id}, fetching from database`);
+
     let query = supabase
       .from("orders")
       .select("*")
@@ -221,25 +251,43 @@ export async function GET(request: NextRequest) {
     const { data: orders, error: ordersError } = await query;
 
     if (ordersError) {
-      console.error("Error fetching orders:", ordersError);
+      console.error("Error fetching orders from database:", ordersError);
       return NextResponse.json(
         { error: "Failed to fetch orders" },
         { status: 500 }
       );
     }
 
-    // Cache the result
-    await CacheService.setOrders(user.id, orders || [], filters);
+    console.log(
+      `Fetched ${orders?.length || 0} orders from database for user ${user.id}`
+    );
 
-    const headers = {
-      "X-Cache-Status": "MISS",
-      "X-Cache-Key": CacheService.getCacheKey("ORDERS", user.id, `list:${filters}`),
-      "X-Data-Source": "SUPABASE_DATABASE",
-      "X-Cache-Set": "SUCCESS",
-    };
+    // Step 4: Return data to user immediately
+    const response = NextResponse.json(
+      { orders: orders || [] },
+      {
+        headers: {
+          "X-Cache-Status": "MISS",
+          "X-Data-Source": "DATABASE",
+        },
+      }
+    );
 
-    return NextResponse.json({ orders }, { headers });
-    
+    // Step 5: Cache in background (fire and forget - don't block response)
+    if (orders && orders.length >= 0) {
+      CacheService.setOrders(user.id, orders, filters)
+        .then(() => {
+          console.log(`Background cache set SUCCESS for user ${user.id}`);
+        })
+        .catch((err) => {
+          console.error(
+            `Background cache set FAILED for user ${user.id}:`,
+            err
+          );
+        });
+    }
+
+    return response;
   } catch (error) {
     console.error("Error in order fetching:", error);
     return NextResponse.json(
@@ -253,8 +301,8 @@ export async function GET(request: NextRequest) {
  * Background refresh function for stale-while-revalidate pattern
  */
 async function refreshOrdersInBackground(
-  userId: string, 
-  options: { limit: number; offset: number; status: string | null }, 
+  userId: string,
+  options: { limit: number; offset: number; status: string | null },
   supabase: any
 ): Promise<void> {
   try {
@@ -276,7 +324,9 @@ async function refreshOrdersInBackground(
       return;
     }
 
-    const filters = `limit:${options.limit}-offset:${options.offset}${options.status ? `-status:${options.status}` : ''}`;
+    const filters = `limit:${options.limit}-offset:${options.offset}${
+      options.status ? `-status:${options.status}` : ""
+    }`;
     await CacheService.setOrders(userId, orders || [], filters);
   } catch (error) {
     console.error("Error in background orders refresh:", error);
@@ -284,7 +334,10 @@ async function refreshOrdersInBackground(
 }
 
 function calculateOrderSummary(items: CartItem[]): OrderSummary {
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const delivery_charge = items.length > 0 ? 50 : 0; // ₹50 delivery charge
   const tax_amount = subtotal * 0.1; // 10% tax
   const total_amount = subtotal + delivery_charge + tax_amount;

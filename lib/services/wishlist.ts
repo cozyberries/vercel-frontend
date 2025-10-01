@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase";
 import type { WishlistItem } from "@/components/wishlist-context";
-import CacheService from "@/lib/services/cache";
 
 export interface UserWishlist {
   id: string;
@@ -12,27 +11,30 @@ export interface UserWishlist {
 
 class WishlistService {
   private supabase = createClient();
+  private fetchRequests = new Map<string, Promise<WishlistItem[]>>();
 
   /**
-   * Fetch user's wishlist from Supabase with Redis caching
-   * Implements stale-while-revalidate pattern for optimal performance
+   * Fetch user's wishlist from Supabase
+   * Note: Caching is handled by API routes, not here
    */
   async getUserWishlist(userId: string): Promise<WishlistItem[]> {
     try {
-      // Try to get from cache first
-      const { data: cachedWishlist, isStale } = await CacheService.getWishlist(userId);
-      
-      // If we have cached data, return it immediately
-      if (cachedWishlist) {
-        // If data is stale, trigger background revalidation
-        if (isStale) {
-          this.refreshWishlistInBackground(userId);
-        }
-        return cachedWishlist;
+      // Check if we already have a pending request for this user
+      if (this.fetchRequests.has(userId)) {
+        return await this.fetchRequests.get(userId)!;
       }
 
-      // No cache hit, fetch from database
-      return await this.fetchWishlistFromDatabase(userId);
+      // Create a new request promise
+      const requestPromise = this.fetchWishlistFromDatabase(userId);
+      this.fetchRequests.set(userId, requestPromise);
+
+      try {
+        const result = await requestPromise;
+        return result;
+      } finally {
+        // Clean up the request after completion
+        this.fetchRequests.delete(userId);
+      }
     } catch (error) {
       console.error("Error fetching user wishlist:", error);
       return [];
@@ -40,7 +42,8 @@ class WishlistService {
   }
 
   /**
-   * Fetch wishlist directly from database and update cache
+   * Fetch wishlist directly from database
+   * Caching is handled by the API routes on the server side
    */
   private async fetchWishlistFromDatabase(userId: string): Promise<WishlistItem[]> {
     try {
@@ -58,9 +61,6 @@ class WishlistService {
 
       const wishlistItems = data?.items || [];
       
-      // Cache the result
-      await CacheService.setWishlist(userId, wishlistItems);
-      
       return wishlistItems;
     } catch (error) {
       console.error("Error fetching wishlist from database:", error);
@@ -69,19 +69,8 @@ class WishlistService {
   }
 
   /**
-   * Background refresh for stale-while-revalidate pattern
-   */
-  private async refreshWishlistInBackground(userId: string): Promise<void> {
-    try {
-      console.log(`Background refresh for wishlist: ${userId}`);
-      await this.fetchWishlistFromDatabase(userId);
-    } catch (error) {
-      console.error(`Background wishlist refresh failed for user ${userId}:`, error);
-    }
-  }
-
-  /**
-   * Save wishlist to Supabase (upsert operation) and update cache
+   * Save wishlist to Supabase (upsert operation)
+   * Note: Cache invalidation is handled by API routes
    */
   async saveUserWishlist(userId: string, items: WishlistItem[]): Promise<void> {
     try {
@@ -103,9 +92,6 @@ class WishlistService {
         throw error;
       }
 
-      // Update cache with the new data
-      await CacheService.setWishlist(userId, items);
-
     } catch (error) {
       console.error("Error saving user wishlist:", error);
       throw error;
@@ -113,7 +99,8 @@ class WishlistService {
   }
 
   /**
-   * Delete user's wishlist from Supabase and clear cache
+   * Delete user's wishlist from Supabase
+   * Note: Cache invalidation is handled by API routes
    */
   async clearUserWishlist(userId: string): Promise<void> {
     try {
@@ -126,9 +113,6 @@ class WishlistService {
         console.error("Error clearing user wishlist:", error);
         throw error;
       }
-
-      // Clear cache
-      await CacheService.clearWishlist(userId);
 
     } catch (error) {
       console.error("Error clearing user wishlist:", error);

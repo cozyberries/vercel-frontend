@@ -1,28 +1,40 @@
 import { createClient } from "@/lib/supabase";
-import type { Order, Payment, CreateOrderRequest, CreateOrderResponse } from "@/lib/types/order";
-import CacheService from "@/lib/services/cache";
+import type {
+  Order,
+  Payment,
+  CreateOrderRequest,
+  CreateOrderResponse,
+} from "@/lib/types/order";
 
 class OrderService {
-  private supabase = createClient();
+  private supabase: ReturnType<typeof createClient>;
+
+  constructor() {
+    this.supabase = createClient();
+  }
 
   private async getHeaders(): Promise<HeadersInit> {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     };
-    
+
     // Get the current session and add the access token to headers
-    const { data: { session } } = await this.supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await this.supabase.auth.getSession();
     if (session?.access_token) {
       headers["Authorization"] = `Bearer ${session.access_token}`;
     }
-    
+
     return headers;
   }
 
   /**
    * Create a new order
    */
-  async createOrder(orderData: CreateOrderRequest): Promise<CreateOrderResponse> {
+  async createOrder(
+    orderData: CreateOrderRequest
+  ): Promise<CreateOrderResponse> {
     try {
       const headers = await this.getHeaders();
       const response = await fetch("/api/orders", {
@@ -55,13 +67,13 @@ class OrderService {
   ): Promise<Order[]> {
     try {
       const params = new URLSearchParams();
-      
+
       if (options.limit) params.append("limit", options.limit.toString());
       if (options.offset) params.append("offset", options.offset.toString());
       if (options.status) params.append("status", options.status);
 
       const headers = await this.getHeaders();
-      
+
       // Create an AbortController for request timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
@@ -82,11 +94,13 @@ class OrderService {
       return data.orders || [];
     } catch (error) {
       console.error("Error fetching orders:", error);
-      
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error("Request timeout - please check your connection and try again");
+
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          "Request timeout - please check your connection and try again"
+        );
       }
-      
+
       throw error;
     }
   }
@@ -94,7 +108,9 @@ class OrderService {
   /**
    * Get a specific order by ID
    */
-  async getOrder(orderId: string): Promise<{ order: Order; payments: Payment[] }> {
+  async getOrder(
+    orderId: string
+  ): Promise<{ order: Order; payments: Payment[] }> {
     try {
       const headers = await this.getHeaders();
       const response = await fetch(`/api/orders/${orderId}`, {
@@ -116,7 +132,10 @@ class OrderService {
   /**
    * Update order notes
    */
-  async updateOrder(orderId: string, updates: { notes?: string }): Promise<Order> {
+  async updateOrder(
+    orderId: string,
+    updates: { notes?: string }
+  ): Promise<Order> {
     try {
       const headers = await this.getHeaders();
       const response = await fetch(`/api/orders/${orderId}`, {
