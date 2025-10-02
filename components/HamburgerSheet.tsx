@@ -90,6 +90,7 @@ export const HamburgerSheet = () => {
   const { categories, isLoading: categoriesLoading } = usePreloadedData();
   const [open, setOpen] = useState(false);
   const [expandedDropdowns, setExpandedDropdowns] = useState<string[]>([]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const toggleDropdown = (dropdown: string) => {
     setExpandedDropdowns((prev) =>
@@ -478,24 +479,32 @@ export const HamburgerSheet = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={isLoggingOut}
                           onClick={async () => {
+                            if (isLoggingOut) return;
+
                             try {
+                              setIsLoggingOut(true);
+                              console.log("Logout button clicked");
                               const result = await signOut();
+                              console.log("Logout result:", result);
+
                               if (result.success) {
                                 setOpen(false);
                                 window.location.href = "/";
                               } else {
                                 console.error("Logout failed:", result.error);
-                                // You could add a toast notification here
                                 alert("Logout failed. Please try again.");
                               }
                             } catch (error) {
                               console.error("Logout error:", error);
                               alert("Logout failed. Please try again.");
+                            } finally {
+                              setIsLoggingOut(false);
                             }
                           }}
                         >
-                          Logout
+                          {isLoggingOut ? "Logging out..." : "Logout"}
                         </Button>
                       </motion.div>
                     </motion.div>

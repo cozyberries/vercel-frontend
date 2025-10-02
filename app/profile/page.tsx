@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -10,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile";
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const {
     profile,
     addresses,
@@ -89,18 +91,25 @@ export default function ProfilePage() {
               onEditAddress={handleEditAddress}
               onSetDefault={handleSetDefault}
               onSignOut={async () => {
+                if (isLoggingOut) return;
+
                 try {
+                  setIsLoggingOut(true);
+                  console.log("Logout button clicked from profile");
                   const result = await signOut();
+                  console.log("Logout result:", result);
+
                   if (result.success) {
                     window.location.href = "/";
                   } else {
-                    console.error('Logout failed:', result.error);
-                    // You could add a toast notification here
-                    alert('Logout failed. Please try again.');
+                    console.error("Logout failed:", result.error);
+                    alert("Logout failed. Please try again.");
                   }
                 } catch (error) {
-                  console.error('Logout error:', error);
-                  alert('Logout failed. Please try again.');
+                  console.error("Logout error:", error);
+                  alert("Logout failed. Please try again.");
+                } finally {
+                  setIsLoggingOut(false);
                 }
               }}
             />

@@ -1,12 +1,18 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
 interface UserProfile {
   id: string;
-  role: 'customer' | 'admin' | 'super_admin';
+  role: "customer" | "admin" | "super_admin";
 }
 
 interface AuthContextType {
@@ -37,17 +43,17 @@ export function SupabaseAuthProvider({
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [jwtToken, setJwtToken] = useState<string | null>(null);
-  
+
   // Create supabase client once and reuse it
   const [supabase] = useState(() => createClient());
 
   // Helper function to generate JWT token
   const generateJwtToken = async (userId: string, userEmail?: string) => {
     try {
-      const response = await fetch('/api/auth/generate-token', {
-        method: 'POST',
+      const response = await fetch("/api/auth/generate-token", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ userId, userEmail }),
       });
@@ -57,7 +63,7 @@ export function SupabaseAuthProvider({
         return data.token;
       }
     } catch (error) {
-      console.error('Error generating JWT token:', error);
+      console.error("Error generating JWT token:", error);
     }
     return null;
   };
@@ -68,9 +74,9 @@ export function SupabaseAuthProvider({
       try {
         // Get user profile with role
         const { data: profile, error } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', currentSession.user.id)
+          .from("user_profiles")
+          .select("role")
+          .eq("id", currentSession.user.id)
           .single();
 
         if (!error && profile) {
@@ -83,25 +89,31 @@ export function SupabaseAuthProvider({
           // Fallback for users without profile
           const userProfile: UserProfile = {
             id: currentSession.user.id,
-            role: 'customer',
+            role: "customer",
           };
           setUserProfile(userProfile);
         }
 
         // Generate JWT token for API authentication
-        const token = await generateJwtToken(currentSession.user.id, currentSession.user.email);
+        const token = await generateJwtToken(
+          currentSession.user.id,
+          currentSession.user.email
+        );
         setJwtToken(token);
       } catch (error) {
-        console.error('Error updating user profile:', error);
+        console.error("Error updating user profile:", error);
         // Set default customer profile on error
         const userProfile: UserProfile = {
           id: currentSession.user.id,
-          role: 'customer',
+          role: "customer",
         };
         setUserProfile(userProfile);
-        
+
         // Generate JWT token for API authentication
-        const token = await generateJwtToken(currentSession.user.id, currentSession.user.email);
+        const token = await generateJwtToken(
+          currentSession.user.id,
+          currentSession.user.email
+        );
         setJwtToken(token);
       }
     } else {
@@ -119,7 +131,7 @@ export function SupabaseAuthProvider({
       } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       await updateUserProfile(session);
       setLoading(false);
     };
@@ -132,7 +144,7 @@ export function SupabaseAuthProvider({
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       await updateUserProfile(session);
       setLoading(false);
     });
@@ -156,7 +168,7 @@ export function SupabaseAuthProvider({
     return { error };
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     // Get the current domain dynamically for redirect URL
     const getRedirectUrl = () => {
       if (typeof window !== "undefined") {
@@ -177,35 +189,39 @@ export function SupabaseAuthProvider({
       },
     });
     return { error };
-  };
+  }, [supabase]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
+      console.log("Sign out initiated...");
       const { error } = await supabase.auth.signOut();
       if (error) {
-        console.error('Error signing out:', error);
+        console.error("Error signing out:", error);
         throw error;
       }
       // Clear profile and token after sign out
       setUserProfile(null);
       setJwtToken(null);
+      console.log("Sign out successful");
       return { success: true };
     } catch (error) {
-      console.error('Sign out failed:', error);
+      console.error("Sign out failed:", error);
       return { success: false, error };
     }
-  };
+  }, [supabase]);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (session?.user) {
       await updateUserProfile(session);
     }
-  };
+  }, [session]);
 
   // Computed values
   const isAuthenticated = !!user;
-  const isAdmin = userProfile ? ['admin', 'super_admin'].includes(userProfile.role) : false;
-  const isSuperAdmin = userProfile ? userProfile.role === 'super_admin' : false;
+  const isAdmin = userProfile
+    ? ["admin", "super_admin"].includes(userProfile.role)
+    : false;
+  const isSuperAdmin = userProfile ? userProfile.role === "super_admin" : false;
 
   const value = {
     user,

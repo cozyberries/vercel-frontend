@@ -12,7 +12,7 @@ import {
   Menu,
   X,
   LogOut,
-  Receipt
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
@@ -32,11 +32,31 @@ const adminNavItems = [
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
   const { signOut } = useAuth();
 
   const handleSignOut = async () => {
-    await signOut();
+    if (isLoggingOut) return;
+
+    try {
+      setIsLoggingOut(true);
+      console.log("Admin logout initiated");
+      const result = await signOut();
+      console.log("Admin logout result:", result);
+
+      if (result.success) {
+        window.location.href = "/";
+      } else {
+        console.error("Logout failed:", result.error);
+        alert("Logout failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      alert("Logout failed. Please try again.");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -87,10 +107,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <Button
               variant="outline"
               onClick={handleSignOut}
+              disabled={isLoggingOut}
               className="w-full flex items-center justify-center"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
+              {isLoggingOut ? "Signing Out..." : "Sign Out"}
             </Button>
           </div>
         </div>
@@ -126,10 +147,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <Button
               variant="outline"
               onClick={handleSignOut}
+              disabled={isLoggingOut}
               className="w-full flex items-center justify-center"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
+              {isLoggingOut ? "Signing Out..." : "Sign Out"}
             </Button>
           </div>
         </div>
