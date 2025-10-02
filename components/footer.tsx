@@ -50,7 +50,7 @@ export default function Footer() {
             </p>
             <div className="flex space-x-4">
               <a
-                href="mailto:cozyberries@gmail.com"
+                href="mailto:cozyberriesofficial@gmail.com"
                 className="text-muted-foreground hover:text-primary transition-colors"
                 aria-label="Email us"
               >

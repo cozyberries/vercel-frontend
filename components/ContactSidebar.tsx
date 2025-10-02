@@ -12,7 +12,7 @@ interface ContactSidebarProps {
 }
 
 export default function ContactSidebar({
-  email = "hello@cozyberries.com",
+  email = "cozyberriesofficial@gmail.com",
   whatsappNumber = "+1234567890",
   instagramHandle = "@cozyberries",
 }: ContactSidebarProps) {
