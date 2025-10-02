@@ -56,7 +56,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("payment_pending");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [authTimeout, setAuthTimeout] = useState(false);
@@ -123,9 +123,7 @@ export default function OrdersPage() {
     let filtered = orders;
 
     // Filter by status
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((order) => order.status === statusFilter);
-    }
+    filtered = filtered.filter((order) => order.status === statusFilter);
 
     // Filter by search query
     if (searchQuery.trim()) {
@@ -229,7 +227,7 @@ export default function OrdersPage() {
 
         {/* Filters */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-6 shadow-sm">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -241,14 +239,15 @@ export default function OrdersPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <div className="flex items-center gap-3 w-12">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-11 sm:h-12 bg-white"
+                className="w-full px-2 py-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-11 sm:h-12 bg-white appearance-none cursor-pointer"
+                title={`Filter: ${statusFilter
+                  .replace("_", " ")
+                  .replace(/\b\w/g, (l) => l.toUpperCase())}`}
               >
-                <option value="all">All Orders</option>
                 <option value="payment_pending">Payment Pending</option>
                 <option value="payment_confirmed">Payment Confirmed</option>
                 <option value="processing">Processing</option>
@@ -259,6 +258,16 @@ export default function OrdersPage() {
               </select>
             </div>
           </div>
+        </div>
+
+        {/* Mobile Filter Status */}
+        <div className="block sm:hidden mb-4">
+          <p className="text-sm text-muted-foreground">
+            Showing:{" "}
+            {statusFilter
+              .replace("_", " ")
+              .replace(/\b\w/g, (l) => l.toUpperCase())}
+          </p>
         </div>
 
         {/* Orders List */}
