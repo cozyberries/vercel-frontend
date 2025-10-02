@@ -14,7 +14,6 @@ import {
   XCircle,
   Clock,
   ArrowRight,
-  Filter,
   Search,
   Loader2,
   AlertCircle,
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { StatusFilterDropdown } from "@/components/StatusFilterDropdown";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
@@ -56,7 +56,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("payment_pending");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [authTimeout, setAuthTimeout] = useState(false);
@@ -123,9 +123,7 @@ export default function OrdersPage() {
     let filtered = orders;
 
     // Filter by status
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((order) => order.status === statusFilter);
-    }
+    filtered = filtered.filter((order) => order.status === statusFilter);
 
     // Filter by search query
     if (searchQuery.trim()) {
@@ -225,52 +223,37 @@ export default function OrdersPage() {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchOrders}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ArrowRight className="w-4 h-4" />
-            )}
-            Refresh
-          </Button>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-3 sm:gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10 sm:h-11"
-              />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-6 shadow-sm">
+          <div className="flex flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search orders by order number or product name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-11 sm:h-12 border-gray-300 focus:border-primary focus:ring-primary"
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <select
+            <StatusFilterDropdown
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-10 sm:h-11"
-            >
-              <option value="all">All Orders</option>
-              <option value="payment_pending">Payment Pending</option>
-              <option value="payment_confirmed">Payment Confirmed</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="refunded">Refunded</option>
-            </select>
+              onChange={setStatusFilter}
+            />
           </div>
+        </div>
+
+        {/* Mobile Filter Status */}
+        <div className="block sm:hidden mb-4">
+          <p className="text-sm text-muted-foreground">
+            Showing:{" "}
+            {statusFilter
+              .replace("_", " ")
+              .replace(/\b\w/g, (l) => l.toUpperCase())}
+          </p>
         </div>
 
         {/* Orders List */}

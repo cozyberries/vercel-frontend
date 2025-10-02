@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import FeaturedProductCard from "./featured-product-card";
+import ProductCard from "./product-card";
 import { getFeaturedProducts, Product } from "@/lib/services/api";
 import { useEffect, useState, useRef } from "react";
 
@@ -161,7 +161,7 @@ export default function FeaturedProducts() {
                     key={product.id}
                     className="w-full lg:w-1/3 flex-shrink-0 px-2 lg:px-3"
                   >
-                    <FeaturedProductCard product={product} index={index} />
+                    <ProductCard product={product} index={index} />
                   </div>
                 ))}
               </div>

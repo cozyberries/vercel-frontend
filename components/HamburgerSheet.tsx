@@ -363,7 +363,7 @@ export const HamburgerSheet = () => {
                     href="https://wa.me/+917411431101"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] hover:text-primary transition-colors"
+                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] hover:text-primary transition-colors underline"
                     variants={itemVariants}
                     whileHover={{ x: 4, scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -379,7 +379,7 @@ export const HamburgerSheet = () => {
                   </motion.a>
 
                   <motion.div
-                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f]"
+                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] underline"
                     variants={itemVariants}
                     whileHover={{ x: 4 }}
                   >
@@ -391,7 +391,7 @@ export const HamburgerSheet = () => {
                     href="https://instagram.com/cozy_berries"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] hover:text-primary transition-colors"
+                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] hover:text-primary transition-colors underline"
                     variants={itemVariants}
                     whileHover={{ x: 4, scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
