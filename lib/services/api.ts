@@ -37,6 +37,7 @@ export interface Product {
   is_featured: boolean;
   category_id: string;
   category: string;
+  categories: { name: string };
   features: string[];
   images: string[];
   colors: string[];

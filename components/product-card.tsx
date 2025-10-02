@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Product } from "@/lib/services/api";
@@ -12,20 +11,27 @@ import { images } from "@/app/assets/images";
 
 interface ProductCardProps {
   product: Product;
+  index: number; // To determine which corner rounding to apply
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const router = useRouter();
   const inWishlist = isInWishlist(product.id);
+
+  // Use consistent rounded corners for all cards
+  const getCornerRounding = () => {
+    return "rounded-2xl";
+  };
 
   return (
     <div
       key={product.id}
-      className="group border-gray-200 flex flex-col h-full min-h-[320px] md:min-h-[400px] overflow-hidden"
+      className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md ${getCornerRounding()}`}
     >
       {/* Image Section */}
-      <div className="relative overflow-hidden bg-[#f5f5f5] border md:h-[82%] h-[81%]">
+      <div
+        className={`relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 lg:h-[75%] h-[68%] `}
+      >
         <Link href={`/products/${product.id}`}>
           {/* First Image */}
           <Image
@@ -37,29 +43,32 @@ export default function ProductCard({ product }: ProductCardProps) {
                 : images.staticProductImage
             }
             alt={product.name}
-            width={500}
-            height={500}
-            className="w-full h-full object-cover transition-all duration-300 group-hover:scale-105 group-hover:opacity-0"
+            width={400}
+            height={400}
+            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
           />
           {/* Second Image (shown on hover if available) */}
-          {product.images?.[1] && 
-           typeof product.images[1] === "string" && 
-           product.images[1].trim() !== "" && (
-            <Image
-              src={product.images[1]}
-              alt={product.name}
-              width={500}
-              height={500}
-              className="absolute inset-0 w-full h-full object-cover transition-all duration-300 opacity-0 group-hover:opacity-100 group-hover:scale-105"
-            />
-          )}
+          {product.images?.[1] &&
+            typeof product.images[1] === "string" &&
+            product.images[1].trim() !== "" && (
+              <Image
+                src={product.images[1]}
+                alt={product.name}
+                width={400}
+                height={400}
+                className="absolute inset-0 w-full h-full object-cover transition-all duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-110"
+              />
+            )}
         </Link>
+
+        {/* Gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Heart Icon Button for Wishlist */}
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+          className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-white/90 hover:bg-white rounded-full h-7 w-7 sm:h-8 sm:w-8 shadow-md hover:shadow-lg transition-all duration-200 opacity-0 group-hover:opacity-100 z-10"
           onClick={(e) => {
             e.preventDefault();
             if (inWishlist) {
@@ -77,43 +86,48 @@ export default function ProductCard({ product }: ProductCardProps) {
           }}
         >
           <Heart
-            className={`h-4 w-4 ${
-              inWishlist ? "fill-red-500 text-red-500" : ""
+            className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors duration-200 ${
+              inWishlist
+                ? "fill-red-500 text-red-500"
+                : "text-gray-600 hover:text-red-500"
             }`}
           />
           <span className="sr-only">
             {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
           </span>
         </Button>
+
+        {/* Quick view overlay */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <Button
+            asChild
+            size="sm"
+            className="bg-white text-gray-900 hover:bg-gray-100 shadow-lg"
+          >
+            <Link href={`/products/${product.id}`}>View</Link>
+          </Button>
+        </div>
       </div>
 
       {/* Content Section */}
-      <div className="flex flex-col md:h-[18%] h-[19%] py-2 md:py-1 justify-between">
-        {/* Product Info and Price Row */}
-        <div className="flex justify-between items-start">
-          {/* Product Info Block */}
-          <div className="flex-1 pr-2">
-            <h3 className="text-base md:text-lg font-medium mb-1 line-clamp-1">
-              <Link
-                href={`/products/${product.id}`}
-                className="hover:text-primary"
-              >
-                {product.name}
-              </Link>
-            </h3>
-            {product.category && product.category !== "Uncategorized" && (
-              <p className="text-sm text-muted-foreground">
-                {product.category}
-              </p>
-            )}
-          </div>
-
-          {/* Price Block */}
-          <div className="flex-shrink-0">
-            <p className="font-medium text-right text-base md:text-lg">
-              ₹{product.price.toFixed(2)}
+      <div className="flex flex-col lg:h-[25%] h-[32%] border p-1 lg:p-3 justify-between bg-white">
+        {/* Product Info */}
+        <div className="space-y-1">
+          <h3 className="text-[.9rem] sm:text-sm lg:text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors duration-200">
+            <Link href={`/products/${product.id}`}>{product.name}</Link>
+          </h3>
+          {product.categories?.name && (
+            <p className="text-xs text-gray-500 font-medium">
+              {product.categories.name}
             </p>
-          </div>
+          )}
+        </div>
+
+        {/* Price */}
+        <div className="flex items-center justify-between">
+          <p className="text-[.9rem] sm:text-sm lg:text-sm font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
+            ₹{product.price.toFixed(2)}
+          </p>
         </div>
       </div>
     </div>

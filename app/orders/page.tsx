@@ -225,51 +225,39 @@ export default function OrdersPage() {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchOrders}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ArrowRight className="w-4 h-4" />
-            )}
-            Refresh
-          </Button>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-3 sm:gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10 sm:h-11"
-              />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-6 shadow-sm">
+          <div className="flex flex-col gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search orders by order number or product name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-11 sm:h-12 border-gray-300 focus:border-primary focus:ring-primary"
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-10 sm:h-11"
-            >
-              <option value="all">All Orders</option>
-              <option value="payment_pending">Payment Pending</option>
-              <option value="payment_confirmed">Payment Confirmed</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="refunded">Refunded</option>
-            </select>
+            <div className="flex items-center gap-3">
+              <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-11 sm:h-12 bg-white"
+              >
+                <option value="all">All Orders</option>
+                <option value="payment_pending">Payment Pending</option>
+                <option value="payment_confirmed">Payment Confirmed</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </div>
           </div>
         </div>
 

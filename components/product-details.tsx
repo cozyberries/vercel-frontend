@@ -33,6 +33,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isMobile, setIsMobile] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
+  const [showMobileImageModal, setShowMobileImageModal] = useState(false);
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -198,11 +199,16 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               className={`aspect-square bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
                 !isMobile
                   ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
-                  : ""
+                  : "cursor-pointer"
               }`}
               onMouseEnter={handleImageMouseEnter}
               onMouseLeave={handleImageMouseLeave}
               onMouseMove={handleImageMouseMove}
+              onClick={() => {
+                if (isMobile) {
+                  setShowMobileImageModal(true);
+                }
+              }}
             >
               <Image
                 src={
@@ -220,7 +226,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               />
 
               {showZoomModal && !isMobile && (
-                <div className="absolute top-0 -right-[86%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
+                <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
                   <Image
                     src={
                       product.images?.[selectedImage] &&
@@ -436,7 +442,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 Buy Now
               </Button>
               <motion.div
-                className="flex-1"
+                className="flex-1 -z-30"
                 animate={
                   isShaking
                     ? {
@@ -484,7 +490,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
-                <span>Free shipping over ₹50</span>
+                <span>Free shipping over ₹1000</span>
               </div>
               <Button
                 variant="ghost"
@@ -585,6 +591,64 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Mobile Image Preview Modal */}
+      {showMobileImageModal && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 md:hidden">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <button
+              onClick={() => setShowMobileImageModal(false)}
+              className="absolute top-4 right-4 text-white z-10 bg-black/50 rounded-full p-2"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            <div className="relative w-full max-w-sm">
+              <Image
+                src={
+                  product.images?.[selectedImage] &&
+                  typeof product.images[selectedImage] === "string" &&
+                  product.images[selectedImage].trim() !== ""
+                    ? product.images[selectedImage]
+                    : "/placeholder.svg"
+                }
+                alt={product.name}
+                width={400}
+                height={400}
+                className="w-full h-auto object-contain"
+                priority
+              />
+            </div>
+
+            {/* Image navigation dots */}
+            {product.images && product.images.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                {product.images.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      index === selectedImage ? "bg-white" : "bg-white/50"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Sticky Mobile Buttons */}
