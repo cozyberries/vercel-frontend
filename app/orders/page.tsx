@@ -14,7 +14,6 @@ import {
   XCircle,
   Clock,
   ArrowRight,
-  Filter,
   Search,
   Loader2,
   AlertCircle,
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { StatusFilterDropdown } from "@/components/StatusFilterDropdown";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
@@ -239,24 +239,10 @@ export default function OrdersPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-3 w-12">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-2 py-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-11 sm:h-12 bg-white appearance-none cursor-pointer"
-                title={`Filter: ${statusFilter
-                  .replace("_", " ")
-                  .replace(/\b\w/g, (l) => l.toUpperCase())}`}
-              >
-                <option value="payment_pending">Payment Pending</option>
-                <option value="payment_confirmed">Payment Confirmed</option>
-                <option value="processing">Processing</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="refunded">Refunded</option>
-              </select>
-            </div>
+            <StatusFilterDropdown
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
           </div>
         </div>
 
