@@ -385,7 +385,7 @@ export const HamburgerSheet = () => {
                     whileHover={{ x: 4 }}
                   >
                     <Mail className="h-4 w-4 mr-2" />
-                    cozyberries@gmail.com
+                    cozyberriesofficial@gmail.com
                   </motion.div>
 
                   <motion.a
