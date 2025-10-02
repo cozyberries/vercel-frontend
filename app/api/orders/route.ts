@@ -187,12 +187,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = parseInt(searchParams.get("offset") || "0");
-    const status = searchParams.get("status");
 
     // Create cache key based on filters
-    const filters = `limit:${limit}-offset:${offset}${
-      status ? `-status:${status}` : ""
-    }`;
+    const filters = `limit:${limit}-offset:${offset}`;
 
     // Step 1: Try to get from cache (with short timeout to avoid hanging)
     let cachedOrders = null;
@@ -237,18 +234,12 @@ export async function GET(request: NextRequest) {
     // Step 3: Cache miss - fetch from database
     console.log(`Cache MISS for user ${user.id}, fetching from database`);
 
-    let query = supabase
+    const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
-
-    if (status) {
-      query = query.eq("status", status);
-    }
-
-    const { data: orders, error: ordersError } = await query;
 
     if (ordersError) {
       console.error("Error fetching orders from database:", ordersError);
@@ -302,31 +293,23 @@ export async function GET(request: NextRequest) {
  */
 async function refreshOrdersInBackground(
   userId: string,
-  options: { limit: number; offset: number; status: string | null },
+  options: { limit: number; offset: number },
   supabase: any
 ): Promise<void> {
   try {
-    let query = supabase
+    const { data: orders, error } = await supabase
       .from("orders")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .range(options.offset, options.offset + options.limit - 1);
 
-    if (options.status) {
-      query = query.eq("status", options.status);
-    }
-
-    const { data: orders, error } = await query;
-
     if (error) {
       console.error("Error in background orders refresh:", error);
       return;
     }
 
-    const filters = `limit:${options.limit}-offset:${options.offset}${
-      options.status ? `-status:${options.status}` : ""
-    }`;
+    const filters = `limit:${options.limit}-offset:${options.offset}`;
     await CacheService.setOrders(userId, orders || [], filters);
   } catch (error) {
     console.error("Error in background orders refresh:", error);

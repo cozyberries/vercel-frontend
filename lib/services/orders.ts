@@ -62,7 +62,6 @@ class OrderService {
     options: {
       limit?: number;
       offset?: number;
-      status?: string;
     } = {}
   ): Promise<Order[]> {
     try {
@@ -70,7 +69,6 @@ class OrderService {
 
       if (options.limit) params.append("limit", options.limit.toString());
       if (options.offset) params.append("offset", options.offset.toString());
-      if (options.status) params.append("status", options.status);
 
       const headers = await this.getHeaders();
 
