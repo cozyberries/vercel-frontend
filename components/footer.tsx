@@ -107,20 +107,6 @@ export default function Footer() {
           <p className="text-sm text-muted-foreground mb-4 md:mb-0">
             © {new Date().getFullYear()} CozyBerries. All rights reserved.
           </p>
-          <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
-            <Link
-              href="/privacy-policy"
-              className="hover:text-primary transition-colors"
-            >
-              Privacy Policy
-            </Link>
-            <Link
-              href="/terms-of-service"
-              className="hover:text-primary transition-colors"
-            >
-              Terms of Service
-            </Link>
-          </div>
         </div>
       </div>
     </footer>

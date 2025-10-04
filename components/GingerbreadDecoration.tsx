@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { images } from "@/app/assets/images";
 
 interface GingerbreadDecorationProps {
   className?: string;
@@ -126,7 +127,7 @@ export default function GingerbreadDecoration({
       }}
     >
       <Image
-        src="/svgs/gingerbread-santa.svg"
+        src={images.svgs.gingerbread_santa}
         alt="Gingerbread decoration"
         fill
         className="object-contain"

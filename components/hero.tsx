@@ -4,17 +4,14 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { images } from "@/app/assets/images";
 
 // Hero images - using desktop images as default for SSR consistency
-const HERO_IMAGES = ["/hero/1.jpeg", "/hero/2.jpg", "/hero/3.jpg"];
+const HERO_IMAGES = images.heroImages;
 const FALLBACK_IMAGE = "/placeholder.jpg";
 
 // Mobile image sources
-const MOBILE_IMAGES = [
-  "/hero/mobile1.jpg",
-  "/hero/mobile2.webp",
-  "/hero/3.jpg",
-];
+const MOBILE_IMAGES = images.mobileHeroImages;
 
 const getMobileImageSrc = (index: number) => {
   return MOBILE_IMAGES[index] || FALLBACK_IMAGE;
