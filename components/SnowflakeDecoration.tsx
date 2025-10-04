@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { images } from "@/app/assets/images";
 
 interface SnowflakeDecorationProps {
   className?: string;
@@ -126,7 +127,7 @@ export default function SnowflakeDecoration({
       }}
     >
       <Image
-        src="/svgs/christmas_straw.svg"
+        src={images.svgs.snowflake}
         alt="Snowflake decoration"
         fill
         className="object-contain"

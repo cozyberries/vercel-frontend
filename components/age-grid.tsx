@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { images } from "@/app/assets/images";
 
 const ageRanges = [
   {
@@ -9,42 +10,42 @@ const ageRanges = [
     name: "0-3 Months",
     slug: "0-3-months",
     description: "Newborn essentials",
-    image: "/age/age_zero_three_m.png",
+    image: images.age.age_zero_three_m,
   },
   {
     id: "3-6m",
     name: "3-6 Months",
     slug: "3-6-months",
     description: "Growing baby comfort",
-    image: "/age/age_three_six_m.png",
+    image: images.age.age_three_six_m,
   },
   {
     id: "6-12m",
     name: "6-12 Months",
     slug: "6-12-months",
     description: "Active crawler styles",
-    image: "/age/age_six_twelve_m.png",
+    image: images.age.age_six_twelve_m,
   },
   {
     id: "1-2y",
     name: "1-2 Years",
     slug: "1-2-years",
     description: "Toddler adventures",
-    image: "/age/age_one_two_y.png",
+    image: images.age.age_one_two_y,
   },
   {
     id: "2-3y",
     name: "2-3 Years",
     slug: "2-3-years",
     description: "Independent explorer",
-    image: "/age/age_two_three_y.png",
+    image: images.age.age_two_three_y,
   },
   {
     id: "3-6y",
     name: "3-6 Years",
     slug: "3-6-years",
     description: "Little personality",
-    image: "/age/age_three_six_y.png",
+    image: images.age.age_three_six_y,
   },
 ];
 
