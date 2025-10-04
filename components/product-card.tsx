@@ -29,9 +29,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md ${getCornerRounding()}`}
     >
       {/* Image Section */}
-      <div
-        className={`relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 lg:h-[75%] h-[68%] `}
-      >
+      <div className={`relative overflow-hidden lg:h-[75%] h-[68%] `}>
         <Link href={`/products/${product.id}`}>
           {/* First Image */}
           <Image
@@ -60,9 +58,6 @@ export default function ProductCard({ product }: ProductCardProps) {
               />
             )}
         </Link>
-
-        {/* Gradient overlay on hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Heart Icon Button for Wishlist */}
         <Button
@@ -98,7 +93,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         </Button>
 
         {/* Quick view overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
           <Button
             asChild
             size="sm"
