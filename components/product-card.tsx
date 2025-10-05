@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import { Heart, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Product } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
@@ -23,10 +23,15 @@ export default function ProductCard({ product }: ProductCardProps) {
     return "rounded-2xl";
   };
 
+  const handleCardClick = () => {
+    window.location.href = `/products/${product.id}`;
+  };
+
   return (
     <div
       key={product.id}
-      className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md ${getCornerRounding()}`}
+      className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
+      onClick={handleCardClick}
     >
       {/* Image Section */}
       <div className={`relative overflow-hidden lg:h-[75%] h-[68%] `}>
@@ -92,35 +97,37 @@ export default function ProductCard({ product }: ProductCardProps) {
           </span>
         </Button>
 
-        {/* Quick view overlay */}
+        {/* Quick view overlay
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
           <Button
             asChild
             size="sm"
-            className="bg-white text-gray-900 hover:bg-gray-100 shadow-lg"
+            className=" text-gray-900 bg-none hover:bg-none p-10 shadow-lg"
           >
-            <Link href={`/products/${product.id}`}>View</Link>
+            <Link href={`/products/${product.id}`}>
+              <Eye className="w-10 h-10" />
+            </Link>
           </Button>
-        </div>
+        </div> */}
       </div>
 
       {/* Content Section */}
-      <div className="flex flex-col lg:h-[25%] h-[32%] border p-1 lg:p-3 justify-between bg-white">
+      <div className="flex flex-col lg:h-[25%] h-[32%] border px-1 py-2 lg:px-3 lg:py-3 justify-between bg-white">
         {/* Product Info */}
         <div className="space-y-1">
-          <h3 className="text-[.9rem] sm:text-sm lg:text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors duration-200">
+          <h3 className="text-[13px] lg:text-[.9rem] font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors duration-200">
             <Link href={`/products/${product.id}`}>{product.name}</Link>
           </h3>
+        </div>
+
+        {/* Category and Price */}
+        <div className="flex items-center justify-between">
           {product.categories?.name && (
             <p className="text-xs text-gray-500 font-medium">
               {product.categories.name}
             </p>
           )}
-        </div>
-
-        {/* Price */}
-        <div className="flex items-center justify-between">
-          <p className="text-[.9rem] sm:text-sm lg:text-sm font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
+          <p className="text-[13px] sm:text-sm lg:text-[.9rem] font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
             ₹{product.price.toFixed(2)}
           </p>
         </div>
