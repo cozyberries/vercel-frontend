@@ -1,61 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import CacheService from "@/lib/services/cache";
-
-// Track ongoing background refreshes to prevent duplicates
-const refreshingWishlists = new Set<string>();
 
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Try to get from cache first
-    const { data: cachedWishlist, ttl, isStale } = await CacheService.getWishlist(user.id);
-    
-    if (cachedWishlist) {
-      const headers = {
-        "X-Cache-Status": isStale ? "STALE" : "HIT",
-        "X-Cache-Key": CacheService.getCacheKey("WISHLIST", user.id),
-        "X-Data-Source": "REDIS_CACHE",
-        "X-Cache-TTL": ttl.toString(),
-      };
-
-      // If data is stale and not already refreshing, trigger background revalidation
-      if (isStale && !refreshingWishlists.has(user.id)) {
-        refreshingWishlists.add(user.id);
-        (async () => {
-          try {
-            console.log(`Background revalidation for wishlist: ${user.id}`);
-            await refreshWishlistInBackground(user.id, supabase);
-          } catch (error) {
-            console.error(`Background wishlist refresh failed for user ${user.id}:`, error);
-          } finally {
-            // Remove from set after a delay to prevent rapid successive calls
-            setTimeout(() => {
-              refreshingWishlists.delete(user.id);
-            }, 5000); // 5 second cooldown
-          }
-        })();
-      }
-
-      return NextResponse.json({
-        wishlist: cachedWishlist,
-        user_id: user.id,
-      }, { headers });
-    }
-
-    // No cache hit, fetch from database
+    // Fetch from database
     const { data, error } = await supabase
       .from("user_wishlists")
       .select("*")
@@ -70,22 +28,10 @@ export async function GET() {
       );
     }
 
-    const wishlistItems = data?.items || [];
-    
-    // Cache the result
-    await CacheService.setWishlist(user.id, wishlistItems);
-
-    const headers = {
-      "X-Cache-Status": "MISS",
-      "X-Cache-Key": CacheService.getCacheKey("WISHLIST", user.id),
-      "X-Data-Source": "SUPABASE_DATABASE",
-      "X-Cache-Set": "SUCCESS",
-    };
-
     return NextResponse.json({
-      wishlist: wishlistItems,
+      wishlist: data?.items || [],
       user_id: user.id,
-    }, { headers });
+    });
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
@@ -95,42 +41,16 @@ export async function GET() {
   }
 }
 
-/**
- * Background refresh function for stale-while-revalidate pattern
- */
-async function refreshWishlistInBackground(userId: string, supabase: any): Promise<void> {
-  try {
-    const { data, error } = await supabase
-      .from("user_wishlists")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    if (error && error.code !== "PGRST116") {
-      console.error("Error in background wishlist refresh:", error);
-      return;
-    }
-
-    const wishlistItems = data?.items || [];
-    await CacheService.setWishlist(userId, wishlistItems);
-  } catch (error) {
-    console.error("Error in background wishlist refresh:", error);
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -166,9 +86,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update cache with the new data
-    await CacheService.setWishlist(user.id, items);
-
     return NextResponse.json({
       success: true,
       wishlist: data,
@@ -185,16 +102,13 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { error } = await supabase
@@ -209,9 +123,6 @@ export async function DELETE() {
         { status: 500 }
       );
     }
-
-    // Clear cache
-    await CacheService.clearWishlist(user.id);
 
     return NextResponse.json({
       success: true,
