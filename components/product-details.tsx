@@ -196,7 +196,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
-              className={`aspect-square bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
+              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
                 !isMobile
                   ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
                   : "cursor-pointer"
@@ -421,7 +421,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             <div className="hidden md:flex flex-col sm:flex-row gap-4 mb-8">
               <Button
                 size="lg"
-                className="flex-1 bg-black hover:bg-gray-800"
+                className="w-1/2 bg-black hover:bg-gray-800"
                 onClick={() => {
                   // Add to cart temporarily (replaces existing cart), then redirect to checkout
                   addToCartTemporary({
@@ -442,7 +442,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 Buy Now
               </Button>
               <motion.div
-                className="flex-1 -z-30"
+                className="w-1/2"
                 animate={
                   isShaking
                     ? {
@@ -455,7 +455,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="w-full"
+                  className="w-full z-0"
                   onClick={() => {
                     if (isInCart) {
                       removeFromCart(product.id);
@@ -656,7 +656,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         <div className="flex gap-3">
           <Button
             size="lg"
-            className="flex-1 h-12 bg-black hover:bg-gray-800"
+            className="w-1/2 h-12 bg-black hover:bg-gray-800"
             onClick={() => {
               // Add to cart temporarily (replaces existing cart), then redirect to checkout
               addToCartTemporary({
@@ -680,7 +680,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           <Button
             size="lg"
             variant="outline"
-            className="flex-1 overflow-hidden"
+            className="w-1/2 h-12 overflow-hidden"
             onClick={() => {
               if (isInCart) {
                 removeFromCart(product.id);
