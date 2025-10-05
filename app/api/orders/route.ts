@@ -6,10 +6,6 @@ import type {
   OrderSummary,
 } from "@/lib/types/order";
 import type { CartItem } from "@/components/cart-context";
-import CacheService from "@/lib/services/cache";
-
-// Track ongoing background refreshes to prevent duplicates
-const refreshingOrders = new Map<string, Set<string>>();
 
 export async function POST(request: NextRequest) {
   try {
@@ -142,15 +138,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clear orders cache in background (fire and forget)
-    CacheService.clearAllOrders(user.id)
-      .then(() => {
-        console.log(`Cache cleared for user: ${user.id} after order creation`);
-      })
-      .catch((cacheError) => {
-        console.error("Error clearing orders cache:", cacheError);
-      });
-
     // Generate payment URL for the dummy payment page
     const paymentUrl = `/payment/${order.id}`;
 
@@ -188,52 +175,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Create cache key based on filters
-    const filters = `limit:${limit}-offset:${offset}`;
-
-    // Step 1: Try to get from cache (with short timeout to avoid hanging)
-    let cachedOrders = null;
-    let cacheHit = false;
-
-    try {
-      const cachePromise = CacheService.getOrders(user.id, filters);
-      const timeoutPromise = new Promise<{
-        data: null;
-        ttl: number;
-        isStale: boolean;
-      }>((resolve) =>
-        setTimeout(() => resolve({ data: null, ttl: 0, isStale: false }), 1500)
-      );
-
-      const cacheResult = await Promise.race([cachePromise, timeoutPromise]);
-
-      if (cacheResult.data && Array.isArray(cacheResult.data)) {
-        cachedOrders = cacheResult.data;
-        cacheHit = true;
-        console.log(
-          `Cache HIT for user ${user.id}, found ${cachedOrders.length} orders`
-        );
-      }
-    } catch (cacheError) {
-      console.error("Cache read error, falling back to database:", cacheError);
-    }
-
-    // Step 2: If cache has data, return it immediately
-    if (cacheHit && cachedOrders) {
-      return NextResponse.json(
-        { orders: cachedOrders },
-        {
-          headers: {
-            "X-Cache-Status": "HIT",
-            "X-Data-Source": "CACHE",
-          },
-        }
-      );
-    }
-
-    // Step 3: Cache miss - fetch from database
-    console.log(`Cache MISS for user ${user.id}, fetching from database`);
-
+    // Fetch orders from database
     const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("*")
@@ -249,70 +191,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log(
-      `Fetched ${orders?.length || 0} orders from database for user ${user.id}`
-    );
-
-    // Step 4: Return data to user immediately
-    const response = NextResponse.json(
-      { orders: orders || [] },
-      {
-        headers: {
-          "X-Cache-Status": "MISS",
-          "X-Data-Source": "DATABASE",
-        },
-      }
-    );
-
-    // Step 5: Cache in background (fire and forget - don't block response)
-    if (orders && orders.length >= 0) {
-      CacheService.setOrders(user.id, orders, filters)
-        .then(() => {
-          console.log(`Background cache set SUCCESS for user ${user.id}`);
-        })
-        .catch((err) => {
-          console.error(
-            `Background cache set FAILED for user ${user.id}:`,
-            err
-          );
-        });
-    }
-
-    return response;
+    return NextResponse.json({ orders: orders || [] });
   } catch (error) {
     console.error("Error in order fetching:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
-  }
-}
-
-/**
- * Background refresh function for stale-while-revalidate pattern
- */
-async function refreshOrdersInBackground(
-  userId: string,
-  options: { limit: number; offset: number },
-  supabase: any
-): Promise<void> {
-  try {
-    const { data: orders, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .range(options.offset, options.offset + options.limit - 1);
-
-    if (error) {
-      console.error("Error in background orders refresh:", error);
-      return;
-    }
-
-    const filters = `limit:${options.limit}-offset:${options.offset}`;
-    await CacheService.setOrders(userId, orders || [], filters);
-  } catch (error) {
-    console.error("Error in background orders refresh:", error);
   }
 }
 
