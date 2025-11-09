@@ -17,6 +17,8 @@ import {
   Search,
   Loader2,
   AlertCircle,
+  Star,
+  Rat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,9 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
+import RatingForm from "@/components/rating/RatingForm";
+import { RatingCreate } from "@/lib/types/rating";
+import { useRating } from "@/components/rating-context";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,
@@ -58,6 +63,8 @@ export default function OrdersPage() {
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [authTimeout, setAuthTimeout] = useState(false);
   const [hasInitialFetch, setHasInitialFetch] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const { fetchReviews, setProductId } = useRating();
 
   const fetchOrders = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -203,6 +210,40 @@ export default function OrdersPage() {
     );
   }
 
+  const handleSubmitRating = async (data: RatingCreate) => {
+    try {
+      const url = `/api/ratings`;
+      const method = "POST";
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      if (response.ok) {
+        setShowForm(false);
+        await fetchReviews(Number(data.product_id));
+        console.log("Rating submitted successfully");
+      } else {
+        console.error("Failed to submit rating");
+      }
+    } catch (error) {
+      console.error("Error submitting rating:", error);
+    }
+  };
+
+  if (showForm) {
+    return (
+      <RatingForm
+        onSubmitRating={handleSubmitRating} 
+        onCancel={() => {
+          setShowForm(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-4 sm:py-8">
@@ -323,6 +364,21 @@ export default function OrdersPage() {
                       <div className="text-xs sm:text-sm font-medium flex-shrink-0">
                         ₹{(item.price * item.quantity).toFixed(2)}
                       </div>
+                      {order.status === "delivered" && (
+                      <Button
+                        onClick={() => {
+                          setShowForm(true);
+                          setProductId(Number(item.id));
+                        }}
+                        variant="outline"
+                        asChild
+                        className="flex items-center justify-center gap-2 h-9 sm:h-10 text-sm"
+                        size="sm"
+                      >
+                        <Star className="w-4 h-4" />
+                        Rate
+                      </Button>
+                    )}
                     </div>
                   ))}
                   {order.items.length > 3 && (

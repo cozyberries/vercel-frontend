@@ -152,62 +152,79 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+  
     if (!selectedAddressId) {
       alert("Please select a shipping address");
       return;
     }
-
+  
     setIsProcessing(true);
-
+  
     try {
-      // Create order in Supabase
-      const orderData = {
-        items: cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image,
-        })),
-        shipping_address_id: selectedAddressId,
-        notes: formData.notes || "",
-      };
-
-      const response = await fetch("/api/orders", {
+      // Step 1: Create Razorpay order
+      const response = await fetch("/api/razorpay", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(orderData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: total }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create order");
-      }
-
-      const { order, payment_url } = await response.json();
-
-      // Clear cart after successful order creation
-      clearCart();
-
-      // Show success toast
-      toast.success("Order created successfully! Redirecting to payment...");
-
-      // Redirect to payment page
-      router.push(payment_url);
+  
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create Razorpay order");
+  
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: total * 100,
+        currency: "INR",
+        order_id: data.orderId,
+        name: "Cozy Berries",
+        description: "Order Payment",
+        handler: async function (paymentResponse: any) {
+          const verifyRes = await fetch("/api/razorpay/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(paymentResponse),
+          });
+  
+          const verifyData = await verifyRes.json();
+          if (verifyData.success) {
+            const orderRes = await fetch("/api/orders", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                items: cart.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  image: item.image,
+                })),
+                shipping_address_id: selectedAddressId,
+                notes: formData.notes || "",
+              }),
+            });
+  
+            if (!orderRes.ok) toast.error("Failed to save order");
+            toast.success("Order created successfully! Redirecting to payment...");
+            clearCart();
+            router.push((await orderRes.json()).payment_url || "/orders");
+          } else {
+            toast.error("Payment Verification Failed");
+            router.push("/checkout");
+          }
+        },
+        theme: { color: "#3399cc" },
+      };
+      
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
     } catch (error) {
       console.error("Order creation error:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to create order. Please try again."
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to create order");
     } finally {
       setIsProcessing(false);
     }
   };
+
 
   if (orderComplete) {
     return (

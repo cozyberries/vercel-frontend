@@ -348,6 +348,7 @@ export interface ProductCreateRequest {
   description?: string;
   price: number;
   category?: string;
+  images?: string[];
 }
 
 export interface ProductUpdateRequest {
@@ -355,6 +356,7 @@ export interface ProductUpdateRequest {
   description?: string;
   price?: number;
   category?: string;
+  images?: string[];
 }
 
 export const createProduct = async (

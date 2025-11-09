@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, X } from "lucide-react";
+import { ArrowLeft, ImageIcon, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Product } from "@/lib/types/product";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import Image from "next/image";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -27,20 +29,31 @@ export default function ProductForm({
   onSubmit,
   onCancel,
 }: ProductFormProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    price: string;
+    stock_quantity: string;
+    is_featured: boolean;
+    category_id: string;
+    images: string[];
+  }>({
     name: "",
     description: "",
     price: "",
     stock_quantity: "",
     is_featured: false,
     category_id: "",
+    images: [],
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [imageFiles, setImageFiles] = useState<(File | string)[]>([]);
 
   useEffect(() => {
     fetchCategories();
     if (product) {
+      const imageUrls = product?.images?.map((image) => image || "") || [];
       setFormData({
         name: product.name || "",
         description: product.description || "",
@@ -48,7 +61,9 @@ export default function ProductForm({
         stock_quantity: product.stock_quantity?.toString() || "0",
         is_featured: product.is_featured || false,
         category_id: product.category_id || "",
+        images: imageUrls as unknown as string[],
       });
+      setImageFiles(imageUrls as unknown as (File | string)[]);
     }
   }, [product]);
 
@@ -65,17 +80,36 @@ export default function ProductForm({
     }
   };
 
+  const handleAddProductImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0) {
+      setImageFiles((prev) => [...prev, ...files]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const uploadedUrls: string[] = [];
+      for (const f of imageFiles) {
+        if (typeof f === "string") {
+          uploadedUrls.push(f);
+        } else {
+          const url = await uploadImageToCloudinary(f);
+          uploadedUrls.push(url);
+        }
+      }
       const submitData = {
-        ...formData,
+        name: formData.name,
+        description: formData.description,
         price: parseFloat(formData.price),
         stock_quantity: parseInt(formData.stock_quantity),
+        is_featured: formData.is_featured,
+        category_id: formData.category_id,
+        images: uploadedUrls,
       };
-
       await onSubmit(submitData);
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -120,6 +154,46 @@ export default function ProductForm({
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
+              <div>
+                <Label>Product Images</Label>
+                <div className="flex flex-wrap gap-4 mt-2">
+                  {/* Show existing images */}
+                  {imageFiles?.length > 0 ? (
+                    imageFiles?.map((img: File | string, idx: number) => (
+                      <div key={idx} className="relative">
+                        <Image
+                          src={typeof img === 'string' ? img : URL.createObjectURL(img)}
+                          alt={`Product ${idx}`}
+                          width={80}
+                          height={80}
+                          className="rounded-md border"
+                        />
+                        <button
+                          type="button"
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full py-1 px-[7px] text-xs"
+                          onClick={() => {
+                            setImageFiles((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-20 h-20 border rounded-md flex items-center justify-center text-gray-400">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleAddProductImage}
+                    />
+                  </div>
+                </div>
+              </div>
               <div>
                 <Label htmlFor="name">Product Name *</Label>
                 <Input
@@ -221,8 +295,8 @@ export default function ProductForm({
                 {loading
                   ? "Saving..."
                   : product
-                  ? "Update Product"
-                  : "Create Product"}
+                    ? "Update Product"
+                    : "Create Product"}
               </Button>
             </div>
           </form>

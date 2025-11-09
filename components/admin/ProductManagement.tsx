@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Product } from "@/lib/types/product";
 import ProductForm from "./ProductForm";
+import Image from "next/image";
 
 export default function ProductManagement() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -232,10 +233,12 @@ export default function ProductManagement() {
             <Card key={product.id} className="overflow-hidden">
               <div className="aspect-square bg-gray-100 relative">
                 {product.images && product.images.length > 0 ? (
-                  <img
-                    src={product.images[0].url}
+                  <Image
+                    src={product.images?.[0] || ""}
                     alt={product.name}
-                    className="w-full h-full object-cover"
+                    width={400}
+                    height={400}
+                    className="w-full h-full object-cover rounded-t-lg"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">

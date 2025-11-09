@@ -73,7 +73,7 @@ export default function CategoryGrid() {
         // Use category.image directly, with fallback to static image
 
         const categoryImage =
-          category.image ||
+        getPrimaryCategoryImageUrl(category.images?.[0]) ||
           categoryImageMap[category.slug] ||
           categoryImageMap[category.name.toLowerCase()] ||
           images.staticCategoryImage;

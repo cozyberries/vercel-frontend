@@ -419,6 +419,7 @@ export async function POST(request: NextRequest) {
       slug: slug,
       stock_quantity: 0, // Default stock quantity
       is_featured: false, // Default to not featured
+      images: body.images || [],
     };
 
     const supabase = await createServerSupabaseClient();

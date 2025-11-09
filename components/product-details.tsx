@@ -21,6 +21,15 @@ import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
 import { toast } from "sonner";
+import Reviews from "./reviews";
+import { RatingItem, useRating } from "./rating-context";
+
+interface ReviewItem {
+  userName: string;
+  rating: number;
+  review: string;
+  images?: string[];
+}
 
 export default function ProductDetails({ id: productId }: { id: string }) {
   const [quantity, setQuantity] = useState(1);
@@ -34,6 +43,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [isMobile, setIsMobile] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
+  const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
+  const { reviews } = useRating();
+
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -54,6 +66,25 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Fetch all reviews
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const productReviews = reviews.filter((rev) => rev.product_id === Number(productId))
+        
+        setAllReviews(productReviews.map((rev: RatingItem) => ({
+          userName: rev.user_id,
+          review: rev.comment,
+          rating: rev.rating,
+          images: rev.images,
+        })));
+      } catch (error) {
+        return;
+      }
+    }
+    fetchReviews()
+  }, [reviews, productId]);
 
   // Fetch product data
   useEffect(() => {
@@ -539,6 +570,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 </div>
               </div>
             </div>
+
+            <Separator className="my-8" />
+            <Reviews reviews={allReviews} />
           </div>
         </div>
       </div>
