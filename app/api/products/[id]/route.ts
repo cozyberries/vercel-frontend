@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Process product images
     const product = {
       ...data,
-      images: data.images ? JSON.parse(data.images) : [],
+      images: (data.images || []).filter((url: string) => url),
     };
 
     // Cache the product asynchronously (non-blocking) for 30 minutes

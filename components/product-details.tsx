@@ -53,7 +53,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
   const { reviews, showViewReviewModal } = useRating();
   const [users, setUsers] = useState<User[]>([]);
-  const [productRating, setProductRating] = useState(0);
+  const [productRating, setProductRating] = useState<number>(0);
 
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
@@ -109,8 +109,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           images: rev.images,
         })));
         const totalRating = productReviews.reduce((acc, rev) => acc + rev.rating, 0);
-        const averageRating = totalRating / productReviews?.length;
-        setProductRating(averageRating);
+        const averageRating = productReviews?.length > 0 ? (totalRating / productReviews?.length).toFixed(1) : 0;
+        setProductRating(Number(averageRating));
       } catch (error) {
         return;
       }

@@ -78,7 +78,7 @@ export interface PaginatedResponse<T> {
 // This completely avoids CORS issues
 const api = axios.create({
   headers: { "Content-Type": "application/json" },
-  timeout: 10000, // 10 second timeout
+  timeout: 15000, // 15 second timeout
 });
 
 // Add response interceptor for better error handling
@@ -90,7 +90,7 @@ api.interceptors.response.use(
     } else if (error.response?.status >= 500) {
       console.error("Server error:", error.response.status, error.config.url);
     } else if (!error.response) {
-      console.error("Network error:", error.message, error.config.url);
+      console.error("Network error or no response:", error.message);
     }
     return Promise.reject(error);
   }
