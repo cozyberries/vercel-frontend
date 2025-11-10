@@ -1,6 +1,6 @@
 export interface RatingBase {
     user_id: string;
-    product_id: number;
+    product_id: string;
     rating: number;
     comment?: string;
     images?: string[];

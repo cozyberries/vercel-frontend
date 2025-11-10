@@ -70,10 +70,8 @@ export default function CategoryGrid() {
   return (
     <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
       {displayCategories.map((category) => {
-        // Use category.image directly, with fallback to static image
-
         const categoryImage =
-        getPrimaryCategoryImageUrl(category.images?.[0]) ||
+          getPrimaryCategoryImageUrl(category.images) ||
           categoryImageMap[category.slug] ||
           categoryImageMap[category.name.toLowerCase()] ||
           images.staticCategoryImage;

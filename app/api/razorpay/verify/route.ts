@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     // Generate signature using key_secret
     const generated_signature = crypto
-      .createHmac("sha256", process.env.NEXT_PUBLIC_RAZORPAY_KEY_SECRET as string)
+      .createHmac("sha256", process.env.RAZORPAY_SECRET_KEY as string)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest("hex");
 
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: "Payment verification successful",
-        paymentId: razorpay_payment_id,
+        paymentId: razorpay_payment_id, 
         orderId: razorpay_order_id,
       });
     } else {
