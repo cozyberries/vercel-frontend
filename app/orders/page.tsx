@@ -29,6 +29,8 @@ import type { Order, OrderStatus } from "@/lib/types/order";
 import RatingForm from "@/components/rating/RatingForm";
 import { RatingCreate } from "@/lib/types/rating";
 import { useRating } from "@/components/rating-context";
+import { sendNotification } from "@/lib/utils/notify";
+import { toast } from "sonner";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,
@@ -64,7 +66,7 @@ export default function OrdersPage() {
   const [authTimeout, setAuthTimeout] = useState(false);
   const [hasInitialFetch, setHasInitialFetch] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const { fetchReviews, setProductId } = useRating();
+  const { reviews, fetchReviews, setProductId } = useRating();
 
   const fetchOrders = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -153,6 +155,11 @@ export default function OrdersPage() {
     });
   };
 
+  // check if the product is already rated
+  const isProductRated = useCallback((productId: string) => {
+    return reviews.some((review) => review.product_id === productId && review.user_id === user?.id);
+  }, [reviews, user]);
+
   if ((loading && !authTimeout) || isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -223,10 +230,11 @@ export default function OrdersPage() {
       });
       if (response.ok) {
         setShowForm(false);
-        await fetchReviews(Number(data.product_id));
-        console.log("Rating submitted successfully");
+        await fetchReviews();
+        await sendNotification("Rating Submitted", `${user?.email} has submitted a rating for ${data?.product_id}`, "success");
+        toast.success("Rating submitted successfully");
       } else {
-        console.error("Failed to submit rating");
+        toast.error("Failed to submit rating");
       }
     } catch (error) {
       console.error("Error submitting rating:", error);
@@ -236,7 +244,7 @@ export default function OrdersPage() {
   if (showForm) {
     return (
       <RatingForm
-        onSubmitRating={handleSubmitRating} 
+        onSubmitRating={handleSubmitRating}
         onCancel={() => {
           setShowForm(false);
         }}
@@ -324,9 +332,8 @@ export default function OrdersPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div
-                      className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
-                        statusColors[order.status]
-                      }`}
+                      className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${statusColors[order.status]
+                        }`}
                     >
                       {statusIcons[order.status]}
                       <span className="truncate">
@@ -365,20 +372,21 @@ export default function OrdersPage() {
                         ₹{(item.price * item.quantity).toFixed(2)}
                       </div>
                       {order.status === "delivered" && (
-                      <Button
-                        onClick={() => {
-                          setShowForm(true);
-                          setProductId(Number(item.id));
-                        }}
-                        variant="outline"
-                        asChild
-                        className="flex items-center justify-center gap-2 h-9 sm:h-10 text-sm"
-                        size="sm"
-                      >
-                        <Star className="w-4 h-4" />
-                        Rate
-                      </Button>
-                    )}
+                        <Button
+                          onClick={() => {
+                            setShowForm(true);
+                            setProductId(item.id);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          variant="outline"
+                          className="flex items-center justify-center gap-2 h-9 sm:h-10 text-sm"
+                          size="sm"
+                          disabled={isProductRated(item.id)}
+                        >
+                          {isProductRated(item.id) ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Star className="w-4 h-4" />}
+                          {isProductRated(item.id) ? "Already Rated" : "Rate"}
+                        </Button>
+                      )}
                     </div>
                   ))}
                   {order.items.length > 3 && (
@@ -436,10 +444,13 @@ export default function OrdersPage() {
                       size="sm"
                     >
                       <Link href={`/orders/${order.id}`}>
-                        View Details
-                        <ArrowRight className="w-4 h-4" />
+                        <span className="flex items-center gap-2">
+                          View Details
+                          <ArrowRight className="w-4 h-4" />
+                        </span>
                       </Link>
                     </Button>
+
                   </div>
                 </div>
 

@@ -20,7 +20,7 @@ export interface RelatedProduct {
   name: string;
   price: number;
   category: string;
-  image: string;
+  images: string[];
 }
 
 export interface SimplifiedProduct {
@@ -30,7 +30,7 @@ export interface SimplifiedProduct {
   price: number;
   description?: string;
   category?: string;
-  image?: string;
+  images?: string[];
   is_featured?: boolean;
 }
 
@@ -81,5 +81,5 @@ export interface Category {
   name: string;
   slug: string;
   description?: string;
-  images?: CategoryImage[];
+  image?: CategoryImage;
 }

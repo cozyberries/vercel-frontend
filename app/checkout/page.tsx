@@ -22,6 +22,8 @@ import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
 import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
+import Script from "next/script";
+import { sendNotification } from "@/lib/utils/notify";
 
 interface CheckoutFormData {
   email: string;
@@ -203,18 +205,23 @@ export default function CheckoutPage() {
               }),
             });
   
-            if (!orderRes.ok) toast.error("Failed to save order");
-            toast.success("Order created successfully! Redirecting to payment...");
-            clearCart();
-            router.push((await orderRes.json()).payment_url || "/orders");
+            if (!orderRes.ok) {
+              toast.error("Failed to save order");
+              await sendNotification("Order Failed", `${user?.email} has failed to place an order`, "error");
+            } else {
+              clearCart();
+              toast.success("Order created successfully! Redirecting to payment...");
+              await sendNotification("Order Placed", `${user?.email} has placed an order`, "success");
+              router.push((await orderRes.json()).payment_url || "/orders");
+            }
           } else {
             toast.error("Payment Verification Failed");
+            await sendNotification("Payment Failed", `${user?.email} has failed to pay for their order`, "error");
             router.push("/checkout");
           }
         },
         theme: { color: "#3399cc" },
       };
-      
       const razorpay = new (window as any).Razorpay(options);
       razorpay.open();
     } catch (error) {
@@ -224,7 +231,6 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }
   };
-
 
   if (orderComplete) {
     return (
@@ -255,6 +261,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Script type="text/javascript" src="https://checkout.razorpay.com/v1/checkout.js"></Script>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">

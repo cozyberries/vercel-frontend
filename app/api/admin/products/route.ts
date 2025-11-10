@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       stock_quantity?: number;
       is_featured?: boolean;
       category_id?: string;
+      images?: string[];
     } = await request.json();
 
     // Validate required fields
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       stock_quantity: body.stock_quantity || 0,
       is_featured: body.is_featured || false,
       category_id: body.category_id || null,
+      images: body.images || [],
     };
 
     const { data, error } = await supabase

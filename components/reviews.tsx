@@ -4,6 +4,7 @@ import React, { useState, useContext } from "react";
 import Image from "next/image";
 import { CiStar } from "react-icons/ci";
 import { FaStar } from "react-icons/fa";
+import { useRating } from "./rating-context";
 
 interface ReviewItem {
   userName: string;
@@ -18,6 +19,7 @@ interface ReviewsProps {
 
 export default function Reviews({ reviews }: ReviewsProps) {
   const [showReviews, setShowReviews] = useState(2);
+  const { setShowViewReviewModal, setSelectedImgIndex, setSelectedReviewIndex } = useRating();
 
   const handleShowMore = () => {
     setShowReviews((prev) => prev + reviews.length);
@@ -35,14 +37,13 @@ export default function Reviews({ reviews }: ReviewsProps) {
     <div className="bg-[#FFFBF6] p-4">
       {reviews?.length > 0 ? (
         <div className="space-y-10">
-          <h4 className="whitespace-pre-wrap">
+          <h4 className="whitespace-pre-wrap text-xl">
             Customer Reviews
           </h4>
-
           {reviews.slice(0, showReviews).map((review, reviewInd) => (
             <div key={reviewInd} className="space-y-10">
               <div className="flex items-start gap-4">
-                <div className="bg-headerText flex items-center justify-center p-2 text-white w-10 h-10 md:w-12 md:h-12 rounded-full text-xl md:text-2xl italic">
+                <div className="bg-primary text-primary-foreground flex items-center justify-center p-2 w-8 h-8 md:w-10 md:h-10 rounded-full text-lg md:text-xl italic">
                   {getInitials(review?.userName)}
                 </div>
 
@@ -81,13 +82,18 @@ export default function Reviews({ reviews }: ReviewsProps) {
                         <button
                           key={imgInd}
                           className="w-12 h-12 md:w-20 md:h-20 flex items-center justify-center"
+                          onClick={() => {
+                            setShowViewReviewModal(true);
+                            setSelectedReviewIndex(reviewInd);
+                            setSelectedImgIndex(imgInd);
+                          }}
                         >
                           <Image
                             src={image}
                             alt={`UploadedReviewPhoto ${imgInd + 1}`}
                             width={80}
                             height={80}
-                            className="w-full h-full object-cover rounded-md cursor-pointer"
+                            className="w-full h-full object-cover rounded cursor-pointer"
                           />
                         </button>
                       ))}
@@ -102,7 +108,7 @@ export default function Reviews({ reviews }: ReviewsProps) {
             <div className="flex items-center justify-start pl-16 text-headerText font-RobotoFlex text-[18px] font-[500] underline hover:scale-105 transition-all">
               <button onClick={handleShowMore}>View all reviews</button>
             </div>
-          )}x
+          )}
 
           {showReviews > 2 && (
             <div className="flex items-center justify-start pl-16 text-headerText font-RobotoFlex text-[18px] font-[500] underline hover:scale-105 transition-all">
@@ -111,11 +117,11 @@ export default function Reviews({ reviews }: ReviewsProps) {
           )}
         </div>
       ) : (
-        <div className="space-y-10 max-w-[1200px] mx-auto md:px-10">
-          <h4 className="text-[rgb(83,68,38)] text-[20px] md:text-[35px] font-bonaNova font-[400]">
+        <div className="space-y-10">
+          <h4 className="text-xl whitespace-pre-wrap  ">
             Customer Reviews
           </h4>
-          <p className="text-headerText md:text-[20px] text-[16px] font-[400] flex items-center justify-center">
+          <p className="text-gray-500 italic flex items-center justify-center">
             No reviews yet. Be the first to leave a review!
           </p>
         </div>

@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 
 export interface RatingItem {
     id: string;
-    product_id: number;
+    product_id: string;
     user_id: string;
     rating: number;
     comment: string;
@@ -13,35 +13,41 @@ export interface RatingItem {
 
 interface RatingContextType {
     reviews: RatingItem[];
-    fetchReviews: (productId: number) => Promise<void>;
-    setProductId: (productId: number) => void;
-    productId: number;
-}
+    fetchReviews: (productId?: string) => Promise<void>;
+    setProductId: (productId: string) => void;
+    productId: string;
+    showViewReviewModal: boolean;
+    setShowViewReviewModal: (value: boolean) => void;
+    selectedReviewIndex: number | null;
+  setSelectedReviewIndex: (index: number | null) => void;
+    selectedImgIndex: number;
+    setSelectedImgIndex: (index: number) => void;
+  }
 
 const RatingContext = createContext<RatingContextType | undefined>(undefined);
 
 export function RatingProvider({ children }: { children: ReactNode }) {
     const [reviews, setReviews] = useState<RatingItem[]>([]);
-    const [productId, setProductId] = useState<number>(0);
+    const [productId, setProductId] = useState<string>("");
+    const [selectedImgIndex, setSelectedImgIndex] = useState<number>(0);
+    const [selectedReviewIndex, setSelectedReviewIndex] = useState<number | null>(null);
+    const [showViewReviewModal, setShowViewReviewModal] = useState(false);
 
-    const fetchReviews = useCallback(async (productId: number) => {
+    const fetchReviews = useCallback(async () => {
         try {
-            const response = await fetch(`/api/ratings/${productId}`);
+            const response = await fetch(`/api/ratings`);
             if (response.ok) {
                 const data = await response.json();
                 setReviews(data || []);
-                console.log(data);
             }
         } catch (error) {
             console.error("Error fetching ratings:", error);
         }
-    }, [productId]);
+    }, []);
 
     useEffect(() => {
-        if (productId) {
-            fetchReviews(productId);
-        }
-    }, [productId, fetchReviews]);
+        fetchReviews();
+    }, []);
 
     return (
         <RatingContext.Provider
@@ -50,6 +56,12 @@ export function RatingProvider({ children }: { children: ReactNode }) {
                 fetchReviews,
                 setProductId,
                 productId,
+                selectedImgIndex,
+                setSelectedImgIndex,
+                showViewReviewModal,
+                setShowViewReviewModal,
+                selectedReviewIndex,
+                setSelectedReviewIndex,
             }}
         >
             {children}

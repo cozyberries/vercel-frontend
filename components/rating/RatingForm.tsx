@@ -14,6 +14,7 @@ import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { useRating } from "../rating-context";
 import { useAuth } from "../supabase-auth-provider";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface RatingFormProps {
     onSubmitRating: (data: any) => void;
@@ -26,43 +27,58 @@ export default function RatingForm({ onSubmitRating, onCancel }: RatingFormProps
     const [hover, setHover] = useState<number | null>(null);
     const [previewImage, setPreviewImage] = useState<(File | string)[]>([]);
     const [loading, setLoading] = useState(false);
-    const { productId, setProductId } = useRating();
+    const { productId } = useRating();
     const { user } = useAuth();
+    const router = useRouter();
 
     const handleAddProductImage = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files ? Array.from(e.target.files) : [];
         setPreviewImage((prev) => [...prev, ...files]);
     };
 
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        try {
-          const uploadedUrls: string[] = [];
-          for (const f of previewImage) {
-              const url = await uploadImageToCloudinary(f as File);
-              uploadedUrls.push(url)
-          }
-          const submitData = {
-            user_id: user?.id,
-            product_id: Number(productId),
-            rating: rating, 
-            comment: comment,
-            images: uploadedUrls,
-          };
-          await onSubmitRating(submitData);
-          setProductId(0);
-          toast.success("Rating submitted successfully");
-        } catch (error) {
-          toast.error("Error submitting rating");
-          console.error("Error submitting form:", error);
-        } finally {
-          setLoading(false);
+        if (rating === 0) {
+            toast.error("Please select a rating");
+            setLoading(false);
+            return;
         }
-      };
+        if (comment.length < 10) {
+            toast.error("Please enter a comment with at least 10 characters");
+            setLoading(false);
+            return;
+        }
+        try {
+            const uploadedUrls: string[] = [];
+            for (const f of previewImage) {
+                const url = await uploadImageToCloudinary(f as File);
+                uploadedUrls.push(url)
+            }
+            const submitData = {
+                user_id: user?.id,
+                product_id: productId,
+                rating: rating,
+                comment: comment,
+                images: uploadedUrls,
+            };
+            await onSubmitRating(submitData);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            setRating(0);
+            setComment("");
+            setPreviewImage([]);
+            router.push(`/orders`);
+            onCancel();
+        } catch (error) {
+            console.error("Error submitting form:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-6 mt-10 mb-20">
             {/* Header */}
             <div className="flex items-center space-x-4">
                 <Button variant="ghost" onClick={onCancel}>
@@ -106,7 +122,7 @@ export default function RatingForm({ onSubmitRating, onCancel }: RatingFormProps
                                             ) : (
                                                 <CiStar
                                                     className="cursor-pointer w-6 h-6 md:w-7 md:h-7"
-                                                    color="#6F5B35"
+                                                    color="#6F5B44"
                                                     onMouseEnter={() => setHover(curretntRating)}
                                                     onMouseLeave={() => setHover(null)}
                                                 />
@@ -164,16 +180,6 @@ export default function RatingForm({ onSubmitRating, onCancel }: RatingFormProps
                                     required
                                 />
                             </div>
-                            <div>
-                                <Label htmlFor="rating">Rating *</Label>
-                                <Input
-                                    id="name"
-                                    value={rating}
-                                    onChange={(e) => setRating(parseInt(e.target.value))}
-                                    placeholder="Enter product name"
-                                    required
-                                />
-                            </div>                              
                         </div>
 
                         {/* Form Actions */}

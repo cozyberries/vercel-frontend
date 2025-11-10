@@ -24,6 +24,8 @@ import {
 import { Product } from "@/lib/types/product";
 import ProductForm from "./ProductForm";
 import Image from "next/image";
+import { sendNotification } from "@/lib/utils/notify";
+import { toast } from "sonner";
 
 export default function ProductManagement() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -76,12 +78,14 @@ export default function ProductManagement() {
 
       if (response.ok) {
         setProducts(products.filter((p) => p.id !== productId));
+        await sendNotification("Product Deleted", `Product ${productId} has been deleted`, "success");
+        toast.success("Product deleted successfully");
       } else {
-        alert("Failed to delete product");
+        toast.error("Failed to delete product");
       }
     } catch (error) {
       console.error("Error deleting product:", error);
-      alert("Error deleting product");
+      toast.error("Error deleting product");
     }
   };
 
@@ -92,6 +96,18 @@ export default function ProductManagement() {
         : "/api/admin/products";
 
       const method = editingProduct ? "PUT" : "POST";
+
+      let changedFields: string[] = [];
+      if (editingProduct) {
+        for (const key in productData) {
+          if (
+            productData[key] !== undefined &&
+            productData[key] !== (editingProduct as any)[key]
+          ) {
+            changedFields.push(key);
+          }
+        }
+      }
 
       const response = await fetch(url, {
         method,
@@ -106,18 +122,24 @@ export default function ProductManagement() {
         setShowForm(false);
         setEditingProduct(null);
         fetchProducts(); // Refresh the list
+        let title = editingProduct ? "Updated Product" : "Created Product";
+        let message = editingProduct
+          ? `Product ${productData.name || editingProduct.name} has been updated.`
+          : `New product ${productData.name} has been created.`;
+
+        if (editingProduct && changedFields.length > 0) {
+          message += `\n\n**Changed fields:** ${changedFields.join(", ")}`;
+        }
+        await sendNotification(title, message, "success");
+        toast.success(editingProduct ? "Product updated successfully" : "Product created successfully");
       } else {
         const error = await response.json();
         console.error("Error response:", error);
-        alert(
-          `Failed to ${editingProduct ? "update" : "create"} product: ${
-            error.error
-          }`
-        );
+        toast.error(`Failed to ${editingProduct ? "update" : "create"} product.`);
       }
     } catch (error) {
       console.error("Error saving product:", error);
-      alert("Error saving product");
+      toast.error("Error saving product");
     }
   };
 
@@ -214,7 +236,7 @@ export default function ProductManagement() {
 
       {/* Products Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 -z-10">
           {[...Array(6)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">

@@ -23,12 +23,19 @@ import { usePreloadedData } from "./data-preloader";
 import { toast } from "sonner";
 import Reviews from "./reviews";
 import { RatingItem, useRating } from "./rating-context";
+import ViewReview from "./view_review";
+import { FaStar } from "react-icons/fa";
 
 interface ReviewItem {
   userName: string;
   rating: number;
   review: string;
   images?: string[];
+}
+
+interface User {
+  id: string;
+  name: string;
 }
 
 export default function ProductDetails({ id: productId }: { id: string }) {
@@ -44,7 +51,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
-  const { reviews } = useRating();
+  const { reviews, showViewReviewModal } = useRating();
+  const [users, setUsers] = useState<User[]>([]);
+  const [productRating, setProductRating] = useState(0);
 
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
@@ -54,6 +63,27 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
+
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch("/api/users");
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data || []);
+      } else {
+        const errorData = await response.text();
+        console.error('Failed to fetch users:', response.status, response.statusText, errorData);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  // Fetch users
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   // Check if mobile screen
   useEffect(() => {
@@ -71,20 +101,23 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const productReviews = reviews.filter((rev) => rev.product_id === Number(productId))
-        
+        const productReviews = reviews.filter((rev) => rev.product_id === product?.id)
         setAllReviews(productReviews.map((rev: RatingItem) => ({
-          userName: rev.user_id,
+          userName: users?.find((user) => user?.id === rev?.user_id)?.name || "Unknown User",
           review: rev.comment,
           rating: rev.rating,
           images: rev.images,
         })));
+        const totalRating = productReviews.reduce((acc, rev) => acc + rev.rating, 0);
+        const averageRating = totalRating / productReviews?.length;
+        setProductRating(averageRating);
       } catch (error) {
         return;
       }
     }
     fetchReviews()
-  }, [reviews, productId]);
+  }, [reviews, product, users]);
+
 
   // Fetch product data
   useEffect(() => {
@@ -192,6 +225,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     );
   }
 
+  if (showViewReviewModal) {
+    return (
+      <ViewReview
+        reviews={allReviews}
+      />
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
@@ -203,9 +244,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
-                    index === selectedImage ? "ring-2 ring-primary" : ""
-                  }`}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${index === selectedImage ? "ring-2 ring-primary" : ""
+                    }`}
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
@@ -227,11 +267,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
-              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
-                !isMobile
+              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-all duration-300 ease-out ${!isMobile
                   ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
                   : "cursor-pointer"
-              }`}
+                }`}
               onMouseEnter={handleImageMouseEnter}
               onMouseLeave={handleImageMouseLeave}
               onMouseMove={handleImageMouseMove}
@@ -244,8 +283,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               <Image
                 src={
                   product.images?.[selectedImage] &&
-                  typeof product.images[selectedImage] === "string" &&
-                  product.images[selectedImage].trim() !== ""
+                    typeof product.images[selectedImage] === "string" &&
+                    product.images[selectedImage].trim() !== ""
                     ? product.images[selectedImage]
                     : "/placeholder.svg"
                 }
@@ -261,8 +300,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   <Image
                     src={
                       product.images?.[selectedImage] &&
-                      typeof product.images[selectedImage] === "string" &&
-                      product.images[selectedImage].trim() !== ""
+                        typeof product.images[selectedImage] === "string" &&
+                        product.images[selectedImage].trim() !== ""
                         ? product.images[selectedImage]
                         : "/placeholder.svg"
                     }
@@ -309,9 +348,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
-                    index === selectedImage ? "ring-2 ring-primary" : ""
-                  }`}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${index === selectedImage ? "ring-2 ring-primary" : ""
+                    }`}
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
@@ -342,6 +380,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 {product.category}
               </Link>
             )}
+             <div className='flex items-center justify-between'>
+                <p className='flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]'><FaStar /> {productRating} | {allReviews?.length} Ratings</p>
+              </div>
             <div className="flex items-center justify-between mt-2 mb-4">
               <h1 className="text-2xl md:text-3xl font-light">
                 {product.name}
@@ -366,9 +407,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 }}
               >
                 <Heart
-                  className={`h-5 w-5 ${
-                    inWishlist ? "fill-red-500 text-red-500" : ""
-                  }`}
+                  className={`h-5 w-5 ${inWishlist ? "fill-red-500 text-red-500" : ""
+                    }`}
                 />
                 <span className="sr-only">
                   {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
@@ -387,11 +427,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                     {product.colors.map((color, index) => (
                       <button
                         key={color}
-                        className={`w-8 h-8 rounded-full border ${
-                          color === selectedColor
+                        className={`w-8 h-8 rounded-full border ${color === selectedColor
                             ? "ring-2 ring-primary ring-offset-2"
                             : ""
-                        }`}
+                          }`}
                         style={{ backgroundColor: color.toLowerCase() }}
                         aria-label={color}
                         onClick={() => setSelectedColor(color)}
@@ -477,9 +516,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 animate={
                   isShaking
                     ? {
-                        x: [0, -10, 10, -10, 10, -5, 5, 0],
-                        transition: { duration: 0.6, ease: "easeInOut" },
-                      }
+                      x: [0, -10, 10, -10, 10, -5, 5, 0],
+                      transition: { duration: 0.6, ease: "easeInOut" },
+                    }
                     : {}
                 }
               >
@@ -654,8 +693,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               <Image
                 src={
                   product.images?.[selectedImage] &&
-                  typeof product.images[selectedImage] === "string" &&
-                  product.images[selectedImage].trim() !== ""
+                    typeof product.images[selectedImage] === "string" &&
+                    product.images[selectedImage].trim() !== ""
                     ? product.images[selectedImage]
                     : "/placeholder.svg"
                 }
@@ -674,9 +713,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      index === selectedImage ? "bg-white" : "bg-white/50"
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${index === selectedImage ? "bg-white" : "bg-white/50"
+                      }`}
                   />
                 ))}
               </div>

@@ -53,7 +53,7 @@ export default function ProductForm({
   useEffect(() => {
     fetchCategories();
     if (product) {
-      const imageUrls = product?.images?.map((image) => image || "") || [];
+      const imageUrls = product?.images ?? [];
       setFormData({
         name: product.name || "",
         description: product.description || "",
@@ -61,9 +61,9 @@ export default function ProductForm({
         stock_quantity: product.stock_quantity?.toString() || "0",
         is_featured: product.is_featured || false,
         category_id: product.category_id || "",
-        images: imageUrls as unknown as string[],
+        images: imageUrls,
       });
-      setImageFiles(imageUrls as unknown as (File | string)[]);
+      setImageFiles(imageUrls);
     }
   }, [product]);
 
@@ -93,11 +93,11 @@ export default function ProductForm({
 
     try {
       const uploadedUrls: string[] = [];
-      for (const f of imageFiles) {
-        if (typeof f === "string") {
-          uploadedUrls.push(f);
+      for (const img of imageFiles) {
+        if (typeof img === "string") {
+          uploadedUrls.push(img);
         } else {
-          const url = await uploadImageToCloudinary(f);
+          const url = await uploadImageToCloudinary(img);
           uploadedUrls.push(url);
         }
       }

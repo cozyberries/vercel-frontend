@@ -84,16 +84,31 @@ async function refreshCacheInBackground(
 
   if (data) {
     // Process the data the same way
-    const products: Product[] = data.map((product: any) => {
-      const images = (product.images || [])
-        .filter((url: string) => url)
-        .slice(0, 3);
+    const products: Product[] = (data || []).map((product: any) => {
+      let parsedImages: string[] = [];
+
+      try {
+        if (product.images) {
+          if (typeof product.images === "string") {
+            if (product.images.trim().startsWith("[") || product.images.trim().startsWith("{")) {
+              parsedImages = JSON.parse(product.images);
+            } else {
+              parsedImages = [product.images];
+            }
+          } else if (Array.isArray(product.images)) {
+            parsedImages = product.images;
+          }
+        }
+      } catch (err) {
+        console.warn(`Invalid image data for product ${product.id}:`, product.images);
+      }
 
       return {
         ...product,
-        images,
+        images: parsedImages.slice(0, 3),
       };
     });
+
 
     const totalItems = count || 0;
     const totalPages = Math.ceil(totalItems / params.limit);
@@ -153,9 +168,8 @@ export async function GET(request: NextRequest) {
     } else if (search) {
       cacheKey = `products:search:${search}:lt_${limit}:pg_${page}`;
     } else {
-      cacheKey = `products:lt_${limit}:pg_${page}:cat_${
-        category || "all"
-      }:sortb_${sortBy}:sorto_${sortOrder}`;
+      cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"
+        }:sortb_${sortBy}:sorto_${sortOrder}`;
     }
 
     // Try to get from cache first with TTL info for stale-while-revalidate
@@ -305,15 +319,30 @@ export async function GET(request: NextRequest) {
 
     // Process products images
     const products: Product[] = (data || []).map((product: any) => {
-      const images = (product.images || [])
-        .filter((url: string) => url)
-        .slice(0, 3);
+      let parsedImages: string[] = [];
+
+      try {
+        if (product.images) {
+          if (typeof product.images === "string") {
+            if (product.images.trim().startsWith("[") || product.images.trim().startsWith("{")) {
+              parsedImages = JSON.parse(product.images);
+            } else {
+              parsedImages = [product.images];
+            }
+          } else if (Array.isArray(product.images)) {
+            parsedImages = product.images;
+          }
+        }
+      } catch (err) {
+        console.warn(`Invalid image data for product ${product.id}:`, product.images);
+      }
 
       return {
         ...product,
-        images,
+        images: parsedImages.slice(0, 3),
       };
     });
+
 
     // Calculate pagination info
     const totalItems = count || 0;

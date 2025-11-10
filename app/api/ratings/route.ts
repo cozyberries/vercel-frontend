@@ -46,3 +46,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to submit rating" }, { status: 500 });
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient();
+
+    const { data, error } = await supabase
+      .from("ratings")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return NextResponse.json(data, { status: 200 });
+  } catch (error) {
+    console.error("Error fetching ratings:", error);
+    return NextResponse.json({ error: "Failed to fetch ratings" }, { status: 500 });
+  }
+}

@@ -27,6 +27,7 @@ export async function PUT(
       stock_quantity?: number;
       is_featured?: boolean;
       category_id?: string;
+      images?: string[];
     } = await request.json();
     const { id: productId } = await params;
 
@@ -51,6 +52,8 @@ export async function PUT(
       updateData.is_featured = body.is_featured;
     if (body.category_id !== undefined)
       updateData.category_id = body.category_id;
+    if (body.images !== undefined)
+      updateData.images = body.images;
 
     const { data, error } = await supabase
       .from("products")
