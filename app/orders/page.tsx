@@ -232,7 +232,7 @@ export default function OrdersPage() {
       if (response.ok) {
         setShowForm(false);
         await fetchReviews();
-        await sendNotification("Rating Submitted", `${user?.email} has submitted a rating for #${data?.product_id}`, data?.product_id);
+        await sendNotification("Rating Submitted", `${user?.email} has submitted a rating for #${data?.product_id}`, "success");
         await sendActivity("rating_submission_success", `User ${user?.email} submitted a rating for #${data?.product_id}`, data?.product_id);
         toast.success("Rating submitted successfully");
       } else {

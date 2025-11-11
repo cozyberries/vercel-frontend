@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Error adding activity:", error);
     return NextResponse.json({ error: "Failed to add activity" }, { status: 500 });

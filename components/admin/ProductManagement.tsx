@@ -128,7 +128,7 @@ export default function ProductManagement() {
           : `New product ${productData.name} has been created.`;
 
         if (editingProduct && changedFields.length > 0) {
-          message += `\n\n**Changed fields:** ${changedFields.join(", ")}`;
+          message += `\n\nChanged fields: ${changedFields.join(", ")}`;
         }
         await sendNotification(title, message, "success");
         toast.success(editingProduct ? "Product updated successfully" : "Product created successfully");
