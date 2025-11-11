@@ -260,7 +260,7 @@ export default function ExpenseDashboard({ className }: ExpenseDashboardProps) {
                       </div>
                       <div className="flex items-center text-sm text-gray-500">
                         <span className="truncate">
-                          {expense.user_profiles?.full_name || expense.user_profiles?.email}
+                          {expense.user_profiles?.full_name}
                         </span>
                         <span className="mx-2">•</span>
                         <span>{formatDate(expense.created_at)}</span>
