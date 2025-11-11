@@ -33,9 +33,12 @@ export function RatingProvider({ children }: { children: ReactNode }) {
     const [selectedReviewIndex, setSelectedReviewIndex] = useState<number | null>(null);
     const [showViewReviewModal, setShowViewReviewModal] = useState(false);
 
-    const fetchReviews = useCallback(async () => {
+    const fetchReviews = useCallback(async (productId?: string) => {
         try {
-            const response = await fetch(`/api/ratings`);
+            const url = productId 
+                ? `/api/ratings?product_id=${encodeURIComponent(productId)}`
+                : `/api/ratings`;
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 setReviews(data || []);
@@ -46,8 +49,12 @@ export function RatingProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        fetchReviews();
-    }, []);
+        if (productId) {
+            fetchReviews(productId);
+        } else {
+            fetchReviews();
+        }
+    }, [fetchReviews]);
 
     return (
         <RatingContext.Provider
