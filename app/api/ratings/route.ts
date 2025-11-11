@@ -16,11 +16,18 @@ export async function POST(request: NextRequest) {
     const uploadedUrls: string[] = [];
     if (images?.length > 0) {
       for (const img of images) {
-        if (typeof img === "string" && img.startsWith("http")) {
+        // If it's already a URL (starts with http/https), use it directly
+        if (typeof img === "string" && (img.startsWith("http://") || img.startsWith("https://"))) {
           uploadedUrls.push(img);
-        } else {
+        } 
+        // If it's a File object, upload it to Cloudinary
+        else if (img instanceof File) {
           const url = await uploadImageToCloudinary(img);
           uploadedUrls.push(url);
+        }
+        // Skip invalid image formats (non-URL strings that aren't Files)
+        else {
+          console.warn("Skipping invalid image format:", typeof img);
         }
       }
     }
@@ -51,10 +58,17 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
 
-    const { data, error } = await supabase
-      .from("ratings")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // Extract query param from the URL
+    const { searchParams } = new URL(request.url);
+    const productId = searchParams.get("product_id");
+
+    let query = supabase.from("ratings").select("*").order("created_at", { ascending: false });
+    if (productId) {
+      query = query.eq("product_id", productId);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
