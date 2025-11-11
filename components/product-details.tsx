@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Product, getProductById } from "@/lib/services/api";
+import { Product, getProductById, getProducts } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
@@ -54,7 +54,32 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const { reviews, showViewReviewModal } = useRating();
   const [users, setUsers] = useState<User[]>([]);
   const [productRating, setProductRating] = useState<number>(0);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const response = await getProducts({
+          limit: 12,
+          page: 1,
+          category: product?.category_id || undefined,
+          sortBy: "price",
+          sortOrder: "asc",
+          featured: true,
+          search: "",
+        });
 
+        const uniqueProducts = response.products.filter((product) =>
+            product.category_id == product?.category_id
+        );
+        setRelatedProducts(uniqueProducts);
+      } catch (err) {
+        console.error("Error loading products:", err);
+      }
+    };
+
+    loadProducts();
+  }, [product])
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -611,31 +636,32 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             </div>
 
             <Separator className="my-8" />
-            <Reviews reviews={allReviews} />
           </div>
         </div>
       </div>
-
+      <div className="mt-6 md:mt-10">
+        <Reviews reviews={allReviews} />
+      </div>
       {/* Related Products */}
-      {product.RelatedProduct && product.RelatedProduct.length > 0 && (
+      {relatedProducts && relatedProducts?.length > 0 && (
         <section className="mt-16">
           <h2 className="text-2xl font-light text-center mb-8">
             You May Also Like
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {product.RelatedProduct.map((relatedProduct) => (
-              <div key={relatedProduct.id} className="group">
+            {relatedProducts?.map((relatedProduct) => (
+              <div key={relatedProduct?.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                   <Link href={`/products/${relatedProduct.id}`}>
                     <Image
-                      src={relatedProduct.image || "/placeholder.svg"}
-                      alt={relatedProduct.name}
+                      src={relatedProduct?.images?.[0] ?? "/placeholder.svg"}
+                      alt={relatedProduct?.name}
                       width={400}
                       height={400}
-                      className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                   </Link>
-                  <Button
+                  <Button 
                     variant="ghost"
                     size="icon"
                     className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
