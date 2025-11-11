@@ -617,13 +617,13 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       </div>
 
       {/* Related Products */}
-      {product.relatedProducts && product.relatedProducts.length > 0 && (
+      {product.RelatedProduct && product.RelatedProduct.length > 0 && (
         <section className="mt-16">
           <h2 className="text-2xl font-light text-center mb-8">
             You May Also Like
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {product.relatedProducts.map((relatedProduct) => (
+            {product.RelatedProduct.map((relatedProduct) => (
               <div key={relatedProduct.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                   <Link href={`/products/${relatedProduct.id}`}>
