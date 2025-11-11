@@ -24,6 +24,7 @@ import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
 import Script from "next/script";
 import { sendNotification } from "@/lib/utils/notify";
+import { sendActivity } from "@/lib/utils/activities";
 
 interface CheckoutFormData {
   email: string;
@@ -208,15 +209,18 @@ export default function CheckoutPage() {
             if (!orderRes.ok) {
               toast.error("Failed to save order");
               await sendNotification("Order Failed", `${user?.email} has failed to place an order`, "error");
+              await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
             } else {
               clearCart();
               toast.success("Order created successfully! Redirecting to payment...");
               await sendNotification("Order Placed", `${user?.email} has placed an order`, "success");
+              await sendActivity("order_submission_success", `User ${user?.email} placed an order #${data.orderId}`, data.orderId);
               router.push((await orderRes.json()).payment_url || "/orders");
             }
           } else {
             toast.error("Payment Verification Failed");
             await sendNotification("Payment Failed", `${user?.email} has failed to pay for their order`, "error");
+            await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
             router.push("/checkout");
           }
         },

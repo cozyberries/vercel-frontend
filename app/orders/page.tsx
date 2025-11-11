@@ -31,6 +31,7 @@ import { RatingCreate } from "@/lib/types/rating";
 import { useRating } from "@/components/rating-context";
 import { sendNotification } from "@/lib/utils/notify";
 import { toast } from "sonner";
+import { sendActivity } from "@/lib/utils/activities";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,
@@ -231,10 +232,12 @@ export default function OrdersPage() {
       if (response.ok) {
         setShowForm(false);
         await fetchReviews();
-        await sendNotification("Rating Submitted", `${user?.email} has submitted a rating for ${data?.product_id}`, "success");
+        await sendNotification("Rating Submitted", `${user?.email} has submitted a rating for #${data?.product_id}`, data?.product_id);
+        await sendActivity("rating_submission_success", `User ${user?.email} submitted a rating for #${data?.product_id}`, data?.product_id);
         toast.success("Rating submitted successfully");
       } else {
         toast.error("Failed to submit rating");
+        await sendActivity("rating_submission_failed", `User ${user?.email} failed to submit a rating for #${data?.product_id}`, data?.product_id);
       }
     } catch (error) {
       console.error("Error submitting rating:", error);
