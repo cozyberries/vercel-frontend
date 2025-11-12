@@ -16,11 +16,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Product, getProductById } from "@/lib/services/api";
+import { Product, getProductById, getProducts } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
 import { toast } from "sonner";
+import Reviews from "./reviews";
+import { RatingItem, useRating } from "./rating-context";
+import ViewReview from "./view_review";
+import { FaStar } from "react-icons/fa";
+
+interface ReviewItem {
+  userName: string;
+  rating: number;
+  review: string;
+  images?: string[];
+}
+
+interface User {
+  id: string;
+  name: string;
+}
 
 export default function ProductDetails({ id: productId }: { id: string }) {
   const [quantity, setQuantity] = useState(1);
@@ -34,6 +50,36 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [isMobile, setIsMobile] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
+  const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
+  const { reviews, showViewReviewModal } = useRating();
+  const [users, setUsers] = useState<User[]>([]);
+  const [productRating, setProductRating] = useState<number>(0);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const response = await getProducts({
+          limit: 12,
+          page: 1,
+          category: product?.category_id || undefined,
+          sortBy: "price",
+          sortOrder: "asc",
+          featured: true,
+          search: "",
+        });
+
+        const uniqueProducts = response.products.filter((product) =>
+            product.category_id == product?.category_id
+        );
+        setRelatedProducts(uniqueProducts);
+      } catch (err) {
+        console.error("Error loading products:", err);
+      }
+    };
+
+    loadProducts();
+  }, [product])
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -42,6 +88,27 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   const isInCart = cart.some((item) => item.id === product?.id);
   const inWishlist = isInWishlist(product?.id ?? "");
+
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch("/api/users");
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data || []);
+      } else {
+        const errorData = await response.text();
+        console.error('Failed to fetch users:', response.status, response.statusText, errorData);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  // Fetch users
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   // Check if mobile screen
   useEffect(() => {
@@ -54,6 +121,28 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Fetch all reviews
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const productReviews = reviews.filter((rev) => rev.product_id === product?.id)
+        setAllReviews(productReviews.map((rev: RatingItem) => ({
+          userName: users?.find((user) => user?.id === rev?.user_id)?.name || "Unknown User",
+          review: rev.comment,
+          rating: rev.rating,
+          images: rev.images,
+        })));
+        const totalRating = productReviews.reduce((acc, rev) => acc + rev.rating, 0);
+        const averageRating = productReviews?.length > 0 ? (totalRating / productReviews?.length).toFixed(1) : 0;
+        setProductRating(Number(averageRating));
+      } catch (error) {
+        return;
+      }
+    }
+    fetchReviews()
+  }, [reviews, product, users]);
+
 
   // Fetch product data
   useEffect(() => {
@@ -161,6 +250,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     );
   }
 
+  if (showViewReviewModal) {
+    return (
+      <ViewReview
+        reviews={allReviews}
+      />
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
@@ -172,9 +269,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
-                    index === selectedImage ? "ring-2 ring-primary" : ""
-                  }`}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${index === selectedImage ? "ring-2 ring-primary" : ""
+                    }`}
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
@@ -196,11 +292,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
-              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-all duration-300 ease-out ${
-                !isMobile
+              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-all duration-300 ease-out ${!isMobile
                   ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
                   : "cursor-pointer"
-              }`}
+                }`}
               onMouseEnter={handleImageMouseEnter}
               onMouseLeave={handleImageMouseLeave}
               onMouseMove={handleImageMouseMove}
@@ -213,8 +308,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               <Image
                 src={
                   product.images?.[selectedImage] &&
-                  typeof product.images[selectedImage] === "string" &&
-                  product.images[selectedImage].trim() !== ""
+                    typeof product.images[selectedImage] === "string" &&
+                    product.images[selectedImage].trim() !== ""
                     ? product.images[selectedImage]
                     : "/placeholder.svg"
                 }
@@ -230,8 +325,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   <Image
                     src={
                       product.images?.[selectedImage] &&
-                      typeof product.images[selectedImage] === "string" &&
-                      product.images[selectedImage].trim() !== ""
+                        typeof product.images[selectedImage] === "string" &&
+                        product.images[selectedImage].trim() !== ""
                         ? product.images[selectedImage]
                         : "/placeholder.svg"
                     }
@@ -278,9 +373,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
-                    index === selectedImage ? "ring-2 ring-primary" : ""
-                  }`}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${index === selectedImage ? "ring-2 ring-primary" : ""
+                    }`}
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
@@ -311,6 +405,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 {product.category}
               </Link>
             )}
+             <div className='flex items-center justify-between'>
+                <p className='flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]'><FaStar /> {productRating} | {allReviews?.length} Ratings</p>
+              </div>
             <div className="flex items-center justify-between mt-2 mb-4">
               <h1 className="text-2xl md:text-3xl font-light">
                 {product.name}
@@ -335,9 +432,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 }}
               >
                 <Heart
-                  className={`h-5 w-5 ${
-                    inWishlist ? "fill-red-500 text-red-500" : ""
-                  }`}
+                  className={`h-5 w-5 ${inWishlist ? "fill-red-500 text-red-500" : ""
+                    }`}
                 />
                 <span className="sr-only">
                   {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
@@ -356,11 +452,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                     {product.colors.map((color, index) => (
                       <button
                         key={color}
-                        className={`w-8 h-8 rounded-full border ${
-                          color === selectedColor
+                        className={`w-8 h-8 rounded-full border ${color === selectedColor
                             ? "ring-2 ring-primary ring-offset-2"
                             : ""
-                        }`}
+                          }`}
                         style={{ backgroundColor: color.toLowerCase() }}
                         aria-label={color}
                         onClick={() => setSelectedColor(color)}
@@ -446,9 +541,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 animate={
                   isShaking
                     ? {
-                        x: [0, -10, 10, -10, 10, -5, 5, 0],
-                        transition: { duration: 0.6, ease: "easeInOut" },
-                      }
+                      x: [0, -10, 10, -10, 10, -5, 5, 0],
+                      transition: { duration: 0.6, ease: "easeInOut" },
+                    }
                     : {}
                 }
               >
@@ -539,30 +634,34 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 </div>
               </div>
             </div>
+
+            <Separator className="my-8" />
           </div>
         </div>
       </div>
-
+      <div className="mt-6 md:mt-10">
+        <Reviews reviews={allReviews} />
+      </div>
       {/* Related Products */}
-      {product.relatedProducts && product.relatedProducts.length > 0 && (
+      {relatedProducts && relatedProducts?.length > 0 && (
         <section className="mt-16">
           <h2 className="text-2xl font-light text-center mb-8">
             You May Also Like
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {product.relatedProducts.map((relatedProduct) => (
-              <div key={relatedProduct.id} className="group">
+            {relatedProducts?.map((relatedProduct) => (
+              <div key={relatedProduct?.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                   <Link href={`/products/${relatedProduct.id}`}>
                     <Image
-                      src={relatedProduct.image || "/placeholder.svg"}
-                      alt={relatedProduct.name}
+                      src={relatedProduct?.images?.[0] ?? "/placeholder.svg"}
+                      alt={relatedProduct?.name}
                       width={400}
                       height={400}
-                      className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                   </Link>
-                  <Button
+                  <Button 
                     variant="ghost"
                     size="icon"
                     className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
@@ -620,8 +719,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               <Image
                 src={
                   product.images?.[selectedImage] &&
-                  typeof product.images[selectedImage] === "string" &&
-                  product.images[selectedImage].trim() !== ""
+                    typeof product.images[selectedImage] === "string" &&
+                    product.images[selectedImage].trim() !== ""
                     ? product.images[selectedImage]
                     : "/placeholder.svg"
                 }
@@ -640,9 +739,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      index === selectedImage ? "bg-white" : "bg-white/50"
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${index === selectedImage ? "bg-white" : "bg-white/50"
+                      }`}
                   />
                 ))}
               </div>

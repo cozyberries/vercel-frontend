@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -26,18 +27,21 @@ export async function GET(request: NextRequest) {
     // Fetch total orders
     const { count: totalOrders } = await supabase
       .from("orders")
-      .select("*", { count: "exact", head: true });
+      .select("*", { count: "exact", head: true })
+      .eq("status", "delivered");
 
     // Fetch monthly orders
     const { count: monthlyOrders } = await supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
+      .eq("status", "delivered")
       .gte("created_at", startOfMonth.toISOString());
 
     // Fetch total revenue
     const { data: revenueData } = await supabase
       .from("orders")
-      .select("total_amount");
+      .select("total_amount")
+      .eq("status", "delivered");
 
     const totalRevenue = revenueData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
 
@@ -45,6 +49,7 @@ export async function GET(request: NextRequest) {
     const { data: monthlyRevenueData } = await supabase
       .from("orders")
       .select("total_amount")
+      .eq("status", "delivered")
       .gte("created_at", startOfMonth.toISOString());
 
     const monthlyRevenue = monthlyRevenueData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
@@ -80,6 +85,7 @@ export async function GET(request: NextRequest) {
       const { count: monthOrders } = await supabase
         .from("orders")
         .select("*", { count: "exact", head: true })
+        .eq("status", "delivered")
         .gte("created_at", date.toISOString())
         .lt("created_at", nextDate.toISOString());
 
@@ -87,6 +93,7 @@ export async function GET(request: NextRequest) {
       const { data: monthRevenueData } = await supabase
         .from("orders")
         .select("total_amount")
+        .eq("status", "delivered")
         .gte("created_at", date.toISOString())
         .lt("created_at", nextDate.toISOString());
 

@@ -10,6 +10,7 @@ import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import { Toaster } from "sonner";
+import { RatingProvider } from "@/components/rating-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -51,6 +52,7 @@ export default function RootLayout({
           <DataPreloader>
             <WishlistProvider>
               <CartProvider>
+                <RatingProvider>
                 <ThemeProvider
                   attribute="class"
                   defaultTheme="light"
@@ -63,6 +65,7 @@ export default function RootLayout({
                   <ScrollToTopButton />
                   <Toaster />
                 </ThemeProvider>
+                </RatingProvider>
               </CartProvider>
             </WishlistProvider>
           </DataPreloader>

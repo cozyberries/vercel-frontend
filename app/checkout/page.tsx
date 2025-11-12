@@ -22,6 +22,9 @@ import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
 import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
+import Script from "next/script";
+import { sendNotification } from "@/lib/utils/notify";
+import { sendActivity } from "@/lib/utils/activities";
 
 interface CheckoutFormData {
   email: string;
@@ -152,58 +155,82 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+  
     if (!selectedAddressId) {
       alert("Please select a shipping address");
       return;
     }
-
+  
     setIsProcessing(true);
-
+  
     try {
-      // Create order in Supabase
-      const orderData = {
-        items: cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image,
-        })),
-        shipping_address_id: selectedAddressId,
-        notes: formData.notes || "",
-      };
-
-      const response = await fetch("/api/orders", {
+      // Step 1: Create Razorpay order
+      const response = await fetch("/api/razorpay", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(orderData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: total }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create order");
-      }
-
-      const { order, payment_url } = await response.json();
-
-      // Clear cart after successful order creation
-      clearCart();
-
-      // Show success toast
-      toast.success("Order created successfully! Redirecting to payment...");
-
-      // Redirect to payment page
-      router.push(payment_url);
+  
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create Razorpay order");
+  
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: total * 100,
+        currency: "INR",
+        order_id: data.orderId,
+        name: "Cozy Berries",
+        description: "Order Payment",
+        handler: async function (paymentResponse: any) {
+          const verifyRes = await fetch("/api/razorpay/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(paymentResponse),
+          });
+  
+          const verifyData = await verifyRes.json();
+          if (verifyData.success) {
+            const orderRes = await fetch("/api/orders", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                items: cart.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  image: item.image,
+                })),
+                shipping_address_id: selectedAddressId,
+                notes: formData.notes || "",
+              }),
+            });
+  
+            if (!orderRes.ok) {
+              toast.error("Failed to save order");
+              await sendNotification("Order Failed", `${user?.email} has failed to place an order`, "error");
+              await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
+            } else {
+              clearCart();
+              toast.success("Order created successfully! Redirecting to payment...");
+              await sendNotification("Order Placed", `${user?.email} has placed an order`, "success");
+              await sendActivity("order_submission_success", `User ${user?.email} placed an order #${data.orderId}`, data.orderId);
+              router.push((await orderRes.json()).payment_url || "/orders");
+            }
+          } else {
+            toast.error("Payment Verification Failed");
+            await sendNotification("Payment Failed", `${user?.email} has failed to pay for their order`, "error");
+            await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
+            router.push("/checkout");
+          }
+        },
+        theme: { color: "#3399cc" },
+      };
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
     } catch (error) {
       console.error("Order creation error:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to create order. Please try again."
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to create order");
     } finally {
       setIsProcessing(false);
     }
@@ -238,6 +265,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Script type="text/javascript" src="https://checkout.razorpay.com/v1/checkout.js"></Script>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">

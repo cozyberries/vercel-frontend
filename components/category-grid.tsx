@@ -1,20 +1,18 @@
 "use client";
 
-import { images } from "@/app/assets/images";
 import Image from "next/image";
 import Link from "next/link";
-import { getPrimaryCategoryImageUrl } from "@/lib/utils/product";
 import { usePreloadedData } from "@/components/data-preloader";
 
 // Static category images mapping
-const categoryImageMap: Record<string, string> = {
-  accessories: "/categories/accessories.jpg",
-  boy: "/categories/boy.jpg",
-  girl: "/categories/girl.jpg",
-  newborn: "/categories/newborn.jpg",
-  unisex: "/categories/unisex.webp",
-  // Add more mappings as needed
-};
+// const categoryImageMap: Record<string, string> = {
+//   accessories: "/categories/accessories.jpg",
+//   boy: "/categories/boy.jpg",
+//   girl: "/categories/girl.jpg",
+//   newborn: "/categories/newborn.jpg",
+//   unisex: "/categories/unisex.webp",
+//   // Add more mappings as needed
+// };
 
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
@@ -23,6 +21,8 @@ export default function CategoryGrid() {
   const displayCategories = categories.filter(
     (category) => category.display === true
   );
+
+  console.log("displayCategories", displayCategories);
 
   if (isLoading) {
     return (
@@ -70,14 +70,6 @@ export default function CategoryGrid() {
   return (
     <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
       {displayCategories.map((category) => {
-        // Use category.image directly, with fallback to static image
-
-        const categoryImage =
-          category.image ||
-          categoryImageMap[category.slug] ||
-          categoryImageMap[category.name.toLowerCase()] ||
-          images.staticCategoryImage;
-
         return (
           <Link
             key={category.id}
@@ -86,7 +78,7 @@ export default function CategoryGrid() {
           >
             <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
               <Image
-                src={categoryImage}
+                src={category.image || ""}
                 alt={category.name}
                 width={200}
                 height={200}

@@ -73,7 +73,7 @@ import {
 } from "@/lib/types/expense";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { toast } from "sonner";
-import { useForm } from "react-hook-form";
+import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -90,8 +90,8 @@ const categoryFormSchema = z.object({
     .min(1, "Display name is required")
     .max(200, "Display name must be less than 200 characters"),
   description: z.string().optional(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").default("#6B7280"),
-  icon: z.string().default("folder"),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color"),
+  icon: z.string(),
   sort_order: z.number().min(0).optional(),
 });
 
@@ -130,7 +130,7 @@ export default function ExpenseCategoryManagement({}: ExpenseCategoryManagementP
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(categoryFormSchema),
     defaultValues: {
-      name: "",
+      name: "", 
       display_name: "",
       description: "",
       color: "#6B7280",
@@ -170,7 +170,7 @@ export default function ExpenseCategoryManagement({}: ExpenseCategoryManagementP
     fetchCategories();
   }, [showInactive]);
 
-  const handleCreateCategory = async (data: CategoryFormData) => {
+  const handleCreateCategory: SubmitHandler<CategoryFormData> = async (data) => {
     try {
       const response = await authenticatedFetch("/api/admin/expense-categories", {
         method: "POST",
@@ -195,7 +195,7 @@ export default function ExpenseCategoryManagement({}: ExpenseCategoryManagementP
     }
   };
 
-  const handleUpdateCategory = async (data: CategoryFormData) => {
+  const handleUpdateCategory: SubmitHandler<CategoryFormData> = async (data) => {
     if (!selectedCategory) return;
 
     try {

@@ -72,6 +72,7 @@ import {
 import ExpenseForm from "./ExpenseForm";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { toast } from "sonner";
+import { sendActivity } from "@/lib/utils/activities";
 
 interface ExpenseManagementProps {}
 
@@ -200,6 +201,14 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
       );
 
       toast.success(`Expense ${status} successfully`);
+      await sendActivity(status === "approved" ? "expense_approved" : status === "rejected" ? 
+        "expense_rejected" : status === "paid" ? "expense_marked_paid" 
+        : "expense_cancelled", status === "approved" ? 
+        `Expense ${updatedExpense.title} approved successfully` : status === "rejected" ? 
+        `Expense ${updatedExpense.title} rejected successfully` : 
+        status === "paid" ? `Expense ${updatedExpense.title} marked paid successfully` : 
+        `Expense ${updatedExpense.title} cancelled successfully`, updatedExpense.title
+      );
     } catch (error) {
       console.error("Error updating expense:", error);
       toast.error("Failed to update expense status");
@@ -254,6 +263,7 @@ export default function ExpenseManagement({}: ExpenseManagementProps) {
 
       setExpenses((prev) => prev.filter((expense) => expense.id !== expenseId));
       toast.success("Expense deleted successfully");
+      await sendActivity("expense_deleted", `Expense ${expenseId} deleted successfully`, expenseId);
     } catch (error) {
       console.error("Error deleting expense:", error);
       toast.error("Failed to delete expense");

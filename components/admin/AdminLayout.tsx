@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
+import NotificationCenter from "../NotificationCenter";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -63,9 +64,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar */}
       <div
-        className={`fixed inset-0 z-50 lg:hidden ${
-          sidebarOpen ? "block" : "hidden"
-        }`}
+        className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? "block" : "hidden"
+          }`}
       >
         <div
           className="fixed inset-0 bg-gray-600 bg-opacity-75"
@@ -90,11 +90,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    isActive
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive
                       ? "bg-blue-100 text-blue-700"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
+                    }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <Icon className="mr-3 h-5 w-5" />
@@ -120,8 +119,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
-          <div className="flex h-16 items-center px-4">
+          <div className="flex justify-between h-16 items-center px-4">
             <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
+            <NotificationCenter />
           </div>
           <nav className="flex-1 px-4 py-4 space-y-2">
             {adminNavItems.map((item) => {
@@ -131,11 +131,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    isActive
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive
                       ? "bg-blue-100 text-blue-700"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
+                    }`}
                 >
                   <Icon className="mr-3 h-5 w-5" />
                   {item.name}
@@ -170,17 +169,20 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Menu className="h-6 w-6" />
             </Button>
             <h1 className="text-lg font-semibold text-gray-900">Admin Panel</h1>
-            <Link href="/admin/settings">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                aria-label="Open Settings"
-                title="Settings"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-            </Link>
+            <div className="flex items-center space-x-2">
+              <NotificationCenter />
+              <Link href="/admin/settings">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  aria-label="Open Settings"
+                  title="Settings"
+                >
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 

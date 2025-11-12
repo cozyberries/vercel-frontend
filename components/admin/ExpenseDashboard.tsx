@@ -254,12 +254,13 @@ export default function ExpenseDashboard({ className }: ExpenseDashboardProps) {
                           {expense.title}
                         </p>
                         <Badge className={statusColors[expense.status]}>
-                          {expense.status}
+                          {expense.status.charAt(0).toUpperCase() +
+                            expense.status.slice(1)}
                         </Badge>
                       </div>
                       <div className="flex items-center text-sm text-gray-500">
                         <span className="truncate">
-                          {expense.user?.full_name || expense.user?.email}
+                          {expense.user_profiles?.full_name}
                         </span>
                         <span className="mx-2">•</span>
                         <span>{formatDate(expense.created_at)}</span>

@@ -36,6 +36,7 @@ import {
 } from "@/lib/types/expense";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { toast } from "sonner";
+import { sendActivity } from "@/lib/utils/activities";
 
 interface ExpenseFormProps {
   onSuccess?: () => void;
@@ -288,6 +289,7 @@ export default function ExpenseForm({
         isEdit ? "Expense updated successfully" : "Expense created successfully"
       );
       onSuccess?.();
+      await sendActivity(isEdit ? "expense_updated" : "expense_created", isEdit ? `Expense ${expenseData.title} updated successfully` : `Expense ${expenseData.title} created successfully`, expenseData.title);
     } catch (error) {
       console.error("Error submitting expense:", error);
       toast.error(

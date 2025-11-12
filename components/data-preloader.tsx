@@ -19,14 +19,8 @@ interface Category {
   slug: string;
   description?: string;
   display?: boolean;
-  images?: Array<{
-    id: string;
-    storage_path: string;
-    is_primary?: boolean;
-    display_order?: number;
-    metadata?: any;
-    url?: string;
-  }>;
+  image?: string;
+  is_primary?: boolean;
 }
 
 interface PreloadedData {
