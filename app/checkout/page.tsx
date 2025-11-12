@@ -210,12 +210,14 @@ export default function CheckoutPage() {
               toast.error("Failed to save order");
               await sendNotification("Order Failed", `${user?.email} has failed to place an order`, "error");
               await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
+              return;
             } else {
-              clearCart();
+              const orderData = await orderRes.json();
               toast.success("Order created successfully! Redirecting to payment...");
               await sendNotification("Order Placed", `${user?.email} has placed an order`, "success");
               await sendActivity("order_submission_success", `User ${user?.email} placed an order #${data.orderId}`, data.orderId);
-              router.push((await orderRes.json()).payment_url || "/orders");
+              clearCart();
+              router.push(orderData.payment_url || "/orders");
             }
           } else {
             toast.error("Payment Verification Failed");
