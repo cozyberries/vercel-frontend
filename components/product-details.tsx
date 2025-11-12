@@ -69,10 +69,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
           search: "",
         });
 
-        const uniqueProducts = response.products.filter((product) =>
-            product.category_id == product?.category_id
+        const filtered = response.products.filter(
+          (p) => p.id !== product?.id && p.category_id === product?.category_id
         );
-        setRelatedProducts(uniqueProducts);
+        setRelatedProducts(filtered);
       } catch (err) {
         console.error("Error loading products:", err);
       }
