@@ -125,8 +125,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   // Fetch all reviews
   useEffect(() => {
     const fetchReviews = async () => {
+      if (!productId || !reviews?.length || !users?.length) return;
       try {
-        const productReviews = reviews.filter((rev) => rev.product_id === product?.id)
+        const productReviews = reviews.filter((rev) => rev.product_id === productId)
         setAllReviews(productReviews.map((rev: RatingItem) => ({
           userName: users?.find((user) => user?.id === rev?.user_id)?.name || "Unknown User",
           review: rev.comment,
@@ -141,7 +142,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       }
     }
     fetchReviews()
-  }, [reviews, product, users]);
+  }, [reviews, productId, users]);
 
 
   // Fetch product data
