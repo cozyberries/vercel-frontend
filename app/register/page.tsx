@@ -55,9 +55,7 @@ export default function RegisterPage() {
     if (error) {
       setError(error.message);
       setIsGoogleLoading(false);
-      await sendActivity("user_google_sign_up_failed", `User ${email} signed up with Google failed`, email);
     }
-    await sendActivity("user_google_sign_up_success", `User ${email} signed up with Google successfully`, email);
   };
 
   return (
