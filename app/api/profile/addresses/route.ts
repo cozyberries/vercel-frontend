@@ -24,30 +24,45 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Try to get from cache first
-    const { data: cachedAddresses, ttl, isStale } = await CacheService.getAddresses(user.id);
+    // Try to get from cache first with timeout (500ms)
+    let cachedAddresses: any = null;
+    let useCache = false;
     
-    if (cachedAddresses) {
-      const headers = {
-        "X-Cache-Status": isStale ? "STALE" : "HIT",
-        "X-Cache-Key": CacheService.getCacheKey("ADDRESSES", user.id),
-        "X-Data-Source": "REDIS_CACHE",
-        "X-Cache-TTL": ttl.toString(),
-      };
+    try {
+      const cacheResult = await Promise.race([
+        CacheService.getAddresses(user.id),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Cache timeout")), 500)
+        ),
+      ]) as { data: any; ttl: number; isStale: boolean };
 
-      // If data is stale, trigger background revalidation
-      if (isStale) {
-        (async () => {
-          try {
-            console.log(`Background revalidation for addresses: ${user.id}`);
-            await refreshAddressesInBackground(user.id, supabase);
-          } catch (error) {
-            console.error(`Background addresses refresh failed for user ${user.id}:`, error);
-          }
-        })();
+      cachedAddresses = cacheResult.data;
+      useCache = cachedAddresses !== null;
+
+      if (useCache) {
+        const headers = {
+          "X-Cache-Status": cacheResult.isStale ? "STALE" : "HIT",
+          "X-Cache-Key": CacheService.getCacheKey("ADDRESSES", user.id),
+          "X-Data-Source": "REDIS_CACHE",
+          "X-Cache-TTL": cacheResult.ttl.toString(),
+        };
+
+        // If data is stale, trigger background revalidation
+        if (cacheResult.isStale) {
+          (async () => {
+            try {
+              await refreshAddressesInBackground(user.id, supabase);
+            } catch (error) {
+              console.error(`Background addresses refresh failed for user ${user.id}:`, error);
+            }
+          })();
+        }
+
+        return NextResponse.json(cachedAddresses, { headers });
       }
-
-      return NextResponse.json(cachedAddresses, { headers });
+    } catch (error) {
+      // Cache timeout or error - proceed without cache
+      console.log("Cache timeout or error, fetching from database");
     }
 
     // No cache hit, fetch from database
@@ -69,14 +84,16 @@ export async function GET() {
 
     const addressList = addresses || [];
     
-    // Cache the result
-    await CacheService.setAddresses(user.id, addressList);
+    // Cache the result asynchronously (non-blocking) - don't wait for it
+    CacheService.setAddresses(user.id, addressList).catch((error) => {
+      console.error(`Failed to cache addresses for user ${user.id}:`, error);
+    });
 
     const headers = {
       "X-Cache-Status": "MISS",
       "X-Cache-Key": CacheService.getCacheKey("ADDRESSES", user.id),
       "X-Data-Source": "SUPABASE_DATABASE",
-      "X-Cache-Set": "SUCCESS",
+      "X-Cache-Set": "PENDING",
     };
 
     return NextResponse.json(addressList, { headers });
