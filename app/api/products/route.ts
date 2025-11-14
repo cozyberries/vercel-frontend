@@ -127,9 +127,11 @@ async function refreshCacheInBackground(
       },
     };
 
-    // Update cache with fresh data
-    await UpstashService.set(cacheKey, response, 1800);
-    console.log(`Cache refreshed for key: ${cacheKey}`);
+    // Update cache with fresh data (non-blocking in background)
+    UpstashService.set(cacheKey, response, 1800).catch((error) => {
+      console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
+    });
+    console.log(`Cache refresh initiated for key: ${cacheKey}`);
   }
 }
 
@@ -172,12 +174,24 @@ export async function GET(request: NextRequest) {
         }:sortb_${sortBy}:sorto_${sortOrder}`;
     }
 
-    // Try to get from cache first with TTL info for stale-while-revalidate
-    const {
-      data: cachedResponse,
-      ttl,
-      isStale,
-    } = await UpstashService.getWithTTL(cacheKey);
+    // Try to get from cache first with timeout (skip if slow)
+    let cachedResponse = null;
+    let ttl = -1;
+    let isStale = false;
+    
+    try {
+      const cachePromise = UpstashService.getWithTTL(cacheKey);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Cache timeout')), 500)
+      );
+      const result = await Promise.race([cachePromise, timeoutPromise]) as { data: any; ttl: number; isStale: boolean };
+      cachedResponse = result.data;
+      ttl = result.ttl;
+      isStale = result.isStale;
+    } catch (error) {
+      // Cache lookup timed out or failed, skip cache and fetch from DB
+      console.warn(`Cache lookup failed or timed out for products, fetching from DB`);
+    }
 
     // If we have cached data, return it immediately
     if (cachedResponse) {

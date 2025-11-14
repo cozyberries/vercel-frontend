@@ -17,17 +17,23 @@ export const createServerSupabaseClient = async (cookieStore?: any) => {
     );
   }
 
-  // If no cookie store is provided, try to import next/headers
+  // If no cookie store is provided, try to import next/headers with timeout
   if (!cookieStore) {
     try {
-      const { cookies } = await import("next/headers");
+      // Use Promise.race to timeout cookie import if it's slow
+      const cookiesImport = import("next/headers");
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Cookie import timeout')), 200)
+      );
+      
+      const { cookies } = await Promise.race([cookiesImport, timeoutPromise]) as any;
       cookieStore = await cookies();
     } catch (error) {
-      // If next/headers is not available (e.g., in API routes or middleware),
-      // fall back to service role key for admin operations
+      // If next/headers is not available or timed out (e.g., in API routes),
+      // fall back to service role key for faster operations
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (serviceRoleKey) {
-        console.warn("Using service role key for server-side operations");
+        // Use service role key for faster auth operations in API routes
         return createClient(supabaseUrl, serviceRoleKey, {
           auth: {
             autoRefreshToken: false,
@@ -37,7 +43,6 @@ export const createServerSupabaseClient = async (cookieStore?: any) => {
       }
       
       // Last resort: create client without auth context
-      console.warn("Creating Supabase client without auth context");
       return createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
           autoRefreshToken: false,
