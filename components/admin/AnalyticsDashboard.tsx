@@ -55,12 +55,16 @@ export default function AnalyticsDashboard() {
     async function fetchActivities() {
       try {
         const res = await fetch("/api/activities");
-        const data = await res.json();
-        setActivities(data || []);
+        if (res.ok) {
+          const data = await res.json();
+          setActivities(data || []);
+        } else {
+          console.error("Failed to load activities: ", res.statusText);
+          setActivities([]);
+        }
       } catch (error) {
         console.error("Failed to load activities", error);
-      } finally {
-        setLoading(false);
+        setActivities([]);
       }
     }
     fetchActivities();
@@ -103,7 +107,6 @@ export default function AnalyticsDashboard() {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Use mock data as fallback
       setStats({
         totalOrders: 0,
         totalRevenue: 284750,
@@ -247,19 +250,27 @@ export default function AnalyticsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="h-64 flex items-end justify-between space-x-2">
-              {chartData.map((data, index) => (
-                <div key={data.month} className="flex flex-col items-center flex-1">
-                  <div
-                    className="bg-blue-500 rounded-t w-full transition-all duration-300 hover:bg-blue-600"
-                    style={{
-                      height: `${(data.revenue / Math.max(...chartData.map(d => d.revenue))) * 200}px`,
-                      minHeight: '20px'
-                    }}
-                    title={`${data.month}: ${formatCurrency(data.revenue)}`}
-                  />
-                  <span className="text-xs text-gray-500 mt-2">{data.month}</span>
-                </div>
-              ))}
+              {chartData.map((data) => {
+                const maxRevenue = chartData.length > 0 
+                  ? Math.max(...chartData.map(d => d.revenue), 1) 
+                  : 1;
+                const heightPercentage = maxRevenue > 0 
+                  ? (data.revenue / maxRevenue) * 200 
+                  : 0;
+                return (
+                  <div key={data.month} className="flex flex-col items-center flex-1">
+                    <div
+                      className="bg-blue-500 rounded-t w-full transition-all duration-300 hover:bg-blue-600"
+                      style={{
+                        height: `${heightPercentage}px`,
+                        minHeight: '20px'
+                      }}
+                      title={`${data.month}: ${formatCurrency(data.revenue)}`}
+                    />
+                    <span className="text-xs text-gray-500 mt-2">{data.month}</span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -274,19 +285,27 @@ export default function AnalyticsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="h-64 flex items-end justify-between space-x-2">
-              {chartData.map((data, index) => (
-                <div key={data.month} className="flex flex-col items-center flex-1">
-                  <div
-                    className="bg-green-500 rounded-t w-full transition-all duration-300 hover:bg-green-600"
-                    style={{
-                      height: `${(data.orders / Math.max(...chartData.map(d => d.orders))) * 200}px`,
-                      minHeight: '20px'
-                    }}
-                    title={`${data.month}: ${data.orders} orders`}
-                  />
-                  <span className="text-xs text-gray-500 mt-2">{data.month}</span>
-                </div>
-              ))}
+              {chartData.map((data) => {
+                const maxOrders = chartData.length > 0 
+                  ? Math.max(...chartData.map(d => d.orders), 1) 
+                  : 1;
+                const heightPercentage = maxOrders > 0 
+                  ? (data.orders / maxOrders) * 200 
+                  : 0;
+                return (
+                  <div key={data.month} className="flex flex-col items-center flex-1">
+                    <div
+                      className="bg-green-500 rounded-t w-full transition-all duration-300 hover:bg-green-600"
+                      style={{
+                        height: `${heightPercentage}px`,
+                        minHeight: '20px'
+                      }}
+                      title={`${data.month}: ${data.orders} orders`}
+                    />
+                    <span className="text-xs text-gray-500 mt-2">{data.month}</span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -302,7 +321,7 @@ export default function AnalyticsDashboard() {
         </CardHeader>
         <CardContent>
           {activities.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
               {activities.map((activity) => (
                 <div key={activity.id}>
                   <div className="flex items-center space-x-4">
