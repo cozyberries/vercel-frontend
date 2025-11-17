@@ -17,43 +17,60 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Try to get from cache first
-    const { data: cachedProfile, ttl, isStale } = await CacheService.getProfile(user.id);
+    // Try to get from cache first with timeout (500ms)
+    let cachedProfile: any = null;
+    let useCache = false;
     
-    if (cachedProfile) {
-      const headers = {
-        "X-Cache-Status": isStale ? "STALE" : "HIT",
-        "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
-        "X-Data-Source": "REDIS_CACHE",
-        "X-Cache-TTL": ttl.toString(),
-      };
+    try {
+      const cacheResult = await Promise.race([
+        CacheService.getProfile(user.id),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Cache timeout")), 500)
+        ),
+      ]) as { data: any; ttl: number; isStale: boolean };
 
-      // If data is stale, trigger background revalidation
-      if (isStale) {
-        (async () => {
-          try {
-            console.log(`Background revalidation for profile: ${user.id}`);
-            await refreshProfileInBackground(user.id, user, supabase);
-          } catch (error) {
-            console.error(`Background profile refresh failed for user ${user.id}:`, error);
-          }
-        })();
+      cachedProfile = cacheResult.data;
+      useCache = !!cachedProfile;
+
+      if (useCache) {
+        const headers = {
+          "X-Cache-Status": cacheResult.isStale ? "STALE" : "HIT",
+          "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
+          "X-Data-Source": "REDIS_CACHE",
+          "X-Cache-TTL": cacheResult.ttl.toString(),
+        };
+
+        // If data is stale, trigger background revalidation
+        if (cacheResult.isStale) {
+          (async () => {
+            try {
+              await refreshProfileInBackground(user.id, user, supabase);
+            } catch (error) {
+              console.error(`Background profile refresh failed for user ${user.id}:`, error);
+            }
+          })();
+        }
+
+        return NextResponse.json(cachedProfile, { headers });
       }
-
-      return NextResponse.json(cachedProfile, { headers });
+    } catch (error) {
+      // Cache timeout or error - proceed without cache
+      console.log("Cache timeout or error, fetching from database");
     }
 
     // No cache hit, fetch from database
     const userData = await fetchProfileFromDatabase(user, supabase);
     
-    // Cache the result
-    await CacheService.setProfile(user.id, userData);
+    // Cache the result asynchronously (non-blocking) - don't wait for it
+    CacheService.setProfile(user.id, userData).catch((error) => {
+      console.error(`Failed to cache profile for user ${user.id}:`, error);
+    });
 
     const headers = {
       "X-Cache-Status": "MISS",
       "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
       "X-Data-Source": "SUPABASE_DATABASE",
-      "X-Cache-Set": "SUCCESS",
+      "X-Cache-Set": "PENDING",
     };
 
     return NextResponse.json(userData, { headers });
@@ -70,10 +87,10 @@ export async function GET() {
  * Fetch profile data from database
  */
 async function fetchProfileFromDatabase(user: any, supabase: any) {
-  // Get user profile data from profiles table
+  // Get user profile data from profiles table - only select needed fields
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("*")
+    .select("full_name, phone, avatar_url, updated_at")
     .eq("id", user.id)
     .single();
 
@@ -211,7 +228,7 @@ export async function PUT(request: NextRequest) {
       id: user.id,
       email: user.email,
       full_name: data.full_name || user.user_metadata?.full_name || null,
-      avatar_url: user.user_metadata?.avatar_url || null,
+      avatar_url: user.user_metadata?.avatar_url || data.avatar_url || null,
       phone: data.phone || null,
       created_at: user.created_at,
       updated_at: data.updated_at,
