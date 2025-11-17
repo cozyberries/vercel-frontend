@@ -39,15 +39,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     let cachedOrderDetails = null;
     let cacheHit = false;
 
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
       const cachePromise = CacheService.getOrderDetails(user.id, id);
       const timeoutPromise = new Promise<{
         data: null;
         ttl: number;
         isStale: boolean;
-      }>((resolve) =>
-        setTimeout(() => resolve({ data: null, ttl: 0, isStale: false }), 1500)
-      );
+      }>((resolve) => {
+        timeoutId = setTimeout(() => resolve({ data: null, ttl: 0, isStale: false }), 1500);
+      });
 
       const cacheResult = await Promise.race([cachePromise, timeoutPromise]);
 
@@ -58,6 +59,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     } catch (cacheError) {
       console.error("Cache read error, falling back to database:", cacheError);
+    } finally {
+      // Clear the timeout to prevent memory leaks if cachePromise resolved first
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
 
     // Step 2: If cache has data, return it immediately

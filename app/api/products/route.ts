@@ -179,11 +179,12 @@ export async function GET(request: NextRequest) {
     let ttl = -1;
     let isStale = false;
     
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
       const cachePromise = UpstashService.getWithTTL(cacheKey);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Cache timeout')), 500)
-      );
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Cache timeout')), 500);
+      });
       const result = await Promise.race([cachePromise, timeoutPromise]) as { data: any; ttl: number; isStale: boolean };
       cachedResponse = result.data;
       ttl = result.ttl;
@@ -191,6 +192,11 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       // Cache lookup timed out or failed, skip cache and fetch from DB
       console.warn(`Cache lookup failed or timed out for products, fetching from DB`);
+    } finally {
+      // Clear the timeout to prevent memory leaks if cache promise resolved first
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
 
     // If we have cached data, return it immediately

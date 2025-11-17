@@ -19,16 +19,36 @@ export const createServerSupabaseClient = async (cookieStore?: any) => {
 
   // If no cookie store is provided, try to import next/headers with timeout
   if (!cookieStore) {
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
       // Use Promise.race to timeout cookie import if it's slow
       const cookiesImport = import("next/headers");
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Cookie import timeout')), 200)
-      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Cookie import timeout')), 200);
+      });
       
-      const { cookies } = await Promise.race([cookiesImport, timeoutPromise]) as any;
+      // Race the promises and clear timeout immediately when cookiesImport resolves
+      const result = await Promise.race([
+        cookiesImport.then((module) => {
+          // Clear timeout immediately when cookiesImport resolves first to prevent memory leak
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          return module;
+        }),
+        timeoutPromise
+      ]);
+      
+      const { cookies } = result as any;
       cookieStore = await cookies();
     } catch (error) {
+      // Clear timeout in case of error or timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      
       // If next/headers is not available or timed out (e.g., in API routes),
       // fall back to service role key for faster operations
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,6 +69,11 @@ export const createServerSupabaseClient = async (cookieStore?: any) => {
           persistSession: false
         }
       });
+    } finally {
+      // Final cleanup to ensure timeout is cleared (defensive programming)
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }
 
