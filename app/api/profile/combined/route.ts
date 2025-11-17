@@ -64,8 +64,11 @@ export async function GET() {
     // If we have cached data, return it immediately
     // Note: addresses can be an empty array, so we check if the cache result exists
     if (useCache && cachedProfile && cachedAddresses) {
+      // Check if either cache result is stale
+      const isStale = cachedProfile.isStale || cachedAddresses.isStale;
+      
       // Trigger background refresh if stale
-      if (cachedProfile.isStale || cachedAddresses.isStale) {
+      if (isStale) {
         (async () => {
           try {
             await refreshDataInBackground(user.id, user, supabase);
@@ -76,7 +79,7 @@ export async function GET() {
       }
 
       const headers = {
-        "X-Cache-Status": "HIT",
+        "X-Cache-Status": isStale ? "STALE" : "HIT",
         "X-Data-Source": "REDIS_CACHE",
         "X-Response-Time": `${Date.now() - startTime}ms`,
       };
