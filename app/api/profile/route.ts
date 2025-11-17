@@ -90,7 +90,7 @@ async function fetchProfileFromDatabase(user: any, supabase: any) {
   // Get user profile data from profiles table - only select needed fields
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("full_name, phone, updated_at")
+    .select("full_name, phone, avatar_url, updated_at")
     .eq("id", user.id)
     .single();
 
@@ -228,7 +228,7 @@ export async function PUT(request: NextRequest) {
       id: user.id,
       email: user.email,
       full_name: data.full_name || user.user_metadata?.full_name || null,
-      avatar_url: user.user_metadata?.avatar_url || null,
+      avatar_url: user.user_metadata?.avatar_url || data.avatar_url || null,
       phone: data.phone || null,
       created_at: user.created_at,
       updated_at: data.updated_at,

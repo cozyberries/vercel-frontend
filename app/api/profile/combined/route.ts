@@ -33,6 +33,8 @@ export async function GET() {
 
     let cachedProfile: any = null;
     let cachedAddresses: any = null;
+    let cachedProfileData: any = null;
+    let cachedAddressesData: any = null;
     let useCache = false;
 
     try {
@@ -46,7 +48,14 @@ export async function GET() {
 
       cachedProfile = cacheResult[0];
       cachedAddresses = cacheResult[1];
-      useCache = true;
+      
+      // Extract data from wrapper objects (consistent with individual endpoints)
+      cachedProfileData = cachedProfile?.data ?? null;
+      cachedAddressesData = cachedAddresses?.data ?? null;
+      
+      // Only use cache if both profile and addresses data are valid
+      // Profile data must be truthy, addresses can be empty array but not null
+      useCache = !!cachedProfileData && cachedAddressesData !== null;
     } catch (error) {
       // Cache timeout or error - proceed without cache
       console.log("Cache timeout or error, fetching from database");
@@ -74,8 +83,8 @@ export async function GET() {
 
       return NextResponse.json(
         {
-          profile: cachedProfile.data,
-          addresses: cachedAddresses.data || [],
+          profile: cachedProfileData,
+          addresses: cachedAddressesData || [],
         },
         { headers }
       );
@@ -124,7 +133,7 @@ async function fetchProfileFromDatabase(user: any, supabase: any) {
   // Get user profile data from profiles table - only select needed fields
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("full_name, phone, updated_at")
+    .select("full_name, phone, avatar_url, updated_at")
     .eq("id", user.id)
     .single();
 
@@ -154,7 +163,7 @@ async function fetchProfileFromDatabase(user: any, supabase: any) {
     id: user.id,
     email: user.email,
     full_name: user.user_metadata?.full_name || profile?.full_name || null,
-    avatar_url: user.user_metadata?.avatar_url || null,
+    avatar_url: user.user_metadata?.avatar_url || profile?.avatar_url || null,
     phone: profile?.phone || null,
     created_at: user.created_at,
     updated_at: profile?.updated_at || user.updated_at,
@@ -209,4 +218,3 @@ async function refreshDataInBackground(
     console.error("Error in background refresh:", error);
   }
 }
-
