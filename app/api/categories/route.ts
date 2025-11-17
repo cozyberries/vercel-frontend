@@ -69,14 +69,17 @@ export async function GET() {
 
     
     // Cache the results for 1 hour (categories don't change often)
-    const cacheResult = await UpstashService.set(cacheKey, categories, 3600);
+    UpstashService.set(cacheKey, categories, 3600).catch((error) => {
+      console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
+    });
+    console.log(`Cache refresh initiated for key: ${cacheKey}`);
     
     return NextResponse.json(categories, {
       headers: {
         'X-Cache-Status': 'MISS',
         'X-Cache-Key': cacheKey,
         'X-Data-Source': 'SUPABASE_DATABASE',
-        'X-Cache-Set': cacheResult ? 'SUCCESS' : 'FAILED'
+        'X-Cache-Set': 'ASYNC'
       }
     });
   } catch (error) {
