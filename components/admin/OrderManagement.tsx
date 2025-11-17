@@ -12,6 +12,7 @@ import {
   XCircle,
   Clock,
   CalendarDays,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,12 +26,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Order, OrderStatus } from "@/lib/types/order";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import OrderForm from "./OrderForm";
 
 export default function OrderManagement() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const [showForm, setShowForm] = useState(false);
 
   // Date filter states - default to last 1 week
   const getOneWeekAgo = () => {
@@ -189,6 +192,17 @@ export default function OrderManagement() {
     { value: "refunded", label: "Refunded" },
   ];
 
+  if (showForm) {
+    return (
+      <OrderForm
+        onSuccess={"handleFormSubmit"}
+        onCancel={() => {
+          setShowForm(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -215,7 +229,7 @@ export default function OrderManagement() {
             </div>
 
             {/* Date Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-gray-500" />
                 <span className="text-sm font-medium text-gray-700">
@@ -270,6 +284,10 @@ export default function OrderManagement() {
                   Last Month
                 </Button>
               </div>
+              <Button onClick={() => setShowForm(true)} className="flex items-center">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Order
+              </Button>
             </div>
 
             {/* Status Filters */}
@@ -445,16 +463,16 @@ export default function OrderManagement() {
                           )}
                           {(order.status === "payment_pending" ||
                             order.status === "processing") && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                handleStatusUpdate(order.id, "cancelled")
-                              }
-                              className="text-red-600"
-                            >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Cancel Order
-                            </DropdownMenuItem>
-                          )}
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleStatusUpdate(order.id, "cancelled")
+                                }
+                                className="text-red-600"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Cancel Order
+                              </DropdownMenuItem>
+                            )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
