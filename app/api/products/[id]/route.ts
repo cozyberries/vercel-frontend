@@ -21,19 +21,53 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Create cache key for individual product
     const cacheKey = `product:${id}`;
 
-    // Try to get from cache first
-    const cachedProduct = await UpstashService.getCachedProduct(id);
+    // Try to get from cache first with timeout (skip if slow)
+    let cachedProduct = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    try {
+      const cachePromise = UpstashService.getCachedProduct(id);
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Cache timeout')), 500);
+      });
+      cachedProduct = await Promise.race([cachePromise, timeoutPromise]) as any;
+    } catch (error) {
+      // Cache lookup timed out or failed, skip cache and fetch from DB
+      console.warn(`Cache lookup failed or timed out for product ${id}, fetching from DB`);
+    } finally {
+      // Always clear the timeout to prevent memory leaks
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+    
     if (cachedProduct) {
-      return NextResponse.json(cachedProduct);
+      return NextResponse.json(cachedProduct, {
+        headers: {
+          "X-Cache-Status": "HIT",
+          "X-Cache-Key": cacheKey,
+          "X-Data-Source": "REDIS_CACHE",
+        }
+      });
     }
 
     const supabase = await createServerSupabaseClient();
+    // Optimized query: select only needed fields instead of *
     const { data, error } = await supabase
       .from("products")
       .select(
         `
-        *,
-        categories(name)
+        id,
+        name,
+        description,
+        price,
+        slug,
+        stock_quantity,
+        is_featured,
+        images,
+        category_id,
+        created_at,
+        updated_at,
+        categories(name, slug)
       `
       )
       .eq("id", id)
