@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import Image from "next/image";
+import { useAuth } from "../supabase-auth-provider";
 
 export default function OrderForm({ onCancel, onSuccess }) {
     const { get, post } = useAuthenticatedFetch();
@@ -31,6 +32,8 @@ export default function OrderForm({ onCancel, onSuccess }) {
     const [customerEmail, setCustomerEmail] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
     const [orderStatus, setOrderStatus] = useState("payment_pending");
+    const { user } = useAuth();
+    const [error, setError] = useState("");
 
     // Shipping Address
     const [shippingAddress, setShippingAddress] = useState({
@@ -135,36 +138,35 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
         try {
             if (selectedItems.length === 0) {
-                alert("Please select at least one product");
+                setError("Please select at least one product");
                 setLoading(false);
                 return;
             }
 
-            if (!customerEmail) {
-                alert("Customer email is required");
+            if (!customerEmail && !customerPhone) {
+                setError("Customer email or phone are required");
                 setLoading(false);
                 return;
             }
 
             if (!shippingAddress.full_name || !shippingAddress.address_line_1) {
-                alert("Shipping address is required");
+                setError("Shipping address is required");
                 setLoading(false);
                 return;
             }
-
             const orderSummary = calculateOrderSummary();
 
             // Prepare order items
             const orderItems = selectedItems.map((item) => ({
-                id: item.product.id,
-                name: item.product.name,
-                price: item.price,
-                quantity: item.quantity,
-                image: item.product.images?.[0] || "",
+                id: item?.product?.id,
+                name: item?.product?.name,
+                price: item?.price,
+                quantity: item?.quantity,
+                image: item?.product?.images?.[0] || "",
             }));
 
             const orderData = {
-                // user_id will be resolved by the API based on customer_email
+                user_id: user?.id,
                 customer_email: customerEmail,
                 customer_phone: customerPhone || shippingAddress.phone,
                 shipping_address: shippingAddress,
@@ -178,44 +180,44 @@ export default function OrderForm({ onCancel, onSuccess }) {
                 status: orderStatus,
                 notes: notes || undefined,
             };
-            console.log(orderData);
 
-            const response = await post(
-                "/api/admin/orders",
-                orderData,
-                { requireAdmin: true }
-            );
-
+            const response = await post("/api/admin/orders", orderData, { requireAdmin: true });
             if (response.ok) {
                 const data = await response.json();
-                if (onSuccess) {
-                    onSuccess(data.order);
+                if (data.order) {
+                    if (onSuccess) {
+                        onSuccess(data.order);
+                    } else {
+                        toast.success("Order created successfully!");
+                        // Reset form
+                        setSelectedItems([]);
+                        setCustomerEmail("");
+                        setCustomerPhone("");
+                        setOrderStatus("payment_pending");
+                        setShippingAddress({
+                            full_name: "",
+                            address_line_1: "",
+                            address_line_2: "",
+                            city: "",
+                            state: "",
+                            postal_code: "",
+                            country: "India",
+                            phone: "",
+                        });
+                        setNotes("");
+                    }
                 } else {
-                    alert("Order created successfully!");
-                    // Reset form
-                    setSelectedItems([]);
-                    setCustomerEmail("");
-                    setCustomerPhone("");
-                    setOrderStatus("payment_pending");
-                    setShippingAddress({
-                        full_name: "",
-                        address_line_1: "",
-                        address_line_2: "",
-                        city: "",
-                        state: "",
-                        postal_code: "",
-                        country: "India",
-                        phone: "",
-                    });
-                    setNotes("");
+                    console.error("Order created but no order data in response:", data);
+                    toast.error("Order created but failed to retrieve order details");
                 }
             } else {
                 const errorData = await response.json();
-                alert(errorData.error || "Failed to create order");
+                console.log("errorData", errorData);
+                toast.error(errorData.error);
             }
         } catch (error) {
             console.error("Error creating order:", error);
-            alert("Error creating order: " + error.message);
+            toast.error(error.message);
         } finally {
             setLoading(false);
         }
@@ -279,7 +281,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                             <div
                                                 key={product.id}
                                                 className={`relative border rounded-lg p-3 cursor-pointer transition-colors 
-                            ${selectedItems?.some(item => item?.product?.id === product?.id) ? "border-green-200 bg-green-100" : "hover:bg-gray-50 border-gray-700"}`}
+                                                ${selectedItems?.some(item => item?.product?.id === product?.id) ? "border-green-200 bg-green-100" : "hover:bg-gray-50 border-gray-700"}`}
                                                 onClick={() => handleAddProduct(product)}
                                             >
                                                 {selectedItems?.some(item => item?.product?.id === product.id) && (
@@ -502,6 +504,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         placeholder="customer@example.com"
                                         required
                                     />
+                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="customer_phone">Phone</Label>
@@ -512,6 +515,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         onChange={(e) => setCustomerPhone(e.target.value)}
                                         placeholder="+91 1234567890"
                                     />
+                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="order_status">Order Status</Label>
@@ -556,6 +560,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         placeholder="John Doe"
                                         required
                                     />
+                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="address_line_1">Address Line 1 *</Label>
@@ -571,6 +576,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         placeholder="Street address"
                                         required
                                     />
+                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="address_line_2">Address Line 2</Label>

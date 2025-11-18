@@ -40,37 +40,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find or validate user_id
-    let userId: string | null = body.user_id || null;
-
-    // If user_id is provided, validate it exists
-    if (userId) {
-      const { data: user, error: userError } = await supabase.auth.admin.getUserById(userId);
-      if (userError || !user.user) {
-        // Invalid user_id, try to find user by email
-        userId = null;
-      }
-    }
-
-    // If no valid user_id, try to find user by email
-    if (!userId && body.customer_email) {
-      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
-      if (!listError && authUsers?.users) {
-        const userByEmail = authUsers.users.find(
-          (u) => u.email?.toLowerCase() === body.customer_email.toLowerCase()
-        );
-        if (userByEmail) {
-          userId = userByEmail.id;
-        }
-      }
-    }
-
-    // Generate order number
-    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
     // Prepare order data
     const orderData: OrderCreate & { status?: OrderStatus; order_number?: string } = {
-      user_id: userId || "",
+      user_id: body.user_id,
       customer_email: body.customer_email,
       customer_phone: body.customer_phone,
       shipping_address: body.shipping_address,
@@ -83,7 +55,6 @@ export async function POST(request: NextRequest) {
       currency: body.currency || "INR",
       notes: body.notes,
       status: body.status || "payment_pending",
-      order_number: orderNumber,
     };
     
     // Create the order
