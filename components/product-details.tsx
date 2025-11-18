@@ -235,10 +235,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   if (isLoading || isLoadingProduct) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center">
         <LoadingCard />
-      </div>
-    );
+      );
   }
 
   if (!product) {

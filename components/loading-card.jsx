@@ -1,4 +1,4 @@
-import { Separator } from "@radix-ui/react-select";
+import { Separator } from "@/components/ui/separator";
 
 export default function LoadingCard() {
 
