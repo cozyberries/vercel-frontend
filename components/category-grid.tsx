@@ -22,8 +22,6 @@ export default function CategoryGrid() {
     (category) => category.display === true
   );
 
-  console.log("displayCategories", displayCategories);
-
   if (isLoading) {
     return (
       <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">

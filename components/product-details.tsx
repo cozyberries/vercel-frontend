@@ -25,6 +25,7 @@ import Reviews from "./reviews";
 import { RatingItem, useRating } from "./rating-context";
 import ViewReview from "./view_review";
 import { FaStar } from "react-icons/fa";
+import LoadingCard from "./loading-card";
 
 interface ReviewItem {
   userName: string;
@@ -234,10 +235,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   if (isLoading || isLoadingProduct) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        Loading product details...
-      </div>
-    );
+        <LoadingCard />
+      );
   }
 
   if (!product) {
