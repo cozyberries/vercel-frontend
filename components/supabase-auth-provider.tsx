@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
@@ -68,8 +69,8 @@ export function SupabaseAuthProvider({
     return null;
   };
 
-  // Helper function to update user profile
-  const updateUserProfile = async (currentSession: Session | null) => {
+  // Helper function to update user profile - memoized to prevent stale closures
+  const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
         // Get user profile with role
@@ -121,7 +122,7 @@ export function SupabaseAuthProvider({
       setUserProfile(null);
       setJwtToken(null);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     // Get initial session
@@ -142,6 +143,7 @@ export function SupabaseAuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -150,23 +152,23 @@ export function SupabaseAuthProvider({
     });
 
     return () => subscription.unsubscribe();
-  }, []); // Empty dependency array - supabase is stable now
+  }, [supabase, updateUserProfile]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     return { error };
-  };
+  }, [supabase]);
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
     });
     return { error };
-  };
+  }, [supabase]);
 
   const signInWithGoogle = useCallback(async () => {
     // Get the current domain dynamically for redirect URL
@@ -198,8 +200,10 @@ export function SupabaseAuthProvider({
       if (error) {
         console.error("Error signing out:", error);
         throw error;
-      }
+      } 
       // Clear profile and token after sign out
+      setUser(null);
+      setSession(null);
       setUserProfile(null);
       setJwtToken(null);
       console.log("Sign out successful");
@@ -214,7 +218,7 @@ export function SupabaseAuthProvider({
     if (session?.user) {
       await updateUserProfile(session);
     }
-  }, [session]);
+  }, [session, updateUserProfile]);
 
   // Computed values
   const isAuthenticated = !!user;
@@ -223,21 +227,40 @@ export function SupabaseAuthProvider({
     : false;
   const isSuperAdmin = userProfile ? userProfile.role === "super_admin" : false;
 
-  const value = {
-    user,
-    session,
-    loading,
-    userProfile,
-    jwtToken,
-    isAuthenticated,
-    isAdmin,
-    isSuperAdmin,
-    signIn,
-    signUp,
-    signInWithGoogle,
-    signOut,
-    refreshProfile,
-  };
+  // Memoize the context value to prevent unnecessary re-renders
+  // This ensures the logout button works immediately after Google login
+  const value = useMemo(
+    () => ({
+      user,
+      session,
+      loading,
+      userProfile,
+      jwtToken,
+      isAuthenticated,
+      isAdmin,
+      isSuperAdmin,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      signOut,
+      refreshProfile,
+    }),
+    [
+      user,
+      session,
+      loading,
+      userProfile,
+      jwtToken,
+      isAuthenticated,
+      isAdmin,
+      isSuperAdmin,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      signOut,
+      refreshProfile,
+    ]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
