@@ -18,7 +18,6 @@ import {
   Loader2,
   AlertCircle,
   Star,
-  Rat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,9 +66,11 @@ export default function OrdersPage() {
   const [authTimeout, setAuthTimeout] = useState(false);
   const [hasInitialFetch, setHasInitialFetch] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [currentOffset, setCurrentOffset] = useState(0);
+  const [hasMoreOrders, setHasMoreOrders] = useState(true);
   const { reviews, fetchReviews, setProductId } = useRating();
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (offset = 0, append = false) => {
     if (fetchingRef.current) return;
 
     fetchingRef.current = true;
@@ -77,9 +78,24 @@ export default function OrdersPage() {
     setError(null);
 
     try {
-      const fetchedOrders = await orderService.getUserOrders({ limit: 50 });
-      setOrders(fetchedOrders);
-      setHasInitialFetch(true);
+      const fetchedOrders = await orderService.getUserOrders({ limit: 50, offset });
+      
+      if (append) {
+        // Append new orders, avoiding duplicates
+        setOrders((prev) => {
+          const existingIds = new Set(prev.map((o) => o.id));
+          const newOrders = fetchedOrders.filter((o) => !existingIds.has(o.id));
+          return [...prev, ...newOrders];
+        });
+        setHasMoreOrders(fetchedOrders.length === 50);
+        setCurrentOffset(offset + fetchedOrders.length);
+      } else {
+        // Initial fetch - replace all orders
+        setOrders(fetchedOrders);
+        setHasInitialFetch(true);
+        setHasMoreOrders(fetchedOrders.length === 50);
+        setCurrentOffset(offset + fetchedOrders.length);
+      }
       setIsLoading(false);
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -124,11 +140,7 @@ export default function OrdersPage() {
     }
   }, [user, loading, router, authTimeout, hasInitialFetch, fetchOrders]);
 
-  useEffect(() => {
-    filterOrders();
-  }, [orders, searchQuery]);
-
-  const filterOrders = () => {
+  const filterOrders = useCallback(() => {
     let filtered = orders;
 
     // Filter by search query
@@ -142,7 +154,11 @@ export default function OrdersPage() {
     }
 
     setFilteredOrders(filtered);
-  };
+  }, [orders, searchQuery]);
+
+  useEffect(() => {
+    filterOrders();
+  }, [filterOrders]);
 
   const handlePayNow = (orderId: string) => {
     router.push(`/payment/${orderId}`);
@@ -215,7 +231,11 @@ export default function OrdersPage() {
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error Loading Orders</h2>
             <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchOrders}>Try Again</Button>
+            <Button onClick={() => {
+              setCurrentOffset(0);
+              setHasMoreOrders(true);
+              fetchOrders(0, false);
+            }}>Try Again</Button>
           </div>
         </div>
       </div>
@@ -397,7 +417,7 @@ export default function OrdersPage() {
                     </div>
                   ))}
                   {order.items.length > 3 && (
-                    <p className="text-xs sm:text-sm text-muted-foreground pl-12 sm:pl-15">
+                    <p className="text-xs sm:text-sm text-muted-foreground pl-12 sm:pl-14">
                       +{order.items.length - 3} more item
                       {order.items.length - 3 !== 1 ? "s" : ""}
                     </p>
@@ -477,13 +497,24 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* Load More Button (for future pagination) */}
+        {/* Load More Button */}
         {filteredOrders.length > 0 &&
           filteredOrders.length === orders.length &&
-          orders.length >= 50 && (
+          hasMoreOrders && (
             <div className="text-center mt-8">
-              <Button variant="outline" onClick={fetchOrders}>
-                Load More Orders
+              <Button 
+                variant="outline" 
+                onClick={() => fetchOrders(currentOffset, true)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  "Load More Orders"
+                )}
               </Button>
             </div>
           )}
