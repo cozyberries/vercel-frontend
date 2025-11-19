@@ -34,6 +34,10 @@ export default function OrderForm({ onCancel, onSuccess }) {
     const [orderStatus, setOrderStatus] = useState("payment_pending");
     const { user } = useAuth();
 
+    // Fallback email for admin-created orders when user email is not available
+    const FALLBACK_EMAIL = "cozyberriesofficial@gmail.com";
+    const customerEmail = user?.email || FALLBACK_EMAIL;
+
     // Shipping Address
     const [shippingAddress, setShippingAddress] = useState({
         full_name: "",
@@ -137,7 +141,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
         try {
             // Validate required fields
-            if (!user?.email || user?.email?.trim() === "") {
+            if (!customerEmail || customerEmail.trim() === "") {
                 toast.error("Customer email is required");
                 setLoading(false);
                 return;
@@ -156,7 +160,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
             const orderData = {
                 user_id: user?.id,
-                customer_email: user?.email,
+                customer_email: customerEmail,
                 customer_phone: customerPhone || shippingAddress.phone,
                 shipping_address: shippingAddress,
                 billing_address: shippingAddress,
@@ -487,7 +491,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                     <Input
                                         id="customer_email"
                                         type="email"
-                                        value={user?.email || "cozyberriesofficial@gmail.com"}
+                                        value={customerEmail}
                                         disabled
                                     />
                                 </div>
@@ -498,7 +502,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         type="tel"
                                         value={customerPhone}
                                         onChange={(e) => setCustomerPhone(e.target.value)}
-                                        placeholder="+91 1234567890"
+                                        placeholder="9876543210"
                                     />
                                 </div>
                                 <div>
@@ -649,7 +653,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                                 phone: e.target.value,
                                             })
                                         }
-                                        placeholder="+91 1234567890"
+                                        placeholder="9876543210"
                                     />
                                 </div>
                             </CardContent>

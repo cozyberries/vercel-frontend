@@ -40,6 +40,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!body.user_id || typeof body.user_id !== "string" || body.user_id.trim() === "") {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify that the user exists in the database
+    const { data: user, error: userError } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .eq("id", body.user_id)
+      .single();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Invalid user ID: user does not exist" },
+        { status: 400 }
+      );
+    }
+
     // Prepare order data
     const orderData: OrderCreate & { status?: OrderStatus; order_number?: string } = {
       user_id: body.user_id,
