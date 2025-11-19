@@ -37,6 +37,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
     // Fallback email for admin-created orders when user email is not available
     const FALLBACK_EMAIL = "cozyberriesofficial@gmail.com";
     const customerEmail = user?.email || FALLBACK_EMAIL;
+    const customerId = user?.id;
 
     // Shipping Address
     const [shippingAddress, setShippingAddress] = useState({
@@ -159,7 +160,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
             }));
 
             const orderData = {
-                user_id: user?.id,
+                user_id: customerId,
                 customer_email: customerEmail,
                 customer_phone: customerPhone || shippingAddress.phone,
                 shipping_address: shippingAddress,
@@ -176,32 +177,21 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
             const response = await post("/api/admin/orders", orderData, { requireAdmin: true });
             if (response.ok) {
-                const data = await response.json();
-                if (data.order) {
-                    if (onSuccess) {
-                        onSuccess(data.order);
-                    } else {
-                        toast.success("Order created successfully!");
-                        // Reset form
-                        setSelectedItems([]);
-                        setCustomerPhone("");
-                        setOrderStatus("payment_pending");
-                        setShippingAddress({
-                            full_name: "",
-                            address_line_1: "",
-                            address_line_2: "",
-                            city: "",
-                            state: "",
-                            postal_code: "",
-                            country: "India",
-                            phone: "",
-                        });
-                        setNotes("");
-                    }
-                } else {
-                    console.error("Order created but no order data in response:", data);
-                    toast.error("Order created but failed to retrieve order details");
-                }
+                    await onSuccess();
+                    toast.success("Order created successfully!");
+                    setSelectedItems([]);
+                    setCustomerPhone("");
+                    setOrderStatus("payment_pending");
+                    setShippingAddress({
+                        full_name: "",
+                        address_line_1: "",
+                        address_line_2: "",
+                        city: "",
+                        state: "",
+                        postal_code: "",
+                        country: "India",
+                        phone: "",
+                    });
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 console.log("errorData", errorData);
@@ -209,7 +199,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
             }
         } catch (error) {
             console.error("Error creating order:", error);
-            toast.error(error?.message || "An unexpected error occurred");
+            toast.error(error?.message || "An unexpecte d error occurred");
         } finally {
             setLoading(false);
         }   

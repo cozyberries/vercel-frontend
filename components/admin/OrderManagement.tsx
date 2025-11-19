@@ -192,7 +192,7 @@ export default function OrderManagement() {
     { value: "refunded", label: "Refunded" },
   ];
 
-  const handleFormSubmit = (order: Order) => {
+  const handleFormSubmit = () => {
     setShowForm(false);
     fetchOrders();
   };
