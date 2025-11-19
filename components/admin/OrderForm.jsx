@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import Image from "next/image";
 import { useAuth } from "../supabase-auth-provider";
+import { toast } from "sonner";
 
 export default function OrderForm({ onCancel, onSuccess }) {
     const { get, post } = useAuthenticatedFetch();
@@ -29,11 +30,9 @@ export default function OrderForm({ onCancel, onSuccess }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(false);
     const [productsLoading, setProductsLoading] = useState(true);
-    const [customerEmail, setCustomerEmail] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
     const [orderStatus, setOrderStatus] = useState("payment_pending");
     const { user } = useAuth();
-    const [error, setError] = useState("");
 
     // Shipping Address
     const [shippingAddress, setShippingAddress] = useState({
@@ -137,23 +136,13 @@ export default function OrderForm({ onCancel, onSuccess }) {
         setLoading(true);
 
         try {
-            if (selectedItems.length === 0) {
-                setError("Please select at least one product");
+            // Validate required fields
+            if (!user?.email || user?.email?.trim() === "") {
+                toast.error("Customer email is required");
                 setLoading(false);
                 return;
             }
 
-            if (!customerEmail && !customerPhone) {
-                setError("Customer email or phone are required");
-                setLoading(false);
-                return;
-            }
-
-            if (!shippingAddress.full_name || !shippingAddress.address_line_1) {
-                setError("Shipping address is required");
-                setLoading(false);
-                return;
-            }
             const orderSummary = calculateOrderSummary();
 
             // Prepare order items
@@ -167,7 +156,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
             const orderData = {
                 user_id: user?.id,
-                customer_email: customerEmail,
+                customer_email: user?.email,
                 customer_phone: customerPhone || shippingAddress.phone,
                 shipping_address: shippingAddress,
                 billing_address: shippingAddress,
@@ -191,7 +180,6 @@ export default function OrderForm({ onCancel, onSuccess }) {
                         toast.success("Order created successfully!");
                         // Reset form
                         setSelectedItems([]);
-                        setCustomerEmail("");
                         setCustomerPhone("");
                         setOrderStatus("payment_pending");
                         setShippingAddress({
@@ -211,16 +199,16 @@ export default function OrderForm({ onCancel, onSuccess }) {
                     toast.error("Order created but failed to retrieve order details");
                 }
             } else {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 console.log("errorData", errorData);
-                toast.error(errorData.error);
+                toast.error(errorData.error || "Failed to create order");
             }
         } catch (error) {
             console.error("Error creating order:", error);
-            toast.error(error.message);
+            toast.error(error?.message || "An unexpected error occurred");
         } finally {
             setLoading(false);
-        }
+        }   
     };
 
     const filteredProducts = products.filter((product) =>
@@ -405,7 +393,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                                             type="button"
                                                             size="sm"
                                                             variant="outline"
-                                                            disabled={item.quantity >= item.product.stock_quantity}
+                                                            disabled={item.product.stock_quantity !== undefined && item.quantity >= item.product.stock_quantity}
                                                             onClick={() =>
                                                                 handleQuantityChange(
                                                                     item.product.id,
@@ -499,12 +487,9 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                     <Input
                                         id="customer_email"
                                         type="email"
-                                        value={customerEmail}
-                                        onChange={(e) => setCustomerEmail(e.target.value)}
-                                        placeholder="customer@example.com"
-                                        required
+                                        value={user?.email || "cozyberriesofficial@gmail.com"}
+                                        disabled
                                     />
-                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="customer_phone">Phone</Label>
@@ -515,7 +500,6 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         onChange={(e) => setCustomerPhone(e.target.value)}
                                         placeholder="+91 1234567890"
                                     />
-                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="order_status">Order Status</Label>
@@ -560,7 +544,6 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         placeholder="John Doe"
                                         required
                                     />
-                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="address_line_1">Address Line 1 *</Label>
@@ -576,7 +559,6 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         placeholder="Street address"
                                         required
                                     />
-                                    {error && <p className="text-red-500 text-sm">{error}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="address_line_2">Address Line 2</Label>
