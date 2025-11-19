@@ -143,7 +143,18 @@ export function SupabaseAuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email);
+      console.log("Auth state change:", event, session?.user?.id);
+      
+      // Explicitly handle SIGNED_OUT event
+      if (event === "SIGNED_OUT" || !session) {
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setJwtToken(null);
+        setLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -196,20 +207,33 @@ export function SupabaseAuthProvider({
   const signOut = useCallback(async () => {
     try {
       console.log("Sign out initiated...");
+      
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Error signing out:", error);
         throw error;
-      } 
-      // Clear profile and token after sign out
+      }
+      
+      // Wait a bit for the auth state change to propagate
+      // This ensures the onAuthStateChange listener processes the SIGNED_OUT event
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      
+      // Clear state after sign out (as fallback, listener should handle this too)
       setUser(null);
       setSession(null);
       setUserProfile(null);
       setJwtToken(null);
+      
       console.log("Sign out successful");
       return { success: true };
     } catch (error) {
       console.error("Sign out failed:", error);
+      // Even on error, clear local state to prevent stuck auth state
+      setUser(null);
+      setSession(null);
+      setUserProfile(null);
+      setJwtToken(null);
       return { success: false, error };
     }
   }, [supabase]);
