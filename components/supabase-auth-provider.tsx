@@ -124,16 +124,58 @@ export function SupabaseAuthProvider({
   };
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
+    let isMounted = true;
 
-      await updateUserProfile(session);
-      setLoading(false);
+    // Get initial session with timeout protection
+    const getInitialSession = async () => {
+      try {
+        // Try to get session with a 5 second timeout
+        const getSessionWithTimeout = () => {
+          return Promise.race([
+            supabase.auth.getSession(),
+            new Promise<{ data: { session: null }, error: Error }>((resolve) => {
+              setTimeout(() => {
+                resolve({
+                  data: { session: null },
+                  error: new Error("Session check timeout after 5 seconds"),
+                });
+              }, 5000);
+            }),
+          ]);
+        };
+
+        const sessionResult = await getSessionWithTimeout();
+        const { data: { session }, error } = sessionResult as { data: { session: Session | null }, error: any };
+
+        if (error) {
+          console.warn("Session check error or timeout:", error.message);
+          if (isMounted) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false); // Set loading to false immediately after getting session
+
+          // Update profile asynchronously without blocking
+          updateUserProfile(session).catch((profileError) => {
+            console.error("Error updating user profile:", profileError);
+            // Profile update failure doesn't affect auth state
+          });
+        }
+      } catch (error) {
+        console.error("Error in getInitialSession:", error);
+        if (isMounted) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        }
+      }
     };
 
     getInitialSession();
@@ -142,14 +184,30 @@ export function SupabaseAuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      if (!isMounted) return;
 
-      await updateUserProfile(session);
-      setLoading(false);
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false); // Set loading to false immediately
+
+        // Update profile asynchronously without blocking
+        updateUserProfile(session).catch((profileError) => {
+          console.error("Error updating user profile in auth state change:", profileError);
+          // Profile update failure doesn't affect auth state
+        });
+      } catch (error) {
+        console.error("Error in auth state change:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []); // Empty dependency array - supabase is stable now
 
   const signIn = async (email: string, password: string) => {

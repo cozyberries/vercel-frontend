@@ -102,10 +102,11 @@ export default function OrdersPage() {
   useEffect(() => {
     const authTimeoutId = setTimeout(() => {
       if (loading && isMountedRef.current) {
+        console.warn("Orders page: Auth loading timeout after 6 seconds");
         setAuthTimeout(true);
         setIsLoading(false);
       }
-    }, 10000); // 10 second timeout for auth
+    }, 6000); // 6 second timeout for auth (matches auth provider timeout + buffer)
 
     return () => clearTimeout(authTimeoutId);
   }, [loading]);
@@ -117,10 +118,11 @@ export default function OrdersPage() {
     }
 
     // Fetch orders when user is available and we haven't fetched yet
-    if (user && !authTimeout && !hasInitialFetch) {
+    // Allow fetching even if authTimeout is true, as long as user exists
+    if (user && !hasInitialFetch) {
       fetchOrders();
     }
-  }, [user, loading, router, authTimeout, hasInitialFetch]);
+  }, [user, loading, router, authTimeout, hasInitialFetch, fetchOrders]);
 
   useEffect(() => {
     filterOrders();
@@ -161,7 +163,8 @@ export default function OrdersPage() {
     return reviews.some((review) => review.product_id === productId && review.user_id === user?.id);
   }, [reviews, user]);
 
-  if ((loading && !authTimeout) || isLoading) {
+  // Show loading only if we're still loading auth AND don't have a user yet, or if we're fetching orders
+  if ((loading && !user && !authTimeout) || (isLoading && !hasInitialFetch)) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
@@ -176,7 +179,8 @@ export default function OrdersPage() {
     );
   }
 
-  if (authTimeout) {
+  // Only show timeout error if we timed out AND there's no user
+  if (authTimeout && !user) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
