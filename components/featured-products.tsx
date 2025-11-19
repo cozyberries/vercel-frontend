@@ -142,7 +142,7 @@ export default function FeaturedProducts() {
 
   return (
     <section className="py-2 px-2">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-container mx-auto px-4">
         {/* Products Auto-Scroll Section - Full width */}
         <div className="w-full">
           <div className="relative overflow-hidden rounded-2xl ">

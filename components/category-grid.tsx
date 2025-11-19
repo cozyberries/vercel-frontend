@@ -66,7 +66,7 @@ export default function CategoryGrid() {
   }
 
   return (
-    <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+    <div className="container mx-auto grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
       {displayCategories.map((category) => {
         return (
           <Link

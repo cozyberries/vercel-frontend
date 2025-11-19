@@ -28,7 +28,7 @@ export default function NewbornGiftingSection() {
         delay={1.8}
       />
 
-      <div className="w-full relative z-10">
+      <div className="container mx-auto relative z-10">
         <div className="text-center mb-16 px-4">
           <h2 className="text-2xl md:text-3xl font-light mb-4">
             New Born Gifting
@@ -115,7 +115,7 @@ export default function NewbornGiftingSection() {
         </div>
 
         {/* Desktop Layout - 3 Cards */}
-        <div className="w-full px-16 hidden lg:block">
+        <div className="w-full px-4 hidden lg:block">
           <div className="flex flex-row gap-6 h-[400px]">
             {/* Card 1 - 45% width with background image */}
             <div className="w-[45%] h-full">
