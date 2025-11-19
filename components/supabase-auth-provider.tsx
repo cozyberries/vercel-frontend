@@ -126,29 +126,33 @@ export function SupabaseAuthProvider({
   useEffect(() => {
     let isMounted = true;
 
-    // Get initial session with timeout protection
+    // Get initial session with timeout monitoring (but don't cancel the actual call)
     const getInitialSession = async () => {
       try {
-        // Try to get session with a 5 second timeout
-        const getSessionWithTimeout = () => {
-          return Promise.race([
-            supabase.auth.getSession(),
-            new Promise<{ data: { session: null }, error: Error }>((resolve) => {
-              setTimeout(() => {
-                resolve({
-                  data: { session: null },
-                  error: new Error("Session check timeout after 5 seconds"),
-                });
-              }, 5000);
-            }),
-          ]);
-        };
+        // Track if the call is taking too long (for logging only)
+        let isSlow = false;
+        const slowWarning = setTimeout(() => {
+          isSlow = true;
+          console.warn("Session check is taking longer than expected (>5s), but still waiting...");
+        }, 5000);
 
-        const sessionResult = await getSessionWithTimeout();
-        const { data: { session }, error } = sessionResult as { data: { session: Session | null }, error: any };
+        // Wait for the actual session result - don't cancel even if slow
+        let sessionResult: { data: { session: Session | null }, error: any };
+        try {
+          sessionResult = await supabase.auth.getSession();
+        } finally {
+          clearTimeout(slowWarning);
+          if (isSlow) {
+            console.log("Session check completed (was slow but succeeded)");
+          }
+        }
 
+        const { data: { session }, error } = sessionResult;
+
+        // Only set session to null if there's an actual error from Supabase
+        // Don't treat slow responses as errors
         if (error) {
-          console.warn("Session check error or timeout:", error.message);
+          console.warn("Session check error:", error.message);
           if (isMounted) {
             setSession(null);
             setUser(null);

@@ -163,8 +163,8 @@ export default function OrdersPage() {
     return reviews.some((review) => review.product_id === productId && review.user_id === user?.id);
   }, [reviews, user]);
 
-  // Show loading only if we're still loading auth AND don't have a user yet, or if we're fetching orders
-  if ((loading && !user && !authTimeout) || (isLoading && !hasInitialFetch)) {
+  // Show loading during initial auth OR during any order fetch (first or subsequent)
+  if ((loading && !user && !authTimeout) || (isLoading && user)) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
