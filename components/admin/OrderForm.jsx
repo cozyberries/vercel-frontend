@@ -192,6 +192,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
                         country: "India",
                         phone: "",
                     });
+                    setNotes("");
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 console.log("errorData", errorData);
