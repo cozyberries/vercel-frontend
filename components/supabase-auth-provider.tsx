@@ -48,7 +48,7 @@ export function SupabaseAuthProvider({
   const [supabase] = useState(() => createClient());
 
   // Helper function to generate JWT token
-  const generateJwtToken = async (userId: string, userEmail?: string) => {
+  const generateJwtToken = useCallback(async (userId: string, userEmail?: string) => {
     try {
       const response = await fetch("/api/auth/generate-token", {
         method: "POST",
@@ -66,10 +66,10 @@ export function SupabaseAuthProvider({
       console.error("Error generating JWT token:", error);
     }
     return null;
-  };
+  }, []);
 
   // Helper function to update user profile
-  const updateUserProfile = async (currentSession: Session | null) => {
+  const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
         // Get user profile with role
@@ -121,19 +121,65 @@ export function SupabaseAuthProvider({
       setUserProfile(null);
       setJwtToken(null);
     }
-  };
+  }, [supabase, generateJwtToken]);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
+    let isMounted = true;
 
-      await updateUserProfile(session);
-      setLoading(false);
+    // Get initial session with timeout monitoring (but don't cancel the actual call)
+    const getInitialSession = async () => {
+      try {
+        // Track if the call is taking too long (for logging only)
+        let isSlow = false;
+        const slowWarning = setTimeout(() => {
+          isSlow = true;
+          console.warn("Session check is taking longer than expected (>5s), but still waiting...");
+        }, 5000);
+
+        // Wait for the actual session result - don't cancel even if slow
+        let sessionResult: { data: { session: Session | null }, error: any };
+        try {
+          sessionResult = await supabase.auth.getSession();
+        } finally {
+          clearTimeout(slowWarning);
+          if (isSlow) {
+            console.log("Session check completed (was slow but succeeded)");
+          }
+        }
+
+        const { data: { session }, error } = sessionResult;
+
+        // Only set session to null if there's an actual error from Supabase
+        // Don't treat slow responses as errors
+        if (error) {
+          console.warn("Session check error:", error.message);
+          if (isMounted) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false); // Set loading to false immediately after getting session
+
+          // Update profile asynchronously without blocking
+          updateUserProfile(session).catch((profileError) => {
+            console.error("Error updating user profile:", profileError);
+            // Profile update failure doesn't affect auth state
+          });
+        }
+      } catch (error) {
+        console.error("Error in getInitialSession:", error);
+        if (isMounted) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        }
+      }
     };
 
     getInitialSession();
@@ -142,15 +188,31 @@ export function SupabaseAuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      if (!isMounted) return;
 
-      await updateUserProfile(session);
-      setLoading(false);
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false); // Set loading to false immediately
+
+        // Update profile asynchronously without blocking
+        updateUserProfile(session).catch((profileError) => {
+          console.error("Error updating user profile in auth state change:", profileError);
+          // Profile update failure doesn't affect auth state
+        });
+      } catch (error) {
+        console.error("Error in auth state change:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []); // Empty dependency array - supabase is stable now
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase, updateUserProfile]); // supabase and updateUserProfile are stable
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -214,7 +276,7 @@ export function SupabaseAuthProvider({
     if (session?.user) {
       await updateUserProfile(session);
     }
-  }, [session]);
+  }, [session, updateUserProfile]);
 
   // Computed values
   const isAuthenticated = !!user;
