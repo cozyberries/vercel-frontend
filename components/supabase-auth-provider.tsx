@@ -48,7 +48,7 @@ export function SupabaseAuthProvider({
   const [supabase] = useState(() => createClient());
 
   // Helper function to generate JWT token
-  const generateJwtToken = async (userId: string, userEmail?: string) => {
+  const generateJwtToken = useCallback(async (userId: string, userEmail?: string) => {
     try {
       const response = await fetch("/api/auth/generate-token", {
         method: "POST",
@@ -66,10 +66,10 @@ export function SupabaseAuthProvider({
       console.error("Error generating JWT token:", error);
     }
     return null;
-  };
+  }, []);
 
   // Helper function to update user profile
-  const updateUserProfile = async (currentSession: Session | null) => {
+  const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
         // Get user profile with role
@@ -121,7 +121,7 @@ export function SupabaseAuthProvider({
       setUserProfile(null);
       setJwtToken(null);
     }
-  };
+  }, [supabase, generateJwtToken]);
 
   useEffect(() => {
     let isMounted = true;
@@ -212,7 +212,7 @@ export function SupabaseAuthProvider({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []); // Empty dependency array - supabase is stable now
+  }, [supabase, updateUserProfile]); // supabase and updateUserProfile are stable
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -276,7 +276,7 @@ export function SupabaseAuthProvider({
     if (session?.user) {
       await updateUserProfile(session);
     }
-  }, [session]);
+  }, [session, updateUserProfile]);
 
   // Computed values
   const isAuthenticated = !!user;
