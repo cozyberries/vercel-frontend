@@ -18,7 +18,7 @@ interface Notification {
 export default function NotificationCenter() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [open, setOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [markingAsRead, setMarkingAsRead] = useState<Set<string>>(new Set());
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -106,17 +106,22 @@ export default function NotificationCenter() {
                 throw new Error(`Failed to mark notification as read: ${res.status}`);
             }
             
-            setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+            // Only update state if component is still mounted
+            if (isMountedRef.current) {
+                setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+            }
         } catch (err) {
             console.error("Error marking notification as read:", err);
         } finally {
-            // Remove from ref and state after request completes
+            // Remove from ref and state after request completes, but only if component is still mounted
             markingAsReadRef.current.delete(id);
-            setMarkingAsRead((prev) => {
-                const next = new Set(prev);
-                next.delete(id);
-                return next;
-            });
+            if (isMountedRef.current) {
+                setMarkingAsRead((prev) => {
+                    const next = new Set(prev);
+                    next.delete(id);
+                    return next;
+                });
+            }
         }
     }, []);
 
