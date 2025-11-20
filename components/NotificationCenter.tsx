@@ -25,6 +25,7 @@ export default function NotificationCenter() {
     const isMountedRef = useRef(true);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const markingAsReadRef = useRef<Set<string>>(new Set());
 
     const fetchNotifications = useCallback(async () => {
         // Cancel any pending request
@@ -90,12 +91,14 @@ export default function NotificationCenter() {
     }, [fetchNotifications]);
 
     const markAsRead = useCallback(async (id: string) => {
-        setMarkingAsRead((prev) => {
-            if (prev.has(id)) {
-                return prev; // Already marking as read, skip
-            }
-            return new Set(prev).add(id);
-        });
+        // Synchronously check if already marking as read to prevent duplicate API calls
+        if (markingAsReadRef.current.has(id)) {
+            return; // Already processing, skip
+        }
+        
+        // Add to ref and state synchronously before making API call
+        markingAsReadRef.current.add(id);
+        setMarkingAsRead((prev) => new Set(prev).add(id));
         
         try {
             const res = await fetch(`/api/notifications/${id}`, { method: "PATCH" });
@@ -107,6 +110,8 @@ export default function NotificationCenter() {
         } catch (err) {
             console.error("Error marking notification as read:", err);
         } finally {
+            // Remove from ref and state after request completes
+            markingAsReadRef.current.delete(id);
             setMarkingAsRead((prev) => {
                 const next = new Set(prev);
                 next.delete(id);
