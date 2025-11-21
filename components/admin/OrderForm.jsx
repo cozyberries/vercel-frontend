@@ -21,6 +21,8 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import Image from "next/image";
 import { useAuth } from "../supabase-auth-provider";
 import { toast } from "sonner";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
 
 export default function OrderForm({ onCancel, onSuccess }) {
     const { get, post } = useAuthenticatedFetch();
@@ -32,27 +34,31 @@ export default function OrderForm({ onCancel, onSuccess }) {
     const [productsLoading, setProductsLoading] = useState(true);
     const [customerPhone, setCustomerPhone] = useState("");
     const [orderStatus, setOrderStatus] = useState("payment_pending");
+    const [shippingAddressFullName, setShippingAddressFullName] = useState("");
+    const [shippingAddressAddressLine1, setShippingAddressAddressLine1] = useState("");
+    const [shippingAddressAddressLine2, setShippingAddressAddressLine2] = useState("");
+    const [shippingAddressCity, setShippingAddressCity] = useState("");
+    const [shippingAddressState, setShippingAddressState] = useState("");
+    const [shippingAddressPostalCode, setShippingAddressPostalCode] = useState("");
+    const [shippingAddressPhone, setShippingAddressPhone] = useState("");
+    const [shippingAddressCountry, setShippingAddressCountry] = useState("India");
+    const [notes, setNotes] = useState("");
     const { user } = useAuth();
+    const [error, setError] = useState({
+        shippingAddressFullName: null,
+        shippingAddressAddressLine1: null,
+        shippingAddressCity: null,
+        shippingAddressState: null,
+        shippingAddressPostalCode: null,
+        customerEmail: null,
+        customerPhone: null,
+        shippingAddressPhone: null,
+    });
 
     // Fallback email for admin-created orders when user email is not available
     const FALLBACK_EMAIL = "cozyberriesofficial@gmail.com";
     const customerEmail = user?.email || FALLBACK_EMAIL;
     const customerId = user?.id;
-
-    // Shipping Address
-    const [shippingAddress, setShippingAddress] = useState({
-        full_name: "",
-        address_line_1: "",
-        address_line_2: "",
-        city: "",
-        state: "",
-        postal_code: "",
-        country: "India",
-        phone: "",
-    });
-
-    // Order Notes
-    const [notes, setNotes] = useState("");
 
     useEffect(() => {
         fetchProducts();
@@ -96,6 +102,12 @@ export default function OrderForm({ onCancel, onSuccess }) {
         }
     };
 
+    const handleChange = (section, key, value) => {
+        section(value);
+        setError((prev) => ({...prev, [key]: null}));
+    };
+    
+
     const handleRemoveItem = (productId) => {
         setSelectedItems(selectedItems.filter((item) => item.product.id !== productId));
     };
@@ -136,18 +148,101 @@ export default function OrderForm({ onCancel, onSuccess }) {
         }).format(amount);
     };
 
+    const validatePhoneNumber = () => {
+        let isValid = true;
+        // Clear all errors at the start of validation
+        setError({
+            shippingAddressFullName: null,
+            shippingAddressAddressLine1: null,
+            shippingAddressCity: null,
+            shippingAddressState: null,
+            shippingAddressPostalCode: null,
+            customerEmail: null,
+            customerPhone: null,
+            shippingAddressPhone: null,
+        });
+        const requiredFields = [
+            { value: shippingAddressFullName, key: "shippingAddressFullName", message: "Full name is required" },
+            { value: shippingAddressAddressLine1, key: "shippingAddressAddressLine1", message: "Address line 1 is required" },
+            { value: shippingAddressCity, key: "shippingAddressCity", message: "City is required" },
+            { value: shippingAddressState, key: "shippingAddressState", message: "State is required" },
+            { value: shippingAddressPostalCode, key: "shippingAddressPostalCode", message: "Postal code is required" },
+        ];
+    
+        requiredFields.forEach((field) => {
+            if (!field.value?.trim()) {
+                setError((prev) => ({ ...prev, [field.key]: field.message }));
+                isValid = false;
+            }
+        });
+        
+        // Validate postal code format (6 digits for Indian postal codes)
+        if (shippingAddressPostalCode && !/^[0-9]{6}$/.test(shippingAddressPostalCode)) {
+            setError((prev) => ({ ...prev, shippingAddressPostalCode: "Postal code must be exactly 6 digits" }));
+            isValid = false;
+        }
+        if (!customerEmail?.trim()) {
+            setError((prev) => ({ ...prev, customerEmail: "Customer email is required" }));
+            isValid = false;
+        }
+        const validatePhone = (num, errorKey) => {
+            const cleaned = num.replace(/[^0-9]/g, "");
+    
+            if (!cleaned) {
+                setError((prev) => ({ ...prev, [errorKey]: "Phone number is required" }));
+                return null;
+            }
+    
+            if (!cleaned.startsWith("91")) {
+                setError((prev) => ({ ...prev, [errorKey]: "Only Indian numbers (+91) allowed" }));
+                return null;
+            }
+    
+            const digits = cleaned.slice(2); // Remove 91
+    
+            if (digits.length !== 10) {
+                setError((prev) => ({ ...prev, [errorKey]: "Phone number must be 10 digits" }));
+                return null;
+            }
+    
+            return "+91" + digits;
+        };
+    
+        const customer = validatePhone(customerPhone, "customerPhone");
+        const shipping = validatePhone(shippingAddressPhone, "shippingAddressPhone");
+    
+        if (!customer || !shipping) {
+            return { isValid: false, formattedCustomerPhone: null, formattedShippingPhone: null };
+        }
+    
+        if (customer !== shipping) {
+            setError((prev) => ({
+                ...prev,
+                customerPhone: "Customer & Shipping phone must be the same",
+                shippingAddressPhone: "Customer & Shipping phone must be the same",
+            }));
+            return { isValid: false, formattedCustomerPhone: null, formattedShippingPhone: null };
+        }
+    
+        return { isValid, formattedCustomerPhone: customer, formattedShippingPhone: shipping };
+    };
+    
+    
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            // Validate required fields
-            if (!customerEmail || customerEmail.trim() === "") {
-                toast.error("Customer email is required");
+            const validationResult = validatePhoneNumber();
+            if (!validationResult.isValid) {
                 setLoading(false);
                 return;
             }
-
+            
+            // Use the formatted phone numbers from validation
+            const formattedCustomerPhone = validationResult.formattedCustomerPhone;
+            const formattedShippingPhone = validationResult.formattedShippingPhone;
+            
             const orderSummary = calculateOrderSummary();
 
             // Prepare order items
@@ -159,12 +254,23 @@ export default function OrderForm({ onCancel, onSuccess }) {
                 image: item?.product?.images?.[0] || "",
             }));
 
+            const address = {
+                full_name: shippingAddressFullName,
+                address_line_1: shippingAddressAddressLine1,
+                address_line_2: shippingAddressAddressLine2,
+                city: shippingAddressCity,
+                state: shippingAddressState,
+                postal_code: shippingAddressPostalCode,
+                country: shippingAddressCountry,
+                phone: formattedShippingPhone,
+            };
+
             const orderData = {
                 user_id: customerId,
                 customer_email: customerEmail,
-                customer_phone: customerPhone || shippingAddress.phone,
-                shipping_address: shippingAddress,
-                billing_address: shippingAddress,
+                customer_phone: formattedCustomerPhone,
+                shipping_address: address,
+                billing_address: address,
                 items: orderItems,
                 subtotal: orderSummary.subtotal,
                 delivery_charge: orderSummary.delivery_charge,
@@ -177,22 +283,30 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
             const response = await post("/api/admin/orders", orderData, { requireAdmin: true });
             if (response.ok) {
-                    await onSuccess();
-                    toast.success("Order created successfully!");
-                    setSelectedItems([]);
-                    setCustomerPhone("");
-                    setOrderStatus("payment_pending");
-                    setShippingAddress({
-                        full_name: "",
-                        address_line_1: "",
-                        address_line_2: "",
-                        city: "",
-                        state: "",
-                        postal_code: "",
-                        country: "India",
-                        phone: "",
-                    });
-                    setNotes("");
+                await onSuccess();
+                toast.success("Order created successfully!");
+                setSelectedItems([]);
+                setCustomerPhone("");
+                setOrderStatus("payment_pending");
+                setShippingAddressFullName("");
+                setShippingAddressAddressLine1("");
+                setShippingAddressAddressLine2("");
+                setShippingAddressCity("");
+                setShippingAddressState("");
+                setShippingAddressPostalCode("");
+                setShippingAddressPhone("");
+                setShippingAddressCountry("India");
+                setNotes("");
+                setError({
+                    shippingAddressFullName: null,
+                    shippingAddressAddressLine1: null,
+                    shippingAddressCity: null,
+                    shippingAddressState: null,
+                    shippingAddressPostalCode: null,
+                    customerEmail: null,
+                    customerPhone: null,
+                    shippingAddressPhone: null,
+                });
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 console.log("errorData", errorData);
@@ -203,7 +317,7 @@ export default function OrderForm({ onCancel, onSuccess }) {
             toast.error(error?.message || "An unexpecte d error occurred");
         } finally {
             setLoading(false);
-        }   
+        }
     };
 
     const filteredProducts = products.filter((product) =>
@@ -485,25 +599,27 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         value={customerEmail}
                                         disabled
                                     />
+                                    {error && error.customerEmail && <p className="text-red-500 text-sm">{error.customerEmail}</p>}
                                 </div>
-                                <div>
+                                <div className="w-full overflow-hidden">
                                     <Label htmlFor="customer_phone">Phone</Label>
-                                    <Input
-                                        id="customer_phone"
-                                        type="tel"
+                                    <PhoneInput
+                                        className="rounded-sm outline-none phone-input-container border-0"
+                                        country={"in"}
+                                        enableSearch={false}
+                                        disableDropdown={true}
                                         value={customerPhone}
-                                        onChange={(e) => setCustomerPhone(e.target.value)}
+                                        onChange={(phone) => handleChange(setCustomerPhone, "customerPhone", phone)}
                                         placeholder="9876543210"
                                     />
+                                    {error && error.customerPhone && <p className="text-red-500 text-sm">{error.customerPhone}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="order_status">Order Status</Label>
                                     <select
                                         id="order_status"
                                         value={orderStatus}
-                                        onChange={(e) =>
-                                            setOrderStatus(e.target.value)
-                                        }
+                                        onChange={(e) => setOrderStatus(e.target.value)}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         {statusOptions.map((option) => (
@@ -529,43 +645,28 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                     <Label htmlFor="full_name">Full Name *</Label>
                                     <Input
                                         id="full_name"
-                                        value={shippingAddress.full_name}
-                                        onChange={(e) =>
-                                            setShippingAddress({
-                                                ...shippingAddress,
-                                                full_name: e.target.value,
-                                            })
-                                        }
+                                        value={shippingAddressFullName}
+                                        onChange={(e) => handleChange(setShippingAddressFullName, "shippingAddressFullName", e.target.value)}
                                         placeholder="John Doe"
-                                        required
                                     />
+                                    {error && error.shippingAddressFullName && <p className="text-red-500 text-sm">{error.shippingAddressFullName}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="address_line_1">Address Line 1 *</Label>
                                     <Input
                                         id="address_line_1"
-                                        value={shippingAddress.address_line_1}
-                                        onChange={(e) =>
-                                            setShippingAddress({
-                                                ...shippingAddress,
-                                                address_line_1: e.target.value,
-                                            })
-                                        }
+                                        value={shippingAddressAddressLine1}
+                                        onChange={(e) => handleChange(setShippingAddressAddressLine1, "shippingAddressAddressLine1", e.target.value)}
                                         placeholder="Street address"
-                                        required
                                     />
+                                    {error && error.shippingAddressAddressLine1 && <p className="text-red-500 text-sm">{error.shippingAddressAddressLine1}</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="address_line_2">Address Line 2</Label>
                                     <Input
                                         id="address_line_2"
-                                        value={shippingAddress.address_line_2}
-                                        onChange={(e) =>
-                                            setShippingAddress({
-                                                ...shippingAddress,
-                                                address_line_2: e.target.value,
-                                            })
-                                        }
+                                        value={shippingAddressAddressLine2}
+                                        onChange={(e) => handleChange(setShippingAddressAddressLine2, "shippingAddressAddressLine2", e.target.value)}
                                         placeholder="Apartment, suite, etc."
                                     />
                                 </div>
@@ -574,31 +675,21 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         <Label htmlFor="city">City *</Label>
                                         <Input
                                             id="city"
-                                            value={shippingAddress.city}
-                                            onChange={(e) =>
-                                                setShippingAddress({
-                                                    ...shippingAddress,
-                                                    city: e.target.value,
-                                                })
-                                            }
+                                            value={shippingAddressCity}
+                                            onChange={(e) => handleChange(setShippingAddressCity, "shippingAddressCity", e.target.value)}
                                             placeholder="City"
-                                            required
                                         />
+                                        {error && error.shippingAddressCity && <p className="text-red-500 text-sm">{error.shippingAddressCity}</p>}
                                     </div>
                                     <div>
                                         <Label htmlFor="state">State *</Label>
                                         <Input
                                             id="state"
-                                            value={shippingAddress.state}
-                                            onChange={(e) =>
-                                                setShippingAddress({
-                                                    ...shippingAddress,
-                                                    state: e.target.value,
-                                                })
-                                            }
+                                            value={shippingAddressState}
+                                            onChange={(e) => handleChange(setShippingAddressState, "shippingAddressState", e.target.value)}
                                             placeholder="State"
-                                            required
                                         />
+                                        {error && error.shippingAddressState && <p className="text-red-500 text-sm">{error.shippingAddressState}</p>}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -606,46 +697,41 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         <Label htmlFor="postal_code">Postal Code *</Label>
                                         <Input
                                             id="postal_code"
-                                            value={shippingAddress.postal_code}
-                                            onChange={(e) =>
-                                                setShippingAddress({
-                                                    ...shippingAddress,
-                                                    postal_code: e.target.value,
-                                                })
-                                            }
+                                            type="text"
+                                            pattern="[0-9]{6}"
+                                            maxLength={6}
+                                            inputMode="numeric"
+                                            value={shippingAddressPostalCode}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                                handleChange(setShippingAddressPostalCode, "shippingAddressPostalCode", value);
+                                            }}
                                             placeholder="123456"
-                                            required
                                         />
+                                        {error && error.shippingAddressPostalCode && <p className="text-red-500 text-sm">{error.shippingAddressPostalCode}</p>}
                                     </div>
                                     <div>
                                         <Label htmlFor="country">Country</Label>
                                         <Input
                                             id="country"
-                                            value={shippingAddress.country}
-                                            onChange={(e) =>
-                                                setShippingAddress({
-                                                    ...shippingAddress,
-                                                    country: e.target.value,
-                                                })
-                                            }
+                                            value={shippingAddressCountry}
+                                            onChange={(e) => handleChange(setShippingAddressCountry, "shippingAddressCountry", e.target.value)}
                                             placeholder="India"
                                         />
                                     </div>
                                 </div>
-                                <div>
+                                <div className="w-full overflow-hidden">
                                     <Label htmlFor="shipping_phone">Phone</Label>
-                                    <Input
-                                        id="shipping_phone"
-                                        type="tel"
-                                        value={shippingAddress.phone}
-                                        onChange={(e) =>
-                                            setShippingAddress({
-                                                ...shippingAddress,
-                                                phone: e.target.value,
-                                            })
-                                        }
+                                    <PhoneInput
+                                        className="rounded-sm outline-none phone-input-container border-0"
+                                        country={"in"}
+                                        enableSearch={false}
+                                        disableDropdown={true}
+                                        value={shippingAddressPhone}
+                                        onChange={(phone) => handleChange(setShippingAddressPhone, "shippingAddressPhone", phone)}
                                         placeholder="9876543210"
                                     />
+                                    {error && error.shippingAddressPhone && <p className="text-red-500 text-sm">{error.shippingAddressPhone}</p>}
                                 </div>
                             </CardContent>
                         </Card>
