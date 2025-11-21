@@ -13,6 +13,9 @@ import {
   Clock,
   CalendarDays,
   Plus,
+  CreditCard,
+  Edit,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,17 +26,32 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Order, OrderStatus } from "@/lib/types/order";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Order, OrderStatus, Payment, PaymentStatus } from "@/lib/types/order";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import OrderForm from "./OrderForm";
+import { toast } from "sonner";
+
+interface OrderWithPayments extends Order {
+  payments?: Payment[];
+}
 
 export default function OrderManagement() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithPayments[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
 
   // Date filter states - default to last 1 week
   const getOneWeekAgo = () => {
@@ -47,7 +65,7 @@ export default function OrderManagement() {
     new Date().toISOString().split("T")[0]
   );
 
-  const { get, put } = useAuthenticatedFetch();
+  const { get, put, patch } = useAuthenticatedFetch();
 
   useEffect(() => {
     fetchOrders();
@@ -100,12 +118,92 @@ export default function OrderManagement() {
           )
         );
       } else {
-        alert("Failed to update order status");
+        toast.error("Failed to update order status");
       }
     } catch (error) {
       console.error("Error updating order status:", error);
-      alert("Error updating order status");
+      toast.error("Error updating order status");
     }
+  };
+
+  const handlePaymentStatusUpdate = async (
+    paymentId: string,
+    newStatus: PaymentStatus,
+    orderId: string
+  ) => {
+    setUpdatingPaymentId(paymentId);
+    try {
+      const response = await patch(
+        `/api/admin/payments/${paymentId}`,
+        { status: newStatus },
+        { requireAdmin: true }
+      );
+
+      if (response.ok) {
+        // Update the payment in the orders state
+        setOrders(
+          orders.map((order) => {
+            if (order.id === orderId && order.payments) {
+              return {
+                ...order,
+                payments: order.payments.map((payment) =>
+                  payment.id === paymentId
+                    ? { ...payment, status: newStatus }
+                    : payment
+                ),
+              };
+            }
+            return order;
+          })
+        );
+        setEditingPaymentId(null);
+        toast.success("Payment status updated successfully");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to update payment status");
+      }
+    } catch (error) {
+      console.error("Error updating payment status:", error);
+      toast.error("Error updating payment status");
+    } finally {
+      setUpdatingPaymentId(null);
+    }
+  };
+
+  const getPaymentStatusColor = (status: PaymentStatus) => {
+    switch (status) {
+      case "pending":
+        return "bg-orange-100 text-orange-800";
+      case "processing":
+        return "bg-blue-100 text-blue-800";
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "failed":
+        return "bg-red-100 text-red-800";
+      case "cancelled":
+        return "bg-gray-100 text-gray-800";
+      case "refunded":
+        return "bg-gray-100 text-gray-800";
+      case "partially_refunded":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const formatPaymentStatus = (status: PaymentStatus) => {
+    return status
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
+  const isOfflineOrder = (payment: Payment) => {
+    return (
+      payment.gateway_provider === "manual" ||
+      payment.payment_method === "cod" ||
+      payment.payment_method === "bank_transfer"
+    );
   };
 
   const getStatusIcon = (status: OrderStatus) => {
@@ -418,6 +516,136 @@ export default function OrderManagement() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Payment Information */}
+                      {order.payments && order.payments.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CreditCard className="h-4 w-4 text-gray-500" />
+                            <h4 className="text-sm font-semibold text-gray-700">
+                              Payment Information
+                            </h4>
+                          </div>
+                          <div className="space-y-2">
+                            {order.payments.map((payment) => (
+                              <div
+                                key={payment.id}
+                                className={`flex items-center justify-between p-2 bg-gray-50 rounded-md ${
+                                  updatingPaymentId === payment.id
+                                    ? "opacity-75"
+                                    : ""
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  <Badge
+                                    className={getPaymentStatusColor(
+                                      payment.status
+                                    )}
+                                  >
+                                    {updatingPaymentId === payment.id ? (
+                                      <div className="flex items-center gap-1">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <span>{formatPaymentStatus(payment.status)}</span>
+                                      </div>
+                                    ) : (
+                                      formatPaymentStatus(payment.status)
+                                    )}
+                                  </Badge>
+                                  <span className="text-xs text-gray-600">
+                                    {payment.payment_method
+                                      .replace("_", " ")
+                                      .toUpperCase()}
+                                  </span>
+                                  {isOfflineOrder(payment) && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Offline
+                                    </Badge>
+                                  )}
+                                  <span className="text-sm font-medium">
+                                    {formatCurrency(payment.amount)}
+                                  </span>
+                                </div>
+                                {editingPaymentId === payment.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <Select
+                                      value={payment.status}
+                                      onValueChange={(value) =>
+                                        handlePaymentStatusUpdate(
+                                          payment.id,
+                                          value as PaymentStatus,
+                                          order.id
+                                        )
+                                      }
+                                      disabled={updatingPaymentId === payment.id}
+                                    >
+                                      <SelectTrigger className="w-40 h-8">
+                                        {updatingPaymentId === payment.id ? (
+                                          <div className="flex items-center gap-2">
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                            <span>Updating...</span>
+                                          </div>
+                                        ) : (
+                                          <SelectValue />
+                                        )}
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="pending">
+                                          Pending
+                                        </SelectItem>
+                                        <SelectItem value="processing">
+                                          Processing
+                                        </SelectItem>
+                                        <SelectItem value="completed">
+                                          Completed
+                                        </SelectItem>
+                                        <SelectItem value="failed">
+                                          Failed
+                                        </SelectItem>
+                                        <SelectItem value="cancelled">
+                                          Cancelled
+                                        </SelectItem>
+                                        <SelectItem value="refunded">
+                                          Refunded
+                                        </SelectItem>
+                                        <SelectItem value="partially_refunded">
+                                          Partially Refunded
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setEditingPaymentId(null)}
+                                      disabled={updatingPaymentId === payment.id}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setEditingPaymentId(payment.id)
+                                    }
+                                    className="h-8"
+                                    disabled={updatingPaymentId === payment.id}
+                                  >
+                                    {updatingPaymentId === payment.id ? (
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <Edit className="h-3 w-3 mr-1" />
+                                    )}
+                                    {updatingPaymentId === payment.id
+                                      ? "Updating..."
+                                      : "Edit"}
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -436,6 +664,16 @@ export default function OrderManagement() {
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
+                          {order.status === "payment_pending" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleStatusUpdate(order.id, "payment_confirmed")
+                              }
+                            >
+                              <Package className="h-4 w-4 mr-2" />
+                              Mark as Payment Confirmed
+                            </DropdownMenuItem>
+                          )}
                           {order.status === "payment_confirmed" && (
                             <DropdownMenuItem
                               onClick={() =>

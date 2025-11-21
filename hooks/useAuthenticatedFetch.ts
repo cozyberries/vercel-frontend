@@ -34,10 +34,12 @@ export function useAuthenticatedFetch() {
         headers.set("Authorization", `Bearer ${jwtToken}`);
       }
 
-      // Add content type for POST/PUT requests
+      // Add content type for POST/PUT/PATCH requests
       if (
         !headers.has("Content-Type") &&
-        (fetchOptions.method === "POST" || fetchOptions.method === "PUT")
+        (fetchOptions.method === "POST" || 
+         fetchOptions.method === "PUT" || 
+         fetchOptions.method === "PATCH")
       ) {
         headers.set("Content-Type", "application/json");
       }
@@ -108,6 +110,21 @@ export function useAuthenticatedFetch() {
     [authenticatedFetch]
   );
 
+  const patch = useCallback(
+    (
+      url: string,
+      data?: any,
+      options: Omit<FetchOptions, "method" | "body"> = {}
+    ) => {
+      return authenticatedFetch(url, {
+        ...options,
+        method: "PATCH",
+        body: data ? JSON.stringify(data) : undefined,
+      });
+    },
+    [authenticatedFetch]
+  );
+
   const del = useCallback(
     (url: string, options: Omit<FetchOptions, "method"> = {}) => {
       return authenticatedFetch(url, { ...options, method: "DELETE" });
@@ -120,6 +137,7 @@ export function useAuthenticatedFetch() {
     get,
     post,
     put,
+    patch,
     delete: del,
     isAuthenticated,
     isAdmin,

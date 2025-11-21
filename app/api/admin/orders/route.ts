@@ -155,10 +155,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch payments for all orders
+    const orderIds = orders?.map((order) => order.id) || [];
+    let paymentsMap: Record<string, any[]> = {};
+    
+    if (orderIds.length > 0) {
+      const { data: payments, error: paymentsError } = await supabase
+        .from("payments")
+        .select("*")
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: false });
+
+      if (!paymentsError && payments) {
+        // Group payments by order_id
+        payments.forEach((payment) => {
+          if (!paymentsMap[payment.order_id]) {
+            paymentsMap[payment.order_id] = [];
+          }
+          paymentsMap[payment.order_id].push(payment);
+        });
+      }
+    }
+
+    // Attach payments to orders
+    const ordersWithPayments = orders?.map((order) => ({
+      ...order,
+      payments: paymentsMap[order.id] || [],
+    })) || [];
+
     console.log(`Fetched ${orders?.length || 0} orders from database`);
 
     return NextResponse.json({
-      orders: orders || [],
+      orders: ordersWithPayments,
       total: orders?.length || 0,
     });
   } catch (error) {
