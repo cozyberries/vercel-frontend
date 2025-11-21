@@ -64,41 +64,6 @@ export default function OrderForm({ onCancel, onSuccess }) {
         fetchProducts();
     }, []);
 
-    // Sync phone numbers when both are 10 digits and match
-    useEffect(() => {
-        // Extract phone number without country code (remove leading country code)
-        const extractPhoneNumber = (phone) => {
-            if (!phone) return "";
-            const phoneStr = phone.toString();
-            // Remove country code (for India +91, remove "91" prefix)
-            // react-phone-input-2 returns format like "919876543210" for +91 9876543210
-            if (phoneStr.startsWith("91") && phoneStr.length >= 12) {
-                return phoneStr.substring(2); // Remove "91" prefix
-            }
-            // If it's already just the number (10 digits), return as is
-            if (phoneStr.length === 10) {
-                return phoneStr;
-            }
-            return phoneStr;
-        };
-
-        const customerPhoneNum = extractPhoneNumber(customerPhone);
-        const shippingPhoneNum = extractPhoneNumber(shippingAddressPhone);
-
-        // Check if both are 10 digits and the same, but full values are different
-        if (
-            customerPhoneNum.length === 10 &&
-            shippingPhoneNum.length === 10 &&
-            customerPhoneNum === shippingPhoneNum &&
-            customerPhone !== shippingAddressPhone &&
-            customerPhone &&
-            shippingAddressPhone
-        ) {
-            // Sync customerPhone with shippingAddressPhone (keep the full format with country code)
-            setCustomerPhone(shippingAddressPhone);
-        }
-    }, [customerPhone, shippingAddressPhone]);
-
     const fetchProducts = async () => {
         try {
             setProductsLoading(true);
@@ -200,6 +165,12 @@ export default function OrderForm({ onCancel, onSuccess }) {
                 isValid = false;
             }
         });
+        
+        // Validate postal code format (6 digits for Indian postal codes)
+        if (shippingAddressPostalCode && !/^[0-9]{6}$/.test(shippingAddressPostalCode)) {
+            setError((prev) => ({ ...prev, shippingAddressPostalCode: "Postal code must be exactly 6 digits" }));
+            isValid = false;
+        }
         if (!customerEmail?.trim()) {
             setError((prev) => ({ ...prev, customerEmail: "Customer email is required" }));
             isValid = false;
@@ -230,7 +201,9 @@ export default function OrderForm({ onCancel, onSuccess }) {
         const customer = validatePhone(customerPhone, "customerPhone");
         const shipping = validatePhone(shippingAddressPhone, "shippingAddressPhone");
     
-        if (!customer || !shipping) return false;
+        if (!customer || !shipping) {
+            return { isValid: false, formattedCustomerPhone: null, formattedShippingPhone: null };
+        }
     
         if (customer !== shipping) {
             setError((prev) => ({
@@ -238,10 +211,10 @@ export default function OrderForm({ onCancel, onSuccess }) {
                 customerPhone: "Customer & Shipping phone must be the same",
                 shippingAddressPhone: "Customer & Shipping phone must be the same",
             }));
-            return false;
+            return { isValid: false, formattedCustomerPhone: null, formattedShippingPhone: null };
         }
     
-        return isValid;
+        return { isValid, formattedCustomerPhone: customer, formattedShippingPhone: shipping };
     };
     
     
@@ -250,11 +223,16 @@ export default function OrderForm({ onCancel, onSuccess }) {
         setLoading(true);
 
         try {
-            const isValid = validatePhoneNumber();
-            if (!isValid) {
+            const validationResult = validatePhoneNumber();
+            if (!validationResult.isValid) {
                 setLoading(false);
                 return;
             }
+            
+            // Use the formatted phone numbers from validation
+            const formattedCustomerPhone = validationResult.formattedCustomerPhone;
+            const formattedShippingPhone = validationResult.formattedShippingPhone;
+            
             const orderSummary = calculateOrderSummary();
 
             // Prepare order items
@@ -274,13 +252,13 @@ export default function OrderForm({ onCancel, onSuccess }) {
                 state: shippingAddressState,
                 postal_code: shippingAddressPostalCode,
                 country: shippingAddressCountry,
-                phone: shippingAddressPhone,
+                phone: formattedShippingPhone,
             };
 
             const orderData = {
                 user_id: customerId,
                 customer_email: customerEmail,
-                customer_phone: customerPhone,
+                customer_phone: formattedCustomerPhone,
                 shipping_address: address,
                 billing_address: address,
                 items: orderItems,
@@ -709,9 +687,15 @@ export default function OrderForm({ onCancel, onSuccess }) {
                                         <Label htmlFor="postal_code">Postal Code *</Label>
                                         <Input
                                             id="postal_code"
-                                            type="number"
+                                            type="text"
+                                            pattern="[0-9]{6}"
+                                            maxLength={6}
+                                            inputMode="numeric"
                                             value={shippingAddressPostalCode}
-                                            onChange={(e) => handleChange(setShippingAddressPostalCode, "shippingAddressPostalCode", e.target.value)}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                                handleChange(setShippingAddressPostalCode, "shippingAddressPostalCode", value);
+                                            }}
                                             placeholder="123456"
                                         />
                                         {error && error.shippingAddressPostalCode && <p className="text-red-500 text-sm">{error.shippingAddressPostalCode}</p>}
