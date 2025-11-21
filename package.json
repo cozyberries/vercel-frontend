@@ -10,7 +10,10 @@
     "vercel-build": "next build",
     "create-admin": "node scripts/create-admin.js",
     "warm-cache": "node scripts/warm-cache.js",
-    "warm-cache:prod": "node scripts/warm-cache.js --url=$VERCEL_URL"
+    "warm-cache:prod": "node scripts/warm-cache.js --url=$VERCEL_URL",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -53,6 +56,7 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",

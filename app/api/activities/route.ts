@@ -25,7 +25,19 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    const body = await request.json();
+    
+    // Safely parse request body
+    let body;
+    try {
+      const text = await request.text();
+      if (!text || text.trim() === '') {
+        return NextResponse.json({ error: "Empty request body" }, { status: 400 });
+      }
+      body = JSON.parse(text);
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
 
     const { type, title, metadata } = body;
     if(!type || !title || !metadata) {
