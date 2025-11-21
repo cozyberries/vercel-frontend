@@ -150,7 +150,17 @@ export default function OrderForm({ onCancel, onSuccess }) {
 
     const validatePhoneNumber = () => {
         let isValid = true;
-        setError((prev) => ({ ...prev, customerPhone: null, shippingAddressPhone: null }));
+        // Clear all errors at the start of validation
+        setError({
+            shippingAddressFullName: null,
+            shippingAddressAddressLine1: null,
+            shippingAddressCity: null,
+            shippingAddressState: null,
+            shippingAddressPostalCode: null,
+            customerEmail: null,
+            customerPhone: null,
+            shippingAddressPhone: null,
+        });
         const requiredFields = [
             { value: shippingAddressFullName, key: "shippingAddressFullName", message: "Full name is required" },
             { value: shippingAddressAddressLine1, key: "shippingAddressAddressLine1", message: "Address line 1 is required" },
