@@ -223,10 +223,37 @@ export function SupabaseAuthProvider({
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
+    
+    // If signup is successful and user is created, create a profile with generated name
+    if (!error && data.user) {
+      // Call API route to create profile server-side (bypasses RLS issues)
+      try {
+        const response = await fetch("/api/users/create-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: email,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Error creating user profile:", errorData);
+          // Don't fail signup if profile creation fails, just log the error
+        }
+      } catch (fetchError) {
+        console.error("Error calling profile init API:", fetchError);
+        // Don't fail signup if profile creation fails, just log the error
+      }
+    }
+    
     return { error };
   };
 

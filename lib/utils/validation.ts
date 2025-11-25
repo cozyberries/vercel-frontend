@@ -362,3 +362,46 @@ export const validateFullName = (name: string): ValidationResult => {
 
   return { isValid: true };
 };
+
+// Generate a name from email address
+// Example: "vixogem911@izeao.com" -> "Vixon Gem
+export const generateNameFromEmail = (email: string): string => {
+  if (!email || !email.includes("@")) {
+    return "User";
+  }
+
+  // Extract the part before @
+  const username = email.split("@")[0].toLowerCase();
+
+  // Remove trailing numbers
+  const namePart = username.replace(/\d+$/, "");
+
+  // If empty after removing numbers, use the original username
+  if (!namePart) {
+    return username.charAt(0).toUpperCase() + username.slice(1);
+  }
+
+  // If length is 6 or more, try to split into two words
+  if (namePart.length >= 6) {
+    // Split point: prefer 5 characters for first part if length is 7-8, otherwise split in middle
+    let splitPoint: number;
+    if (namePart.length === 7 || namePart.length === 8) {
+      splitPoint = 5;
+    } else if (namePart.length >= 9) {
+      splitPoint = 5;
+    } else {
+      // For length 6, split in middle
+      splitPoint = Math.floor(namePart.length / 2);
+    }
+    
+    const firstPart = namePart.slice(0, splitPoint);
+    const secondPart = namePart.slice(splitPoint);
+
+    // Capitalize first letter of each part
+    const capitalize = (str: string) =>
+      str.charAt(0).toUpperCase() + str.slice(1);
+
+    return `${capitalize(firstPart)} ${capitalize(secondPart)}`;
+  }
+  return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+};
