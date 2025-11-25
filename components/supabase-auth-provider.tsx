@@ -223,10 +223,49 @@ export function SupabaseAuthProvider({
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    // Get the redirect URL for email confirmation
+    const getRedirectUrl = () => {
+      if (typeof window !== "undefined") {
+        return `${window.location.origin}/auth/callback`;
+      }
+      return `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`;
+    };
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: getRedirectUrl(),
+      },
     });
+
+    // If signup was successful and user was created, try to create user profile
+    // Note: If email confirmation is required, the profile will be created in the callback
+    // If email confirmation is disabled (auto-confirm), we can create it here
+    if (!error && data.user) {
+      // Check if we have a session (email confirmation disabled)
+      if (data.session) {
+        try {
+          // Create user profile via API endpoint
+          const response = await fetch("/api/users/create-profile", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (!response.ok) {
+            console.error("Failed to create user profile:", await response.text());
+            // Don't fail the signup if profile creation fails - it will be created in callback
+          }
+        } catch (profileError) {
+          console.error("Error creating user profile:", profileError);
+          // Don't fail the signup if profile creation fails
+        }
+      }
+      // If no session (email confirmation required), profile will be created in /auth/callback
+    }
+
     return { error };
   };
 
