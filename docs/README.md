@@ -123,25 +123,24 @@ If you need to set up environment variables:
 3. Go to Settings > Environment Variables
 4. Add your environment variables
 
-#### Auth0 Setup
+#### Supabase Authentication Setup
 
-Add the following to `.env.local` (and replicate in Vercel → Settings → Environment Variables):
+This application uses Supabase for authentication. Add the following to `.env.local` (and replicate in Vercel → Settings → Environment Variables):
 
 ```
-AUTH0_SECRET=replace-with-a-random-long-secret
-AUTH0_BASE_URL=http://localhost:3000
-AUTH0_ISSUER_BASE_URL=https://YOUR_TENANT_REGION.auth0.com
-AUTH0_CLIENT_ID=YOUR_CLIENT_ID
-AUTH0_CLIENT_SECRET=YOUR_CLIENT_SECRET
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+JWT_SECRET=your-jwt-secret-here
 ```
 
 Notes:
 
-- Generate `AUTH0_SECRET` using `openssl rand -base64 32`.
-- `AUTH0_BASE_URL` must match your local URL and Vercel domain for production.
-- In Auth0 Dashboard → Application → Allowed Callback URLs/Logout URLs/Allowed Web Origins, add:
-  - `http://localhost:3000`
-  - Your Vercel domain (e.g., `https://your-app.vercel.app`)
+- Get your Supabase credentials from your Supabase project settings
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are required for client-side authentication
+- `SUPABASE_SERVICE_ROLE_KEY` is used for admin operations (server-side only)
+- `JWT_SECRET` should match your Supabase JWT secret
+- See `env.template` for a complete list of environment variables
 
 ## Contributing
 
