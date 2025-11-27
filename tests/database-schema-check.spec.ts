@@ -151,7 +151,3 @@ test.describe('Database Schema Check', () => {
     }
   });
 });
-
-
-
-

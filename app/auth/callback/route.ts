@@ -1,4 +1,5 @@
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
+import { generateNameFromEmail } from "@/lib/utils/validation";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -17,47 +18,64 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // After successful authentication, ensure user profile exists
-    if (data?.user) {
+    // If this is a new OAuth user, create their profile
+    if (data?.user && data?.user.email) {
       try {
+        // Use admin client to check and create profile
+        const adminSupabase = createAdminSupabaseClient();
+        
         // Check if profile exists
-        const { data: existingProfile } = await supabase
+        const { data: existingProfile } = await adminSupabase
           .from("user_profiles")
           .select("id")
           .eq("id", data.user.id)
           .single();
 
-        // If profile doesn't exist, create it
+        // If no profile exists, create one
         if (!existingProfile) {
-          const { error: profileError } = await supabase
-            .from("user_profiles")
-            .insert({
-              id: data.user.id,
-              role: "customer",
-              full_name: data.user.user_metadata?.full_name || null,
-              is_active: true,
-              is_verified: true, // Email is verified after confirmation
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
+          // Use name from user_metadata (from OAuth provider) or generate from email
+          const fullName =
+            data.user.user_metadata?.full_name ||
+            data.user.user_metadata?.name ||
+            generateNameFromEmail(data.user.email);
 
-          if (profileError) {
-            console.error("Error creating user profile in callback:", profileError);
-            // Don't fail the auth flow if profile creation fails
-          }
-        } else {
-          // Update verification status if profile exists
-          await supabase
+          const now = new Date().toISOString();
+
+          // Create profile in user_profiles table
+          await adminSupabase
             .from("user_profiles")
-            .update({
-              is_verified: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", data.user.id);
+            .upsert(
+              {
+                id: data.user.id,
+                full_name: fullName,
+                role: "customer",
+                is_active: true,
+                created_at: now,
+                updated_at: now,
+              },
+              {
+                onConflict: "id",
+              }
+            );
+
+          // Also create in profiles table if it exists
+          await adminSupabase
+            .from("profiles")
+            .upsert(
+              {
+                id: data.user.id,
+                full_name: fullName,
+                created_at: now,
+                updated_at: now,
+              },
+              {
+                onConflict: "id",
+              }
+            );
         }
       } catch (profileError) {
-        console.error("Error handling user profile in callback:", profileError);
-        // Don't fail the auth flow if profile creation fails
+        // Don't fail the OAuth flow if profile creation fails
+        console.error("Error creating OAuth user profile:", profileError);
       }
     }
   }

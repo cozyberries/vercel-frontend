@@ -1,68 +1,122 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
+import { generateNameFromEmail } from "@/lib/utils/validation";
 
-/**
- * Create a user profile for a newly registered user
- * This endpoint is called after successful signup to create the user_profiles entry
- */
+// Initialize user profile after signup
+// This endpoint uses admin client to bypass RLS and create profile
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    
-    // Get the current user from the session
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const body = await request.json();
+    const { userId, email } = body;
 
-    if (authError || !user) {
+    if (!userId || !email) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+        { error: "userId and email are required" },
+        { status: 400 }
       );
     }
 
-    // Check if profile already exists
-    const { data: existingProfile } = await supabase
-      .from("user_profiles")
-      .select("id")
-      .eq("id", user.id)
-      .single();
+    // Use admin client to bypass RLS
+    const supabase = createAdminSupabaseClient();
 
-    if (existingProfile) {
-      // Profile already exists, return success
-      return NextResponse.json({
-        message: "Profile already exists",
-        profile: existingProfile,
-      });
+    // Verify the user exists in auth.users
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    
+    if (authError || !authUser) {
+      return NextResponse.json(
+        { error: "User not found", details: authError?.message },
+        { status: 404 }
+      );
     }
 
-    // Create user profile with default customer role
-    const { data: profile, error: profileError } = await supabase
+    // Verify email matches (case-insensitive)
+    if (authUser.user.email?.toLowerCase() !== email.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Email mismatch" },
+        { status: 400 }
+      );
+    }
+
+    // Generate name from email
+    const generatedName = generateNameFromEmail(email);
+
+    // Try to create profile in both tables (profiles and user_profiles)
+    // First try user_profiles (used by admin routes)
+    const now = new Date().toISOString();
+    let profileData = null;
+    let hasError = false;
+    let errorDetails: any = {};
+
+    // Try user_profiles first
+    const { data: userProfileData, error: userProfileError } = await supabase
       .from("user_profiles")
-      .insert({
-        id: user.id,
-        role: "customer",
-        full_name: user.user_metadata?.full_name || null,
-        is_active: true,
-        is_verified: false, // Will be verified after email confirmation
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .upsert(
+        {
+          id: userId,
+          full_name: generatedName,
+          role: "customer",
+          is_active: true,
+          created_at: now,
+          updated_at: now,
+        },
+        {
+          onConflict: "id",
+        }
+      )
       .select()
       .single();
 
-    if (profileError) {
-      console.error("Error creating user profile:", profileError);
+    if (!userProfileError && userProfileData) {
+      profileData = userProfileData;
+    } else if (userProfileError) {
+      errorDetails.user_profiles = userProfileError;
+      hasError = true;
+    }
+
+    // Also try profiles table (used by profile routes)
+    const { data: profileDataAlt, error: profileErrorAlt } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: userId,
+          full_name: generatedName,
+          created_at: now,
+          updated_at: now,
+        },
+        {
+          onConflict: "id",
+        }
+      )
+      .select()
+      .single();
+
+    // If user_profiles failed but profiles succeeded, that's okay
+    if (userProfileError && !profileErrorAlt && profileDataAlt) {
+      profileData = profileDataAlt;
+      hasError = false; // Success in profiles table
+    } else if (profileErrorAlt && !profileData) {
+      // Only mark as error if we don't have profileData from user_profiles
+      errorDetails.profiles = profileErrorAlt;
+      hasError = true;
+    }
+
+    // If both failed, return error
+    if (hasError && !profileData) {
+      console.error("Error creating user profile:", errorDetails);
+
       return NextResponse.json(
-        { error: "Failed to create user profile", details: profileError.message },
+        {
+          error: "Failed to create user profile",
+          details: errorDetails.user_profiles?.message || errorDetails.profiles?.message || "Unknown error",
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
-      message: "User profile created successfully",
-      profile,
+      success: true,
+      profile: profileData || { id: userId, full_name: generatedName },
+      generatedName,
     });
   } catch (error) {
     console.error("Error in POST /api/users/create-profile:", error);
@@ -72,7 +126,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
-
-

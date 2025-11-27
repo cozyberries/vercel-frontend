@@ -68,10 +68,36 @@ export function SupabaseAuthProvider({
     return null;
   }, []);
 
+  // Helper function to create user profile if it doesn't exist
+  const ensureUserProfile = useCallback(async (userId: string, userEmail?: string) => {
+    try {
+      const response = await fetch("/api/profile/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return { success: true, profile: data.profile };
+      } else {
+        console.warn("Failed to create user profile:", await response.text());
+        return { success: false };
+      }
+    } catch (error) {
+      console.error("Error ensuring user profile:", error);
+      return { success: false };
+    }
+  }, []);
+
   // Helper function to update user profile
   const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
+        // First, ensure profile exists (create if it doesn't)
+        await ensureUserProfile(currentSession.user.id, currentSession.user.email);
+
         // Get user profile with role
         const { data: profile, error } = await supabase
           .from("user_profiles")
@@ -121,7 +147,7 @@ export function SupabaseAuthProvider({
       setUserProfile(null);
       setJwtToken(null);
     }
-  }, [supabase, generateJwtToken]);
+  }, [supabase, generateJwtToken, ensureUserProfile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -195,6 +221,12 @@ export function SupabaseAuthProvider({
         setUser(session?.user ?? null);
         setLoading(false); // Set loading to false immediately
 
+        // For SIGNED_IN and USER_UPDATED events, ensure profile exists
+        if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user) {
+          // Ensure profile exists before updating
+          await ensureUserProfile(session.user.id, session.user.email);
+        }
+
         // Update profile asynchronously without blocking
         updateUserProfile(session).catch((profileError) => {
           console.error("Error updating user profile in auth state change:", profileError);
@@ -212,7 +244,7 @@ export function SupabaseAuthProvider({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase, updateUserProfile]); // supabase and updateUserProfile are stable
+  }, [supabase, updateUserProfile, ensureUserProfile]); // supabase, updateUserProfile, and ensureUserProfile are stable
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -223,49 +255,37 @@ export function SupabaseAuthProvider({
   };
 
   const signUp = async (email: string, password: string) => {
-    // Get the redirect URL for email confirmation
-    const getRedirectUrl = () => {
-      if (typeof window !== "undefined") {
-        return `${window.location.origin}/auth/callback`;
-      }
-      return `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`;
-    };
-
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: getRedirectUrl(),
-      },
     });
-
-    // If signup was successful and user was created, try to create user profile
-    // Note: If email confirmation is required, the profile will be created in the callback
-    // If email confirmation is disabled (auto-confirm), we can create it here
+    
+    // If signup is successful and user is created, create a profile with generated name
     if (!error && data.user) {
-      // Check if we have a session (email confirmation disabled)
-      if (data.session) {
-        try {
-          // Create user profile via API endpoint
-          const response = await fetch("/api/users/create-profile", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+      // Call API route to create profile server-side (bypasses RLS issues)
+      try {
+        const response = await fetch("/api/users/create-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: email,
+          }),
+        });
 
-          if (!response.ok) {
-            console.error("Failed to create user profile:", await response.text());
-            // Don't fail the signup if profile creation fails - it will be created in callback
-          }
-        } catch (profileError) {
-          console.error("Error creating user profile:", profileError);
-          // Don't fail the signup if profile creation fails
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Error creating user profile:", errorData);
+          // Don't fail signup if profile creation fails, just log the error
         }
+      } catch (fetchError) {
+        console.error("Error calling profile init API:", fetchError);
+        // Don't fail signup if profile creation fails, just log the error
       }
-      // If no session (email confirmation required), profile will be created in /auth/callback
     }
-
+    
     return { error };
   };
 
