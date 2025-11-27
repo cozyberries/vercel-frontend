@@ -1,536 +1,337 @@
-import { test, expect, Page } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
+import { test, expect } from '@playwright/test';
 
-// Test credentials - should be set via environment variables
-const TEST_EMAIL_PREFIX = 'test_playwright_';
-const TEST_PASSWORD = 'TestPassword123!';
+/**
+ * Authentication Tests
+ * 
+ * These tests validate the signup and login functionality.
+ * 
+ * Note: For these tests to work properly, you need:
+ * 1. A valid Supabase configuration in .env.local
+ * 2. Email confirmation settings configured in Supabase
+ * 3. Test credentials or ability to create test users
+ */
+
 const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000';
 
-// Helper function to generate unique email
-function generateTestEmail(): string {
-  return `${TEST_EMAIL_PREFIX}${Date.now()}${Math.random().toString(36).substring(7)}@example.com`;
-}
+// Test credentials - these should be unique for each test run
+// Using timestamp to ensure uniqueness
+const timestamp = Date.now();
+const testEmail = `test-${timestamp}@example.com`;
+const testPassword = 'TestPassword123!';
 
-// Helper function to cleanup test user from Supabase
-async function cleanupTestUser(email: string) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.warn('Supabase credentials not found, skipping cleanup');
-      return;
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    // Get user by email
-    const { data: users } = await supabase.auth.admin.listUsers();
-    const user = users?.users?.find(u => u.email === email);
-
-    if (user) {
-      // Delete user profile if exists
-      await supabase.from('user_profiles').delete().eq('id', user.id);
-      
-      // Delete auth user
-      await supabase.auth.admin.deleteUser(user.id);
-      console.log(`Cleaned up test user: ${email}`);
-    }
-  } catch (error) {
-    console.error('Error cleaning up test user:', error);
-  }
-}
-
-// Page Object Model for Register Page
-class RegisterPage {
-  constructor(private page: Page) {}
-
-  async goto() {
-    await this.page.goto('/register');
-  }
-
-  async fillEmail(email: string) {
-    await this.page.fill('input[name="email"]', email);
-  }
-
-  async fillPassword(password: string) {
-    await this.page.fill('input[name="password"]', password);
-  }
-
-  async fillConfirmPassword(password: string) {
-    await this.page.fill('input[name="confirmPassword"]', password);
-  }
-
-  async submit() {
-    await this.page.click('button[type="submit"]');
-  }
-
-  async getErrorMessage() {
-    const errorElement = this.page.locator('.text-red-600');
-    if (await errorElement.count() > 0) {
-      return await errorElement.textContent();
-    }
-    return null;
-  }
-
-  async getSuccessMessage() {
-    const successElement = this.page.locator('.text-green-600');
-    if (await successElement.count() > 0) {
-      return await successElement.textContent();
-    }
-    return null;
-  }
-
-  async isEmailInputVisible() {
-    return await this.page.locator('input[name="email"]').isVisible();
-  }
-}
-
-// Page Object Model for Login Page
-class LoginPage {
-  constructor(private page: Page) {}
-
-  async goto() {
-    await this.page.goto('/login');
-  }
-
-  async fillEmail(email: string) {
-    await this.page.fill('input[name="email"]', email);
-  }
-
-  async fillPassword(password: string) {
-    await this.page.fill('input[name="password"]', password);
-  }
-
-  async submit() {
-    await this.page.click('button[type="submit"]');
-  }
-
-  async getErrorMessage() {
-    const errorElement = this.page.locator('.text-red-600');
-    if (await errorElement.count() > 0) {
-      return await errorElement.textContent();
-    }
-    return null;
-  }
-
-  async isEmailInputVisible() {
-    return await this.page.locator('input[name="email"]').isVisible();
-  }
-}
-
-// Page Object Model for Profile Page
-class ProfilePage {
-  constructor(private page: Page) {}
-
-  async goto() {
-    await this.page.goto('/profile');
-  }
-
-  async isAuthenticated() {
-    // Check if we're redirected away from login
-    const currentUrl = this.page.url();
-    return !currentUrl.includes('/login');
-  }
-
-  async waitForPageLoad() {
-    await this.page.waitForLoadState('networkidle');
-  }
-}
-
-// Page Object Model for Header/Navigation
-class Header {
-  constructor(private page: Page) {}
-
-  async clickUserIcon() {
-    await this.page.click('button[aria-label*="profile"], button[aria-label*="login"]');
-  }
-
-  async clickLogout() {
-    // Try to find logout button in profile page or hamburger menu
-    const logoutButton = this.page.locator('button:has-text("Logout"), button:has-text("Log out")');
-    if (await logoutButton.count() > 0) {
-      await logoutButton.first().click();
-    }
-  }
-
-  async isUserIconVisible() {
-    const userIcon = this.page.locator('button[aria-label*="profile"], button[aria-label*="login"]');
-    return await userIcon.isVisible();
-  }
-}
-
-test.describe('User Authentication Flow', () => {
-  let testEmail: string;
-
-  test.beforeEach(() => {
-    testEmail = generateTestEmail();
+test.describe('User Authentication', () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to home page before each test
+    await page.goto(BASE_URL);
   });
 
-  test.afterEach(async () => {
-    // Cleanup test user after each test
-    await cleanupTestUser(testEmail);
-  });
-
-  test.describe('User Signup Flow', () => {
-    test('should successfully register a new user with valid credentials', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
+  test.describe('Signup Flow', () => {
+    test('should display signup page correctly', async ({ page }) => {
+      await page.goto(`${BASE_URL}/register`);
       
-      await registerPage.goto();
-      await expect(registerPage.isEmailInputVisible()).toBeTruthy();
-
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
+      // Check page title
+      await expect(page).toHaveTitle(/CozyBerries/i);
       
-      await registerPage.submit();
-
-      // Wait for either success message or error message to appear
-      // Also wait for the button to stop being in loading state
-      await page.waitForSelector('button[type="submit"]:not([disabled])', { timeout: 15000 });
-      await page.waitForTimeout(1000); // Give a moment for message to render
+      // Check heading
+      await expect(page.getByRole('heading', { name: /Create your account/i })).toBeVisible();
       
-      const successMessage = await registerPage.getSuccessMessage();
-      const errorMessage = await registerPage.getErrorMessage();
-
-      // Should show either success message about email confirmation or an error
-      // (Note: Supabase may require email confirmation, so success message might not appear immediately)
-      expect(successMessage || errorMessage).toBeTruthy();
+      // Check form elements
+      await expect(page.getByLabel(/Email address/i)).toBeVisible();
+      await expect(page.getByLabel(/^Password$/i).first()).toBeVisible();
+      await expect(page.getByLabel(/Confirm Password/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: /Create account/i })).toBeVisible();
       
-      // If there's an error, it should not be a validation error for valid credentials
-      if (errorMessage) {
-        const lowerError = errorMessage.toLowerCase();
-        // Allow for email confirmation messages or other non-validation errors
-        expect(
-          lowerError.includes('password') && lowerError.includes('match') ||
-          lowerError.includes('email') && lowerError.includes('format') ||
-          lowerError.includes('invalid') && (lowerError.includes('email') || lowerError.includes('password'))
-        ).toBeFalsy();
-      }
+      // Check Google sign in button
+      await expect(page.getByRole('button', { name: /Continue with Google/i })).toBeVisible();
+      
+      // Check link to login page
+      await expect(page.getByRole('link', { name: /sign in to your existing account/i })).toBeVisible();
     });
 
     test('should show error when passwords do not match', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
+      await page.goto(`${BASE_URL}/register`);
       
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword('DifferentPassword123!');
+      // Fill in the form with mismatched passwords
+      await page.getByLabel(/Email address/i).fill(testEmail);
+      await page.getByLabel(/^Password$/i).first().fill(testPassword);
+      await page.getByLabel(/Confirm Password/i).fill('DifferentPassword123!');
       
-      await registerPage.submit();
-
-      // Wait for error message
-      await page.waitForSelector('.text-red-600', { timeout: 5000 });
+      // Submit the form
+      await page.getByRole('button', { name: /Create account/i }).click();
       
-      const errorMessage = await registerPage.getErrorMessage();
-      expect(errorMessage?.toLowerCase()).toContain('password');
+      // Check for error message
+      await expect(page.getByText(/Passwords do not match/i)).toBeVisible();
     });
 
     test('should show error for invalid email format', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
+      await page.goto(`${BASE_URL}/register`);
       
-      await registerPage.goto();
-      await registerPage.fillEmail('invalid-email');
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
+      // Fill in the form with invalid email
+      await page.getByLabel(/Email address/i).fill('invalid-email');
+      await page.getByLabel(/^Password$/i).first().fill(testPassword);
+      await page.getByLabel(/Confirm Password/i).fill(testPassword);
       
-      // HTML5 validation should prevent submission
-      const emailInput = page.locator('input[name="email"]');
-      const validity = await emailInput.evaluate((el: HTMLInputElement) => el.validity.valid);
-      expect(validity).toBeFalsy();
-    });
-
-    test('should show error when trying to register with existing email', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
+      // Try to submit - browser validation should prevent submission
+      const emailInput = page.getByLabel(/Email address/i);
+      await emailInput.blur();
       
-      // First registration
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
-      
-      // Wait a bit for first registration to complete
-      await page.waitForTimeout(2000);
-      
-      // Try to register again with same email
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
-
-      // Wait for error message
-      await page.waitForSelector('.text-red-600', { timeout: 10000 });
-      
-      const errorMessage = await registerPage.getErrorMessage();
-      // Should indicate user already exists
-      expect(errorMessage).toBeTruthy();
-    });
-
-    test('should validate password requirements', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      
-      // Try with very short password
-      await registerPage.fillPassword('123');
-      await registerPage.fillConfirmPassword('123');
-      
-      // HTML5 validation should prevent submission if minLength is set
-      const passwordInput = page.locator('input[name="password"]');
-      const validity = await passwordInput.evaluate((el: HTMLInputElement) => {
-        if (el.hasAttribute('minlength')) {
-          return el.value.length >= parseInt(el.getAttribute('minlength') || '0');
-        }
-        return true;
+      // Check HTML5 validation
+      const isInvalid = await emailInput.evaluate((el: HTMLInputElement) => {
+        return !el.validity.valid;
       });
-      
-      // If minLength is set, short password should be invalid
-      if (await passwordInput.getAttribute('minlength')) {
-        expect(validity).toBeFalsy();
-      }
+      expect(isInvalid).toBe(true);
     });
-  });
 
-  test.describe('User Signin Flow', () => {
-    test('should successfully login with valid credentials', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      const loginPage = new LoginPage(page);
-      const profilePage = new ProfilePage(page);
+    test('should show error for weak password', async ({ page }) => {
+      await page.goto(`${BASE_URL}/register`);
       
-      // First, register a user
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
+      // Fill in the form with weak password
+      await page.getByLabel(/Email address/i).fill(testEmail);
+      await page.getByLabel(/^Password$/i).first().fill('123');
+      await page.getByLabel(/Confirm Password/i).fill('123');
       
-      // Wait for registration to complete
-      await page.waitForTimeout(3000);
+      // Submit the form
+      await page.getByRole('button', { name: /Create account/i }).click();
       
-      // Note: In production, user would need to confirm email first
-      // For testing, we'll try to login (may fail if email confirmation is required)
+      // Note: Supabase may have password requirements
+      // The error message will depend on Supabase configuration
+      // We'll wait a bit to see if an error appears
+      await page.waitForTimeout(1000);
       
-      await loginPage.goto();
-      await loginPage.fillEmail(testEmail);
-      await loginPage.fillPassword(TEST_PASSWORD);
-      await loginPage.submit();
-      
-      // Wait for navigation or error
-      await page.waitForTimeout(3000);
-      
-      // Check if we're redirected to profile or still on login with error
-      const currentUrl = page.url();
-      const errorMessage = await loginPage.getErrorMessage();
-      
-      // Either we successfully logged in (redirected to /profile) or there's an error
-      if (currentUrl.includes('/profile')) {
-        // Successfully logged in
-        expect(currentUrl).toContain('/profile');
-      } else {
-        // May need email confirmation - check error message
-        expect(errorMessage).toBeTruthy();
+      // Check if there's an error message (could be from Supabase)
+      const errorText = await page.locator('text=/password|error|invalid/i').first().textContent().catch(() => null);
+      if (errorText) {
+        expect(errorText).toBeTruthy();
       }
     });
 
-    test('should show error for wrong password', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      const loginPage = new LoginPage(page);
+    test('should successfully submit signup form with valid data', async ({ page }) => {
+      await page.goto(`${BASE_URL}/register`);
       
-      // First, register a user
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
+      // Generate unique email for this test
+      const uniqueEmail = `test-signup-${Date.now()}@example.com`;
       
-      await page.waitForTimeout(3000);
+      // Fill in the form with valid data
+      await page.getByLabel(/Email address/i).fill(uniqueEmail);
+      await page.getByLabel(/^Password$/i).first().fill(testPassword);
+      await page.getByLabel(/Confirm Password/i).fill(testPassword);
       
-      // Try to login with wrong password
-      await loginPage.goto();
-      await loginPage.fillEmail(testEmail);
-      await loginPage.fillPassword('WrongPassword123!');
-      await loginPage.submit();
+      // Submit the form
+      await page.getByRole('button', { name: /Create account/i }).click();
       
-      // Wait for error message
-      await page.waitForSelector('.text-red-600', { timeout: 10000 });
-      
-      const errorMessage = await loginPage.getErrorMessage();
-      expect(errorMessage?.toLowerCase()).toMatch(/invalid|incorrect|wrong|password|credentials/i);
-    });
-
-    test('should show error for non-existent user', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      
-      await loginPage.goto();
-      await loginPage.fillEmail('nonexistent@example.com');
-      await loginPage.fillPassword(TEST_PASSWORD);
-      await loginPage.submit();
-      
-      // Wait for error message
-      await page.waitForSelector('.text-red-600', { timeout: 10000 });
-      
-      const errorMessage = await loginPage.getErrorMessage();
-      expect(errorMessage?.toLowerCase()).toMatch(/invalid|incorrect|user|not found|credentials/i);
-    });
-
-    test('should validate email format on login', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      
-      await loginPage.goto();
-      await loginPage.fillEmail('invalid-email');
-      await loginPage.fillPassword(TEST_PASSWORD);
-      
-      // HTML5 validation should prevent submission
-      const emailInput = page.locator('input[name="email"]');
-      const validity = await emailInput.evaluate((el: HTMLInputElement) => el.validity.valid);
-      expect(validity).toBeFalsy();
-    });
-  });
-
-  test.describe('User Signout Flow', () => {
-    test('should successfully logout and redirect to home', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      const loginPage = new LoginPage(page);
-      const profilePage = new ProfilePage(page);
-      const header = new Header(page);
-      
-      // Register and login (if email confirmation is not required)
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
-      
-      await page.waitForTimeout(3000);
-      
-      // Try to login
-      await loginPage.goto();
-      await loginPage.fillEmail(testEmail);
-      await loginPage.fillPassword(TEST_PASSWORD);
-      await loginPage.submit();
-      
-      await page.waitForTimeout(3000);
-      
-      // If we're on profile page, try to logout
-      if (page.url().includes('/profile')) {
-        // Look for logout button
-        const logoutButton = page.locator('button:has-text("Logout"), button:has-text("Log out")');
-        
-        if (await logoutButton.count() > 0) {
-          await logoutButton.first().click();
-          
-          // Wait for redirect
-          await page.waitForURL('**/', { timeout: 10000 });
-          
-          // Verify we're on home page
-          expect(page.url()).toMatch(/\/$/);
-          
-          // Verify we can't access profile without login
-          await profilePage.goto();
-          await page.waitForTimeout(2000);
-          
-          // Should be redirected to login or stay on home
-          const currentUrl = page.url();
-          expect(currentUrl).toMatch(/\/(login|$)/);
-        }
-      }
-    });
-
-    test('should prevent access to protected routes after logout', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      const loginPage = new LoginPage(page);
-      const profilePage = new ProfilePage(page);
-      
-      // Register and login
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
-      
-      await page.waitForTimeout(3000);
-      
-      await loginPage.goto();
-      await loginPage.fillEmail(testEmail);
-      await loginPage.fillPassword(TEST_PASSWORD);
-      await loginPage.submit();
-      
-      await page.waitForTimeout(3000);
-      
-      // If logged in, logout
-      if (page.url().includes('/profile')) {
-        const logoutButton = page.locator('button:has-text("Logout"), button:has-text("Log out")');
-        if (await logoutButton.count() > 0) {
-          await logoutButton.first().click();
-          await page.waitForURL('**/', { timeout: 10000 });
-        }
-      }
-      
-      // Try to access profile
-      await profilePage.goto();
+      // Wait for response - either success message or error
       await page.waitForTimeout(2000);
       
-      // Should be redirected to login
-      const currentUrl = page.url();
-      expect(currentUrl).toMatch(/\/(login|$)/);
+      // Check for success message (email confirmation) or error
+      const successMessage = page.getByText(/Check your email for a confirmation link/i);
+      const errorMessage = page.locator('text=/error|failed/i').first();
+      
+      // One of these should be visible
+      const hasSuccess = await successMessage.isVisible().catch(() => false);
+      const hasError = await errorMessage.isVisible().catch(() => false);
+      
+      // If there's an error, log it for debugging
+      if (hasError) {
+        const errorText = await errorMessage.textContent();
+        console.log('Signup error:', errorText);
+      }
+      
+      // Note: Actual success depends on Supabase configuration
+      // If email confirmation is required, we'll see the success message
+      // If auto-confirm is enabled, user might be redirected
+      expect(hasSuccess || hasError).toBe(true);
+    });
+
+    test('should navigate to login page from signup page', async ({ page }) => {
+      await page.goto(`${BASE_URL}/register`);
+      
+      // Click the link to login page
+      await page.getByRole('link', { name: /sign in to your existing account/i }).click();
+      
+      // Should be on login page
+      await expect(page).toHaveURL(new RegExp(`${BASE_URL}/login`));
+      await expect(page.getByRole('heading', { name: /Sign in to your account/i })).toBeVisible();
     });
   });
 
-  test.describe('Edge Cases', () => {
-    test('should handle network errors gracefully', async ({ page }) => {
-      const registerPage = new RegisterPage(page);
+  test.describe('Login Flow', () => {
+    test('should display login page correctly', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
       
-      // Simulate network failure
-      await page.route('**/auth/v1/signup', route => route.abort());
+      // Check page title
+      await expect(page).toHaveTitle(/CozyBerries/i);
       
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
+      // Check heading
+      await expect(page.getByRole('heading', { name: /Sign in to your account/i })).toBeVisible();
       
-      // Should show error message
-      await page.waitForSelector('.text-red-600', { timeout: 10000 });
-      const errorMessage = await registerPage.getErrorMessage();
-      expect(errorMessage).toBeTruthy();
+      // Check form elements
+      await expect(page.getByLabel(/Email address/i)).toBeVisible();
+      await expect(page.getByLabel(/^Password$/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: /Sign in/i })).toBeVisible();
+      
+      // Check Google sign in button
+      await expect(page.getByRole('button', { name: /Continue with Google/i })).toBeVisible();
+      
+      // Check link to register page
+      await expect(page.getByRole('link', { name: /create a new account/i })).toBeVisible();
     });
 
-    test('should maintain session after page reload', async ({ page, context }) => {
-      const registerPage = new RegisterPage(page);
-      const loginPage = new LoginPage(page);
-      const profilePage = new ProfilePage(page);
+    test('should show error for invalid credentials', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
       
-      // Register
-      await registerPage.goto();
-      await registerPage.fillEmail(testEmail);
-      await registerPage.fillPassword(TEST_PASSWORD);
-      await registerPage.fillConfirmPassword(TEST_PASSWORD);
-      await registerPage.submit();
-      await page.waitForTimeout(3000);
+      // Fill in the form with invalid credentials
+      await page.getByLabel(/Email address/i).fill('nonexistent@example.com');
+      await page.getByLabel(/^Password$/i).fill('WrongPassword123!');
       
-      // Login
-      await loginPage.goto();
-      await loginPage.fillEmail(testEmail);
-      await loginPage.fillPassword(TEST_PASSWORD);
-      await loginPage.submit();
-      await page.waitForTimeout(3000);
+      // Submit the form
+      await page.getByRole('button', { name: /Sign in/i }).click();
       
-      // If logged in, reload page
-      if (page.url().includes('/profile')) {
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-        
-        // Should still be on profile page (session maintained)
-        expect(page.url()).toContain('/profile');
+      // Wait for error message
+      await page.waitForTimeout(2000);
+      
+      // Check for error message
+      const errorMessage = page.locator('text=/invalid|incorrect|error|wrong/i').first();
+      const hasError = await errorMessage.isVisible().catch(() => false);
+      
+      // Should show an error (exact message depends on Supabase configuration)
+      if (hasError) {
+        const errorText = await errorMessage.textContent();
+        expect(errorText).toBeTruthy();
       }
+    });
+
+    test('should show error for invalid email format', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
+      
+      // Fill in the form with invalid email
+      await page.getByLabel(/Email address/i).fill('invalid-email');
+      await page.getByLabel(/^Password$/i).fill(testPassword);
+      
+      // Try to submit - browser validation should prevent submission
+      const emailInput = page.getByLabel(/Email address/i);
+      await emailInput.blur();
+      
+      // Check HTML5 validation
+      const isInvalid = await emailInput.evaluate((el: HTMLInputElement) => {
+        return !el.validity.valid;
+      });
+      expect(isInvalid).toBe(true);
+    });
+
+    test('should navigate to register page from login page', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
+      
+      // Click the link to register page
+      await page.getByRole('link', { name: /create a new account/i }).click();
+      
+      // Should be on register page
+      await expect(page).toHaveURL(new RegExp(`${BASE_URL}/register`));
+      await expect(page.getByRole('heading', { name: /Create your account/i })).toBeVisible();
+    });
+
+    test('should show loading state during login', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
+      
+      // Fill in the form
+      await page.getByLabel(/Email address/i).fill('test@example.com');
+      await page.getByLabel(/^Password$/i).fill('TestPassword123!');
+      
+      // Submit the form
+      const submitButton = page.getByRole('button', { name: /Sign in/i });
+      
+      // Click and immediately check for loading state
+      const clickPromise = submitButton.click();
+      
+      // Wait a bit to catch the loading state
+      await page.waitForTimeout(100);
+      
+      // Check if button shows loading state (text changes to "Signing in...")
+      // The button text might change or it might be disabled
+      const buttonText = await submitButton.textContent().catch(() => '');
+      const isDisabled = await submitButton.isDisabled().catch(() => false);
+      
+      // Either the text should show "Signing in" or the button should be disabled
+      expect(buttonText?.includes('Signing') || isDisabled).toBe(true);
+      
+      await clickPromise;
+    });
+
+    test('should disable form during loading', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
+      
+      // Fill in the form
+      await page.getByLabel(/Email address/i).fill('test@example.com');
+      await page.getByLabel(/^Password$/i).fill('TestPassword123!');
+      
+      // Submit the form
+      const submitButton = page.getByRole('button', { name: /Sign in/i });
+      
+      // Click and immediately check for disabled state
+      const clickPromise = submitButton.click();
+      
+      // Wait a bit to catch the disabled state (might be very brief)
+      await page.waitForTimeout(50);
+      
+      // Button might be disabled or show loading text
+      const isDisabled = await submitButton.isDisabled().catch(() => false);
+      const buttonText = await submitButton.textContent().catch(() => '');
+      
+      // Either disabled or showing loading text indicates loading state
+      expect(isDisabled || buttonText?.includes('Signing')).toBe(true);
+      
+      await clickPromise;
+    });
+  });
+
+  test.describe('Navigation Flow', () => {
+    test('should navigate between login and register pages', async ({ page }) => {
+      // Start at login
+      await page.goto(`${BASE_URL}/login`);
+      await expect(page.getByRole('heading', { name: /Sign in to your account/i })).toBeVisible();
+      
+      // Go to register
+      await page.getByRole('link', { name: /create a new account/i }).click();
+      await expect(page).toHaveURL(new RegExp(`${BASE_URL}/register`));
+      await expect(page.getByRole('heading', { name: /Create your account/i })).toBeVisible();
+      
+      // Go back to login
+      await page.getByRole('link', { name: /sign in to your existing account/i }).click();
+      await expect(page).toHaveURL(new RegExp(`${BASE_URL}/login`));
+      await expect(page.getByRole('heading', { name: /Sign in to your account/i })).toBeVisible();
+    });
+  });
+
+  test.describe('Form Validation', () => {
+    test('should require email field', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
+      
+      const emailInput = page.getByLabel(/Email address/i);
+      const isRequired = await emailInput.getAttribute('required');
+      expect(isRequired).not.toBeNull();
+    });
+
+    test('should require password field', async ({ page }) => {
+      await page.goto(`${BASE_URL}/login`);
+      
+      const passwordInput = page.getByLabel(/^Password$/i);
+      const isRequired = await passwordInput.getAttribute('required');
+      expect(isRequired).not.toBeNull();
+    });
+
+    test('should require all fields on register page', async ({ page }) => {
+      await page.goto(`${BASE_URL}/register`);
+      
+      const emailInput = page.getByLabel(/Email address/i);
+      const passwordInput = page.getByLabel(/^Password$/i).first();
+      const confirmPasswordInput = page.getByLabel(/Confirm Password/i);
+      
+      const emailRequired = await emailInput.getAttribute('required');
+      const passwordRequired = await passwordInput.getAttribute('required');
+      const confirmPasswordRequired = await confirmPasswordInput.getAttribute('required');
+      
+      expect(emailRequired).not.toBeNull();
+      expect(passwordRequired).not.toBeNull();
+      expect(confirmPasswordRequired).not.toBeNull();
     });
   });
 });

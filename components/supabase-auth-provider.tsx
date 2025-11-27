@@ -259,16 +259,33 @@ export function SupabaseAuthProvider({
       email,
       password,
     });
-
-    // If signup was successful and we have a user, ensure profile is created
+    
+    // If signup is successful and user is created, create a profile with generated name
     if (!error && data.user) {
-      // Create user profile asynchronously (don't block signup)
-      ensureUserProfile(data.user.id, data.user.email).catch((profileError) => {
-        console.error("Error creating user profile after signup:", profileError);
-        // Profile creation failure doesn't block signup, but log it
-      });
-    }
+      // Call API route to create profile server-side (bypasses RLS issues)
+      try {
+        const response = await fetch("/api/users/create-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: email,
+          }),
+        });
 
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Error creating user profile:", errorData);
+          // Don't fail signup if profile creation fails, just log the error
+        }
+      } catch (fetchError) {
+        console.error("Error calling profile init API:", fetchError);
+        // Don't fail signup if profile creation fails, just log the error
+      }
+    }
+    
     return { error };
   };
 

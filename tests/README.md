@@ -1,10 +1,10 @@
-# Playwright E2E Tests
+# Playwright Test Suite
 
 This directory contains end-to-end tests for the application using Playwright.
 
 ## Setup
 
-1. Install dependencies (if not already installed):
+1. Install dependencies:
 ```bash
 npm install
 ```
@@ -14,81 +14,104 @@ npm install
 npx playwright install
 ```
 
-3. Set up environment variables in `.env.local`:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-PLAYWRIGHT_TEST_BASE_URL=http://localhost:3000
-```
-
 ## Running Tests
 
 ### Run all tests
 ```bash
-npm run test:e2e
+npm run test
+```
+
+### Run authentication tests only
+```bash
+npm run test:auth
 ```
 
 ### Run tests in UI mode (interactive)
 ```bash
-npm run test:e2e:ui
+npm run test:ui
 ```
 
 ### Run tests in headed mode (see browser)
 ```bash
-npm run test:e2e:headed
+npm run test:headed
 ```
 
-### Run specific test file
+### View test report
 ```bash
-npx playwright test tests/auth.spec.ts
+npm run test:report
 ```
 
-## Test Structure
+## Test Files
 
-### Authentication Tests (`auth.spec.ts`)
+### `auth.spec.ts`
+Comprehensive tests for user authentication including:
+- Signup flow validation
+- Login flow validation
+- Form validation
+- Error handling
+- Navigation between pages
 
-Tests cover the complete authentication flow:
+## Configuration
 
-1. **User Signup Flow**
-   - Valid registration
-   - Password mismatch validation
-   - Invalid email format
-   - Duplicate email registration
-   - Password requirements validation
+Tests are configured in `playwright.config.ts`. The default base URL is `http://localhost:3000`.
 
-2. **User Signin Flow**
-   - Successful login
-   - Wrong password handling
-   - Non-existent user handling
-   - Email format validation
+You can override the base URL using environment variables:
+```bash
+PLAYWRIGHT_TEST_BASE_URL=http://localhost:3000 npm run test
+```
 
-3. **User Signout Flow**
-   - Successful logout
-   - Protected route access after logout
-   - Session cleanup
+## Test Credentials
 
-4. **Edge Cases**
-   - Network error handling
-   - Session persistence after page reload
+The tests use dynamically generated email addresses to avoid conflicts:
+- Format: `test-{timestamp}@example.com`
+- Password: `TestPassword123!`
 
-## Test Data
+**Note**: For tests that require actual authentication (like successful login), you'll need to:
+1. Create a test user in your Supabase project
+2. Update the test with valid credentials
+3. Or configure Supabase to auto-confirm emails for testing
 
-Tests use dynamically generated email addresses with the prefix `test_playwright_` to avoid conflicts. Test users are automatically cleaned up after each test.
+## Environment Variables
 
-## Page Object Model
+Make sure you have the following environment variables set in `.env.local`:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (for admin operations)
 
-Tests use the Page Object Model pattern for better maintainability:
+## CI/CD Integration
 
-- `RegisterPage` - Handles registration form interactions
-- `LoginPage` - Handles login form interactions
-- `ProfilePage` - Handles profile page interactions
-- `Header` - Handles navigation and user menu interactions
+The tests are configured to:
+- Run in parallel on CI
+- Retry failed tests twice
+- Generate HTML reports
+- Take screenshots on failure
 
-## Notes
+## Debugging
 
-- Tests require the development server to be running (automatically started by Playwright)
-- Tests clean up test users from Supabase after execution
-- Some tests may require email confirmation to be disabled in Supabase for full functionality
-- Tests use environment variables for Supabase credentials
+To debug a test:
+1. Run in UI mode: `npm run test:ui`
+2. Use `await page.pause()` in your test code
+3. Use Playwright Inspector: `PWDEBUG=1 npm run test`
+
+## Writing New Tests
+
+1. Create a new `.spec.ts` file in the `tests/` directory
+2. Import test utilities from `@playwright/test`
+3. Use descriptive test names
+4. Group related tests with `test.describe()`
+
+Example:
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Feature Name', () => {
+  test('should do something', async ({ page }) => {
+    await page.goto('/');
+    // Your test code here
+  });
+});
+```
+
+
+
 
