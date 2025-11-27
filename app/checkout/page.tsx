@@ -166,7 +166,7 @@ export default function CheckoutPage() {
 
     setShowQr(true);
 
-    const totalSeconds = 10; // 2:30
+    const totalSeconds = 150; // 2:30
     setCountdown(totalSeconds);
 
     let sec = totalSeconds;
@@ -211,6 +211,7 @@ export default function CheckoutPage() {
           await sendNotification("Order Failed", `${user?.email} failed`, "error");
           await sendActivity("order_submission_failed", `Failed order #${generatedOrderId}`, generatedOrderId);
           setIsProcessing(false);
+          setShowQr(false);
           return;
         }
 
