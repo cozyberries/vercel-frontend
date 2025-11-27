@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import Script from "next/script";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
+import UpiQr from "@/components/upi-qr";
+import { images } from "@/app/assets/images";
 
 interface CheckoutFormData {
   email: string;
@@ -36,7 +38,7 @@ export default function CheckoutPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderComplete, setOrderComplete] = useState(false);
+  const [orderCompleted, setOrderCompleted] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     null
   );
@@ -44,6 +46,12 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: "",
   });
+  const [showQr, setShowQr] = useState(false);
+  const [countdown, setCountdown] = useState(10);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+
 
   // Use profile hook for address management
   const {
@@ -96,6 +104,14 @@ export default function CheckoutPage() {
     }
   }, [addresses, selectedAddressId]);
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
   // Handle address selection
   const handleAddressSelect = (addressId: string) => {
     setSelectedAddressId(addressId);
@@ -117,6 +133,12 @@ export default function CheckoutPage() {
     setShowAddressModal(false);
   };
 
+  // Handle input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   // Show loading state while checking authentication
   if (loading) {
     return (
@@ -129,117 +151,139 @@ export default function CheckoutPage() {
     );
   }
 
-  // Redirect if cart is empty
-  if (cart.length === 0 && !orderComplete) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (!selectedAddressId) {
+      alert("Please select a shipping address");
+      return;
+    }
+
+    // Clear previous timers
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    setShowQr(true);
+
+    const totalSeconds = 150; // 2:30
+    setCountdown(totalSeconds);
+
+    let sec = totalSeconds;
+
+    // Start countdown
+    countdownRef.current = setInterval(() => {
+      sec -= 1;
+
+      if (sec >= 0) {
+        setCountdown(sec);
+      } else {
+        clearInterval(countdownRef.current!);
+      }
+    }, 1000);
+
+    // After countdown ends → auto-create order
+    timerRef.current = setTimeout(async () => {
+      setIsProcessing(true);
+
+      try {
+        let generatedOrderId = `ORD-${Date.now()}`;
+        // Create order
+        const orderRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: generatedOrderId,
+            items: cart.map((item) => ({
+              id: item.id,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              image: item.image,
+            })),
+            shipping_address_id: selectedAddressId,
+            notes: formData.notes || "",
+          }),
+        });
+
+        if (!orderRes.ok) {
+          toast.error("Failed to save order");
+          await sendNotification("Order Failed", `${user?.email} failed`, "error");
+          await sendActivity("order_submission_failed", `Failed order #${generatedOrderId}`, generatedOrderId);
+          setIsProcessing(false);
+          setShowQr(false);
+          return;
+        }
+
+        const orderData = await orderRes.json();
+        const createdOrder = orderData.order;
+
+        const paymentRes = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: createdOrder.id,
+            payment_reference: `UPI_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            payment_method: "upi",
+            gateway_provider: "manual",
+            amount: total,
+            currency: "INR",
+            gateway_response: {
+              status: "pending",
+              method: "upi",
+              timestamp: new Date().toISOString(),
+            },
+          }),
+        });
+
+        if (!paymentRes.ok) {
+          toast.error("Failed to create payment");
+          await sendNotification("Payment Failed", `${user?.email} failed payment`, "error");
+          await sendActivity("payment_submission_failed", `Failed payment #${generatedOrderId}`, generatedOrderId);
+          setIsProcessing(false);
+          setShowQr(false);
+          return;
+        } else {
+          toast.success("Order created successfully!");
+          await sendNotification("Order Success", `${user?.email} order successfully created`, "success");
+          await sendActivity("order_submission_success", `Order successfully created #${generatedOrderId}`, generatedOrderId);
+          setOrderCompleted(true);
+          setShowQr(false);
+          clearCart();
+        }
+      } catch (err) {
+        console.error("Order creation error:", err);
+        toast.error(err instanceof Error ? err.message : "Something went wrong");
+        setShowQr(false);
+        setIsProcessing(false);
+      } finally {
+        setIsProcessing(false);
+      }
+    }, totalSeconds * 1000);
+  };
+
+
+  if (showQr) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
-          <div className="max-w-md mx-auto text-center">
-            <h1 className="text-2xl font-light mb-4">Your cart is empty</h1>
-            <p className="text-muted-foreground mb-8">
-              Add some items to your cart before checking out.
-            </p>
-            <Button asChild>
-              <Link href="/products">Continue Shopping</Link>
-            </Button>
+          <div className="max-w-2xl mx-auto text-center">
+            <UpiQr
+              upiId="hemankoli1409@ybl"
+              name="CozyBerries"
+              amount={total}
+              note={formData.notes || ""}
+              shopName="CozyBerries"
+              logoUrl={images.logoURL}
+              countdown={countdown}
+            />
           </div>
         </div>
       </div>
     );
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-  
-    if (!selectedAddressId) {
-      alert("Please select a shipping address");
-      return;
-    }
-  
-    setIsProcessing(true);
-  
-    try {
-      // Step 1: Create Razorpay order
-      const response = await fetch("/api/razorpay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: total }),
-      });
-  
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to create Razorpay order");
-  
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: total * 100,
-        currency: "INR",
-        order_id: data.orderId,
-        name: "Cozy Berries",
-        description: "Order Payment",
-        handler: async function (paymentResponse: any) {
-          const verifyRes = await fetch("/api/razorpay/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(paymentResponse),
-          });
-  
-          const verifyData = await verifyRes.json();
-          if (!verifyData.success) {
-            toast.error("Payment Verification Failed");
-            await sendNotification("Payment Failed", `${user?.email} has failed to pay for their order`, "error");
-            await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
-            router.push("/checkout");
-            return;
-          }
-
-          const orderRes = await fetch("/api/orders", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              items: cart.map((item) => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                image: item.image,
-              })),
-              shipping_address_id: selectedAddressId,
-              notes: formData.notes || "",
-            }),
-          });
-
-          if (!orderRes.ok) {
-            toast.error("Failed to save order");
-            await sendNotification("Order Failed", `${user?.email} has failed to place an order`, "error");
-            await sendActivity("order_submission_failed", `User ${user?.email} failed to place an order #${data.orderId}`, data.orderId);
-            return;
-          }
-
-          const orderData = await orderRes.json();
-          toast.success("Order created successfully! Redirecting to payment...");
-          await sendNotification("Order Placed", `${user?.email} has placed an order`, "success");
-          await sendActivity("order_submission_success", `User ${user?.email} placed an order #${data.orderId}`, data.orderId);
-          clearCart();
-          router.push(orderData.payment_url || "/orders");
-        },
-        theme: { color: "#3399cc" },
-      };
-      const razorpay = new (window as any).Razorpay(options);
-      razorpay.open();
-    } catch (error) {
-      console.error("Order creation error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to create order");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  if (orderComplete) {
+  if (orderCompleted) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
@@ -256,10 +300,29 @@ export default function CheckoutPage() {
               <Button asChild>
                 <Link href="/products">Continue Shopping</Link>
               </Button>
-              <Button variant="outline" asChild>
-                <Link href="/">Back to Home</Link>
+              <Button asChild variant="outline">
+                <Link href="/orders">View My Orders</Link>
               </Button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect if cart is empty
+  if (cart.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-20">
+          <div className="max-w-md mx-auto text-center">
+            <h1 className="text-2xl font-light mb-4">Your cart is empty</h1>
+            <p className="text-muted-foreground mb-8">
+              Add some items to your cart before checking out.
+            </p>
+            <Button asChild>
+              <Link href="/products">Continue Shopping</Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -333,11 +396,10 @@ export default function CheckoutPage() {
                       {addresses.map((address) => (
                         <div
                           key={address.id}
-                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                            selectedAddressId === address.id
-                              ? "border-primary bg-primary/5"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
+                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${selectedAddressId === address.id
+                            ? "border-primary bg-primary/5"
+                            : "border-gray-200 hover:border-gray-300"
+                            }`}
                           onClick={() => handleAddressSelect(address.id)}
                         >
                           <div className="flex items-start justify-between">
@@ -381,11 +443,10 @@ export default function CheckoutPage() {
                             </div>
                             <div className="ml-4">
                               <div
-                                className={`w-4 h-4 rounded-full border-2 ${
-                                  selectedAddressId === address.id
-                                    ? "border-primary bg-primary"
-                                    : "border-gray-300"
-                                }`}
+                                className={`w-4 h-4 rounded-full border-2 ${selectedAddressId === address.id
+                                  ? "border-primary bg-primary"
+                                  : "border-gray-300"
+                                  }`}
                               >
                                 {selectedAddressId === address.id && (
                                   <div className="w-full h-full rounded-full bg-white scale-50"></div>
