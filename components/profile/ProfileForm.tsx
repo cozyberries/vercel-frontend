@@ -11,6 +11,7 @@ import {
   MapPin,
   Plus,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,11 +109,17 @@ export default function ProfileForm({
                 size="icon"
                 variant="outline"
               >
-                <Save className="w-4 h-4" />
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
               </Button>
-              <Button variant="outline" onClick={onCancel} size="icon">
-                <X className="w-4 h-4" />
-              </Button>
+              {!isSaving && (
+                <Button variant="outline" onClick={onCancel} size="icon">
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -134,11 +141,11 @@ export default function ProfileForm({
                 value={editData.full_name}
                 onChange={(e) => onInputChange("full_name", e.target.value)}
                 placeholder="Enter your full name"
-                className={`w-full h-11 ${
-                  validationErrors.full_name
+                disabled={isSaving}
+                className={`w-full h-11 ${validationErrors.full_name
                     ? "border-red-500 focus:border-red-500"
                     : ""
-                }`}
+                  }`}
               />
               {validationErrors.full_name && (
                 <div className="flex items-center mt-1 text-sm text-red-600">
@@ -165,11 +172,11 @@ export default function ProfileForm({
                   value={editData.phone}
                   onChange={(e) => onInputChange("phone", e.target.value)}
                   placeholder="98765 43210"
-                  className={`w-full h-11 pl-12 ${
-                    validationErrors.phone
+                  disabled={isSaving}
+                  className={`w-full h-11 pl-12 ${validationErrors.phone
                       ? "border-red-500 focus:border-red-500"
                       : ""
-                  }`}
+                    }`}
                 />
               </div>
               {validationErrors.phone && (
