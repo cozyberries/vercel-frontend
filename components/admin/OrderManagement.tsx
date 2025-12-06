@@ -65,7 +65,7 @@ export default function OrderManagement() {
     new Date().toISOString().split("T")[0]
   );
 
-  const { get, put, patch } = useAuthenticatedFetch();
+  const { get, put, patch, delete: del } = useAuthenticatedFetch();
 
   useEffect(() => {
     fetchOrders();
@@ -167,6 +167,32 @@ export default function OrderManagement() {
       toast.error("Error updating payment status");
     } finally {
       setUpdatingPaymentId(null);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this order? This action cannot be undone."
+      )
+    )
+      return;
+
+    try {
+      const response = await del(`/api/admin/orders/${orderId}`, {
+        requireAdmin: true,
+      });
+
+      if (response.ok) {
+        setOrders(orders.filter((order) => order.id !== orderId));
+        toast.success("Order deleted successfully");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to delete order");
+      }
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      toast.error("Error deleting order");
     }
   };
 
@@ -530,11 +556,10 @@ export default function OrderManagement() {
                             {order.payments.map((payment) => (
                               <div
                                 key={payment.id}
-                                className={`flex items-center justify-between p-2 bg-gray-50 rounded-md ${
-                                  updatingPaymentId === payment.id
+                                className={`flex items-center justify-between p-2 bg-gray-50 rounded-md ${updatingPaymentId === payment.id
                                     ? "opacity-75"
                                     : ""
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center gap-3 flex-1">
                                   <Badge
@@ -714,6 +739,16 @@ export default function OrderManagement() {
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
                                 Cancel Order
+                              </DropdownMenuItem>
+                            )}
+                          {(order.status === "cancelled" ||
+                            order.status === "refunded") && (
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteOrder(order.id)}
+                                className="text-red-600"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Delete Order
                               </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>

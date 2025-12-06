@@ -67,3 +67,67 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Authenticate the request using JWT
+    const auth = await authenticateRequest(request);
+
+    if (!auth.isAuthenticated || !auth.isAdmin) {
+      return NextResponse.json(
+        { error: "Admin access required" },
+        { status: 403 }
+      );
+    }
+
+    const supabase = createAdminSupabaseClient();
+    const resolvedParams = await params;
+    const orderId = resolvedParams.id;
+
+    // Get order first to check existence and user_id for cache clearing
+    const { data: order, error: fetchError } = await supabase
+      .from("orders")
+      .select("user_id")
+      .eq("id", orderId)
+      .single();
+
+    if (fetchError || !order) {
+      return NextResponse.json(
+        { error: "Order not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the order
+    const { error: deleteError } = await supabase
+      .from("orders")
+      .delete()
+      .eq("id", orderId);
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: `Failed to delete order: ${deleteError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Clear cache
+    try {
+      await CacheService.clearAllOrders(order.user_id);
+      await CacheService.clearOrderDetails(order.user_id, orderId);
+    } catch (cacheError) {
+      console.error("Error clearing cache after delete:", cacheError);
+    }
+
+    return NextResponse.json({ success: true, message: "Order deleted successfully" });
+
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
