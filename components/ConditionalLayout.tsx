@@ -11,12 +11,6 @@ interface ConditionalLayoutProps {
 
 export default function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const pathname = usePathname();
-  const isAdminPage = pathname.startsWith('/admin');
-
-  if (isAdminPage) {
-    // Admin pages don't need header, footer, or mobile bottom header
-    return <>{children}</>;
-  }
 
   // Regular pages get the full layout
   return (

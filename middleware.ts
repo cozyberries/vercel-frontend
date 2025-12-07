@@ -38,23 +38,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect admin routes - rely on client-side admin checking
-  // since JWT verification doesn't work in Edge Runtime
-  if (request.nextUrl.pathname.startsWith("/admin")) {
-    // Skip setup page - it has its own protection
-    if (request.nextUrl.pathname === "/admin/setup") {
-      return supabaseResponse;
-    }
-
-    // For admin routes, just ensure user is authenticated
-    // The actual admin role checking will be done on the client side and in API routes
-    if (!user) {
-      return NextResponse.redirect(
-        new URL("/login?redirect=/admin", request.url)
-      );
-    }
-  }
-
   // Protect routes that require authentication
   if (
     (request.nextUrl.pathname.startsWith("/profile") ||
