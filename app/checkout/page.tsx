@@ -228,12 +228,15 @@ export default function CheckoutPage() {
               await sendActivity("order_submission_success", `Order successfully created #${generatedOrderId}`, generatedOrderId);
               setOrderCompleted(true);
               clearCart();
+              setIsProcessing(false);
             } else {
               toast.error("Payment verification failed");
+              setIsProcessing(false);
             }
           } catch (error) {
             console.error("Payment verification error:", error);
             toast.error("Payment verification failed");
+            setIsProcessing(false);
           }
         },
         prefill: {
@@ -251,6 +254,13 @@ export default function CheckoutPage() {
           }
         }
       };
+
+      // Verify Razorpay script is loaded before instantiating
+      if (!window.Razorpay) {
+        toast.error("Payment gateway not loaded. Please refresh the page and try again.");
+        setIsProcessing(false);
+        return;
+      }
 
       const paymentObject = new window.Razorpay(options);
       paymentObject.open();

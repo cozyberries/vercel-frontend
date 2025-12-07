@@ -40,15 +40,16 @@ export async function POST(request: NextRequest) {
         }
 
         // Payment is valid.
-        // 1. Get Order to check amount
+        // 1. Get Order to check amount and verify ownership
         const { data: order, error: orderFetchError } = await supabase
             .from("orders")
             .select("*")
             .eq("id", orderId)
+            .eq("user_id", user.id)
             .single();
 
         if (orderFetchError || !order) {
-            return NextResponse.json({ error: "Order not found" }, { status: 404 });
+            return NextResponse.json({ error: "Order not found or unauthorized" }, { status: 404 });
         }
 
         // 2. Create Payment Record
@@ -56,17 +57,10 @@ export async function POST(request: NextRequest) {
             order_id: orderId,
             user_id: user.id,
             payment_reference: razorpay_payment_id,
-            payment_method: "upi", // Defaulting to UPI/Card? Razorpay returns method in fetches but we can just say 'online' or extract. For now generic.
-            // Ideally we would fetch payment details from Razorpay API to know the method (card/upi/etc), but for now we can default or generic.
-            // Let's use 'credit_card' or generic if possible, or maybe we can't accept generic.
-            // 'razorpay' is the gateway. method? 
-            // types/order.ts allows: 'credit_card' | 'debit_card' | 'net_banking' | 'upi' | ...
-            // We'll leave it as 'upi' or 'credit_card' for now or add 'online' if allowed.
-            // Let's assume 'upi' for common case or try to infer? 
-            // Actually, let's fetch payment details from Razorpay if we want to be accurate, but that takes an extra API call.
-            // For speed, let's map to 'upi' or add a new type if possible. The user asked to remove "default setup", not redesign types.
-            // Let's use 'upi' as a placeholder or 'credit_card'.
-            payment_method: "upi", // Placeholder
+            // Note: Razorpay doesn't provide payment method in webhook response.
+            // To get actual method (card/upi/netbanking), we'd need to fetch from Razorpay API.
+            // Using 'upi' as default for now.
+            payment_method: "upi",
             gateway_provider: "razorpay",
             amount: order.total_amount,
             currency: "INR",
