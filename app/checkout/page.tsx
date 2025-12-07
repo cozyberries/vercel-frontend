@@ -25,12 +25,16 @@ import { toast } from "sonner";
 import Script from "next/script";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
-import UpiQr from "@/components/upi-qr";
-import { images } from "@/app/assets/images";
 
 interface CheckoutFormData {
   email: string;
   notes?: string;
+}
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
 }
 
 export default function CheckoutPage() {
@@ -46,12 +50,6 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: "",
   });
-  const [showQr, setShowQr] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-
 
   // Use profile hook for address management
   const {
@@ -104,14 +102,6 @@ export default function CheckoutPage() {
     }
   }, [addresses, selectedAddressId]);
 
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
-  }, []);
-
   // Handle address selection
   const handleAddressSelect = (addressId: string) => {
     setSelectedAddressId(addressId);
@@ -160,128 +150,128 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Clear previous timers
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    if (timerRef.current) clearTimeout(timerRef.current);
+    setIsProcessing(true);
 
-    setShowQr(true);
+    try {
+      let generatedOrderId = `ORD-${Date.now()}`;
 
-    const totalSeconds = 150; // 2:30
-    setCountdown(totalSeconds);
+      // 1. Create order on backend
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: generatedOrderId,
+          items: cart.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+          })),
+          shipping_address_id: selectedAddressId,
+          notes: formData.notes || "",
+        }),
+      });
 
-    let sec = totalSeconds;
-
-    // Start countdown
-    countdownRef.current = setInterval(() => {
-      sec -= 1;
-
-      if (sec >= 0) {
-        setCountdown(sec);
-      } else {
-        clearInterval(countdownRef.current!);
-      }
-    }, 1000);
-
-    // After countdown ends → auto-create order
-    timerRef.current = setTimeout(async () => {
-      setIsProcessing(true);
-
-      try {
-        let generatedOrderId = `ORD-${Date.now()}`;
-        // Create order
-        const orderRes = await fetch("/api/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            order_id: generatedOrderId,
-            items: cart.map((item) => ({
-              id: item.id,
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              image: item.image,
-            })),
-            shipping_address_id: selectedAddressId,
-            notes: formData.notes || "",
-          }),
-        });
-
-        if (!orderRes.ok) {
-          toast.error("Failed to save order");
-          await sendNotification("Order Failed", `${user?.email} failed`, "error");
-          await sendActivity("order_submission_failed", `Failed order #${generatedOrderId}`, generatedOrderId);
-          setIsProcessing(false);
-          setShowQr(false);
-          return;
-        }
-
-        const orderData = await orderRes.json();
-        const createdOrder = orderData.order;
-
-        const paymentRes = await fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            order_id: createdOrder.id,
-            payment_reference: `UPI_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            payment_method: "upi",
-            gateway_provider: "manual",
-            amount: total,
-            currency: "INR",
-            gateway_response: {
-              status: "pending",
-              method: "upi",
-              timestamp: new Date().toISOString(),
-            },
-          }),
-        });
-
-        if (!paymentRes.ok) {
-          toast.error("Failed to create payment");
-          await sendNotification("Payment Failed", `${user?.email} failed payment`, "error");
-          await sendActivity("payment_submission_failed", `Failed payment #${generatedOrderId}`, generatedOrderId);
-          setIsProcessing(false);
-          setShowQr(false);
-          return;
-        } else {
-          toast.success("Order created successfully!");
-          await sendNotification("Order Success", `${user?.email} order successfully created`, "success");
-          await sendActivity("order_submission_success", `Order successfully created #${generatedOrderId}`, generatedOrderId);
-          setOrderCompleted(true);
-          setShowQr(false);
-          clearCart();
-        }
-      } catch (err) {
-        console.error("Order creation error:", err);
-        toast.error(err instanceof Error ? err.message : "Something went wrong");
-        setShowQr(false);
+      if (!orderRes.ok) {
+        toast.error("Failed to save order");
+        await sendNotification("Order Failed", `${user?.email} failed`, "error");
+        await sendActivity("order_submission_failed", `Failed order #${generatedOrderId}`, generatedOrderId);
         setIsProcessing(false);
-      } finally {
-        setIsProcessing(false);
+        return;
       }
-    }, totalSeconds * 1000);
+
+      const orderData = await orderRes.json();
+      const createdOrder = orderData.order;
+
+      // 2. Create Razorpay Order
+      const razorpayOrderRes = await fetch("/api/razorpay/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: createdOrder.id,
+        }),
+      });
+
+      if (!razorpayOrderRes.ok) {
+        throw new Error("Failed to create Razorpay order");
+      }
+
+      const razorpayData = await razorpayOrderRes.json();
+
+      // 3. Open Razorpay Checkout
+      const options = {
+        key: razorpayData.key,
+        amount: razorpayData.amount,
+        currency: razorpayData.currency,
+        name: "CozyBerries", // Replace with your company name
+        description: "Order Payment",
+        image: "https://your-logo-url.com/logo.png", // Optional
+        order_id: razorpayData.id,
+        handler: async function (response: any) {
+          // 4. Verify Payment on Backend
+          try {
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: createdOrder.id
+              }),
+            });
+
+            if (verifyRes.ok) {
+              toast.success("Payment Successful & Order Placed!");
+              await sendNotification("Order Success", `${user?.email} order successfully created`, "success");
+              await sendActivity("order_submission_success", `Order successfully created #${generatedOrderId}`, generatedOrderId);
+              setOrderCompleted(true);
+              clearCart();
+              setIsProcessing(false);
+            } else {
+              toast.error("Payment verification failed");
+              setIsProcessing(false);
+            }
+          } catch (error) {
+            console.error("Payment verification error:", error);
+            toast.error("Payment verification failed");
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: user?.user_metadata?.full_name || "",
+          email: user?.email || "",
+          contact: user?.user_metadata?.phone || "",
+        },
+        theme: {
+          color: "#000000",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessing(false);
+            toast("Payment cancelled");
+          }
+        }
+      };
+
+      // Verify Razorpay script is loaded before instantiating
+      if (!window.Razorpay) {
+        toast.error("Payment gateway not loaded. Please refresh the page and try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+
+    } catch (err) {
+      console.error("Order creation error:", err);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      setIsProcessing(false);
+    }
   };
 
-
-  if (showQr) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-20">
-          <div className="max-w-2xl mx-auto text-center">
-            <UpiQr
-              upiId="hemankoli1409@ybl"
-              name="CozyBerries"
-              amount={total}
-              note={formData.notes || ""}
-              shopName="CozyBerries"
-              logoUrl={images.logoURL}
-              countdown={countdown}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (orderCompleted) {
     return (
@@ -507,13 +497,13 @@ export default function CheckoutPage() {
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Creating Order...
+                    Processing...
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4" />
                     {selectedAddressId
-                      ? `Create Order - ₹${total.toFixed(2)}`
+                      ? `Pay ₹${total.toFixed(2)}`
                       : "Select Address to Continue"}
                   </div>
                 )}

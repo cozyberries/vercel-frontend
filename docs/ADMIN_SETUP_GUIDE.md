@@ -248,6 +248,39 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 4. **Error Handling**: Proper error handling throughout the application
 5. **Admin Role**: Consider implementing admin role checking for production
 
+## Development Utilities
+
+### Manual User Verification
+For testing purposes, you can manually verify a user's email address using the test API endpoint. This is useful when you cannot access the verification email or want to quickly set up a verified user.
+
+**Endpoint:** `POST /api/test/verify-user`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Example Usage:**
+```bash
+curl -X POST http://localhost:3000/api/test/verify-user \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@cozyberries.in"}'
+```
+
+### Promote User to Admin
+Similarly, you can promote a user to admin role:
+
+**Endpoint:** `POST /api/test/promote-admin`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
 ## Future Enhancements
 
 - Role-based access control (admin vs regular users)
