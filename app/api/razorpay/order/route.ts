@@ -28,19 +28,23 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const body = await request.json();
-        orderId = body.orderId;
-
-        if (typeof orderId !== "string" || orderId.trim().length === 0) {
+        let body: { orderId?: unknown };
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+        }
+        orderId = body.orderId as string | undefined;
+        const trimmedOrderId = (typeof orderId === "string" ? orderId.trim() : "");
+        if (trimmedOrderId.length === 0) {
             return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
         }
-        orderId = orderId.trim();
 
         // Fetch order to get the correct amount
         const { data: order, error: orderError } = await supabase
             .from("orders")
             .select("id, total_amount, currency")
-            .eq("id", orderId)
+            .eq("id", trimmedOrderId)
             .eq("user_id", user.id)
             .single();
 
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
         const options = {
             amount: amount,
             currency: currency,
-            receipt: orderId,
+            receipt: trimmedOrderId,
         };
 
         const razorpayOrder = await razorpay.orders.create(options);
