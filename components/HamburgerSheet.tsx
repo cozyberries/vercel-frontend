@@ -460,18 +460,6 @@ export const HamburgerSheet = () => {
                           </Link>
                         </Button>
                       </motion.div>
-                      {isAdmin && (
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <Button asChild variant="outline" size="sm">
-                            <Link href="/admin" onClick={() => setOpen(false)}>
-                              Admin
-                            </Link>
-                          </Button>
-                        </motion.div>
-                      )}
                       <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}

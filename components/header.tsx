@@ -93,17 +93,6 @@ export default function Header() {
                 </Button>
               </Link>
             </div>
-
-            {/* Admin Link - Only visible when user is admin */}
-            {isAdmin && (
-              <div className="hidden lg:block">
-                <Link href="/admin">
-                  <Button variant="outline" size="sm" className="text-xs">
-                    Admin
-                  </Button>
-                </Link>
-              </div>
-            )}
             <WishlistSheet />
             <CartSheet />
           </div>

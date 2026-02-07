@@ -38,23 +38,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect admin routes - rely on client-side admin checking
-  // since JWT verification doesn't work in Edge Runtime
-  if (request.nextUrl.pathname.startsWith("/admin")) {
-    // Skip setup page - it has its own protection
-    if (request.nextUrl.pathname === "/admin/setup") {
-      return supabaseResponse;
-    }
-
-    // For admin routes, just ensure user is authenticated
-    // The actual admin role checking will be done on the client side and in API routes
-    if (!user) {
-      return NextResponse.redirect(
-        new URL("/login?redirect=/admin", request.url)
-      );
-    }
-  }
-
   // Protect routes that require authentication
   if (
     (request.nextUrl.pathname.startsWith("/profile") ||
@@ -64,19 +47,6 @@ export async function middleware(request: NextRequest) {
     // Redirect to login page if user is not authenticated
     return NextResponse.redirect(new URL("/login", request.url));
   }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-  // creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely.
 
   return supabaseResponse;
 }
