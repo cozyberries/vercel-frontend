@@ -3,205 +3,278 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product } from "@/lib/types/product";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build the same cache key the products list API uses */
+function productsCacheKey(params: {
+  limit: number;
+  page: number;
+  category: string;
+  featured: boolean;
+  sortBy: string;
+  sortOrder: string;
+}) {
+  return `products:lt_${params.limit}:pg_${params.page}:cat_${params.category}:feat_${params.featured}:sortb_${params.sortBy}:sorto_${params.sortOrder}`;
+}
+
+/** Process raw product rows into the shape the frontend expects */
+function processProducts(rows: any[]): Product[] {
+  return rows.map((product: any) => {
+    let parsedImages: string[] = [];
+    try {
+      if (product.images) {
+        if (typeof product.images === "string") {
+          if (product.images.trim().startsWith("[") || product.images.trim().startsWith("{")) {
+            parsedImages = JSON.parse(product.images);
+          } else {
+            parsedImages = [product.images];
+          }
+        } else if (Array.isArray(product.images)) {
+          parsedImages = product.images;
+        }
+      }
+    } catch {
+      // skip bad image data
+    }
+    return { ...product, images: parsedImages.slice(0, 3) };
+  });
+}
+
+/** Fetch & cache a single "products page" from DB */
+async function warmProductsPage(
+  supabase: any,
+  params: {
+    limit: number;
+    page: number;
+    category: string;
+    categoryId?: string;
+    featured: boolean;
+    sortBy: string;
+    sortOrder: string;
+  },
+  ttl = 1800
+): Promise<{ key: string; count: number; totalItems: number }> {
+  let query = supabase
+    .from("products")
+    .select(
+      `id, name, description, price, slug, stock_quantity, is_featured, created_at, updated_at, category_id, categories(name, slug), images`,
+      { count: "exact" }
+    );
+
+  if (params.featured) query = query.eq("is_featured", true);
+  if (params.categoryId) query = query.eq("category_id", params.categoryId);
+
+  // Sorting
+  if (params.sortBy === "price") {
+    query = query.order("price", { ascending: params.sortOrder === "asc" });
+  } else if (params.sortBy === "name") {
+    query = query.order("name", { ascending: params.sortOrder === "asc" });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+  query = query.order("id", { ascending: true });
+
+  const offset = (params.page - 1) * params.limit;
+  const { data, count, error } = await query.range(offset, offset + params.limit - 1);
+
+  if (error) {
+    console.error("Cache warm: failed to fetch products page:", error.message);
+    throw new Error(`Failed to fetch products: ${error.message}`);
+  }
+
+  const products = processProducts(data || []);
+  const totalItems = count || 0;
+  const totalPages = Math.ceil(totalItems / params.limit);
+
+  const response = {
+    products,
+    pagination: {
+      currentPage: params.page,
+      totalPages,
+      totalItems,
+      itemsPerPage: params.limit,
+      hasNextPage: params.page < totalPages,
+      hasPrevPage: params.page > 1,
+    },
+  };
+
+  const key = productsCacheKey({
+    limit: params.limit,
+    page: params.page,
+    category: params.category,
+    featured: params.featured,
+    sortBy: params.sortBy,
+    sortOrder: params.sortOrder,
+  });
+
+  await UpstashService.set(key, response, ttl);
+
+  return { key, count: products.length, totalItems };
+}
+
+// ---------------------------------------------------------------------------
+// POST  — full cache warm
+// ---------------------------------------------------------------------------
+
 export async function POST(request: NextRequest) {
   try {
-    // Optional: Add authentication check for production
-    // const authHeader = request.headers.get("authorization");
-    // if (authHeader !== `Bearer ${process.env.CACHE_WARM_SECRET}`) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
-
-    const { searchParams } = new URL(request.url);
-    const warmFeatured = searchParams.get("featured") !== "false"; // Default to true
-    const warmProducts = searchParams.get("products") !== "false"; // Default to true
-    const warmCategories = searchParams.get("categories") !== "false"; // Default to true
-
     const supabase = await createServerSupabaseClient();
-    const results = {
-      featured: null as any,
-      products: null as any,
-      categories: null as any,
-      errors: [] as string[],
-    };
+    const warmed: string[] = [];
+    const errors: string[] = [];
 
-    // Warm featured products cache
-    if (warmFeatured) {
-      try {
-        const featuredQuery = supabase.from("products").select(
-          `
-            *,
-            categories(name, slug),
-            product_images(
-              id,
-              storage_path,
-              is_primary,
-              display_order
-            )
-          `,
-          { count: "exact" }
-        ).eq("is_featured", true);
+    // ── 1. Category options (lightweight) ────────────────────────────
+    try {
+      const { data: catOpts } = await supabase
+        .from("categories")
+        .select("id, name, slug")
+        .eq("display", true)
+        .order("name", { ascending: true });
 
-        const { data: featuredData, error: featuredError } = await featuredQuery;
+      await UpstashService.set("categories:options", catOpts || [], 7200);
+      warmed.push("categories:options");
+    } catch (e: any) {
+      errors.push(`category options: ${e.message}`);
+    }
 
-        if (featuredError) {
-          results.errors.push(`Featured products error: ${featuredError.message}`);
-        } else {
-          // Process featured products
-          const featuredProducts: Product[] = (featuredData || []).map((product: any) => {
-            const images = (product.product_images || [])
-              .filter((img: any) => img.storage_path)
-              .map((img: any) => ({
-                id: img.id,
-                storage_path: img.storage_path,
-                is_primary: img.is_primary,
-                display_order: img.display_order,
-                url: `/${img.storage_path}`,
-              }))
-              .sort((a: any, b: any) => {
-                if (a.display_order !== b.display_order) {
-                  return (a.display_order || 0) - (b.display_order || 0);
-                }
-                return b.is_primary ? 1 : -1;
-              });
+    // ── 2. Full categories (with images, for homepage) ───────────────
+    try {
+      const { data: fullCats } = await supabase
+        .from("categories")
+        .select(`*, categories_images(id, storage_path, is_primary, display_order, metadata)`)
+        .eq("display", true)
+        .order("name", { ascending: true });
 
-            return {
-              ...product,
-              images,
-            };
-          });
+      const processed = (fullCats || []).map((cat: any) => {
+        const images = (cat.categories_images || [])
+          .filter((img: any) => img.storage_path)
+          .map((img: any) => ({
+            id: img.id,
+            storage_path: img.storage_path,
+            is_primary: img.is_primary,
+            display_order: img.display_order,
+            metadata: img.metadata,
+            url: `/${img.storage_path}`,
+          }))
+          .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
+        return { ...cat, images };
+      });
 
-          const featuredResponse = {
-            products: featuredProducts,
-            pagination: {
-              currentPage: 1,
-              totalPages: 1,
-              totalItems: featuredProducts.length,
-              itemsPerPage: featuredProducts.length,
-              hasNextPage: false,
-              hasPrevPage: false,
-            },
-          };
+      await UpstashService.set("categories:list", processed, 3600);
+      warmed.push("categories:list");
+    } catch (e: any) {
+      errors.push(`full categories: ${e.message}`);
+    }
 
-          // Cache featured products with the same key format as the main API
-          const featuredCacheKey = "featured:products:lt_100";
-          await UpstashService.set(featuredCacheKey, featuredResponse, 1800);
-          results.featured = {
-            cacheKey: featuredCacheKey,
-            count: featuredProducts.length,
-          };
+    // ── 3. Ratings (all) ─────────────────────────────────────────────
+    try {
+      const { data: ratings } = await supabase
+        .from("ratings")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      await UpstashService.set("ratings:all", ratings || [], 900);
+      warmed.push("ratings:all");
+
+      // Per-product ratings
+      const byProduct = new Map<string, any[]>();
+      for (const r of ratings || []) {
+        const arr = byProduct.get(r.product_id) || [];
+        arr.push(r);
+        byProduct.set(r.product_id, arr);
+      }
+      for (const [pid, arr] of byProduct) {
+        await UpstashService.set(`ratings:product:${pid}`, arr, 900);
+        warmed.push(`ratings:product:${pid}`);
+      }
+    } catch (e: any) {
+      errors.push(`ratings: ${e.message}`);
+    }
+
+    // ── 4. Individual products ───────────────────────────────────────
+    try {
+      const { data: allProds } = await supabase
+        .from("products")
+        .select(`id, name, description, price, slug, stock_quantity, is_featured, images, category_id, created_at, updated_at, categories(name, slug)`)
+        .order("created_at", { ascending: false });
+
+      for (const product of allProds || []) {
+        const processed = {
+          ...product,
+          images: (product.images || []).filter((url: string) => url),
+        };
+        await UpstashService.cacheProduct(product.id, processed, 1800);
+        warmed.push(`product:${product.id}`);
+      }
+    } catch (e: any) {
+      errors.push(`individual products: ${e.message}`);
+    }
+
+    // ── 5. Product list pages — all common filter combinations ───────
+    // Fetch category slugs + IDs for per-category warming
+    const { data: catRows, error: catError } = await supabase
+      .from("categories")
+      .select("id, slug")
+      .eq("display", true);
+
+    if (catError) {
+      console.error("Cache warm: failed to fetch categories:", catError.message);
+      errors.push(`categories fetch: ${catError.message}`);
+    }
+    const categoryMap = new Map((catRows || []).map((c: any) => [c.slug, c.id]));
+
+    const PAGE_SIZES = [4, 12]; // mobile / desktop
+    const SORT_COMBOS = [
+      { sortBy: "default", sortOrder: "desc" },
+      { sortBy: "price", sortOrder: "asc" },
+      { sortBy: "price", sortOrder: "desc" },
+    ];
+    const CATEGORIES = ["all", ...(catRows || []).map((c: any) => c.slug)];
+    const FEATURED_FLAGS = [false, true];
+
+    for (const limit of PAGE_SIZES) {
+      for (const { sortBy, sortOrder } of SORT_COMBOS) {
+        for (const cat of CATEGORIES) {
+          for (const feat of FEATURED_FLAGS) {
+            try {
+              // Warm first 3 pages for each combination
+              const pagesToWarm = 3;
+              for (let page = 1; page <= pagesToWarm; page++) {
+                const result = await warmProductsPage(supabase, {
+                  limit,
+                  page,
+                  category: cat,
+                  categoryId: cat !== "all" ? categoryMap.get(cat) : undefined,
+                  featured: feat,
+                  sortBy,
+                  sortOrder,
+                });
+                warmed.push(result.key);
+
+                // Stop paging if no more data
+                if (result.count === 0 || result.count < limit) break;
+              }
+            } catch (e: any) {
+              errors.push(`products combo: ${e.message}`);
+            }
+          }
         }
-      } catch (error) {
-        results.errors.push(`Featured products cache warming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
-    // Warm main products cache (first page)
-    if (warmProducts) {
-      try {
-        const productsQuery = supabase.from("products").select(
-          `
-            *,
-            categories(name, slug),
-            product_images(
-              id,
-              storage_path,
-              is_primary,
-              display_order
-            )
-          `,
-          { count: "exact" }
-        ).order("created_at", { ascending: false }).range(0, 11); // First 12 products
-
-        const { data: productsData, error: productsError, count } = await productsQuery;
-
-        if (productsError) {
-          results.errors.push(`Products error: ${productsError.message}`);
-        } else {
-          // Process products
-          const products: Product[] = (productsData || []).map((product: any) => {
-            const images = (product.product_images || [])
-              .filter((img: any) => img.storage_path)
-              .map((img: any) => ({
-                id: img.id,
-                storage_path: img.storage_path,
-                is_primary: img.is_primary,
-                display_order: img.display_order,
-                url: `/${img.storage_path}`,
-              }))
-              .sort((a: any, b: any) => {
-                if (a.display_order !== b.display_order) {
-                  return (a.display_order || 0) - (b.display_order || 0);
-                }
-                return b.is_primary ? 1 : -1;
-              });
-
-            return {
-              ...product,
-              images,
-            };
-          });
-
-          const totalItems = count || 0;
-          const totalPages = Math.ceil(totalItems / 12);
-
-          const productsResponse = {
-            products,
-            pagination: {
-              currentPage: 1,
-              totalPages,
-              totalItems,
-              itemsPerPage: 12,
-              hasNextPage: 1 < totalPages,
-              hasPrevPage: false,
-            },
-          };
-
-          // Cache first page of products with default sorting
-          const productsCacheKey = "products:lt_12:pg_1:cat_all:sortb_default:sorto_desc";
-          await UpstashService.set(productsCacheKey, productsResponse, 1800);
-          results.products = {
-            cacheKey: productsCacheKey,
-            count: products.length,
-            totalItems,
-          };
-        }
-      } catch (error) {
-        results.errors.push(`Products cache warming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    // Warm categories cache
-    if (warmCategories) {
-      try {
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from("categories")
-          .select("*")
-          .order("name");
-
-        if (categoriesError) {
-          results.errors.push(`Categories error: ${categoriesError.message}`);
-        } else {
-          // Cache categories
-          await UpstashService.set("categories:all", categoriesData || [], 3600); // Cache for 1 hour
-          results.categories = {
-            cacheKey: "categories:all",
-            count: categoriesData?.length || 0,
-          };
-        }
-      } catch (error) {
-        results.errors.push(`Categories cache warming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    const status = results.errors.length > 0 ? 207 : 200; // Multi-status if there are errors
-    
-    return NextResponse.json({
-      success: true,
-      message: "Cache warming completed",
-      timestamp: new Date().toISOString(),
-      results,
-    }, { status });
-
+    const status = errors.length > 0 ? 207 : 200;
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Cache warming completed",
+        timestamp: new Date().toISOString(),
+        warmed: warmed.length,
+        keys: warmed,
+        errors,
+      },
+      { status }
+    );
   } catch (error) {
     console.error("Cache warming error:", error);
     return NextResponse.json(
@@ -209,23 +282,26 @@ export async function POST(request: NextRequest) {
         success: false,
         error: "Cache warming failed",
         details: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );
   }
 }
 
-// GET endpoint for health check / manual triggering
-export async function GET(request: NextRequest) {
+// ---------------------------------------------------------------------------
+// GET   — health check
+// ---------------------------------------------------------------------------
+
+export async function GET() {
   return NextResponse.json({
-    message: "Cache warming endpoint is ready",
-    usage: "POST to this endpoint to warm caches",
-    parameters: {
-      featured: "true/false - warm featured products cache (default: true)",
-      products: "true/false - warm main products cache (default: true)", 
-      categories: "true/false - warm categories cache (default: true)",
-    },
-    example: "/api/cache/warm?featured=true&products=true&categories=true",
+    message: "Cache warming endpoint",
+    usage: "POST to warm all caches",
+    warmsKeys: [
+      "categories:options (id/name/slug for filters)",
+      "categories:list (full with images for homepage)",
+      "ratings:all + ratings:product:{id}",
+      "product:{id} (each individual product)",
+      "products:lt_{4|12}:pg_{1-3}:cat_{all|slug}:feat_{true|false}:sortb_{default|price}:sorto_{asc|desc}",
+    ],
   });
 }

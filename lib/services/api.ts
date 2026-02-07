@@ -123,6 +123,23 @@ export const getCategories = async (retries = 3) => {
   return [];
 };
 
+/** Lightweight fetch — returns only { id, name, slug } for dropdowns / filters */
+export interface CategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export const getCategoryOptions = async (): Promise<CategoryOption[]> => {
+  try {
+    const { data } = await api.get("/api/categories/options");
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching category options:", error);
+    return [];
+  }
+};
+
 // Note: getAllProducts function removed - use getAllProductsDetailed() and transform with normalizeProduct() instead
 
 export const getFeaturedProducts = async (

@@ -2,20 +2,49 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 
+// In-memory cache for categories (avoids Redis round-trip on hot path)
+let inMemoryCache: { data: any; timestamp: number } | null = null;
+const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
+
 export async function GET() {
   try {
 
-    // Create cache key for categories
+    // 1. Check in-memory cache first (instant, no network)
+    if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
+      return NextResponse.json(inMemoryCache.data, {
+        headers: {
+          'X-Cache-Status': 'HIT',
+          'X-Cache-Key': 'categories:list',
+          'X-Data-Source': 'MEMORY_CACHE',
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        }
+      });
+    }
+
+    // 2. Create cache key for categories
     const cacheKey = 'categories:list';
     
-    // Try to get from cache first
-    const cachedCategories = await UpstashService.get(cacheKey);
+    // Try to get from Redis cache with timeout
+    let cachedCategories = null;
+    try {
+      const cachePromise = UpstashService.get(cacheKey);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Cache timeout')), 300);
+      });
+      cachedCategories = await Promise.race([cachePromise, timeoutPromise]);
+    } catch {
+      // Cache lookup timed out, skip cache
+    }
+
     if (cachedCategories) {
+      // Update in-memory cache
+      inMemoryCache = { data: cachedCategories, timestamp: Date.now() };
       return NextResponse.json(cachedCategories, {
         headers: {
           'X-Cache-Status': 'HIT',
           'X-Cache-Key': cacheKey,
-          'X-Data-Source': 'REDIS_CACHE'
+          'X-Data-Source': 'REDIS_CACHE',
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
         }
       });
     }
@@ -68,18 +97,21 @@ export async function GET() {
     });
 
     
+    // Update in-memory cache
+    inMemoryCache = { data: categories, timestamp: Date.now() };
+
     // Cache the results for 1 hour (categories don't change often)
     UpstashService.set(cacheKey, categories, 3600).catch((error) => {
       console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
     });
-    console.log(`Cache refresh initiated for key: ${cacheKey}`);
     
     return NextResponse.json(categories, {
       headers: {
         'X-Cache-Status': 'MISS',
         'X-Cache-Key': cacheKey,
         'X-Data-Source': 'SUPABASE_DATABASE',
-        'X-Cache-Set': 'ASYNC'
+        'X-Cache-Set': 'ASYNC',
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
       }
     });
   } catch (error) {

@@ -48,13 +48,13 @@ export function RatingProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    // Only fetch reviews when a specific product is being viewed.
+    // Avoids an unnecessary /api/ratings call on every page (products list, homepage, etc.)
     useEffect(() => {
         if (productId) {
             fetchReviews(productId);
-        } else {
-            fetchReviews();
         }
-    }, [fetchReviews]);
+    }, [productId, fetchReviews]);
 
     return (
         <RatingContext.Provider

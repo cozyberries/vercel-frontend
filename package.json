@@ -14,7 +14,12 @@
     "test:db": "playwright test tests/database-schema-check.spec.ts",
     "test:products": "playwright test tests/products.spec.ts --project=chromium",
     "test:products:headed": "playwright test tests/products.spec.ts --project=chromium --headed",
-    "test:products:debug": "playwright test tests/products.spec.ts --project=chromium --headed --debug"
+    "test:products:debug": "playwright test tests/products.spec.ts --project=chromium --headed --debug",
+    "test:pages": "playwright test tests/homepage-and-pages.spec.ts --project=chromium",
+    "test:pages:headed": "playwright test tests/homepage-and-pages.spec.ts --project=chromium --headed",
+    "test:pages:debug": "playwright test tests/homepage-and-pages.spec.ts --project=chromium --headed --debug",
+    "test:features": "playwright test tests/features-and-perf.spec.ts --project=chromium",
+    "test:features:headed": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

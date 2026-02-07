@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none">
+  <!-- Gingerbread body -->
+  <ellipse cx="50" cy="52" rx="22" ry="28" fill="#C47A3A" stroke="#8B5E2B" stroke-width="1.5"/>
+  <!-- Head -->
+  <circle cx="50" cy="22" r="16" fill="#C47A3A" stroke="#8B5E2B" stroke-width="1.5"/>
+  <!-- Eyes -->
+  <circle cx="44" cy="20" r="2" fill="#3B2712"/>
+  <circle cx="56" cy="20" r="2" fill="#3B2712"/>
+  <!-- Mouth -->
+  <path d="M44 27 Q50 32 56 27" stroke="#3B2712" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- Left arm -->
+  <ellipse cx="24" cy="48" rx="8" ry="5" fill="#C47A3A" stroke="#8B5E2B" stroke-width="1.5" transform="rotate(-20 24 48)"/>
+  <!-- Right arm -->
+  <ellipse cx="76" cy="48" rx="8" ry="5" fill="#C47A3A" stroke="#8B5E2B" stroke-width="1.5" transform="rotate(20 76 48)"/>
+  <!-- Left leg -->
+  <ellipse cx="40" cy="82" rx="6" ry="10" fill="#C47A3A" stroke="#8B5E2B" stroke-width="1.5"/>
+  <!-- Right leg -->
+  <ellipse cx="60" cy="82" rx="6" ry="10" fill="#C47A3A" stroke="#8B5E2B" stroke-width="1.5"/>
+  <!-- Buttons -->
+  <circle cx="50" cy="44" r="2.5" fill="#E74C3C"/>
+  <circle cx="50" cy="54" r="2.5" fill="#27AE60"/>
+  <circle cx="50" cy="64" r="2.5" fill="#E74C3C"/>
+  <!-- Icing decorations -->
+  <path d="M38 36 Q44 34 50 36 Q56 34 62 36" stroke="#FFF" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Santa hat -->
+  <path d="M34 18 L50 0 L66 18 Z" fill="#E74C3C" stroke="#C0392B" stroke-width="1"/>
+  <rect x="32" y="16" width="36" height="5" rx="2.5" fill="#FFF"/>
+  <circle cx="50" cy="2" r="4" fill="#FFF"/>
+  <!-- Bow tie -->
+  <path d="M44 34 L50 37 L56 34 L50 40 Z" fill="#E74C3C"/>
+</svg>

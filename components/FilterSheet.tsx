@@ -30,10 +30,10 @@ interface FilterSheetProps {
   currentCategory: string;
   currentSort: string;
   currentSortOrder: string;
-  currentBestseller: boolean;
+  currentFeatured: boolean;
   onCategoryChange: (category: string) => void;
   onSortChange: (sort: string) => void;
-  onBestsellerToggle: () => void;
+  onFeaturedToggle: () => void;
   onClearFilters: () => void;
 }
 
@@ -42,10 +42,10 @@ export default function FilterSheet({
   currentCategory,
   currentSort,
   currentSortOrder,
-  currentBestseller,
+  currentFeatured,
   onCategoryChange,
   onSortChange,
-  onBestsellerToggle,
+  onFeaturedToggle,
   onClearFilters,
 }: FilterSheetProps) {
   const [open, setOpen] = useState(false);
@@ -113,15 +113,15 @@ export default function FilterSheet({
               </Select>
             </div>
 
-            {/* Bestsellers Toggle */}
+            {/* Featured Toggle */}
             <div>
               <h3 className="text-sm font-medium mb-3">Special Offers</h3>
               <Button
-                variant={currentBestseller ? "default" : "outline"}
-                onClick={onBestsellerToggle}
+                variant={currentFeatured ? "default" : "outline"}
+                onClick={onFeaturedToggle}
                 className="w-full justify-start"
               >
-                {currentBestseller ? "✓ Bestsellers" : "Show Bestsellers"}
+                {currentFeatured ? "✓ Featured" : "Show Featured"}
               </Button>
             </div>
 
@@ -148,13 +148,13 @@ export default function FilterSheet({
                     </span>
                   </div>
                 )}
-                {currentBestseller && (
+                {currentFeatured && (
                   <div className="flex items-center justify-between text-sm">
                     <span>Filter:</span>
-                    <span className="font-medium">Bestsellers Only</span>
+                    <span className="font-medium">Featured Only</span>
                   </div>
                 )}
-                {currentCategory === "all" && currentSort === "default" && !currentBestseller && (
+                {currentCategory === "all" && currentSort === "default" && !currentFeatured && (
                   <p className="text-sm text-muted-foreground">No filters applied</p>
                 )}
               </div>
@@ -166,7 +166,7 @@ export default function FilterSheet({
             <Button onClick={handleApplyFilters} className="w-full">
               Apply Filters
             </Button>
-            {(currentCategory !== "all" || currentSort !== "default" || currentBestseller) && (
+            {(currentCategory !== "all" || currentSort !== "default" || currentFeatured) && (
               <Button
                 variant="outline"
                 onClick={handleClearFilters}

@@ -3,6 +3,11 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
+// In-memory cache for products API (avoids Redis round-trip for repeated requests)
+const inMemoryProductsCache = new Map<string, { data: any; timestamp: number }>();
+const PRODUCTS_MEMORY_TTL = 30_000; // 30 seconds in-memory TTL
+const MAX_MEMORY_ENTRIES = 50; // Max entries in memory cache
+
 // Background cache refresh function
 async function refreshCacheInBackground(
   cacheKey: string,
@@ -69,7 +74,7 @@ async function refreshCacheInBackground(
     );
   }
 
-  // Apply sorting
+  // Apply sorting (always add secondary sort by id for stable pagination)
   if (params.sortBy === "price") {
     query = query.order("price", { ascending: params.sortOrder === "asc" });
   } else if (params.sortBy === "name") {
@@ -77,6 +82,7 @@ async function refreshCacheInBackground(
   } else {
     query = query.order("created_at", { ascending: false });
   }
+  query = query.order("id", { ascending: true });
 
   // Apply pagination
   const offset = (params.page - 1) * params.limit;
@@ -163,18 +169,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Create cache key based on all parameters
-    // Use descriptive key pattern for better readability
-    let cacheKey;
-    if (featured) {
-      cacheKey = `featured:products:lt_${limit}`;
-    } else if (search) {
-      cacheKey = `products:search:${search}:lt_${limit}:pg_${page}`;
-    } else {
-      cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"
-        }:sortb_${sortBy}:sorto_${sortOrder}`;
+    // Every unique filter combination gets its own Redis entry
+    const cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"}:feat_${featured}:sortb_${sortBy}:sorto_${sortOrder}${search ? `:q_${search}` : ""}`;
+
+    // 1. Check in-memory cache first (instant)
+    const memEntry = inMemoryProductsCache.get(cacheKey);
+    if (memEntry && Date.now() - memEntry.timestamp < PRODUCTS_MEMORY_TTL) {
+      return NextResponse.json(memEntry.data, {
+        headers: {
+          "X-Cache-Status": "HIT",
+          "X-Cache-Key": cacheKey,
+          "X-Data-Source": "MEMORY_CACHE",
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+        },
+      });
     }
 
-    // Try to get from cache first with timeout (skip if slow)
+    // Try to get from Redis cache first with timeout (skip if slow)
     let cachedResponse = null;
     let ttl = -1;
     let isStale = false;
@@ -201,11 +212,20 @@ export async function GET(request: NextRequest) {
 
     // If we have cached data, return it immediately
     if (cachedResponse) {
+      // Update in-memory cache
+      inMemoryProductsCache.set(cacheKey, { data: cachedResponse, timestamp: Date.now() });
+      // Evict oldest entries if cache is too large
+      if (inMemoryProductsCache.size > MAX_MEMORY_ENTRIES) {
+        const firstKey = inMemoryProductsCache.keys().next().value;
+        if (firstKey) inMemoryProductsCache.delete(firstKey);
+      }
+
       const headers = {
         "X-Cache-Status": isStale ? "STALE" : "HIT",
         "X-Cache-Key": cacheKey,
         "X-Data-Source": "REDIS_CACHE",
         "X-Cache-TTL": ttl.toString(),
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
         "X-Query-Params": JSON.stringify({
           limit,
           page,
@@ -313,7 +333,7 @@ export async function GET(request: NextRequest) {
       query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    // Add sorting
+    // Add sorting (always add secondary sort by id for stable pagination)
     if (sortBy === "price") {
       query = query.order("price", { ascending: sortOrder === "asc" });
     } else if (sortBy === "name") {
@@ -322,6 +342,7 @@ export async function GET(request: NextRequest) {
       // Default sorting by creation date
       query = query.order("created_at", { ascending: false });
     }
+    query = query.order("id", { ascending: true });
 
     // Add pagination
     const offset = (page - 1) * limit;
@@ -382,8 +403,14 @@ export async function GET(request: NextRequest) {
       },
     };
 
+    // Update in-memory cache
+    inMemoryProductsCache.set(cacheKey, { data: response, timestamp: Date.now() });
+    if (inMemoryProductsCache.size > MAX_MEMORY_ENTRIES) {
+      const firstKey = inMemoryProductsCache.keys().next().value;
+      if (firstKey) inMemoryProductsCache.delete(firstKey);
+    }
+
     // Cache the results asynchronously (non-blocking) for 30 minutes
-    // This improves first-time load performance by not waiting for cache write
     UpstashService.set(cacheKey, response, 1800).catch((error) => {
       console.error(
         `Failed to cache products data for key: ${cacheKey}`,
@@ -396,7 +423,8 @@ export async function GET(request: NextRequest) {
         "X-Cache-Status": "MISS",
         "X-Cache-Key": cacheKey,
         "X-Data-Source": "SUPABASE_DATABASE",
-        "X-Cache-Set": "ASYNC", // Indicates cache is being set asynchronously
+        "X-Cache-Set": "ASYNC",
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
         "X-Query-Params": JSON.stringify({
           limit,
           page,
@@ -492,8 +520,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Invalidate product list cache when new product is created
-    await UpstashService.delete("products:list:100");
+    // Invalidate all product list caches when a new product is created
+    await UpstashService.deletePattern("products:*");
+    // Also clear in-memory cache to avoid serving stale data
+    inMemoryProductsCache.clear();
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
