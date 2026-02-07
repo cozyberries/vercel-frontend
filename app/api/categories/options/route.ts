@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 
+export interface CategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+type CategoryOptionsCache = { data: CategoryOption[]; timestamp: number } | null;
+
 // Lightweight in-memory cache for category options (id, name, slug only)
-let inMemoryCache: { data: any; timestamp: number } | null = null;
+let inMemoryCache: CategoryOptionsCache = null;
 const IN_MEMORY_TTL = 120_000; // 2 minutes — options change very rarely
 
 export async function GET() {
@@ -21,17 +29,17 @@ export async function GET() {
 
     // 2. Try Redis cache
     const cacheKey = "categories:options";
-    let cached = null;
+    let cached: CategoryOption[] | null = null;
     try {
-      cached = await Promise.race([
+      cached = (await Promise.race([
         UpstashService.get(cacheKey),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Cache timeout")), 300)),
-      ]);
+      ])) as CategoryOption[] | null;
     } catch {
       // Cache miss or timeout — continue to DB
     }
 
-    if (cached) {
+    if (cached && Array.isArray(cached)) {
       inMemoryCache = { data: cached, timestamp: Date.now() };
       return NextResponse.json(cached, {
         headers: {
@@ -58,7 +66,11 @@ export async function GET() {
       );
     }
 
-    const options = data || [];
+    const options: CategoryOption[] = (data || []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      slug: String(row.slug),
+    }));
 
     // Update caches
     inMemoryCache = { data: options, timestamp: Date.now() };

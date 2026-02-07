@@ -4,9 +4,37 @@ import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
 // In-memory cache for products API (avoids Redis round-trip for repeated requests)
-const inMemoryProductsCache = new Map<string, { data: any; timestamp: number }>();
+type MemoryCacheEntry = { data: any; timestamp: number };
+const inMemoryProductsCache = new Map<string, MemoryCacheEntry>();
 const PRODUCTS_MEMORY_TTL = 30_000; // 30 seconds in-memory TTL
 const MAX_MEMORY_ENTRIES = 50; // Max entries in memory cache
+
+/** Moves key to the "most-recent" end of the Map for LRU. Call on every read and before write. */
+function touchCacheKey(key: string): void {
+  const entry = inMemoryProductsCache.get(key);
+  if (entry === undefined) return;
+  inMemoryProductsCache.delete(key);
+  inMemoryProductsCache.set(key, entry);
+}
+
+/** LRU get: returns entry and moves key to most-recently-used. */
+function getMemoryCache(key: string): MemoryCacheEntry | undefined {
+  const entry = inMemoryProductsCache.get(key);
+  if (entry === undefined) return undefined;
+  touchCacheKey(key);
+  return entry;
+}
+
+/** LRU set: (re)sets entry at most-recent end and evicts oldest if over capacity. */
+function setMemoryCache(key: string, entry: MemoryCacheEntry): void {
+  inMemoryProductsCache.delete(key);
+  inMemoryProductsCache.set(key, entry);
+  while (inMemoryProductsCache.size > MAX_MEMORY_ENTRIES) {
+    const firstKey = inMemoryProductsCache.keys().next().value;
+    if (firstKey) inMemoryProductsCache.delete(firstKey);
+    else break;
+  }
+}
 
 // Background cache refresh function
 async function refreshCacheInBackground(
@@ -172,8 +200,8 @@ export async function GET(request: NextRequest) {
     // Every unique filter combination gets its own Redis entry
     const cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"}:feat_${featured}:sortb_${sortBy}:sorto_${sortOrder}${search ? `:q_${search}` : ""}`;
 
-    // 1. Check in-memory cache first (instant)
-    const memEntry = inMemoryProductsCache.get(cacheKey);
+    // 1. Check in-memory cache first (instant); LRU get touches the key
+    const memEntry = getMemoryCache(cacheKey);
     if (memEntry && Date.now() - memEntry.timestamp < PRODUCTS_MEMORY_TTL) {
       return NextResponse.json(memEntry.data, {
         headers: {
@@ -212,13 +240,7 @@ export async function GET(request: NextRequest) {
 
     // If we have cached data, return it immediately
     if (cachedResponse) {
-      // Update in-memory cache
-      inMemoryProductsCache.set(cacheKey, { data: cachedResponse, timestamp: Date.now() });
-      // Evict oldest entries if cache is too large
-      if (inMemoryProductsCache.size > MAX_MEMORY_ENTRIES) {
-        const firstKey = inMemoryProductsCache.keys().next().value;
-        if (firstKey) inMemoryProductsCache.delete(firstKey);
-      }
+      setMemoryCache(cacheKey, { data: cachedResponse, timestamp: Date.now() });
 
       const headers = {
         "X-Cache-Status": isStale ? "STALE" : "HIT",
@@ -403,12 +425,7 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Update in-memory cache
-    inMemoryProductsCache.set(cacheKey, { data: response, timestamp: Date.now() });
-    if (inMemoryProductsCache.size > MAX_MEMORY_ENTRIES) {
-      const firstKey = inMemoryProductsCache.keys().next().value;
-      if (firstKey) inMemoryProductsCache.delete(firstKey);
-    }
+    setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
 
     // Cache the results asynchronously (non-blocking) for 30 minutes
     UpstashService.set(cacheKey, response, 1800).catch((error) => {

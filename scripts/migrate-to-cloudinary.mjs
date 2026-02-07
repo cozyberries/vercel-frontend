@@ -6,7 +6,20 @@
  * Uploads all product images from local folders to Cloudinary,
  * then updates the Supabase `products` table with new Cloudinary URLs.
  *
- * Usage:  node scripts/migrate-to-cloudinary.mjs
+ * Usage:
+ *   node scripts/migrate-to-cloudinary.mjs [options]
+ *   node scripts/migrate-to-cloudinary.mjs --help
+ *
+ * Options:
+ *   --catalogue-csv=PATH   Path to catalogue CSV (default: ../Product Catalogue/Catalogue_With_Photoshoots.csv)
+ *   --images-base=PATH     Base directory for product image folders (default: ../Product Catalogue)
+ *   -c, --catalogue-csv    Same as --catalogue-csv (value as next arg or =PATH)
+ *   -i, --images-base      Same as --images-base (value as next arg or =PATH)
+ *
+ * Environment (overridden by CLI):
+ *   CATALOGUE_CSV          Path to catalogue CSV
+ *   IMAGES_BASE            Base directory for product image folders
+ *
  * Prereq: .env must contain CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY,
  *         CLOUDINARY_API_SECRET and Supabase credentials.
  */
@@ -16,12 +29,80 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, readdirSync } from "fs";
 import { join, resolve } from "path";
 import { config } from "dotenv";
+import { parse } from "csv-parse/sync";
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
 // Load .env.local first so its values take precedence (dotenv won't overwrite)
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
+
+const DEFAULT_CATALOGUE_CSV = resolve(
+  process.cwd(),
+  "../Product Catalogue/Catalogue_With_Photoshoots.csv"
+);
+const DEFAULT_IMAGES_BASE = resolve(process.cwd(), "../Product Catalogue");
+
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const out = { catalogueCsv: null, imagesBase: null, help: false };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--help" || arg === "-h") {
+      out.help = true;
+      return out;
+    }
+    if (arg === "--catalogue-csv" || arg === "-c") {
+      out.catalogueCsv = args[i + 1] ?? null;
+      if (out.catalogueCsv) i++;
+      continue;
+    }
+    if (arg === "--images-base" || arg === "-i") {
+      out.imagesBase = args[i + 1] ?? null;
+      if (out.imagesBase) i++;
+      continue;
+    }
+    if (arg.startsWith("--catalogue-csv=")) {
+      out.catalogueCsv = arg.slice("--catalogue-csv=".length);
+      continue;
+    }
+    if (arg.startsWith("--images-base=")) {
+      out.imagesBase = arg.slice("--images-base=".length);
+      continue;
+    }
+  }
+  return out;
+}
+
+function showHelp() {
+  console.log(`
+Migrate Product Images to Cloudinary
+
+Usage:
+  node scripts/migrate-to-cloudinary.mjs [options]
+
+Options:
+  --catalogue-csv=PATH   Path to catalogue CSV
+  -c PATH                Shorthand for --catalogue-csv
+  --images-base=PATH     Base directory for product image folders
+  -i PATH                Shorthand for --images-base
+  --help, -h             Show this help
+
+Environment (used if option not provided):
+  CATALOGUE_CSV          Path to catalogue CSV
+  IMAGES_BASE            Base directory for product image folders
+
+Defaults (if neither env nor option is set):
+  catalogue-csv: ${DEFAULT_CATALOGUE_CSV}
+  images-base:   ${DEFAULT_IMAGES_BASE}
+`);
+}
+
+const cli = parseArgs();
+if (cli.help) {
+  showHelp();
+  process.exit(0);
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,12 +111,12 @@ const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
-// Paths
 const CATALOGUE_CSV = resolve(
-  process.cwd(),
-  "../Product Catalogue/Catalogue_With_Photoshoots.csv"
+  cli.catalogueCsv ?? process.env.CATALOGUE_CSV ?? DEFAULT_CATALOGUE_CSV
 );
-const IMAGES_BASE = resolve(process.cwd(), "../Product Catalogue");
+const IMAGES_BASE = resolve(
+  cli.imagesBase ?? process.env.IMAGES_BASE ?? DEFAULT_IMAGES_BASE
+);
 
 // Validate env
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
@@ -72,40 +153,88 @@ function buildSlug(name) {
 }
 
 function parseCSV(content) {
-  const lines = content.trim().split("\n");
-  const headers = lines[0].split(",").map((h) => h.trim());
-  return lines
-    .slice(1)
-    .filter((line) => line.trim())
-    .map((line) => {
-      const values = line.split(",");
-      const row = {};
-      headers.forEach((h, i) => {
-        row[h] = (values[i] || "").trim();
-      });
-      return row;
-    });
+  return parse(content, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+    relax_quotes: false,
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const UPLOAD_CONCURRENCY = 5;
+const UPLOAD_DELAY_MS = 100;
+const RATE_LIMIT_MAX_RETRIES = 3;
+const RATE_LIMIT_BASE_MS = 2000;
+
+function isRateLimitError(err) {
+  const code = err.error?.http_code ?? err.response?.statusCode ?? err.statusCode;
+  return code === 429;
 }
 
 /**
- * Upload a local file to Cloudinary.
+ * Upload a local file to Cloudinary with retry on 429.
  * Returns the secure_url on success, null on failure.
  */
 async function uploadToCloudinary(localFilePath, publicId, folder) {
-  try {
-    const result = await cloudinary.uploader.upload(localFilePath, {
-      public_id: publicId,
-      folder: folder,
-      overwrite: true,
-      resource_type: "image",
-      quality: "auto",
-      fetch_format: "auto",
-    });
-    return result.secure_url;
-  } catch (err) {
-    console.error(`   ✗ Cloudinary upload failed for ${localFilePath}: ${err.message}`);
-    return null;
+  let lastErr;
+  for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES; attempt++) {
+    try {
+      const result = await cloudinary.uploader.upload(localFilePath, {
+        public_id: publicId,
+        folder: folder,
+        overwrite: true,
+        resource_type: "image",
+        quality: "auto",
+        fetch_format: "auto",
+      });
+      return result.secure_url;
+    } catch (err) {
+      lastErr = err;
+      if (isRateLimitError(err) && attempt < RATE_LIMIT_MAX_RETRIES) {
+        const delayMs = RATE_LIMIT_BASE_MS * Math.pow(2, attempt);
+        console.error(
+          `   ⚠ Rate limited (429) for ${localFilePath}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${RATE_LIMIT_MAX_RETRIES})`
+        );
+        await sleep(delayMs);
+      } else {
+        console.error(
+          `   ✗ Cloudinary upload failed for ${localFilePath}: ${err.message}`
+        );
+        return null;
+      }
+    }
   }
+  console.error(
+    `   ✗ Cloudinary upload failed for ${localFilePath}: ${lastErr?.message}`
+  );
+  return null;
+}
+
+/**
+ * Run async tasks with bounded concurrency.
+ * @param {Array<() => Promise<T>>} taskFns - Array of functions that return promises
+ * @param {number} concurrency - Max number of concurrent runs
+ * @returns {Promise<T[]>} Results in same order as taskFns
+ */
+async function runWithConcurrency(taskFns, concurrency = UPLOAD_CONCURRENCY) {
+  const results = [];
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < taskFns.length) {
+      const i = nextIndex++;
+      results[i] = await taskFns[i]();
+    }
+  }
+  const workers = Array.from(
+    { length: Math.min(concurrency, taskFns.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return results;
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -117,8 +246,19 @@ async function main() {
 
   // ─── 1. Parse CSV ───────────────────────────────────────────────────────
   console.log("1. Parsing CSV...");
-  const csvContent = readFileSync(CATALOGUE_CSV, "utf-8");
-  const rows = parseCSV(csvContent);
+  let csvContent;
+  let rows;
+  try {
+    csvContent = readFileSync(CATALOGUE_CSV, "utf-8");
+    rows = parseCSV(csvContent);
+  } catch (err) {
+    console.error(
+      `ERROR: Failed to read or parse catalogue CSV at "${CATALOGUE_CSV}":`,
+      err.message
+    );
+    console.error(err);
+    process.exit(1);
+  }
   console.log(`   Found ${rows.length} products in CSV.\n`);
 
   // ─── 2. Fetch existing products from Supabase ──────────────────────────
@@ -183,20 +323,25 @@ async function main() {
       continue;
     }
 
-    // Upload each image to Cloudinary
-    const cloudinaryUrls = [];
+    // Upload each image to Cloudinary with bounded concurrency and rate limiting
     const cloudinaryFolder = `cozyberries/products/${slug}`;
-
-    for (const imgFile of imageFiles) {
+    const uploadTasks = imageFiles.map((imgFile) => {
       const localPath = join(localFolder, imgFile);
       const publicId = imgFile.replace(/\.[^.]+$/, ""); // e.g. "1", "2", etc.
+      return async () => {
+        const url = await uploadToCloudinary(
+          localPath,
+          publicId,
+          cloudinaryFolder
+        );
+        await sleep(UPLOAD_DELAY_MS);
+        return url;
+      };
+    });
 
-      const url = await uploadToCloudinary(localPath, publicId, cloudinaryFolder);
-      if (url) {
-        cloudinaryUrls.push(url);
-        totalUploaded++;
-      }
-    }
+    const uploadResults = await runWithConcurrency(uploadTasks, UPLOAD_CONCURRENCY);
+    const cloudinaryUrls = uploadResults.filter(Boolean);
+    totalUploaded += cloudinaryUrls.length;
 
     if (cloudinaryUrls.length === 0) {
       console.log(`   ✗ All uploads failed for "${title}".`);

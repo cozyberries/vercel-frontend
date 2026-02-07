@@ -207,11 +207,18 @@ test.describe("Products Page", () => {
       "All products already visible – nothing to paginate."
     );
 
+    // Capture the current product card count before scrolling
+    const cardCountBefore = await page.locator(".grid").first().locator("> div").count();
+
     // Scroll to the bottom to trigger infinite scroll
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
-    // Wait for loading indicator and then for more products to appear
-    await page.waitForTimeout(3000);
+    // Wait until new product cards appear (more cards than before)
+    await page.waitForFunction(
+      (prev) => document.querySelectorAll(".grid > div").length > prev,
+      cardCountBefore,
+      { timeout: 15_000 }
+    );
 
     // The count should have increased
     const textAfter = (await showingText.textContent()) ?? "";

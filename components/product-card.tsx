@@ -11,7 +11,7 @@ import { images } from "@/app/assets/images";
 
 interface ProductCardProps {
   product: Product;
-  index: number; // To determine which corner rounding to apply
+  index: number; // Used to set image loading priority (e.g. priority for first N images); not used by getCornerRounding()
 }
 
 export default function ProductCard({ product, index }: ProductCardProps) {

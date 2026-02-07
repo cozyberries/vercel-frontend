@@ -19,7 +19,8 @@
     "test:pages:headed": "playwright test tests/homepage-and-pages.spec.ts --project=chromium --headed",
     "test:pages:debug": "playwright test tests/homepage-and-pages.spec.ts --project=chromium --headed --debug",
     "test:features": "playwright test tests/features-and-perf.spec.ts --project=chromium",
-    "test:features:headed": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed"
+    "test:features:headed": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed",
+    "test:features:debug": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed --debug"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -43,6 +44,7 @@
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.5.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^6.1.0",
     "dotenv": "^16.4.7",
     "dotenv-cli": "^7.4.3",
     "embla-carousel-react": "^8.4.0",

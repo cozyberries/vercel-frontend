@@ -130,14 +130,32 @@ export interface CategoryOption {
   slug: string;
 }
 
-export const getCategoryOptions = async (): Promise<CategoryOption[]> => {
-  try {
-    const { data } = await api.get("/api/categories/options");
-    return data || [];
-  } catch (error) {
-    console.error("Error fetching category options:", error);
-    return [];
+export const getCategoryOptions = async (
+  retries = 3
+): Promise<CategoryOption[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/categories/options");
+      return data || [];
+    } catch (error) {
+      console.error(
+        `Error fetching category options (attempt ${i + 1}/${retries}):`,
+        error
+      );
+
+      if (i === retries - 1) {
+        console.error(
+          "Failed to fetch category options after all retries"
+        );
+        return [];
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
   }
+  return [];
 };
 
 // Note: getAllProducts function removed - use getAllProductsDetailed() and transform with normalizeProduct() instead

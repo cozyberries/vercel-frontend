@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <div aria-busy="true">
+    <div aria-busy="true" role="status">
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
         <span className="sr-only">Loading…</span>
         <div

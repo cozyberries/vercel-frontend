@@ -26,14 +26,21 @@ export async function GET() {
     
     // Try to get from Redis cache with timeout
     let cachedCategories = null;
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
       const cachePromise = UpstashService.get(cacheKey);
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Cache timeout')), 300);
+        timeoutId = setTimeout(() => reject(new Error('Cache timeout')), 300);
       });
       cachedCategories = await Promise.race([cachePromise, timeoutPromise]);
-    } catch {
-      // Cache lookup timed out, skip cache
+    } catch (err) {
+      // Cache lookup timed out or failed, skip cache
+      console.warn("categories cache lookup failed (skipping cache)", { error: err });
+    } finally {
+      // Clear the timeout to prevent memory leaks if cache promise resolved first
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
 
     if (cachedCategories) {

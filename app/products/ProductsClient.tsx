@@ -32,12 +32,24 @@ export default function ProductsClient() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getCategoryOptions()
-      .then((data) => setCategories(data))
-      .catch((err) => setCategoriesError(err instanceof Error ? err.message : "Failed to load categories"))
-      .finally(() => setCategoriesLoading(false));
+  const fetchCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError(null);
+    try {
+      const data = await getCategoryOptions();
+      setCategories(data);
+    } catch (err) {
+      setCategoriesError(
+        err instanceof Error ? err.message : "Failed to load categories"
+      );
+    } finally {
+      setCategoriesLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -284,8 +296,25 @@ export default function ProductsClient() {
             Connection Error
           </h3>
           <p className="text-red-700 mb-4">{error || categoriesError}</p>
-          <Button onClick={() => window.location.reload()} variant="outline">
-            Try Again
+          <Button
+            onClick={() => {
+              if (categoriesError) {
+                fetchCategories();
+              } else {
+                window.location.reload();
+              }
+            }}
+            variant="outline"
+            disabled={categoriesError ? categoriesLoading : false}
+          >
+            {categoriesError && categoriesLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              "Try Again"
+            )}
           </Button>
         </div>
       </div>
@@ -366,7 +395,10 @@ export default function ProductsClient() {
         </div>
 
         {/* Desktop Filters - Moved to end */}
-        <div className="hidden md:flex justify-end items-center gap-4">
+        <div
+          className="hidden md:flex justify-end items-center gap-4"
+          data-testid="desktop-filters"
+        >
           {/* Category Filter */}
           <Select value={currentCategory} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-[200px]">

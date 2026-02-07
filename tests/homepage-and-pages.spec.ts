@@ -246,35 +246,47 @@ test.describe("Shop by Age – All age ranges return products", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 test.describe("Shop by Category – All categories return products", () => {
-  // These are the categories with products (after cleanup)
-  const categories = [
-    { slug: "coords-set", name: "Coords Set" },
-    { slug: "frock", name: "Frock" },
-    { slug: "jhabla", name: "Jhabla" },
-    { slug: "jhabla-shorts", name: "Jhabla & Shorts" },
-    { slug: "new-born-essential-kits", name: "New Born Essential Kits" },
-    { slug: "pyjamas", name: "Pyjamas" },
-    { slug: "rompers-girls-only", name: "Rompers - Girls Only" },
-    { slug: "rompers-unisex", name: "Rompers - Unisex" },
-  ];
+  // Fetched from /api/categories/options so tests stay in sync with the app (no stale slugs/names).
+  let categories: { slug: string; name: string }[] = [];
 
-  for (const category of categories) {
-    test(`Category "${category.name}" returns products`, async ({ page }) => {
-      await page.goto(`/products?category=${category.slug}`);
-      await waitForProductsToLoad(page);
+  test.beforeAll(async ({ request }) => {
+    const res = await request.get("/api/categories/options");
+    if (!res.ok) {
+      throw new Error(
+        `Categories API failed: ${res.status()} ${res.statusText()} – ensure the app is running and /api/categories/options returns 200`
+      );
+    }
+    const data = (await res.json()) as { slug: string; name: string }[];
+    if (!Array.isArray(data)) {
+      throw new Error(
+        "Categories API did not return an array – check /api/categories/options response shape"
+      );
+    }
+    categories = data.map((c) => ({ slug: c.slug, name: c.name }));
+    if (categories.length === 0) {
+      throw new Error(
+        "Categories API returned no categories – at least one displayed category is required for this test suite"
+      );
+    }
+  });
 
-      // URL should contain the category parameter
-      expect(page.url()).toContain(`category=${category.slug}`);
+  test("each displayed category returns products", async ({ page }) => {
+    for (const category of categories) {
+      await test.step(`Category "${category.name}" returns products`, async () => {
+        await page.goto(`/products?category=${category.slug}`);
+        await waitForProductsToLoad(page);
 
-      // Should show products for this category
-      const showingText = page.getByText(/Showing \d+ of \d+ products/);
-      await expect(showingText).toBeVisible({ timeout: 15_000 });
+        expect(page.url()).toContain(`category=${category.slug}`);
 
-      const text = (await showingText.textContent()) ?? "";
-      const total = Number(text.match(/of (\d+)/)?.[1] ?? 0);
-      expect(total).toBeGreaterThan(0);
-    });
-  }
+        const showingText = page.getByText(/Showing \d+ of \d+ products/);
+        await expect(showingText).toBeVisible({ timeout: 15_000 });
+
+        const text = (await showingText.textContent()) ?? "";
+        const total = Number(text.match(/of (\d+)/)?.[1] ?? 0);
+        expect(total).toBeGreaterThan(0);
+      });
+    }
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -79,7 +79,7 @@ test.describe("Featured Badge", () => {
     await expect(page.getByText(/Featured only/)).toBeVisible();
 
     // The "Show Featured" button should show as active ("✓ Featured")
-    const desktopFilters = page.locator(".hidden.md\\:flex").first();
+    const desktopFilters = page.getByTestId("desktop-filters");
     await expect(desktopFilters.getByText("✓ Featured")).toBeVisible();
 
     // Featured count should be <= total
@@ -239,9 +239,7 @@ test.describe("API Error Checks", () => {
       }
     });
 
-    await page.goto("/");
-    // Wait for all content to load
-    await page.waitForTimeout(5_000);
+    await page.goto("/", { waitUntil: "networkidle" });
 
     // Assert no 4xx/5xx API errors
     expect(apiErrors).toEqual([]);
@@ -288,8 +286,7 @@ test.describe("API Error Checks", () => {
       }
     });
 
-    await page.goto("/");
-    await page.waitForTimeout(5_000);
+    await page.goto("/", { waitUntil: "networkidle" });
 
     expect(assetErrors).toEqual([]);
   });

@@ -91,9 +91,10 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     // 3. Cache in Redis for 15 minutes
-    UpstashService.set(cacheKey, data || [], 900).catch(() => {});
+    const payload = data ?? [];
+    UpstashService.set(cacheKey, payload, 900).catch(() => {});
 
-    return NextResponse.json(data, {
+    return NextResponse.json(payload, {
       status: 200,
       headers: {
         "X-Cache-Status": "MISS",

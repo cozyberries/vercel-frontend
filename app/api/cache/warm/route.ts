@@ -177,16 +177,25 @@ export async function POST(request: NextRequest) {
       await UpstashService.set("ratings:all", ratings || [], 900);
       warmed.push("ratings:all");
 
-      // Per-product ratings
+      // Per-product ratings (parallel with bounded concurrency)
       const byProduct = new Map<string, any[]>();
       for (const r of ratings || []) {
         const arr = byProduct.get(r.product_id) || [];
         arr.push(r);
         byProduct.set(r.product_id, arr);
       }
-      for (const [pid, arr] of byProduct) {
-        await UpstashService.set(`ratings:product:${pid}`, arr, 900);
-        warmed.push(`ratings:product:${pid}`);
+      const ratingEntries = [...byProduct.entries()];
+      const RATINGS_CONCURRENCY = 20;
+      for (let i = 0; i < ratingEntries.length; i += RATINGS_CONCURRENCY) {
+        const chunk = ratingEntries.slice(i, i + RATINGS_CONCURRENCY);
+        const keys = await Promise.all(
+          chunk.map(([pid, arr]) =>
+            UpstashService.set(`ratings:product:${pid}`, arr, 900).then(
+              () => `ratings:product:${pid}`
+            )
+          )
+        );
+        warmed.push(...keys);
       }
     } catch (e: any) {
       errors.push(`ratings: ${e.message}`);
@@ -199,14 +208,18 @@ export async function POST(request: NextRequest) {
         .select(`id, name, description, price, slug, stock_quantity, is_featured, images, category_id, created_at, updated_at, categories(name, slug)`)
         .order("created_at", { ascending: false });
 
-      for (const product of allProds || []) {
-        const processed = {
-          ...product,
-          images: (product.images || []).filter((url: string) => url),
-        };
-        await UpstashService.cacheProduct(product.id, processed, 1800);
-        warmed.push(`product:${product.id}`);
-      }
+      const productList = allProds || [];
+      const productKeys = await Promise.all(
+        productList.map(async (product) => {
+          const processed = {
+            ...product,
+            images: (product.images || []).filter((url: string) => url),
+          };
+          await UpstashService.cacheProduct(product.id, processed, 1800);
+          return `product:${product.id}`;
+        })
+      );
+      warmed.push(...productKeys);
     } catch (e: any) {
       errors.push(`individual products: ${e.message}`);
     }

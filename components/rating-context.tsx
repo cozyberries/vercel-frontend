@@ -13,6 +13,7 @@ export interface RatingItem {
 
 interface RatingContextType {
     reviews: RatingItem[];
+    reviewsLoading: boolean;
     fetchReviews: (productId?: string) => Promise<void>;
     setProductId: (productId: string) => void;
     productId: string;
@@ -28,6 +29,7 @@ const RatingContext = createContext<RatingContextType | undefined>(undefined);
 
 export function RatingProvider({ children }: { children: ReactNode }) {
     const [reviews, setReviews] = useState<RatingItem[]>([]);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
     const [productId, setProductId] = useState<string>("");
     const [selectedImgIndex, setSelectedImgIndex] = useState<number>(0);
     const [selectedReviewIndex, setSelectedReviewIndex] = useState<number | null>(null);
@@ -49,10 +51,12 @@ export function RatingProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // Only fetch reviews when a specific product is being viewed.
-    // Avoids an unnecessary /api/ratings call on every page (products list, homepage, etc.)
+    // Clear reviews immediately when productId changes so stale reviews aren't shown while the new fetch resolves.
     useEffect(() => {
         if (productId) {
-            fetchReviews(productId);
+            setReviews([]);
+            setReviewsLoading(true);
+            fetchReviews(productId).finally(() => setReviewsLoading(false));
         }
     }, [productId, fetchReviews]);
 
@@ -60,6 +64,7 @@ export function RatingProvider({ children }: { children: ReactNode }) {
         <RatingContext.Provider
             value={{
                 reviews,
+                reviewsLoading,
                 fetchReviews,
                 setProductId,
                 productId,
