@@ -3,11 +3,21 @@ import { normalizeProduct } from "@/lib/utils/product";
 // ---------- Types ----------
 export interface ProductVariant {
   id: string;
-  sku: string;
+  sku?: string;
   price: number;
   stock_quantity: number;
   size: string;
-  color: string;
+  size_id?: string;
+  color?: string;
+  color_id?: string;
+  display_order?: number;
+}
+
+export interface SizeOption {
+  name: string;
+  price: number;
+  stock_quantity: number | undefined;
+  display_order: number;
 }
 
 export interface ProductImage {
@@ -41,7 +51,7 @@ export interface Product {
   features: string[];
   images: string[];
   colors: string[];
-  sizes: string[];
+  sizes: SizeOption[];
   variants: ProductVariant[];
   RelatedProduct?: RelatedProduct[];
 }
@@ -333,20 +343,38 @@ export const getProductById = async (id: string): Promise<Product | null> => {
         })
         .filter((url: string) => url && url.trim() !== "") || [];
 
+    // Variants and sizes are now pre-processed by the API route
     const variants: ProductVariant[] = (data.variants || []).map((v: any) => ({
       id: v.id,
       sku: v.sku,
-      price: v.price,
+      price: v.price ?? data.price,
       stock_quantity: v.stock_quantity,
       size: v.size,
+      size_id: v.size_id,
       color: v.color,
+      color_id: v.color_id,
+      display_order: v.display_order ?? 0,
     }));
+
+    // Sizes are pre-built by the API with price and stock info
+    const sizes: SizeOption[] = (data.sizes || []).map((s: any) => {
+      const stockQty = s.stock_quantity;
+      if (stockQty === undefined || stockQty === null) {
+        console.warn(`Size "${s.name}" for product ${id} has undefined stock_quantity`);
+      }
+      return {
+        name: s.name,
+        price: s.price ?? data.price,
+        stock_quantity: stockQty,
+        display_order: s.display_order ?? 0,
+      };
+    });
 
     return {
       ...data,
       images,
       colors: [...new Set(variants.map((v) => v.color).filter(Boolean))],
-      sizes: [...new Set(variants.map((v) => v.size).filter(Boolean))],
+      sizes,
       variants,
       features: (data.features || []).map((f: any) => f.feature || f),
       relatedProducts: (data.relatedProducts || []).map((p: any) => ({

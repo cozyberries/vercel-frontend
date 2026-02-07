@@ -53,6 +53,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerSupabaseClient();
     // Optimized query: select only needed fields instead of *
+    // Include product_variants with joined size and color names
     const { data, error } = await supabase
       .from("products")
       .select(
@@ -68,7 +69,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         category_id,
         created_at,
         updated_at,
-        categories(name, slug)
+        categories(name, slug),
+        product_variants(id, price, stock_quantity, sku, size_id, color_id, sizes(id, name, display_order), colors(id, name, hex_code))
       `
       )
       .eq("id", id)
@@ -87,10 +89,50 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Process product images
+    // Process variants into a flat structure with size/color names
+    const variants = (data.product_variants || [])
+      .map((v: any) => ({
+        id: v.id,
+        sku: v.sku,
+        price: v.price ?? data.price,
+        stock_quantity: Number(v.stock_quantity ?? 0),
+        size: v.sizes?.name || null,
+        size_id: v.size_id,
+        color: v.colors?.name || null,
+        color_id: v.color_id,
+        display_order: v.sizes?.display_order ?? 0,
+      }))
+      .sort((a: any, b: any) => a.display_order - b.display_order);
+
+    // Build deduplicated sizes list with lowest price per size
+    const sizeMap = new Map<string, { name: string; price: number; stock_quantity: number; display_order: number }>();
+    for (const v of variants) {
+      if (!v.size) continue;
+      const existing = sizeMap.get(v.size);
+      if (!existing) {
+        sizeMap.set(v.size, {
+          name: v.size,
+          price: v.price,
+          stock_quantity: Number(v.stock_quantity ?? 0),
+          display_order: v.display_order,
+        });
+      } else {
+        // Sum stock across color variants of same size, keep min price
+        existing.stock_quantity += Number(v.stock_quantity ?? 0);
+        if (v.price < existing.price) existing.price = v.price;
+      }
+    }
+    const sizes = Array.from(sizeMap.values()).sort(
+      (a, b) => a.display_order - b.display_order
+    );
+
+    // Process product images and attach variants/sizes
     const product = {
       ...data,
       images: (data.images || []).filter((url: string) => url),
+      variants,
+      sizes,
+      product_variants: undefined, // remove raw nested data
     };
 
     // Cache the product asynchronously (non-blocking) for 30 minutes

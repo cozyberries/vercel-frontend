@@ -22,7 +22,7 @@ export const images = {
         age_three_six_y: "https://res.cloudinary.com/dxokykvty/image/upload/v1759568112/age_three_six_y_x0r8cg.png"
     },
     svgs: {
-        gingerbread_santa: "/svgs/gingerbread-santa.svg",
+        gingerbread_santa: "https://res.cloudinary.com/dxokykvty/image/upload/v1759570253/gingerbread-santa_kh2dlc.svg",
         snowflake: "https://res.cloudinary.com/dxokykvty/image/upload/v1759570238/christmas_straw_xv0faj.svg",
         garden_green_house: "https://res.cloudinary.com/dxokykvty/image/upload/v1759570252/garden-green-house-svgrepo-com_x52xv2.svg",
         sprout_tree: "https://res.cloudinary.com/dxokykvty/image/upload/v1759570240/sprout-tree-svgrepo-com_fsjskf.svg",

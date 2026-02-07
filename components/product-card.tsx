@@ -127,6 +127,24 @@ export default function ProductCard({ product, index }: ProductCardProps) {
           </h3>
         </div>
 
+        {/* Available Sizes */}
+        {product.sizes && product.sizes.length > 0 && (
+          <div className="flex flex-wrap gap-1 my-1">
+            {product.sizes.map((size: any) => (
+              <span
+                key={size.name}
+                className={`text-[10px] lg:text-[11px] px-1.5 py-0.5 rounded border ${
+                  size.stock_quantity > 0
+                    ? "border-gray-300 text-gray-600"
+                    : "border-gray-200 text-gray-300 line-through"
+                }`}
+              >
+                {size.name}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Category and Price */}
         <div className="flex items-center justify-between">
           {product.categories?.name && (

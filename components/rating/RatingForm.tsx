@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import Image from "next/image";
 import { FaStar } from "react-icons/fa";
 import { CiStar } from "react-icons/ci";
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { useRating } from "../rating-context";
 import { useAuth } from "../supabase-auth-provider";
 import { toast } from "sonner";
@@ -19,9 +18,22 @@ import { useRouter } from "next/navigation";
 interface RatingFormProps {
     onSubmitRating: (data: any) => void;
     onCancel: () => void;
+    redirectTo?: string; // Optional redirect path after submission
 }
 
-export default function RatingForm({ onSubmitRating, onCancel }: RatingFormProps) {
+// Helper function to validate redirect paths
+function isValidInternalPath(path: string | undefined): boolean {
+    if (!path) return false;
+    // Must start with exactly one "/" and not start with "//"
+    if (!path.startsWith("/") || path.startsWith("//")) return false;
+    // Must not contain schemes
+    if (path.includes("http:") || path.includes("https:")) return false;
+    // Must not contain CR/LF
+    if (path.includes("\r") || path.includes("\n")) return false;
+    return true;
+}
+
+export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: RatingFormProps) {
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState("");
     const [hover, setHover] = useState<number | null>(null);
@@ -51,25 +63,31 @@ export default function RatingForm({ onSubmitRating, onCancel }: RatingFormProps
             return;
         }
         try {
-            const uploadedUrls: string[] = [];
-            for (const f of previewImage) {
-                const url = await uploadImageToCloudinary(f as File);
-                uploadedUrls.push(url)
-            }
+            const imageFiles = previewImage.filter((f): f is File => f instanceof File);
             const submitData = {
                 user_id: user?.id,
                 product_id: productId,
                 rating: rating,
                 comment: comment,
-                images: uploadedUrls,
+                imageFiles,
             };
             await onSubmitRating(submitData);
-            window.scrollTo({ top: 0, behavior: "smooth" });
             setRating(0);
             setComment("");
             setPreviewImage([]);
-            router.push(`/orders`);
+            
+            // Validate and use redirect path (defaults to /orders)
+            const target = isValidInternalPath(redirectTo) ? redirectTo : '/orders';
+            
+            // Call onCancel before navigation to avoid unmounting race
             onCancel();
+            
+            // Navigate after cleanup
+            try {
+                await router.push(target);
+            } catch (error) {
+                console.error("Navigation error:", error);
+            }
         } catch (error) {
             console.error("Error submitting form:", error);
         } finally {

@@ -8,15 +8,8 @@ import { Heart, Minus, Plus, Share2, Truck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Product, getProductById, getProducts } from "@/lib/services/api";
+import { Product, SizeOption, getProductById, getProducts } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
@@ -26,6 +19,11 @@ import { RatingItem, useRating } from "./rating-context";
 import ViewReview from "./view_review";
 import { FaStar } from "react-icons/fa";
 import LoadingCard from "./loading-card";
+import RatingForm from "./rating/RatingForm";
+import { useAuth } from "./supabase-auth-provider";
+
+import { sendNotification } from "@/lib/utils/notify";
+import { sendActivity } from "@/lib/utils/activities";
 
 interface ReviewItem {
   userName: string;
@@ -41,7 +39,7 @@ interface User {
 
 export default function ProductDetails({ id: productId }: { id: string }) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [product, setProduct] = useState<Product | null>(null);
@@ -52,10 +50,12 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
-  const { reviews, showViewReviewModal } = useRating();
+  const { reviews, showViewReviewModal, fetchReviews, setProductId: setRatingProductId } = useRating();
   const [users, setUsers] = useState<User[]>([]);
   const [productRating, setProductRating] = useState<number>(0);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const { user } = useAuth();
   
   useEffect(() => {
     const loadProducts = async () => {
@@ -110,6 +110,76 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleWriteReview = () => {
+    if (!user) {
+      toast.error("Please login to write a review");
+      router.push("/login");
+      return;
+    }
+    setShowReviewForm(true);
+    // Scroll to the review form
+    setTimeout(() => {
+      document.getElementById("review-form-section")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  const handleSubmitRating = async (data: any) => {
+    try {
+      const formData = new FormData();
+      formData.append("user_id", data.user_id);
+      formData.append("product_id", data.product_id);
+      formData.append("rating", String(data.rating));
+      if (data.comment) formData.append("comment", data.comment);
+      if (data.imageFiles?.length > 0) {
+        for (const file of data.imageFiles) {
+          formData.append("images", file);
+        }
+      }
+      const response = await fetch("/api/ratings", {
+        method: "POST",
+        body: formData,
+      });
+      if (response.ok) {
+        setShowReviewForm(false);
+        // Refresh reviews
+        await fetchReviews(productId);
+        await fetchUsers();
+        
+        // Fire and forget notifications (non-blocking)
+        sendNotification(
+          "Rating Submitted",
+          `User ${user?.id} has submitted a rating for product #${data?.product_id}`,
+          "success"
+        ).catch((error) => console.error("Failed to send notification:", error));
+        
+        sendActivity(
+          "rating_submission_success",
+          `User ${user?.id} submitted a rating for product #${data?.product_id}`,
+          data?.product_id
+        ).catch((error) => console.error("Failed to log activity:", error));
+        
+        toast.success("Review submitted successfully!");
+      } else {
+        toast.error("Failed to submit review");
+        sendActivity(
+          "rating_submission_failed",
+          `User ${user?.id} failed to submit a rating for product #${data?.product_id}`,
+          data?.product_id
+        ).catch((error) => console.error("Failed to log activity:", error));
+      }
+    } catch (error) {
+      console.error("Error submitting rating:", error);
+      toast.error("Something went wrong. Please try again.");
+    }
+  };
+
+  // Set the product ID in the rating context so reviews are fetched and the review form knows the target product
+  useEffect(() => {
+    if (productId) {
+      setRatingProductId(productId);
+    }
+  }, [productId, setRatingProductId]);
 
   // Check if mobile screen
   useEffect(() => {
@@ -178,13 +248,18 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     // Set default selections if product is loaded
     if (product) {
       if (product.sizes && product.sizes.length > 0) {
-        setSelectedSize(product.sizes[0]);
+        // Select the first in-stock size, or the first size if all are out of stock
+        const inStockSize = product.sizes.find((s) => s.stock_quantity > 0);
+        setSelectedSize(inStockSize || product.sizes[0]);
       }
       if (product.colors && product.colors.length > 0) {
         setSelectedColor(product.colors[0]);
       }
     }
   }, [product]);
+
+  // Compute the displayed price based on selected size
+  const displayPrice = selectedSize?.price ?? product?.price ?? 0;
 
   const incrementQuantity = () => {
     setQuantity((prev) => prev + 1);
@@ -424,7 +499,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                     addToWishlist({
                       id: product.id,
                       name: product.name,
-                      price: product.price,
+                      price: displayPrice,
                       image: product.images?.[0],
                     });
                     toast.success(`${product.name} added to wishlist!`);
@@ -441,7 +516,12 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               </Button>
             </div>
             <p className="text-2xl font-medium mb-6">
-              ₹{product.price.toFixed(2)}
+              ₹{displayPrice.toFixed(2)}
+              {selectedSize && selectedSize.price < product.price && (
+                <span className="text-sm text-muted-foreground line-through ml-2">
+                  ₹{product.price.toFixed(2)}
+                </span>
+              )}
             </p>
 
             <div className="space-y-6 mb-8">
@@ -467,25 +547,50 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
               {product.sizes && product.sizes.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium mb-3">Size</h3>
-                  <Select value={selectedSize} onValueChange={setSelectedSize}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {product.sizes.map((size) => (
-                        <SelectItem key={size} value={size}>
-                          {size}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Link
-                    href="/size-guide"
-                    className="text-sm text-primary hover:underline mt-2 inline-block"
-                  >
-                    Size Guide
-                  </Link>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium">Size</h3>
+                    <Link
+                      href="/size-guide"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Size Guide
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {product.sizes.map((size) => {
+                      const isSelected = selectedSize?.name === size.name;
+                      const isOutOfStock = size.stock_quantity <= 0;
+                      return (
+                        <button
+                          key={size.name}
+                          onClick={() => !isOutOfStock && setSelectedSize(size)}
+                          disabled={isOutOfStock}
+                          className={`relative flex flex-col items-center justify-center px-2 py-2.5 border rounded-lg text-sm transition-all duration-200
+                            ${isSelected
+                              ? "border-black bg-black text-white shadow-sm"
+                              : isOutOfStock
+                                ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
+                                : "border-gray-300 bg-white text-gray-900 hover:border-black hover:shadow-sm"
+                            }`}
+                        >
+                          <span className="font-medium">{size.name}</span>
+                          <span className={`text-xs mt-0.5 ${isSelected ? "text-gray-300" : isOutOfStock ? "text-gray-300" : "text-muted-foreground"}`}>
+                            ₹{size.price.toFixed(0)}
+                          </span>
+                          {isOutOfStock && (
+                            <span className="absolute inset-0 flex items-center justify-center">
+                              <span className="w-full h-px bg-gray-300 rotate-[-20deg]" />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedSize && selectedSize.stock_quantity > 0 && selectedSize.stock_quantity <= 3 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      Only {selectedSize.stock_quantity} left in this size!
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -522,11 +627,11 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   addToCartTemporary({
                     id: product.id,
                     name: product.name,
-                    price: product.price,
+                    price: displayPrice,
                     image: product.images?.[0],
                     quantity,
                     ...(selectedColor ? { color: selectedColor } : {}),
-                    ...(selectedSize ? { size: selectedSize } : {}),
+                    ...(selectedSize ? { size: selectedSize.name } : {}),
                   });
                   // Use router navigation with small delay to ensure state update
                   setTimeout(() => {
@@ -559,11 +664,11 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                       addToCart({
                         id: product.id,
                         name: product.name,
-                        price: product.price,
+                        price: displayPrice,
                         image: product.images?.[0],
                         quantity,
                         ...(selectedColor ? { color: selectedColor } : {}),
-                        ...(selectedSize ? { size: selectedSize } : {}),
+                        ...(selectedSize ? { size: selectedSize.name } : {}),
                       });
                       toast.success(`${product.name} added to cart!`);
                     }
@@ -640,7 +745,19 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         </div>
       </div>
       <div className="mt-6 md:mt-10">
-        <Reviews reviews={allReviews} />
+        <Reviews
+          reviews={allReviews}
+          onWriteReview={handleWriteReview}
+          isLoggedIn={!!user}
+        />
+        {showReviewForm && (
+          <div id="review-form-section" className="mt-4">
+            <RatingForm
+              onSubmitRating={handleSubmitRating}
+              onCancel={() => setShowReviewForm(false)}
+            />
+          </div>
+        )}
       </div>
       {/* Related Products */}
       {relatedProducts && relatedProducts?.length > 0 && (
@@ -760,11 +877,11 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               addToCartTemporary({
                 id: product.id,
                 name: product.name,
-                price: product.price,
+                price: displayPrice,
                 image: product.images?.[0],
                 quantity,
                 ...(selectedColor ? { color: selectedColor } : {}),
-                ...(selectedSize ? { size: selectedSize } : {}),
+                ...(selectedSize ? { size: selectedSize.name } : {}),
               });
               // Use router navigation with small delay to ensure state update
               setTimeout(() => {
@@ -782,18 +899,16 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             onClick={() => {
               if (isInCart) {
                 removeFromCart(product.id);
-                // toast.success(`${product.name} removed from cart!`);
               } else {
                 addToCart({
                   id: product.id,
                   name: product.name,
-                  price: product.price,
+                  price: displayPrice,
                   image: product.images?.[0],
                   quantity,
                   ...(selectedColor ? { color: selectedColor } : {}),
-                  ...(selectedSize ? { size: selectedSize } : {}),
+                  ...(selectedSize ? { size: selectedSize.name } : {}),
                 });
-                // toast.success(`${product.name} added to cart!`);
               }
             }}
           >

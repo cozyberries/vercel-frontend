@@ -26,7 +26,7 @@ import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
 import RatingForm from "@/components/rating/RatingForm";
-import { RatingCreate } from "@/lib/types/rating";
+// RatingCreate type no longer needed - using FormData for submission
 import { useRating } from "@/components/rating-context";
 import { sendNotification } from "@/lib/utils/notify";
 import { toast } from "sonner";
@@ -242,16 +242,21 @@ export default function OrdersPage() {
     );
   }
 
-  const handleSubmitRating = async (data: RatingCreate) => {
+  const handleSubmitRating = async (data: any) => {
     try {
-      const url = `/api/ratings`;
-      const method = "POST";
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+      const formData = new FormData();
+      formData.append("user_id", data.user_id);
+      formData.append("product_id", data.product_id);
+      formData.append("rating", String(data.rating));
+      if (data.comment) formData.append("comment", data.comment);
+      if (data.imageFiles?.length > 0) {
+        for (const file of data.imageFiles) {
+          formData.append("images", file);
+        }
+      }
+      const response = await fetch("/api/ratings", {
+        method: "POST",
+        body: formData,
       });
       if (response.ok) {
         setShowForm(false);
@@ -275,6 +280,7 @@ export default function OrdersPage() {
         onCancel={() => {
           setShowForm(false);
         }}
+        redirectTo="/orders"
       />
     );
   }

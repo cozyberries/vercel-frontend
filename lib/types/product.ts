@@ -8,11 +8,21 @@ export interface ProductImage {
 
 export interface ProductVariant {
   id: string;
-  sku: string;
+  sku?: string;
   price: number;
   stock_quantity: number;
   size: string;
-  color: string;
+  size_id?: string;
+  color?: string;
+  color_id?: string;
+  display_order?: number;
+}
+
+export interface SizeOption {
+  name: string;
+  price: number;
+  stock_quantity: number;
+  display_order: number;
 }
 
 export interface RelatedProduct {
@@ -65,6 +75,8 @@ export interface Product extends ProductBase {
   category_id?: string;
   categories?: { name: string };
   images?: string[];
+  variants?: ProductVariant[];
+  sizes?: SizeOption[];
 }
 
 export interface CategoryImage {

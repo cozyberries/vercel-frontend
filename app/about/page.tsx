@@ -36,7 +36,7 @@ export default function AboutPage() {
             </p>
             <div className="relative w-full max-w-2xl mx-auto aspect-video rounded-lg overflow-hidden">
               <Image
-                src="/hero/1.webp"
+                src="https://res.cloudinary.com/dxokykvty/image/upload/v1770461391/about/1.jpg"
                 alt="CozyBerries Story"
                 fill
                 className="object-cover"
@@ -89,7 +89,7 @@ export default function AboutPage() {
               </div>
               <div className="relative aspect-square rounded-lg overflow-hidden">
                 <Image
-                  src="/hero/2.jpg"
+                  src="https://res.cloudinary.com/dxokykvty/image/upload/v1770461392/about/2.jpg"
                   alt="Our Story"
                   fill
                   className="object-cover"
@@ -192,7 +192,7 @@ export default function AboutPage() {
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div className="relative aspect-square rounded-lg overflow-hidden">
                 <Image
-                  src="/hero/3.jpg"
+                  src="https://res.cloudinary.com/dxokykvty/image/upload/v1770461396/about/3.jpg"
                   alt="Quality Promise"
                   fill
                   className="object-cover"

@@ -3,6 +3,50 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
+// Type for aggregated size information
+type AggregatedSize = {
+  name: string;
+  price: number;
+  stock_quantity: number;
+  display_order: number;
+};
+
+/**
+ * Helper function to aggregate sizes from product variants
+ * Handles nullable stock_quantity and deduplicates sizes
+ */
+function aggregateSizesFromVariants(
+  variants: any[],
+  fallbackPrice: number
+): AggregatedSize[] {
+  const sizeMap = new Map<string, AggregatedSize>();
+  
+  for (const v of variants) {
+    const sizeName = v.sizes?.name;
+    if (!sizeName) continue;
+    
+    const existing = sizeMap.get(sizeName);
+    const variantPrice = v.price ?? fallbackPrice;
+    const variantStock = Number(v.stock_quantity ?? 0);
+    
+    if (!existing) {
+      sizeMap.set(sizeName, {
+        name: sizeName,
+        price: variantPrice,
+        stock_quantity: variantStock,
+        display_order: v.sizes?.display_order ?? 0,
+      });
+    } else {
+      existing.stock_quantity += variantStock;
+      if (variantPrice < existing.price) existing.price = variantPrice;
+    }
+  }
+  
+  return Array.from(sizeMap.values()).sort(
+    (a, b) => a.display_order - b.display_order
+  );
+}
+
 // In-memory cache for products API (avoids Redis round-trip for repeated requests)
 type MemoryCacheEntry = { data: any; timestamp: number };
 const inMemoryProductsCache = new Map<string, MemoryCacheEntry>();
@@ -65,7 +109,8 @@ async function refreshCacheInBackground(
       updated_at,
       category_id,
       categories(name, slug),
-      images
+      images,
+      product_variants(id, price, stock_quantity, sizes(name, display_order))
     `,
     { count: "exact" }
   );
@@ -137,9 +182,17 @@ async function refreshCacheInBackground(
         console.warn(`Invalid image data for product ${product.id}:`, product.images);
       }
 
+      // Build deduplicated sizes list from variants
+      const sizes = aggregateSizesFromVariants(
+        product.product_variants || [],
+        product.price
+      );
+
       return {
         ...product,
         images: parsedImages.slice(0, 3),
+        sizes,
+        product_variants: undefined,
       };
     });
 
@@ -304,7 +357,8 @@ export async function GET(request: NextRequest) {
         updated_at,
         category_id,
         categories(name, slug),
-        images
+        images,
+        product_variants(id, price, stock_quantity, sizes(name, display_order))
       `,
       { count: "exact" }
     );
@@ -380,7 +434,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Process products images
+    // Process products images and variants
     const products: Product[] = (data || []).map((product: any) => {
       let parsedImages: string[] = [];
 
@@ -400,9 +454,17 @@ export async function GET(request: NextRequest) {
         console.warn(`Invalid image data for product ${product.id}:`, product.images);
       }
 
+      // Build deduplicated sizes list from variants
+      const sizes = aggregateSizesFromVariants(
+        product.product_variants || [],
+        product.price
+      );
+
       return {
         ...product,
         images: parsedImages.slice(0, 3),
+        sizes,
+        product_variants: undefined,
       };
     });
 
