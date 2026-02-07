@@ -27,6 +27,9 @@ import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
 import RatingForm from "@/components/rating/RatingForm";
 import { useRating } from "@/components/rating-context";
+import { sendNotification } from "@/lib/utils/notify";
+import { toast } from "sonner";
+import { sendActivity } from "@/lib/utils/activities";
 
 /** Form payload shape when submitting a rating from the orders page. */
 interface RatingFormData {
@@ -36,9 +39,6 @@ interface RatingFormData {
   comment: string;
   imageFiles?: File[];
 }
-import { sendNotification } from "@/lib/utils/notify";
-import { toast } from "sonner";
-import { sendActivity } from "@/lib/utils/activities";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,

@@ -339,13 +339,17 @@ async function main() {
     return;
   }
 
-  // Upsert variants using unique constraint on (product_id, size_id, color_id)
+  // Upsert variants: (product_id, size_id, color_id) is unique, but NULL size_id
+  // never matches in SQL unique constraints. So we batch-upsert rows with
+  // non-null size_id and handle null size_id via explicit select/update/insert.
   console.log("Upserting product variants...");
   const batchSize = 50;
+  const withSize = variants.filter((v) => v.size_id != null);
+  const withoutSize = variants.filter((v) => v.size_id == null);
   let upserted = 0;
-  
-  for (let i = 0; i < variants.length; i += batchSize) {
-    const batch = variants.slice(i, i + batchSize).map((v) => ({
+
+  for (let i = 0; i < withSize.length; i += batchSize) {
+    const batch = withSize.slice(i, i + batchSize).map((v) => ({
       product_id: v.product_id,
       size_id: v.size_id,
       color_id: v.color_id,
@@ -354,18 +358,53 @@ async function main() {
 
     const { error } = await supabase
       .from("product_variants")
-      .upsert(batch, { 
+      .upsert(batch, {
         onConflict: "product_id,size_id,color_id",
-        ignoreDuplicates: false 
+        ignoreDuplicates: false,
       });
-    
+
     if (error) {
-      console.error(`Error upserting batch ${i / batchSize + 1}:`, error);
+      console.error(`Error upserting batch ${Math.floor(i / batchSize) + 1}:`, error);
       process.exit(1);
     }
     upserted += batch.length;
     process.stdout.write(`  Upserted ${upserted}/${variants.length}\r`);
   }
+
+  for (const v of withoutSize) {
+    const { data: existing } = await supabase
+      .from("product_variants")
+      .select("id")
+      .eq("product_id", v.product_id)
+      .eq("color_id", v.color_id)
+      .is("size_id", null)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from("product_variants")
+        .update({ stock_quantity: v.stock_quantity })
+        .eq("id", existing.id);
+      if (error) {
+        console.error(`Error updating variant (product_id=${v.product_id}, color_id=${v.color_id}, size_id=null):`, error);
+        process.exit(1);
+      }
+    } else {
+      const { error } = await supabase.from("product_variants").insert({
+        product_id: v.product_id,
+        size_id: null,
+        color_id: v.color_id,
+        stock_quantity: v.stock_quantity,
+      });
+      if (error) {
+        console.error(`Error inserting variant (product_id=${v.product_id}, color_id=${v.color_id}, size_id=null):`, error);
+        process.exit(1);
+      }
+    }
+    upserted += 1;
+    process.stdout.write(`  Upserted ${upserted}/${variants.length}\r`);
+  }
+
   console.log(`\n✓ Upserted ${upserted} product variants.\n`);
 
   // 6. Update product stock_quantity totals (batched upsert)
@@ -393,7 +432,15 @@ async function main() {
 
     if (error) {
       for (const row of batch) {
-        failures.push({ id: row.id, error: error.message });
+        const { error: rowError } = await supabase
+          .from("products")
+          .upsert([row], { onConflict: "id" });
+        if (rowError) {
+          failures.push({ id: row.id, error: rowError.message });
+        } else {
+          updated += 1;
+        }
+        process.stdout.write(`  Updated ${updated}/${stockUpdates.length} products\r`);
       }
     } else {
       updated += batch.length;

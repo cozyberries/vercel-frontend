@@ -244,9 +244,7 @@ async function main() {
     const chunk = updates.slice(i, i + BATCH_SIZE);
     await updateProductDescriptionsBatch(supabase, chunk);
     updated += chunk.length;
-    if (updated % 10 === 0 || updated === updates.length) {
-      console.log(`  Updated ${updated}/${updates.length}...`);
-    }
+    console.log(`  Updated ${updated}/${updates.length}...`);
   }
   console.log(`Done. Updated ${updated} products.\n`);
 
