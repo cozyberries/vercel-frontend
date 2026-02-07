@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { UpstashService } from "@/lib/upstash";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ suggestions: [] });
     }
 
+    // Normalise to lowercase for cache-key consistency
+    const normalised = query.trim().toLowerCase();
+    const cacheKey = `search:suggestions:${normalised}`;
+
+    // 1. Try Redis cache (short TTL — search results change with product updates)
+    const cached = await UpstashService.get(cacheKey).catch(() => null);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          "X-Cache-Status": "HIT",
+          "X-Data-Source": "REDIS_CACHE",
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      });
+    }
+
+    // 2. Fetch from DB
     const supabase = await createServerSupabaseClient();
 
     // Search products
@@ -22,7 +40,7 @@ export async function GET(request: NextRequest) {
         categories(name, slug),
         product_images(storage_path, is_primary)
       `)
-      .ilike("name", `%${query}%`)
+      .ilike("name", `%${normalised}%`)
       .limit(5);
 
     if (productsError) {
@@ -33,7 +51,7 @@ export async function GET(request: NextRequest) {
     const { data: categories, error: categoriesError } = await supabase
       .from("categories")
       .select("id, name, slug")
-      .ilike("name", `%${query}%`)
+      .ilike("name", `%${normalised}%`)
       .limit(3);
 
     if (categoriesError) {
@@ -77,7 +95,18 @@ export async function GET(request: NextRequest) {
       return 0;
     });
 
-    return NextResponse.json({ suggestions });
+    const response = { suggestions };
+
+    // 3. Cache in Redis for 5 minutes
+    UpstashService.set(cacheKey, response, 300).catch(() => {});
+
+    return NextResponse.json(response, {
+      headers: {
+        "X-Cache-Status": "MISS",
+        "X-Data-Source": "SUPABASE_DATABASE",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+      },
+    });
   } catch (error) {
     console.error("Error in search suggestions:", error);
     return NextResponse.json(

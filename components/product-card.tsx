@@ -11,10 +11,10 @@ import { images } from "@/app/assets/images";
 
 interface ProductCardProps {
   product: Product;
-  index: number; // To determine which corner rounding to apply
+  index: number; // Used to set image loading priority (e.g. priority for first N images); not used by getCornerRounding()
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, index }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const inWishlist = isInWishlist(product.id);
 
@@ -35,6 +35,12 @@ export default function ProductCard({ product }: ProductCardProps) {
     >
       {/* Image Section */}
       <div className={`relative overflow-hidden lg:h-[75%] h-[68%] `}>
+        {/* Featured Badge */}
+        {product.is_featured && (
+          <span className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 bg-amber-500 text-white text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full shadow-md">
+            Featured
+          </span>
+        )}
         <Link href={`/products/${product.id}`}>
           {/* First Image */}
           <Image
@@ -48,6 +54,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             alt={product.name}
             width={400}
             height={400}
+            priority={index < 4}
             className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
           />
           {/* Second Image (shown on hover if available) */}

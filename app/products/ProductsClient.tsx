@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,18 +13,47 @@ import {
 } from "@/components/ui/select";
 import ProductCard from "@/components/product-card";
 import FilterSheet from "@/components/FilterSheet";
-import { usePreloadedData } from "@/components/data-preloader";
-import { getProducts, ProductsResponse, Product } from "@/lib/services/api";
+import { getProducts, getCategoryOptions, CategoryOption, Product } from "@/lib/services/api";
 import { ChevronUp, Loader2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/useIsMobile";
+
+const PAGE_SIZE_MOBILE = 4;
+const PAGE_SIZE_DESKTOP = 12;
 
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const {
-    categories,
-    isLoading: categoriesLoading,
-    error: categoriesError,
-  } = usePreloadedData();
+  const isMobile = useIsMobile();
+  // null while viewport is unknown (SSR / first render) — avoids double-fetch
+  const pageSize = isMobile === null ? null : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
+
+  // Lightweight category options (id, name, slug only — no images/descriptions)
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  // Error source tracking for reliable retry logic
+  const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
+
+  const fetchCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError(null);
+    setErrorSource(null);
+    try {
+      const data = await getCategoryOptions();
+      setCategories(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load categories";
+      setCategoriesError(errorMessage);
+      setErrorSource('categories');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -34,29 +63,36 @@ export default function ProductsClient() {
   const [error, setError] = useState<string | null>(null);
   const [totalItems, setTotalItems] = useState(0);
 
+  // Infinite scroll sentinel ref
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
   // Get current URL parameters
   const currentSort = searchParams.get("sortBy") || "default";
   const currentSortOrder = searchParams.get("sortOrder") || "desc";
   const currentCategory = searchParams.get("category") || "all";
   const currentSearch = searchParams.get("search") || "";
-  const currentBestseller = searchParams.get("bestseller") === "true";
+  const currentFeatured = searchParams.get("featured") === "true";
 
   // Load products with server-side filtering, sorting
   useEffect(() => {
+    // Wait until viewport is known so we fetch with the correct page size (once)
+    if (pageSize === null) return;
+
     const loadProducts = async () => {
       try {
         setIsLoading(true);
         setError(null);
+        setErrorSource(null);
         setCurrentPage(1);
         setAllProducts([]);
 
         const response = await getProducts({
-          limit: 12,
+          limit: pageSize,
           page: 1,
           category: currentCategory !== "all" ? currentCategory : undefined,
           sortBy: currentSort !== "default" ? currentSort : undefined,
           sortOrder: currentSortOrder,
-          featured: currentBestseller || undefined,
+          featured: currentFeatured || undefined,
         });
 
         // Ensure no duplicate products from the initial load
@@ -69,9 +105,9 @@ export default function ProductsClient() {
         setHasMoreProducts(response.pagination.hasNextPage);
       } catch (err) {
         console.error("Error loading products:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to load products"
-        );
+        const errorMessage = err instanceof Error ? err.message : "Failed to load products";
+        setError(errorMessage);
+        setErrorSource('products');
         setAllProducts([]);
         setTotalItems(0);
         setHasMoreProducts(false);
@@ -81,7 +117,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentBestseller]);
+  }, [currentSort, currentSortOrder, currentCategory, currentFeatured, pageSize]);
 
   // Client-side search filtering (search happens on frontend with autocomplete)
   const filteredProducts = useMemo(() => {
@@ -100,19 +136,19 @@ export default function ProductsClient() {
 
   // Load more products function
   const loadMoreProducts = useCallback(async () => {
-    if (isLoadingMore || !hasMoreProducts) return;
+    if (isLoadingMore || !hasMoreProducts || pageSize === null) return;
 
     try {
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
 
       const response = await getProducts({
-        limit: 12,
+        limit: pageSize,
         page: nextPage,
         category: currentCategory !== "all" ? currentCategory : undefined,
         sortBy: currentSort !== "default" ? currentSort : undefined,
         sortOrder: currentSortOrder,
-        featured: currentBestseller || undefined,
+        featured: currentFeatured || undefined,
       });
 
       setAllProducts((prev) => {
@@ -151,8 +187,27 @@ export default function ProductsClient() {
     currentCategory,
     currentSort,
     currentSortOrder,
-    currentBestseller,
+    currentFeatured,
+    pageSize,
   ]);
+
+  // Infinite scroll using IntersectionObserver
+  // `isLoading` is in deps so the observer re-attaches after products load (sentinel enters DOM)
+  useEffect(() => {
+    if (!sentinelRef.current || isLoading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreProducts && !isLoadingMore && !currentSearch) {
+          loadMoreProducts();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreProducts, isLoadingMore, currentSearch, loadMoreProducts, isLoading]);
 
   const handleSortChange = (sort: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -183,13 +238,13 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
-  const handleBestsellerToggle = () => {
+  const handleFeaturedToggle = () => {
     const params = new URLSearchParams(searchParams.toString());
 
-    if (currentBestseller) {
-      params.delete("bestseller");
+    if (currentFeatured) {
+      params.delete("featured");
     } else {
-      params.set("bestseller", "true");
+      params.set("featured", "true");
     }
 
     router.push(`/products?${params.toString()}`);
@@ -209,10 +264,10 @@ export default function ProductsClient() {
     return (
       currentCategory !== "all" ||
       currentSort !== "default" ||
-      currentBestseller ||
+      currentFeatured ||
       currentSearch !== ""
     );
-  }, [currentCategory, currentSort, currentBestseller, currentSearch]);
+  }, [currentCategory, currentSort, currentFeatured, currentSearch]);
 
   if (isLoading || categoriesLoading) {
     return (
@@ -224,6 +279,7 @@ export default function ProductsClient() {
   }
 
   if (error || categoriesError) {
+    const displayedError = error || categoriesError;
     return (
       <div className="text-center p-12">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -245,9 +301,26 @@ export default function ProductsClient() {
           <h3 className="text-lg font-medium text-red-800 mb-2">
             Connection Error
           </h3>
-          <p className="text-red-700 mb-4">{error || categoriesError}</p>
-          <Button onClick={() => window.location.reload()} variant="outline">
-            Try Again
+          <p className="text-red-700 mb-4">{displayedError}</p>
+          <Button
+            onClick={() => {
+              if (errorSource === 'categories') {
+                fetchCategories();
+              } else {
+                window.location.reload();
+              }
+            }}
+            variant="outline"
+            disabled={errorSource === 'categories' ? categoriesLoading : isLoading}
+          >
+            {errorSource === 'categories' && categoriesLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              "Try Again"
+            )}
           </Button>
         </div>
       </div>
@@ -318,17 +391,20 @@ export default function ProductsClient() {
               currentCategory={currentCategory}
               currentSort={currentSort}
               currentSortOrder={currentSortOrder}
-              currentBestseller={currentBestseller}
+              currentFeatured={currentFeatured}
               onCategoryChange={handleCategoryChange}
               onSortChange={handleSortChange}
-              onBestsellerToggle={handleBestsellerToggle}
+              onFeaturedToggle={handleFeaturedToggle}
               onClearFilters={handleClearFilters}
             />
           </div>
         </div>
 
         {/* Desktop Filters - Moved to end */}
-        <div className="hidden md:flex justify-end items-center gap-4">
+        <div
+          className="hidden md:flex justify-end items-center gap-4"
+          data-testid="desktop-filters"
+        >
           {/* Category Filter */}
           <Select value={currentCategory} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-[200px]">
@@ -390,13 +466,13 @@ export default function ProductsClient() {
             </div>
           </Button>
 
-          {/* Bestsellers Toggle */}
+          {/* Featured Toggle */}
           <Button
-            variant={currentBestseller ? "default" : "outline"}
-            onClick={handleBestsellerToggle}
+            variant={currentFeatured ? "default" : "outline"}
+            onClick={handleFeaturedToggle}
             className="whitespace-nowrap"
           >
-            {currentBestseller ? "✓ Bestsellers" : "Show Bestsellers"}
+            {currentFeatured ? "✓ Featured" : "Show Featured"}
           </Button>
 
           {/* Clear All Filters Button */}
@@ -421,7 +497,7 @@ export default function ProductsClient() {
             categories.find((c) => c.slug === currentCategory)?.name ||
             currentCategory
           }`}
-        {currentBestseller && " (Bestsellers only)"}
+        {currentFeatured && " (Featured only)"}
       </div>
 
       {/* Products Grid or No Results Message */}
@@ -433,25 +509,16 @@ export default function ProductsClient() {
             ))}
           </div>
 
-          {/* Show More Button */}
-          <div className="flex flex-col items-center space-y-4 mt-8">
-            {hasMoreProducts && !currentSearch && (
-              <Button
-                onClick={loadMoreProducts}
-                disabled={isLoadingMore}
-                variant="outline"
-                size="lg"
-                className="px-8"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  "Show More"
-                )}
-              </Button>
+          {/* Infinite Scroll Sentinel */}
+          <div ref={sentinelRef} data-testid="infinite-scroll-sentinel" className="flex justify-center py-8">
+            {isLoadingMore && (
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Loading more products...</span>
+              </div>
+            )}
+            {!hasMoreProducts && allProducts.length > 0 && !currentSearch && (
+              <p className="text-sm text-gray-400">You&apos;ve seen all products</p>
             )}
           </div>
         </>
@@ -477,14 +544,14 @@ export default function ProductsClient() {
               No products found
             </h3>
             <p className="text-gray-500 mb-6">
-              {currentSearch || currentCategory !== "all" || currentBestseller
+              {currentSearch || currentCategory !== "all" || currentFeatured
                 ? "We couldn't find any products matching your current filters. Try adjusting your search criteria."
                 : "No products are currently available. Please check back later."}
             </p>
             <div className="space-y-3">
               {(currentSearch ||
                 currentCategory !== "all" ||
-                currentBestseller) && (
+                currentFeatured) && (
                 <Button
                   variant="outline"
                   onClick={() => {

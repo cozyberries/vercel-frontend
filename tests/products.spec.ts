@@ -108,9 +108,9 @@ test.describe("Products Page", () => {
     const sortButton = desktopFilters.getByText("Sort");
     await expect(sortButton).toBeVisible();
 
-    // Bestsellers toggle
-    const bestsellersButton = desktopFilters.getByText("Show Bestsellers");
-    await expect(bestsellersButton).toBeVisible();
+    // Featured toggle
+    const featuredButton = desktopFilters.getByText("Show Featured");
+    await expect(featuredButton).toBeVisible();
   });
 
   // ── 3. Category filter ──────────────────────────────────────────────────
@@ -191,9 +191,9 @@ test.describe("Products Page", () => {
     }
   });
 
-  // ── 5. Show More pagination ─────────────────────────────────────────────
+  // ── 5. Infinite scroll pagination ───────────────────────────────────────
 
-  test("should load more products when clicking Show More", async ({
+  test("should load more products via infinite scroll", async ({
     page,
   }) => {
     const showingText = page.getByText(/Showing \d+ of \d+ products/);
@@ -207,16 +207,18 @@ test.describe("Products Page", () => {
       "All products already visible – nothing to paginate."
     );
 
-    const showMoreButton = page.getByRole("button", { name: /Show More/i });
-    await expect(showMoreButton).toBeVisible();
+    // Capture the current product card count before scrolling
+    const cardCountBefore = await page.locator(".grid").first().locator("> div").count();
 
-    // Click Show More
-    await showMoreButton.click();
+    // Scroll to the bottom to trigger infinite scroll
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
-    // Wait for the loading state to finish
-    await expect(showMoreButton).not.toHaveText(/Loading/i, {
-      timeout: 15_000,
-    });
+    // Wait until new product cards appear (more cards than before)
+    await page.waitForFunction(
+      (prev) => document.querySelectorAll(".grid > div").length > prev,
+      cardCountBefore,
+      { timeout: 15_000 }
+    );
 
     // The count should have increased
     const textAfter = (await showingText.textContent()) ?? "";

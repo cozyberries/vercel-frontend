@@ -46,6 +46,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           "X-Cache-Status": "HIT",
           "X-Cache-Key": cacheKey,
           "X-Data-Source": "REDIS_CACHE",
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
         }
       });
     }
@@ -103,7 +104,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         "X-Cache-Status": "MISS",
         "X-Cache-Key": cacheKey,
         "X-Data-Source": "SUPABASE_DATABASE",
-        "X-Cache-Set": "ASYNC", // Indicates cache is being set asynchronously
+        "X-Cache-Set": "ASYNC",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
       },
     });
   } catch (error) {
@@ -160,10 +162,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Invalidate cache for this product and product list
+    // Invalidate cache for this product and all product list caches
     await Promise.all([
       UpstashService.delete(`product:${id}`),
-      UpstashService.delete("products:list:100"), // Invalidate main product list cache
+      UpstashService.deletePattern("products:*"),
     ]);
 
     return NextResponse.json(data);
@@ -207,10 +209,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Invalidate cache for this product and product list
+    // Invalidate cache for this product and all product list caches
     await Promise.all([
       UpstashService.delete(`product:${id}`),
-      UpstashService.delete("products:list:100"), // Invalidate main product list cache
+      UpstashService.deletePattern("products:*"),
     ]);
 
     return NextResponse.json({ success: true, deleted: data });
