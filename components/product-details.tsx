@@ -80,7 +80,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     };
 
     loadProducts();
-  }, [product])
+  }, [product?.id, product?.category_id])
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -249,7 +249,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     if (product) {
       if (product.sizes && product.sizes.length > 0) {
         // Select the first in-stock size, or the first size if all are out of stock
-        const inStockSize = product.sizes.find((s) => s.stock_quantity > 0);
+        const inStockSize = product.sizes.find((s) => (s.stock_quantity ?? 0) > 0);
         setSelectedSize(inStockSize || product.sizes[0]);
       }
       if (product.colors && product.colors.length > 0) {
@@ -559,7 +559,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {product.sizes.map((size) => {
                       const isSelected = selectedSize?.name === size.name;
-                      const isOutOfStock = size.stock_quantity <= 0;
+                      const isOutOfStock = size.stock_quantity === undefined || size.stock_quantity <= 0;
                       return (
                         <button
                           key={size.name}
@@ -586,7 +586,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                       );
                     })}
                   </div>
-                  {selectedSize && selectedSize.stock_quantity > 0 && selectedSize.stock_quantity <= 3 && (
+                  {selectedSize && selectedSize.stock_quantity !== undefined && selectedSize.stock_quantity > 0 && selectedSize.stock_quantity <= 3 && (
                     <p className="text-xs text-amber-600 mt-2">
                       Only {selectedSize.stock_quantity} left in this size!
                     </p>

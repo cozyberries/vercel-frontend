@@ -7,7 +7,10 @@
  * and inserts product_variants with correct stock quantities.
  *
  * Usage:
- *   node scripts/populate-variants-from-csv.mjs [options]
+ *   node scripts/populate-variants-from-csv.mjs [csv-path] [options]
+ *
+ * Arguments:
+ *   csv-path     Optional path to Stock Summary CSV (default: ../Product Catalogue/Stocks & orders - Stock Summary.csv)
  *
  * Options:
  *   --dry-run    Print what would be inserted without actually inserting
@@ -16,18 +19,19 @@
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 import { resolve } from "path";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+import { parse } from "csv-parse/sync";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
 const supabaseUrl =
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  console.error("❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env");
+  console.error("   SUPABASE_SERVICE_ROLE_KEY is required for bulk operations (anon key is insufficient)");
   process.exit(1);
 }
 
@@ -51,7 +55,7 @@ const PRINT_TO_COLOR = {
   PEACH: "Peach",
   "COCONUT MILK": "Coconut Milk",
   ROCKET: "Rocket Rangers",
-  NUTS: "Naugthy Nuts",
+  NUTS: "Naughty Nuts",
 };
 
 /** CSV size label → DB size name */
@@ -100,19 +104,33 @@ const ITEM_TO_PRODUCT_PREFIX = {
 
 // ── CSV parsing ─────────────────────────────────────────────────────────────
 
+const DEFAULT_CSV_PATH = resolve(
+  process.cwd(),
+  "../Product Catalogue/Stocks & orders - Stock Summary.csv"
+);
+
+/**
+ * Parse CSV with proper handling of quoted fields and embedded commas.
+ * Expects a header row; data rows are parsed via csv-parse.
+ * Numeric columns use radix 10.
+ */
 function parseCSV(filePath) {
   const raw = readFileSync(filePath, "utf-8");
-  const lines = raw.split("\n").filter((l) => l.trim());
-  const rows = [];
+  const records = parse(raw, {
+    from_line: 2,
+    relax_column_count: true,
+    trim: true,
+    skip_empty_lines: true,
+  });
 
-  for (let i = 1; i < lines.length; i++) {
-    const parts = lines[i].split(",");
-    const item = parts[0].trim();
-    const sizeRaw = parts[1].trim();
-    const print = parts[2].trim();
-    const totalIn = parseInt(parts[3]) || 0;
-    const totalOut = parseInt(parts[4]) || 0;
-    const currentStock = parseInt(parts[5]) || 0;
+  const rows = [];
+  for (const parts of records) {
+    const item = (parts[0] ?? "").trim();
+    const sizeRaw = (parts[1] ?? "").trim();
+    const print = (parts[2] ?? "").trim();
+    const totalIn = parseInt(parts[3], 10) || 0;
+    const totalOut = parseInt(parts[4], 10) || 0;
+    const currentStock = parseInt(parts[5], 10) || 0;
 
     if (!item) continue;
 
@@ -160,11 +178,18 @@ async function main() {
     `Loaded ${productsRes.data.length} products, ${sizesRes.data.length} sizes, ${colorsRes.data.length} colors\n`
   );
 
-  // 2. Parse CSV
-  const csvPath = resolve(
-    process.cwd(),
-    "../Product Catalogue/Stocks & orders - Stock Summary.csv"
-  );
+  // 2. Parse CSV (path from CLI or default)
+  const positionalArgs = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  const csvPath = positionalArgs[0]
+    ? resolve(process.cwd(), positionalArgs[0])
+    : DEFAULT_CSV_PATH;
+
+  if (!existsSync(csvPath)) {
+    console.error(`❌ CSV file not found: ${csvPath}`);
+    console.error("   Provide a path as the first argument or ensure the default file exists.");
+    process.exit(1);
+  }
+
   const csvRows = parseCSV(csvPath);
   console.log(`Parsed ${csvRows.length} CSV rows\n`);
 
@@ -308,17 +333,16 @@ async function main() {
     return;
   }
 
-  // 5. Insert variants
+  // 5. Insert/Update variants using upsert
   if (DRY_RUN) {
     console.log("DRY RUN — not inserting. Rerun without --dry-run to apply.\n");
     return;
   }
 
-  // Insert new variants in batches first
-  console.log("Inserting new product variants...");
+  // Upsert variants using unique constraint on (product_id, size_id, color_id)
+  console.log("Upserting product variants...");
   const batchSize = 50;
-  let inserted = 0;
-  const batchId = new Date().toISOString(); // Unique batch identifier
+  let upserted = 0;
   
   for (let i = 0; i < variants.length; i += batchSize) {
     const batch = variants.slice(i, i + batchSize).map((v) => ({
@@ -326,36 +350,25 @@ async function main() {
       size_id: v.size_id,
       color_id: v.color_id,
       stock_quantity: v.stock_quantity,
-      created_at: batchId, // Use batch ID for tracking
     }));
 
-    const { error } = await supabase.from("product_variants").insert(batch);
+    const { error } = await supabase
+      .from("product_variants")
+      .upsert(batch, { 
+        onConflict: "product_id,size_id,color_id",
+        ignoreDuplicates: false 
+      });
+    
     if (error) {
-      console.error(`Error inserting batch ${i / batchSize + 1}:`, error);
+      console.error(`Error upserting batch ${i / batchSize + 1}:`, error);
       process.exit(1);
     }
-    inserted += batch.length;
-    process.stdout.write(`  Inserted ${inserted}/${variants.length}\r`);
+    upserted += batch.length;
+    process.stdout.write(`  Upserted ${upserted}/${variants.length}\r`);
   }
-  console.log(`\n✓ Inserted ${inserted} product variants.\n`);
+  console.log(`\n✓ Upserted ${upserted} product variants.\n`);
 
-  // Delete old variants only after successful insertion
-  // Using created_at filter to identify old variants (Supabase requires a where clause for bulk deletes)
-  console.log("Removing old product variants...");
-  const { error: deleteError } = await supabase
-    .from("product_variants")
-    .delete()
-    .neq("created_at", batchId);
-  
-  if (deleteError) {
-    console.error("⚠️  Error deleting old variants:", deleteError);
-    console.error("   New variants have been inserted successfully, but old variants remain.");
-    console.error("   You may need to manually clean up the product_variants table.");
-  } else {
-    console.log("✓ Removed old variants.\n");
-  }
-
-  // 6. Update product stock_quantity totals
+  // 6. Update product stock_quantity totals (batched upsert)
   console.log("Updating product stock totals...");
   const stockByProduct = {};
   for (const v of variants) {
@@ -363,19 +376,39 @@ async function main() {
       (stockByProduct[v.product_id] || 0) + v.stock_quantity;
   }
 
+  const stockUpdates = Object.entries(stockByProduct).map(([id, stock_quantity]) => ({
+    id,
+    stock_quantity,
+  }));
+
+  const STOCK_BATCH_SIZE = 50;
   let updated = 0;
-  for (const [productId, totalStock] of Object.entries(stockByProduct)) {
+  const failures = [];
+
+  for (let i = 0; i < stockUpdates.length; i += STOCK_BATCH_SIZE) {
+    const batch = stockUpdates.slice(i, i + STOCK_BATCH_SIZE);
     const { error } = await supabase
       .from("products")
-      .update({ stock_quantity: totalStock })
-      .eq("id", productId);
+      .upsert(batch, { onConflict: "id" });
+
     if (error) {
-      console.error(`Error updating product ${productId}:`, error);
+      for (const row of batch) {
+        failures.push({ id: row.id, error: error.message });
+      }
     } else {
-      updated++;
+      updated += batch.length;
     }
+    process.stdout.write(`  Updated ${updated}/${stockUpdates.length} products\r`);
   }
-  console.log(`✓ Updated stock_quantity for ${updated} products.\n`);
+
+  if (failures.length > 0) {
+    console.error("\n❌ Failed to update product stock for:");
+    for (const { id, error } of failures) {
+      console.error(`   ${id}: ${error}`);
+    }
+    process.exit(1);
+  }
+  console.log(`\n✓ Updated stock_quantity for ${updated} products.\n`);
 
   console.log("Done!");
 }

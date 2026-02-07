@@ -333,12 +333,19 @@ async function main() {
 
   console.log(`\n💾 Updating ${successfulUpdates.length} product descriptions in Supabase...`);
   let updated = 0;
+  let updateFailed = 0;
   for (const u of successfulUpdates) {
-    await updateProductDescription(supabase, u.id, u.description);
-    updated++;
-    if (updated % 10 === 0) console.log(`  Updated ${updated}/${successfulUpdates.length}...`);
+    try {
+      await updateProductDescription(supabase, u.id, u.description);
+      updated++;
+      if (updated % 10 === 0) console.log(`  Updated ${updated}/${successfulUpdates.length}...`);
+    } catch (error) {
+      updateFailed++;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`  ❌ Failed to update product ${u.id} (${u.name}): ${errMsg}`);
+    }
   }
-  console.log(`✅ Done. Updated ${updated} products.\n`);
+  console.log(`✅ Done. Updated ${updated} products, ${updateFailed} failed.\n`);
 
   if (!skipCache) {
     console.log(`🔥 Warming cache at ${baseUrl}...`);

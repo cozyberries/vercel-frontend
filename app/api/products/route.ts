@@ -15,7 +15,7 @@ type AggregatedSize = {
  * Helper function to aggregate sizes from product variants
  * Handles nullable stock_quantity and deduplicates sizes
  */
-function aggregateSizesFromVariants(
+export function aggregateSizesFromVariants(
   variants: any[],
   fallbackPrice: number
 ): AggregatedSize[] {

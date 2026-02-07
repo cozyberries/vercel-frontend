@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, ImageIcon, Send, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,14 +38,29 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
     const [comment, setComment] = useState("");
     const [hover, setHover] = useState<number | null>(null);
     const [previewImage, setPreviewImage] = useState<(File | string)[]>([]);
+    const blobUrlToFileRef = useRef<Map<string, File>>(new Map());
+    const previewImageRef = useRef(previewImage);
+    previewImageRef.current = previewImage;
     const [loading, setLoading] = useState(false);
     const { productId } = useRating();
     const { user } = useAuth();
     const router = useRouter();
 
+    useEffect(() => {
+        return () => {
+            previewImageRef.current.forEach((item) => {
+                if (typeof item === "string" && item.startsWith("blob:")) {
+                    URL.revokeObjectURL(item);
+                }
+            });
+        };
+    }, []);
+
     const handleAddProductImage = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files ? Array.from(e.target.files) : [];
-        setPreviewImage((prev) => [...prev, ...files]);
+        const urls = files.map((f) => URL.createObjectURL(f));
+        urls.forEach((url, i) => blobUrlToFileRef.current.set(url, files[i]));
+        setPreviewImage((prev) => [...prev, ...urls]);
     };
 
 
@@ -63,7 +78,9 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
             return;
         }
         try {
-            const imageFiles = previewImage.filter((f): f is File => f instanceof File);
+            const imageFiles = previewImage.map((item) =>
+                item instanceof File ? item : blobUrlToFileRef.current.get(item)
+            ).filter((f): f is File => f != null);
             const submitData = {
                 user_id: user?.id,
                 product_id: productId,
@@ -74,19 +91,24 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
             await onSubmitRating(submitData);
             setRating(0);
             setComment("");
+            previewImage.forEach((item) => {
+                if (typeof item === "string" && item.startsWith("blob:")) {
+                    URL.revokeObjectURL(item);
+                }
+            });
+            blobUrlToFileRef.current.clear();
             setPreviewImage([]);
-            
-            // Validate and use redirect path (defaults to /orders)
-            const target = isValidInternalPath(redirectTo) ? redirectTo : '/orders';
             
             // Call onCancel before navigation to avoid unmounting race
             onCancel();
             
-            // Navigate after cleanup
-            try {
-                await router.push(target);
-            } catch (error) {
-                console.error("Navigation error:", error);
+            // Only redirect when a valid redirect path is explicitly provided (e.g. from orders page)
+            if (redirectTo && isValidInternalPath(redirectTo)) {
+                try {
+                    await router.push(redirectTo);
+                } catch (error) {
+                    console.error("Navigation error:", error);
+                }
             }
         } catch (error) {
             console.error("Error submitting form:", error);
@@ -167,6 +189,11 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
                                                     type="button"
                                                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full py-1 px-[7px] text-xs"
                                                     onClick={() => {
+                                                        const removed = previewImage[idx];
+                                                        if (typeof removed === "string" && removed.startsWith("blob:")) {
+                                                            URL.revokeObjectURL(removed);
+                                                            blobUrlToFileRef.current.delete(removed);
+                                                        }
                                                         setPreviewImage((prev) => prev.filter((_, i) => i !== idx));
                                                     }}
                                                 >

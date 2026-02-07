@@ -3,6 +3,11 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { UpstashService } from "@/lib/upstash";
 
+function invalidateRatingCaches(productId: string): void {
+  UpstashService.delete("ratings:all").catch(() => {});
+  UpstashService.delete(`ratings:product:${productId}`).catch(() => {});
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -96,9 +101,10 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
+    let responseData = data;
+
     // Invalidate ratings caches so next read picks up the new review
-    UpstashService.delete("ratings:all").catch(() => {});
-    UpstashService.delete(`ratings:product:${product_id}`).catch(() => {});
+    invalidateRatingCaches(product_id);
 
     // Upload images to Cloudinary in parallel after the review is saved
     if (validImages.length > 0) {
@@ -134,15 +140,10 @@ export async function POST(request: NextRequest) {
 
         if (updateError) {
           console.error("Failed to update review images:", updateError);
-          
-          // Re-invalidate cache even on update failure
-          UpstashService.delete("ratings:all").catch(() => {});
-          UpstashService.delete(`ratings:product:${product_id}`).catch(() => {});
-          
-          // Return with partial success info
+          invalidateRatingCaches(product_id);
           return NextResponse.json({ 
             success: true, 
-            rating: data,
+            rating: responseData,
             uploadStatus,
             warning: "Review created but failed to save image URLs to database"
           });
@@ -153,25 +154,21 @@ export async function POST(request: NextRequest) {
             .select("*")
             .eq("id", data.id)
             .single();
-          
           if (updatedData) {
-            data.images = updatedData.images;
+            responseData = { ...data, images: updatedData.images };
           }
+          invalidateRatingCaches(product_id);
         }
-
-        // Re-invalidate cache after images are added
-        UpstashService.delete("ratings:all").catch(() => {});
-        UpstashService.delete(`ratings:product:${product_id}`).catch(() => {});
       }
       
       return NextResponse.json({ 
         success: true, 
-        rating: data,
+        rating: responseData,
         uploadStatus
       });
     }
 
-    return NextResponse.json({ success: true, rating: data });
+    return NextResponse.json({ success: true, rating: responseData });
   } catch (error: any) {
     console.error("Error submitting rating:", error);
     return NextResponse.json({ error: "Failed to submit rating" }, { status: 500 });

@@ -26,8 +26,16 @@ import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
 import RatingForm from "@/components/rating/RatingForm";
-// RatingCreate type no longer needed - using FormData for submission
 import { useRating } from "@/components/rating-context";
+
+/** Form payload shape when submitting a rating from the orders page. */
+interface RatingFormData {
+  user_id: string;
+  product_id: string;
+  rating: number;
+  comment: string;
+  imageFiles?: File[];
+}
 import { sendNotification } from "@/lib/utils/notify";
 import { toast } from "sonner";
 import { sendActivity } from "@/lib/utils/activities";
@@ -242,14 +250,14 @@ export default function OrdersPage() {
     );
   }
 
-  const handleSubmitRating = async (data: any) => {
+  const handleSubmitRating = async (data: RatingFormData) => {
     try {
       const formData = new FormData();
       formData.append("user_id", data.user_id);
       formData.append("product_id", data.product_id);
       formData.append("rating", String(data.rating));
       if (data.comment) formData.append("comment", data.comment);
-      if (data.imageFiles?.length > 0) {
+      if (data.imageFiles?.length) {
         for (const file of data.imageFiles) {
           formData.append("images", file);
         }
@@ -261,12 +269,12 @@ export default function OrdersPage() {
       if (response.ok) {
         setShowForm(false);
         await fetchReviews();
-        await sendNotification("Rating Submitted", `${user?.email} has submitted a rating for #${data?.product_id}`, "success");
-        await sendActivity("rating_submission_success", `User ${user?.email} submitted a rating for #${data?.product_id}`, data?.product_id);
+        await sendNotification("Rating Submitted", `User ${user?.id ?? "unknown"} submitted a rating for #${data.product_id}`, "success");
+        await sendActivity("rating_submission_success", `User ${user?.id ?? "unknown"} submitted a rating for #${data.product_id}`, data.product_id);
         toast.success("Rating submitted successfully");
       } else {
         toast.error("Failed to submit rating");
-        await sendActivity("rating_submission_failed", `User ${user?.email} failed to submit a rating for #${data?.product_id}`, data?.product_id);
+        await sendActivity("rating_submission_failed", `User ${user?.id ?? "unknown"} failed to submit a rating for #${data.product_id}`, data.product_id);
       }
     } catch (error) {
       console.error("Error submitting rating:", error);

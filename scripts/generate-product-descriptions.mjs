@@ -120,16 +120,21 @@ async function fetchProducts(supabase) {
   }));
 }
 
-async function updateProductDescription(supabase, id, description) {
+const BATCH_SIZE = 100;
+
+async function updateProductDescriptionsBatch(supabase, rows) {
+  if (rows.length === 0) return;
+  const now = new Date().toISOString();
+  const payload = rows.map(({ id, description }) => ({
+    id,
+    description,
+    updated_at: now,
+  }));
   const { error } = await supabase
     .from("products")
-    .update({
-      description,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+    .upsert(payload, { onConflict: "id" });
 
-  if (error) throw new Error(`Update failed for ${id}: ${error.message}`);
+  if (error) throw new Error(`Batch update failed: ${error.message}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -233,12 +238,15 @@ async function main() {
     return;
   }
 
-  console.log("Updating product descriptions in Supabase...");
+  console.log("Updating product descriptions in Supabase (batched)...");
   let updated = 0;
-  for (const u of updates) {
-    await updateProductDescription(supabase, u.id, u.description);
-    updated++;
-    if (updated % 10 === 0) console.log(`  Updated ${updated}/${updates.length}...`);
+  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    const chunk = updates.slice(i, i + BATCH_SIZE);
+    await updateProductDescriptionsBatch(supabase, chunk);
+    updated += chunk.length;
+    if (updated % 10 === 0 || updated === updates.length) {
+      console.log(`  Updated ${updated}/${updates.length}...`);
+    }
   }
   console.log(`Done. Updated ${updated} products.\n`);
 

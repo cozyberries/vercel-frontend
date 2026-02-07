@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductUpdate } from "@/lib/types/product";
+import { aggregateSizesFromVariants } from "../route";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -104,26 +105,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }))
       .sort((a: any, b: any) => a.display_order - b.display_order);
 
-    // Build deduplicated sizes list with lowest price per size
-    const sizeMap = new Map<string, { name: string; price: number; stock_quantity: number; display_order: number }>();
-    for (const v of variants) {
-      if (!v.size) continue;
-      const existing = sizeMap.get(v.size);
-      if (!existing) {
-        sizeMap.set(v.size, {
-          name: v.size,
-          price: v.price,
-          stock_quantity: Number(v.stock_quantity ?? 0),
-          display_order: v.display_order,
-        });
-      } else {
-        // Sum stock across color variants of same size, keep min price
-        existing.stock_quantity += Number(v.stock_quantity ?? 0);
-        if (v.price < existing.price) existing.price = v.price;
-      }
-    }
-    const sizes = Array.from(sizeMap.values()).sort(
-      (a, b) => a.display_order - b.display_order
+    // Build deduplicated sizes list using shared helper (same logic as list route)
+    const sizes = aggregateSizesFromVariants(
+      data.product_variants || [],
+      data.price ?? 0
     );
 
     // Process product images and attach variants/sizes
