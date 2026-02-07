@@ -2,14 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+function getRazorpayClient(): Razorpay | null {
+    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) return null;
+    return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
 
 export async function POST(request: NextRequest) {
     try {
+        const razorpay = getRazorpayClient();
+        if (!razorpay) {
+            return NextResponse.json(
+                { error: "Razorpay is not configured" },
+                { status: 503 }
+            );
+        }
+
         const supabase = await createServerSupabaseClient();
 
         // Check authentication
