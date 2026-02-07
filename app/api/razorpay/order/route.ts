@@ -52,7 +52,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Order not found" }, { status: 404 });
         }
 
-        const amount = Math.round(order.total_amount * 100); // Amount in smallest currency unit (paise)
+        const totalAmount = order.total_amount;
+        if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+            return NextResponse.json(
+                { error: "Invalid total_amount: must be a finite positive number" },
+                { status: 400 }
+            );
+        }
+        const amount = Math.round(totalAmount * 100); // Amount in smallest currency unit (paise)
         const currency = order.currency || "INR";
 
         const options = {
