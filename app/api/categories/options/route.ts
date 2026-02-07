@@ -30,13 +30,20 @@ export async function GET() {
     // 2. Try Redis cache
     const cacheKey = "categories:options";
     let cached: CategoryOption[] | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
-      cached = (await Promise.race([
-        UpstashService.get(cacheKey),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Cache timeout")), 300)),
-      ])) as CategoryOption[] | null;
+      const cachePromise = UpstashService.get(cacheKey);
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 300);
+      });
+      cached = (await Promise.race([cachePromise, timeoutPromise])) as CategoryOption[] | null;
     } catch {
       // Cache miss or timeout — continue to DB
+    } finally {
+      // Clear the timeout to prevent memory leaks if cache promise resolved first
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
 
     if (cached && Array.isArray(cached)) {

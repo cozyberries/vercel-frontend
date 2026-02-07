@@ -19,25 +19,51 @@ function productsCacheKey(params: {
   return `products:lt_${params.limit}:pg_${params.page}:cat_${params.category}:feat_${params.featured}:sortb_${params.sortBy}:sorto_${params.sortOrder}`;
 }
 
+/** Parse product images from various formats to a normalized array */
+function parseProductImages(images: any): string[] {
+  try {
+    if (!images) {
+      return [];
+    }
+
+    let parsedImages: any = images;
+
+    // Handle string inputs (could be JSON or a single URL)
+    if (typeof images === "string") {
+      const trimmed = images.trim();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        parsedImages = JSON.parse(trimmed);
+      } else {
+        // Plain string URL
+        return trimmed ? [trimmed] : [];
+      }
+    }
+
+    // Handle array results
+    if (Array.isArray(parsedImages)) {
+      return parsedImages.filter((url: any) => typeof url === "string" && url);
+    }
+
+    // Handle object results from JSON.parse (e.g., {"url": "..."})
+    if (typeof parsedImages === "object" && parsedImages !== null) {
+      // Try to extract URL-like values from the object
+      const values = Object.values(parsedImages);
+      const urls = values.filter((val: any) => typeof val === "string" && val);
+      return urls as string[];
+    }
+
+    // Fallback for any other type
+    return [];
+  } catch {
+    // Return empty array on any parsing error
+    return [];
+  }
+}
+
 /** Process raw product rows into the shape the frontend expects */
 function processProducts(rows: any[]): Product[] {
   return rows.map((product: any) => {
-    let parsedImages: string[] = [];
-    try {
-      if (product.images) {
-        if (typeof product.images === "string") {
-          if (product.images.trim().startsWith("[") || product.images.trim().startsWith("{")) {
-            parsedImages = JSON.parse(product.images);
-          } else {
-            parsedImages = [product.images];
-          }
-        } else if (Array.isArray(product.images)) {
-          parsedImages = product.images;
-        }
-      }
-    } catch {
-      // skip bad image data
-    }
+    const parsedImages = parseProductImages(product.images);
     return { ...product, images: parsedImages.slice(0, 3) };
   });
 }
@@ -168,6 +194,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 3. Ratings (all) ─────────────────────────────────────────────
+    const RATINGS_CONCURRENCY = 20;
     try {
       const { data: ratings } = await supabase
         .from("ratings")
@@ -185,7 +212,6 @@ export async function POST(request: NextRequest) {
         byProduct.set(r.product_id, arr);
       }
       const ratingEntries = [...byProduct.entries()];
-      const RATINGS_CONCURRENCY = 20;
       for (let i = 0; i < ratingEntries.length; i += RATINGS_CONCURRENCY) {
         const chunk = ratingEntries.slice(i, i + RATINGS_CONCURRENCY);
         const keys = await Promise.all(
@@ -209,17 +235,21 @@ export async function POST(request: NextRequest) {
         .order("created_at", { ascending: false });
 
       const productList = allProds || [];
-      const productKeys = await Promise.all(
-        productList.map(async (product) => {
-          const processed = {
-            ...product,
-            images: (product.images || []).filter((url: string) => url),
-          };
-          await UpstashService.cacheProduct(product.id, processed, 1800);
-          return `product:${product.id}`;
-        })
-      );
-      warmed.push(...productKeys);
+      const PRODUCTS_CONCURRENCY = RATINGS_CONCURRENCY;
+      for (let i = 0; i < productList.length; i += PRODUCTS_CONCURRENCY) {
+        const chunk = productList.slice(i, i + PRODUCTS_CONCURRENCY);
+        const keys = await Promise.all(
+          chunk.map(async (product) => {
+            const processed = {
+              ...product,
+              images: parseProductImages(product.images),
+            };
+            await UpstashService.cacheProduct(product.id, processed, 1800);
+            return `product:${product.id}`;
+          })
+        );
+        warmed.push(...keys);
+      }
     } catch (e: any) {
       errors.push(`individual products: ${e.message}`);
     }

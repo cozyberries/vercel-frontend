@@ -32,16 +32,20 @@ export default function ProductsClient() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
+  // Error source tracking for reliable retry logic
+  const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
+
   const fetchCategories = useCallback(async () => {
     setCategoriesLoading(true);
     setCategoriesError(null);
+    setErrorSource(null);
     try {
       const data = await getCategoryOptions();
       setCategories(data);
     } catch (err) {
-      setCategoriesError(
-        err instanceof Error ? err.message : "Failed to load categories"
-      );
+      const errorMessage = err instanceof Error ? err.message : "Failed to load categories";
+      setCategoriesError(errorMessage);
+      setErrorSource('categories');
     } finally {
       setCategoriesLoading(false);
     }
@@ -78,6 +82,7 @@ export default function ProductsClient() {
       try {
         setIsLoading(true);
         setError(null);
+        setErrorSource(null);
         setCurrentPage(1);
         setAllProducts([]);
 
@@ -100,9 +105,9 @@ export default function ProductsClient() {
         setHasMoreProducts(response.pagination.hasNextPage);
       } catch (err) {
         console.error("Error loading products:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to load products"
-        );
+        const errorMessage = err instanceof Error ? err.message : "Failed to load products";
+        setError(errorMessage);
+        setErrorSource('products');
         setAllProducts([]);
         setTotalItems(0);
         setHasMoreProducts(false);
@@ -274,6 +279,7 @@ export default function ProductsClient() {
   }
 
   if (error || categoriesError) {
+    const displayedError = error || categoriesError;
     return (
       <div className="text-center p-12">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -295,19 +301,19 @@ export default function ProductsClient() {
           <h3 className="text-lg font-medium text-red-800 mb-2">
             Connection Error
           </h3>
-          <p className="text-red-700 mb-4">{error || categoriesError}</p>
+          <p className="text-red-700 mb-4">{displayedError}</p>
           <Button
             onClick={() => {
-              if (categoriesError) {
+              if (errorSource === 'categories') {
                 fetchCategories();
               } else {
                 window.location.reload();
               }
             }}
             variant="outline"
-            disabled={categoriesError ? categoriesLoading : false}
+            disabled={errorSource === 'categories' ? categoriesLoading : isLoading}
           >
-            {categoriesError && categoriesLoading ? (
+            {errorSource === 'categories' && categoriesLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Retrying...

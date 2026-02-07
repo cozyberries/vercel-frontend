@@ -181,7 +181,7 @@ function isRateLimitError(err) {
  */
 async function uploadToCloudinary(localFilePath, publicId, folder) {
   let lastErr;
-  for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < RATE_LIMIT_MAX_RETRIES; attempt++) {
     try {
       const result = await cloudinary.uploader.upload(localFilePath, {
         public_id: publicId,
@@ -194,7 +194,7 @@ async function uploadToCloudinary(localFilePath, publicId, folder) {
       return result.secure_url;
     } catch (err) {
       lastErr = err;
-      if (isRateLimitError(err) && attempt < RATE_LIMIT_MAX_RETRIES) {
+      if (isRateLimitError(err) && attempt < RATE_LIMIT_MAX_RETRIES - 1) {
         const delayMs = RATE_LIMIT_BASE_MS * Math.pow(2, attempt);
         console.error(
           `   ⚠ Rate limited (429) for ${localFilePath}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${RATE_LIMIT_MAX_RETRIES})`

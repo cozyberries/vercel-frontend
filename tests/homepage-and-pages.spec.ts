@@ -251,7 +251,7 @@ test.describe("Shop by Category – All categories return products", () => {
 
   test.beforeAll(async ({ request }) => {
     const res = await request.get("/api/categories/options");
-    if (!res.ok) {
+    if (!res.ok()) {
       throw new Error(
         `Categories API failed: ${res.status()} ${res.statusText()} – ensure the app is running and /api/categories/options returns 200`
       );
