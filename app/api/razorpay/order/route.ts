@@ -10,6 +10,7 @@ function getRazorpayClient(): Razorpay | null {
 }
 
 export async function POST(request: NextRequest) {
+    let orderId: string | undefined;
     try {
         const razorpay = getRazorpayClient();
         if (!razorpay) {
@@ -27,7 +28,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { orderId } = await request.json();
+        const body = await request.json();
+        orderId = body.orderId;
 
         if (!orderId) {
             return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
@@ -64,7 +66,8 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error("Razorpay Order Creation Error:", error);
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.error("Razorpay Order Creation Error:", { message, orderId });
         return NextResponse.json(
             { error: "Failed to create Razorpay order" },
             { status: 500 }
