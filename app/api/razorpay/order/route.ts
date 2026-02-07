@@ -2,14 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+function getRazorpayClient(): Razorpay | null {
+    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) return null;
+    return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
 
 export async function POST(request: NextRequest) {
+    let orderId: string | undefined;
     try {
+        const razorpay = getRazorpayClient();
+        if (!razorpay) {
+            return NextResponse.json(
+                { error: "Razorpay is not configured" },
+                { status: 503 }
+            );
+        }
+
         const supabase = await createServerSupabaseClient();
 
         // Check authentication
@@ -18,9 +28,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { orderId } = await request.json();
-
-        if (!orderId) {
+        let body: { orderId?: unknown };
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+        }
+        orderId = body.orderId as string | undefined;
+        const trimmedOrderId = (typeof orderId === "string" ? orderId.trim() : "");
+        if (trimmedOrderId.length === 0) {
             return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
         }
 
@@ -28,7 +44,7 @@ export async function POST(request: NextRequest) {
         const { data: order, error: orderError } = await supabase
             .from("orders")
             .select("id, total_amount, currency")
-            .eq("id", orderId)
+            .eq("id", trimmedOrderId)
             .eq("user_id", user.id)
             .single();
 
@@ -36,13 +52,20 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Order not found" }, { status: 404 });
         }
 
-        const amount = Math.round(order.total_amount * 100); // Amount in smallest currency unit (paise)
+        const totalAmount = order.total_amount;
+        if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+            return NextResponse.json(
+                { error: "Invalid total_amount: must be a finite positive number" },
+                { status: 400 }
+            );
+        }
+        const amount = Math.round(totalAmount * 100); // Amount in smallest currency unit (paise)
         const currency = order.currency || "INR";
 
         const options = {
             amount: amount,
             currency: currency,
-            receipt: orderId,
+            receipt: trimmedOrderId,
         };
 
         const razorpayOrder = await razorpay.orders.create(options);
@@ -55,7 +78,8 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error("Razorpay Order Creation Error:", error);
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.error("Razorpay Order Creation Error:", { message, orderId });
         return NextResponse.json(
             { error: "Failed to create Razorpay order" },
             { status: 500 }
