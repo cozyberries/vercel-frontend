@@ -1,18 +1,31 @@
 "use client";
 
-import { images } from "@/app/assets/images";
 import Image from "next/image";
 import Link from "next/link";
-import { getPrimaryCategoryImageUrl } from "@/lib/utils/product";
 import { usePreloadedData } from "@/components/data-preloader";
+
+// Static category images mapping
+// const categoryImageMap: Record<string, string> = {
+//   accessories: "/categories/accessories.jpg",
+//   boy: "/categories/boy.jpg",
+//   girl: "/categories/girl.jpg",
+//   newborn: "/categories/newborn.jpg",
+//   unisex: "/categories/unisex.webp",
+//   // Add more mappings as needed
+// };
 
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
 
+  // Filter categories to show only those with display=true
+  const displayCategories = categories.filter(
+    (category) => category.display === true
+  );
+
   if (isLoading) {
     return (
-      <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
-        {Array.from({ length: 5 }).map((_, index) => (
+      <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+        {Array.from({ length: 10 }).map((_, index) => (
           <div
             key={index}
             className="aspect-square bg-gray-200 animate-pulse rounded-lg"
@@ -22,7 +35,7 @@ export default function CategoryGrid() {
     );
   }
 
-  if (!categories.length) {
+  if (!displayCategories.length) {
     return (
       <div className="text-center py-12">
         <div className="max-w-sm mx-auto">
@@ -53,37 +66,26 @@ export default function CategoryGrid() {
   }
 
   return (
-    <div className="grid lg:grid-cols-5 grid-cols-3 gap-8">
-      {categories.map((category) => {
-        // Use dynamic category image if available, otherwise fallback to placeholder
-        let categoryImage = images.staticCategoryImage;
-        try {
-          const dynamicImage = getPrimaryCategoryImageUrl(category.images);
-          if (dynamicImage) {
-            categoryImage = dynamicImage;
-          }
-        } catch (error) {
-          console.warn('Error getting category image for', category.name, error);
-          // categoryImage already set to fallback
-        }
-
+    <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+      {displayCategories.map((category) => {
         return (
           <Link
             key={category.id}
             href={`/products?category=${category.slug}`}
-            className="group relative overflow-hidden lg:rounded-lg rounded-full"
+            className="group flex flex-col"
           >
-            <div className="aspect-square overflow-hidden">
+            <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
               <Image
-                src={categoryImage}
+                src={category.image || ""}
                 alt={category.name}
                 width={200}
                 height={200}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
+              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500" />
             </div>
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
-              <h3 className="text-white text-xl font-medium">
+            <div className="text-center">
+              <h3 className="text-gray-900 text-sm md:text-base lg:text-lg font-medium group-hover:text-primary transition-colors">
                 {category.name}
               </h3>
             </div>

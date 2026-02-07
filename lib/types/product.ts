@@ -20,7 +20,7 @@ export interface RelatedProduct {
   name: string;
   price: number;
   category: string;
-  image: string;
+  images: string[];
 }
 
 export interface SimplifiedProduct {
@@ -30,7 +30,7 @@ export interface SimplifiedProduct {
   price: number;
   description?: string;
   category?: string;
-  image?: string;
+  images?: string[];
   is_featured?: boolean;
 }
 
@@ -39,6 +39,7 @@ export interface ProductBase {
   description?: string;
   price: number;
   category?: string;
+  images?: string[];
 }
 
 export interface ProductCreate extends ProductBase {}
@@ -47,8 +48,12 @@ export interface ProductUpdate {
   name?: string;
   description?: string;
   price?: number;
-  category?: string;
+  category_id?: string; 
+  stock_quantity?: number;
+  is_featured?: boolean;
+  images?: string[];
 }
+
 
 export interface Product extends ProductBase {
   id: string;
@@ -59,7 +64,7 @@ export interface Product extends ProductBase {
   is_featured?: boolean;
   category_id?: string;
   categories?: { name: string };
-  images?: ProductImage[];
+  images?: string[];
 }
 
 export interface CategoryImage {
@@ -76,5 +81,5 @@ export interface Category {
   name: string;
   slug: string;
   description?: string;
-  images?: CategoryImage[];
+  image?: string;
 }

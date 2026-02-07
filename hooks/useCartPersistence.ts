@@ -6,21 +6,43 @@ import type { CartItem } from "@/components/cart-context";
 interface UseCartPersistenceProps {
   cart: CartItem[];
   setCart: (items: CartItem[]) => void;
+  isTemporaryCart?: boolean;
 }
 
-export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
+export function useCartPersistence({
+  cart,
+  setCart,
+  isTemporaryCart = false,
+}: UseCartPersistenceProps) {
   const { user, loading: authLoading } = useAuth();
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
   const isInitializingRef = useRef(false);
+  const isSyncingRef = useRef(false);
+  const lastSyncedCartRef = useRef<string>("");
+  const userIdRef = useRef<string | undefined>(user?.id);
+  const setCartRef = useRef(setCart);
+
+  // Update refs when props change
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
+
+  useEffect(() => {
+    setCartRef.current = setCart;
+  }, [setCart]);
 
   /**
    * Debounced sync to Supabase to avoid excessive API calls
    */
   const debouncedSyncToSupabase = useCallback(
-    (items: CartItem[]) => {
-      if (!user?.id) return;
+    (items: CartItem[], userId: string) => {
+      // Skip if already syncing the same cart
+      const cartHash = JSON.stringify(items);
+      if (isSyncingRef.current && lastSyncedCartRef.current === cartHash) {
+        return;
+      }
 
       // Clear previous timeout
       if (syncTimeoutRef.current) {
@@ -29,43 +51,54 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
 
       // Set new timeout for background sync
       syncTimeoutRef.current = setTimeout(async () => {
+        if (isSyncingRef.current) return;
+        
         try {
-          await cartService.saveUserCart(user.id, items);
-          console.log("Cart synced to Supabase in background");
+          isSyncingRef.current = true;
+          lastSyncedCartRef.current = cartHash;
+          await cartService.saveUserCart(userId, items);
         } catch (error) {
-          console.error("Failed to sync cart to Supabase:", error);
-          // Optionally, you could implement retry logic here
+          console.error("Error syncing cart:", error);
+        } finally {
+          isSyncingRef.current = false;
         }
       }, 1000); // 1 second debounce
     },
-    [user?.id]
+    []
   );
 
   /**
    * Load initial cart data with faster local-first approach
    */
   const loadInitialCart = useCallback(async () => {
-    if (authLoading || hasInitializedRef.current) return;
+    if (authLoading || hasInitializedRef.current || isTemporaryCart) {
+      return;
+    }
 
     isInitializingRef.current = true;
     try {
       // Always load local cart immediately for instant UI
       const localCart = cartService.getLocalCart();
-      setCart(localCart);
+      const currentSetCart = setCartRef.current;
+      currentSetCart(localCart);
       hasInitializedRef.current = true;
 
-      if (user?.id) {
+      const userId = userIdRef.current;
+      if (userId) {
         // User is authenticated - merge with remote cart in background
         try {
-          const remoteCart = await cartService.getUserCart(user.id);
+          const remoteCart = await cartService.getUserCart(userId);
           const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
-          
+
           // Only update if there's a difference
-          if (JSON.stringify(localCart) !== JSON.stringify(mergedCart)) {
-            setCart(mergedCart);
+          const localHash = JSON.stringify(localCart);
+          const mergedHash = JSON.stringify(mergedCart);
+          
+          if (localHash !== mergedHash) {
+            currentSetCart(mergedCart);
             cartService.saveLocalCart(mergedCart);
             if (mergedCart.length > 0) {
-              await cartService.saveUserCart(user.id, mergedCart);
+              await cartService.saveUserCart(userId, mergedCart);
             }
           }
         } catch (error) {
@@ -76,20 +109,20 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
     } catch (error) {
       console.error("Error loading initial cart:", error);
       // Fallback to empty cart
-      setCart([]);
+      setCartRef.current([]);
       hasInitializedRef.current = true;
     } finally {
       isInitializingRef.current = false;
     }
-  }, [user?.id, authLoading, setCart]);
+  }, [authLoading, isTemporaryCart]);
 
   /**
    * Handle user authentication changes
    */
   const handleAuthChange = useCallback(async () => {
-    if (authLoading) return;
+    if (authLoading || isTemporaryCart) return;
 
-    const currentUserId = user?.id || null;
+    const currentUserId = userIdRef.current || null;
     const previousUserId = previousUserIdRef.current;
 
     // Skip if user hasn't changed
@@ -101,8 +134,9 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
         const localCart = cartService.getLocalCart();
         const remoteCart = await cartService.getUserCart(currentUserId);
         const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
-        
-        setCart(mergedCart);
+
+        setCartRef.current(mergedCart);
+        cartService.saveLocalCart(mergedCart);
         // Note: persistence effect will handle saving merged cart
       } catch (error) {
         console.error("Error merging carts on sign in:", error);
@@ -110,26 +144,32 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
     } else if (!currentUserId && previousUserId) {
       // User just signed out - keep local cart only
       const localCart = cartService.getLocalCart();
-      setCart(localCart);
+      setCartRef.current(localCart);
     }
 
     previousUserIdRef.current = currentUserId;
-  }, [user?.id, authLoading, setCart]);
+  }, [authLoading, isTemporaryCart]);
 
   /**
    * Persist cart changes
    */
   const persistCart = useCallback(
     (items: CartItem[]) => {
+      // Don't persist if this is a temporary cart
+      if (isTemporaryCart) {
+        return;
+      }
+
       // Always save to localStorage immediately
       cartService.saveLocalCart(items);
 
       // If user is authenticated, sync to Supabase in background
-      if (user?.id) {
-        debouncedSyncToSupabase(items);
+      const userId = userIdRef.current;
+      if (userId) {
+        debouncedSyncToSupabase(items, userId);
       }
     },
-    [user?.id, debouncedSyncToSupabase]
+    [debouncedSyncToSupabase, isTemporaryCart]
   );
 
   /**
@@ -137,34 +177,40 @@ export function useCartPersistence({ cart, setCart }: UseCartPersistenceProps) {
    */
   const clearAllCart = useCallback(async () => {
     cartService.clearLocalCart();
-    
-    if (user?.id) {
+
+    const userId = userIdRef.current;
+    if (userId) {
       try {
-        await cartService.clearUserCart(user.id);
+        await cartService.clearUserCart(userId);
       } catch (error) {
         console.error("Failed to clear remote cart:", error);
       }
     }
-  }, [user?.id]);
+  }, []);
 
-  // Load initial cart on mount only
+  // Load initial cart on mount only (skip if temporary cart)
   useEffect(() => {
-    if (!authLoading && !hasInitializedRef.current) {
+    if (!authLoading && !hasInitializedRef.current && !isTemporaryCart) {
       loadInitialCart();
     }
-  }, [authLoading, loadInitialCart]);
+  }, [authLoading, loadInitialCart, isTemporaryCart]);
 
-  // Handle auth changes separately (only when user ID actually changes)
+  // Handle auth changes separately (only when user ID actually changes, skip if temporary cart)
   useEffect(() => {
-    if (!authLoading && hasInitializedRef.current) {
+    if (!authLoading && hasInitializedRef.current && !isTemporaryCart) {
       handleAuthChange();
     }
-  }, [user?.id, handleAuthChange]);
+  }, [user?.id, authLoading, isTemporaryCart, handleAuthChange]);
 
   // Persist cart changes (but skip during initialization to avoid duplicate saves)
   useEffect(() => {
     // Only persist if initialized, not currently loading, and not initializing
-    if (hasInitializedRef.current && cart.length >= 0 && !authLoading && !isInitializingRef.current) {
+    if (
+      hasInitializedRef.current &&
+      cart.length >= 0 &&
+      !authLoading &&
+      !isInitializingRef.current
+    ) {
       persistCart(cart);
     }
   }, [cart, persistCart, authLoading]);

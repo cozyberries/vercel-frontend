@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { PaymentStatus } from "@/lib/types/order";
+import CacheService from "@/lib/services/cache";
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function GET(
@@ -25,7 +26,8 @@ export async function GET(
       );
     }
 
-    const { id } = params;
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
 
     if (!id) {
       return NextResponse.json(
@@ -77,7 +79,8 @@ export async function PATCH(
       );
     }
 
-    const { id } = params;
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
     const body = await request.json();
 
     if (!id) {
@@ -171,6 +174,16 @@ export async function PATCH(
         { error: "Failed to update payment" },
         { status: 400 }
       );
+    }
+
+    // Clear orders cache since payment status changes may trigger order status updates via database triggers
+    try {
+      await CacheService.clearAllOrders(user.id);
+      await CacheService.clearOrderDetails(user.id, payment.order_id);
+      console.log(`Orders cache cleared for user: ${user.id} after payment update`);
+    } catch (cacheError) {
+      console.error("Error clearing orders cache after payment update:", cacheError);
+      // Don't fail the payment update if cache clearing fails
     }
 
     return NextResponse.json({ payment });

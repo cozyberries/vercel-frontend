@@ -4,18 +4,16 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Fetch from database
     const { data, error } = await supabase
       .from("user_wishlists")
       .select("*")
@@ -46,16 +44,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -107,16 +102,13 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   try {
     const supabase = await createServerSupabaseClient();
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { error } = await supabase

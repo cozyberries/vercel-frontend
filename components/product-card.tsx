@@ -2,40 +2,73 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, Plus, Trash2 } from "lucide-react";
+import { Heart, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SimplifiedProduct } from "@/lib/services/api";
-import { useCart } from "./cart-context";
+import { Product } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 
 interface ProductCardProps {
-  product: SimplifiedProduct;
+  product: Product;
+  index: number; // To determine which corner rounding to apply
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const { addToCart, removeFromCart, cart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const isInCart = cart.some((item) => item.id === product.id);
   const inWishlist = isInWishlist(product.id);
+
+  // Use consistent rounded corners for all cards
+  const getCornerRounding = () => {
+    return "rounded-2xl";
+  };
+
+  const handleCardClick = () => {
+    window.location.href = `/products/${product.id}`;
+  };
+
   return (
-    <div key={product.id} className="group flex flex-col h-full">
+    <div
+      key={product.id}
+      className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
+      onClick={handleCardClick}
+    >
       {/* Image Section */}
-      <div className="relative mb-4 overflow-hidden bg-[#f5f5f5] flex-shrink-0">
+      <div className={`relative overflow-hidden lg:h-[75%] h-[68%] `}>
         <Link href={`/products/${product.id}`}>
+          {/* First Image */}
           <Image
-            src={product.image || images.staticProductImage}
+            src={
+              product.images?.[0] &&
+              typeof product.images[0] === "string" &&
+              product.images[0].trim() !== ""
+                ? product.images[0]
+                : images.staticProductImage
+            }
             alt={product.name}
             width={400}
             height={400}
-            className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
           />
+          {/* Second Image (shown on hover if available) */}
+          {product.images?.[1] &&
+            typeof product.images[1] === "string" &&
+            product.images[1].trim() !== "" && (
+              <Image
+                src={product.images[1]}
+                alt={product.name}
+                width={400}
+                height={400}
+                className="absolute inset-0 w-full h-full object-cover transition-all duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-110"
+              />
+            )}
         </Link>
+
+        {/* Heart Icon Button for Wishlist */}
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+          className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-white/90 hover:bg-white rounded-full h-7 w-7 sm:h-8 sm:w-8 shadow-md hover:shadow-lg transition-all duration-200 opacity-0 group-hover:opacity-100 z-10"
           onClick={(e) => {
             e.preventDefault();
             if (inWishlist) {
@@ -46,92 +79,57 @@ export default function ProductCard({ product }: ProductCardProps) {
                 id: product.id,
                 name: product.name,
                 price: product.price,
-                image: product.image,
+                image: product.images?.[0],
               });
               toast.success(`${product.name} added to wishlist!`);
             }
           }}
         >
           <Heart
-            className={`h-4 w-4 ${
-              inWishlist ? "fill-red-500 text-red-500" : ""
+            className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors duration-200 ${
+              inWishlist
+                ? "fill-red-500 text-red-500"
+                : "text-gray-600 hover:text-red-500"
             }`}
           />
           <span className="sr-only">
             {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
           </span>
         </Button>
-        {isInCart && (
-          <div className="absolute top-4 left-4 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow z-10">
-            Added
-          </div>
-        )}
+
+        {/* Quick view overlay
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <Button
+            asChild
+            size="sm"
+            className=" text-gray-900 bg-none hover:bg-none p-10 shadow-lg"
+          >
+            <Link href={`/products/${product.id}`}>
+              <Eye className="w-10 h-10" />
+            </Link>
+          </Button>
+        </div> */}
       </div>
 
       {/* Content Section */}
-      <div className="flex flex-col flex-grow">
-        {/* Product Info and Price Row */}
-        <div className="flex justify-between items-start mb-3">
-          {/* Product Info Block */}
-          <div className="flex-1 pr-2">
-            <h3 className="text-sm font-medium mb-1">
-              <Link
-                href={`/products/${product.id}`}
-                className="hover:text-primary"
-              >
-                {product.name}
-              </Link>
-            </h3>
-            {product.categoryName &&
-              product.categoryName !== "Uncategorized" && (
-                <p className="text-sm text-muted-foreground">
-                  {product.categoryName}
-                </p>
-              )}
-          </div>
-
-          {/* Price Block */}
-          <div className="flex-shrink-0">
-            <p className="font-medium text-right">
-              ₹{product.price.toFixed(2)}
-            </p>
-          </div>
+      <div className="flex flex-col lg:h-[25%] h-[32%] border px-1 py-2 lg:px-3 lg:py-3 justify-between bg-white">
+        {/* Product Info */}
+        <div className="space-y-1">
+          <h3 className="text-[13px] lg:text-[.9rem] font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors duration-200">
+            <Link href={`/products/${product.id}`}>{product.name}</Link>
+          </h3>
         </div>
 
-        {/* Add to Cart Button */}
-        <div className="mt-auto">
-          {!isInCart ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                addToCart({
-                  id: product.id,
-                  name: product.name,
-                  price: product.price,
-                  image: product.image,
-                  quantity: 1,
-                });
-                toast.success(`${product.name} added to cart!`);
-              }}
-            >
-              Add to Cart
-            </Button>
-          ) : (
-            <Button
-              variant="default"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                removeFromCart(product.id);
-                toast.success(`${product.name} removed from cart!`);
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove from Cart
-            </Button>
+        {/* Category and Price */}
+        <div className="flex items-center justify-between">
+          {product.categories?.name && (
+            <p className="text-xs text-gray-500 font-medium">
+              {product.categories.name}
+            </p>
           )}
+          <p className="text-[13px] sm:text-sm lg:text-[.9rem] font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
+            ₹{product.price.toFixed(2)}
+          </p>
         </div>
       </div>
     </div>

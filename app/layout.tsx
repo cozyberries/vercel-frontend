@@ -2,11 +2,15 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import ConditionalLayout from "@/components/ConditionalLayout";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
+import { Toaster } from "sonner";
+import { RatingProvider } from "@/components/rating-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -48,16 +52,20 @@ export default function RootLayout({
           <DataPreloader>
             <WishlistProvider>
               <CartProvider>
+                <RatingProvider>
                 <ThemeProvider
                   attribute="class"
                   defaultTheme="light"
                   enableSystem={false}
                   disableTransitionOnChange
                 >
-                  <div className="min-h-screen">
+                  <ConditionalLayout>
                     {children}
-                  </div>
+                  </ConditionalLayout>
+                  <ScrollToTopButton />
+                  <Toaster />
                 </ThemeProvider>
+                </RatingProvider>
               </CartProvider>
             </WishlistProvider>
           </DataPreloader>

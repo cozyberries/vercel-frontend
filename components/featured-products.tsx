@@ -3,19 +3,106 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import ProductCard from "./product-card";
-import { usePreloadedData } from "@/components/data-preloader";
+import { getFeaturedProducts, Product } from "@/lib/services/api";
+import { useEffect, useState, useRef } from "react";
 
 export default function FeaturedProducts() {
-  const { products: allProducts, isLoading } = usePreloadedData();
-  
-  // Filter featured products from preloaded data
-  const products = allProducts.filter(product => product.is_featured).slice(0, 4);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const loadFeaturedProducts = async () => {
+      try {
+        setIsLoading(true);
+        const featuredProducts = await getFeaturedProducts(6);
+        setProducts(featuredProducts);
+        setError(null);
+      } catch (err) {
+        console.error("Error loading featured products:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load featured products"
+        );
+        setProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFeaturedProducts();
+  }, []);
+
+  // Track screen size for responsive behavior
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+
+    checkScreenSize();
+    window.addEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener("resize", checkScreenSize);
+  }, []);
+
+  // Auto-scroll animation with jerk effect
+  useEffect(() => {
+    if (products.length <= 1) return;
+
+    // On mobile, show one product at a time, on desktop show 3
+    const maxIndex = isMobile
+      ? products.length - 1
+      : Math.max(0, products.length - 3); // For desktop: total products - visible products
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % (maxIndex + 1);
+        return nextIndex;
+      });
+    }, 3000); // Change every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [products.length, isMobile]);
 
   if (isLoading) {
     return (
       <div className="text-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p>Loading featured products...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center p-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+          <div className="text-red-600 mb-4">
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-red-800 mb-2">
+            Error Loading Featured Products
+          </h3>
+          <p className="text-red-700 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Try Again
+          </Button>
+        </div>
       </div>
     );
   }
@@ -54,15 +141,34 @@ export default function FeaturedProducts() {
   }
 
   return (
-    <div className="grid lg:grid-cols-4 grid-cols-2 gap-8">
-      {products.slice(0, 4).map((product) => (
-        <ProductCard product={product} key={product.id} />
-      ))}
-      <div className="col-span-full flex justify-center items-center">
-        <Button>
-          <Link href="/products">View More</Link>
-        </Button>
+    <section className="py-2 px-2">
+      <div className="max-w-7xl mx-auto">
+        {/* Products Auto-Scroll Section - Full width */}
+        <div className="w-full">
+          <div className="relative overflow-hidden rounded-2xl ">
+            <div className="relative">
+              <div
+                ref={scrollContainerRef}
+                className="flex transition-transform duration-700 ease-out"
+                style={{
+                  transform: `translateX(-${
+                    currentIndex * (isMobile ? 100 : 33.33)
+                  }%)`,
+                }}
+              >
+                {products.map((product, index) => (
+                  <div
+                    key={product.id}
+                    className="w-full lg:w-1/3 flex-shrink-0 px-2 lg:px-3"
+                  >
+                    <ProductCard product={product} index={index} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { UpstashService } from "@/lib/upstash";
 
 export async function GET() {
   try {
-    console.log("Categories API: Starting request");
-    console.log("Environment check:", {
-      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      nodeEnv: process.env.NODE_ENV,
-      vercelUrl: process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'not set'
-    });
+
+    // Create cache key for categories
+    const cacheKey = 'categories:list';
+    
+    // Try to get from cache first
+    const cachedCategories = await UpstashService.get(cacheKey);
+    if (cachedCategories) {
+      return NextResponse.json(cachedCategories, {
+        headers: {
+          'X-Cache-Status': 'HIT',
+          'X-Cache-Key': cacheKey,
+          'X-Data-Source': 'REDIS_CACHE'
+        }
+      });
+    }
 
     const supabase = await createServerSupabaseClient();
-    console.log("Categories API: Supabase client created successfully");
 
     const { data, error } = await supabase
       .from("categories")
@@ -26,11 +34,10 @@ export async function GET() {
           metadata
         )
       `)
+      .eq("display", true)
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("Error retrieving categories:", error);
-      console.error("Error details:", { message: error.message, details: error.details, hint: error.hint });
       return NextResponse.json(
         { error: "Failed to retrieve categories", details: error.message },
         { status: 500 }
@@ -50,11 +57,8 @@ export async function GET() {
           url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
         }))
         .sort((a: any, b: any) => {
-          // Sort by display_order, then by is_primary
-          if (a.display_order !== b.display_order) {
-            return (a.display_order || 0) - (b.display_order || 0);
-          }
-          return b.is_primary ? 1 : -1;
+          // Sort by display_order only - first index is primary
+          return (a.display_order || 0) - (b.display_order || 0);
         });
 
       return {
@@ -63,10 +67,22 @@ export async function GET() {
       };
     });
 
-    console.log("Categories API: Successfully retrieved", data?.length || 0, "categories");
-    return NextResponse.json(categories);
+    
+    // Cache the results for 1 hour (categories don't change often)
+    UpstashService.set(cacheKey, categories, 3600).catch((error) => {
+      console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
+    });
+    console.log(`Cache refresh initiated for key: ${cacheKey}`);
+    
+    return NextResponse.json(categories, {
+      headers: {
+        'X-Cache-Status': 'MISS',
+        'X-Cache-Key': cacheKey,
+        'X-Data-Source': 'SUPABASE_DATABASE',
+        'X-Cache-Set': 'ASYNC'
+      }
+    });
   } catch (error) {
-    console.error("Error in GET /api/categories:", error);
     
     // Check if it's a Supabase client creation error
     if (error instanceof Error && error.message.includes('Missing Supabase environment variables')) {

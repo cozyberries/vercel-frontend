@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { sendActivity } from "@/lib/utils/activities";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -33,11 +34,12 @@ export default function RegisterPage() {
     }
 
     const { error } = await signUp(email, password);
-
     if (error) {
       setError(error.message);
+      await sendActivity("user_registration_failed", `User ${email} registration failed`, email);
     } else {
       setMessage("Check your email for a confirmation link!");
+      await sendActivity("user_registered_success", `User ${email} registered successfully`, email);
     }
 
     setIsLoading(false);
@@ -54,7 +56,6 @@ export default function RegisterPage() {
       setError(error.message);
       setIsGoogleLoading(false);
     }
-    // Note: Don't set loading to false here as the user will be redirected
   };
 
   return (

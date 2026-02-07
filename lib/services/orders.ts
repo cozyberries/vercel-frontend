@@ -1,19 +1,45 @@
 import { createClient } from "@/lib/supabase";
-import type { Order, Payment, CreateOrderRequest, CreateOrderResponse } from "@/lib/types/order";
+import type {
+  Order,
+  Payment,
+  CreateOrderRequest,
+  CreateOrderResponse,
+} from "@/lib/types/order";
 
 class OrderService {
-  private supabase = createClient();
+  private supabase: ReturnType<typeof createClient>;
+
+  constructor() {
+    this.supabase = createClient();
+  }
+
+  private async getHeaders(): Promise<HeadersInit> {
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    // Get the current session and add the access token to headers
+    const {
+      data: { session },
+    } = await this.supabase.auth.getSession();
+    if (session?.access_token) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
+    }
+
+    return headers;
+  }
 
   /**
    * Create a new order
    */
-  async createOrder(orderData: CreateOrderRequest): Promise<CreateOrderResponse> {
+  async createOrder(
+    orderData: CreateOrderRequest
+  ): Promise<CreateOrderResponse> {
     try {
+      const headers = await this.getHeaders();
       const response = await fetch("/api/orders", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(orderData),
       });
 
@@ -36,17 +62,26 @@ class OrderService {
     options: {
       limit?: number;
       offset?: number;
-      status?: string;
     } = {}
   ): Promise<Order[]> {
     try {
       const params = new URLSearchParams();
-      
+
       if (options.limit) params.append("limit", options.limit.toString());
       if (options.offset) params.append("offset", options.offset.toString());
-      if (options.status) params.append("status", options.status);
 
-      const response = await fetch(`/api/orders?${params.toString()}`);
+      const headers = await this.getHeaders();
+
+      // Create an AbortController for request timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+      const response = await fetch(`/api/orders?${params.toString()}`, {
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -54,9 +89,16 @@ class OrderService {
       }
 
       const data = await response.json();
-      return data.orders;
+      return data.orders || [];
     } catch (error) {
       console.error("Error fetching orders:", error);
+
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          "Request timeout - please check your connection and try again"
+        );
+      }
+
       throw error;
     }
   }
@@ -64,9 +106,14 @@ class OrderService {
   /**
    * Get a specific order by ID
    */
-  async getOrder(orderId: string): Promise<{ order: Order; payments: Payment[] }> {
+  async getOrder(
+    orderId: string
+  ): Promise<{ order: Order; payments: Payment[] }> {
     try {
-      const response = await fetch(`/api/orders/${orderId}`);
+      const headers = await this.getHeaders();
+      const response = await fetch(`/api/orders/${orderId}`, {
+        headers,
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -83,13 +130,15 @@ class OrderService {
   /**
    * Update order notes
    */
-  async updateOrder(orderId: string, updates: { notes?: string }): Promise<Order> {
+  async updateOrder(
+    orderId: string,
+    updates: { notes?: string }
+  ): Promise<Order> {
     try {
+      const headers = await this.getHeaders();
       const response = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(updates),
       });
 
@@ -119,11 +168,10 @@ class OrderService {
     gateway_response?: Record<string, any>;
   }): Promise<Payment> {
     try {
+      const headers = await this.getHeaders();
       const response = await fetch("/api/payments", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(paymentData),
       });
 
@@ -159,11 +207,10 @@ class OrderService {
     }
   ): Promise<Payment> {
     try {
+      const headers = await this.getHeaders();
       const response = await fetch(`/api/payments/${paymentId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(updates),
       });
 
@@ -185,7 +232,10 @@ class OrderService {
    */
   async getOrderPayments(orderId: string): Promise<Payment[]> {
     try {
-      const response = await fetch(`/api/payments?order_id=${orderId}`);
+      const headers = await this.getHeaders();
+      const response = await fetch(`/api/payments?order_id=${orderId}`, {
+        headers,
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

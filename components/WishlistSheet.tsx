@@ -11,34 +11,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useWishlist } from "@/components/wishlist-context";
-import { useCart } from "@/components/cart-context";
 import WishlistItem from "@/components/WishlistItem";
 
 export default function WishlistSheet() {
-  const { wishlist, removeFromWishlist, clearWishlist, isLoading } = useWishlist();
-  const { cart, updateQuantity } = useCart();
+  const { wishlist, removeFromWishlist, clearWishlist, isLoading } =
+    useWishlist();
   const [open, setOpen] = useState(false);
-
-  const handleAddToCart = (item: {
-    id: string;
-    name: string;
-    price: number;
-    image?: string;
-  }) => {
-    const existing = cart.find((c) => c.id === item.id);
-    if (existing) {
-      updateQuantity(item.id, existing.quantity + 1);
-    } else {
-      if (
-        typeof window !== "undefined" &&
-        typeof window.dispatchEvent === "function"
-      ) {
-        window.dispatchEvent(
-          new CustomEvent("cart:add", { detail: { ...item, quantity: 1 } })
-        );
-      }
-    }
-  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -91,7 +69,6 @@ export default function WishlistSheet() {
                     key={item.id}
                     item={item}
                     onRemove={removeFromWishlist}
-                    onAddToCart={handleAddToCart}
                   />
                 ))}
               </div>

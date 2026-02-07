@@ -73,57 +73,65 @@ export function useProfile(user: any) {
     postal_code: "",
   });
 
-  // Fetch profile data
+  // Fetch profile data and addresses using combined endpoint for better performance
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user) return;
+    const fetchData = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
-        const response = await fetch("/api/profile");
+        // Use combined endpoint to fetch both profile and addresses in a single request
+        const response = await fetch("/api/profile/combined");
+
         if (response.ok) {
           const data = await response.json();
-          setProfile(data);
-          setEditData({
-            full_name: data.full_name || "",
-            phone: data.phone || "",
-          });
+          
+          // Set profile data
+          if (data.profile) {
+            setProfile(data.profile);
+            setEditData({
+              full_name: data.profile.full_name || "",
+              phone: data.profile.phone || "",
+            });
+          }
+
+          // Set addresses data
+          setAddresses(data.addresses || []);
         } else {
-          const errorData = await response.json();
-          if (errorData.migration_needed) {
-            console.log("Migration needed for profiles table");
+          // Fallback to separate endpoints if combined endpoint fails
+          console.warn("Combined endpoint failed, falling back to separate endpoints");
+          const [profileResponse, addressesResponse] = await Promise.all([
+            fetch("/api/profile"),
+            fetch("/api/profile/addresses"),
+          ]);
+
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            setProfile(profileData);
+            setEditData({
+              full_name: profileData.full_name || "",
+              phone: profileData.phone || "",
+            });
+          }
+
+          if (addressesResponse.ok) {
+            const addressesData = await addressesResponse.json();
+            setAddresses(addressesData);
+          } else {
+            setAddresses([]);
           }
         }
       } catch (error) {
-        console.error("Error fetching profile:", error);
+        console.error("Error fetching profile data:", error);
+        setAddresses([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProfile();
-  }, [user]);
-
-  // Fetch addresses
-  useEffect(() => {
-    const fetchAddresses = async () => {
-      if (!user) return;
-
-      try {
-        const response = await fetch("/api/profile/addresses");
-        if (response.ok) {
-          const data = await response.json();
-          setAddresses(data);
-        } else {
-          // Handle case where addresses table doesn't exist
-          setAddresses([]);
-        }
-      } catch (error) {
-        console.error("Error fetching addresses:", error);
-        setAddresses([]);
-      }
-    };
-
-    fetchAddresses();
+    fetchData();
   }, [user]);
 
   const validateField = (field: string, value: string) => {

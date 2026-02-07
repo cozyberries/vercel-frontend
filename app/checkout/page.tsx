@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -21,10 +21,20 @@ import { useCart } from "@/components/cart-context";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
 import AddressFormModal from "@/components/profile/AddressFormModal";
+import { toast } from "sonner";
+import Script from "next/script";
+import { sendNotification } from "@/lib/utils/notify";
+import { sendActivity } from "@/lib/utils/activities";
 
 interface CheckoutFormData {
   email: string;
   notes?: string;
+}
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
 }
 
 export default function CheckoutPage() {
@@ -32,7 +42,7 @@ export default function CheckoutPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderComplete, setOrderComplete] = useState(false);
+  const [orderCompleted, setOrderCompleted] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     null
   );
@@ -113,6 +123,12 @@ export default function CheckoutPage() {
     setShowAddressModal(false);
   };
 
+  // Handle input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   // Show loading state while checking authentication
   if (loading) {
     return (
@@ -125,8 +141,167 @@ export default function CheckoutPage() {
     );
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (!selectedAddressId) {
+      alert("Please select a shipping address");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      let generatedOrderId = `ORD-${Date.now()}`;
+
+      // 1. Create order on backend
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: generatedOrderId,
+          items: cart.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+          })),
+          shipping_address_id: selectedAddressId,
+          notes: formData.notes || "",
+        }),
+      });
+
+      if (!orderRes.ok) {
+        toast.error("Failed to save order");
+        await sendNotification("Order Failed", `${user?.email} failed`, "error");
+        await sendActivity("order_submission_failed", `Failed order #${generatedOrderId}`, generatedOrderId);
+        setIsProcessing(false);
+        return;
+      }
+
+      const orderData = await orderRes.json();
+      const createdOrder = orderData.order;
+
+      // 2. Create Razorpay Order
+      const razorpayOrderRes = await fetch("/api/razorpay/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: createdOrder.id,
+        }),
+      });
+
+      if (!razorpayOrderRes.ok) {
+        throw new Error("Failed to create Razorpay order");
+      }
+
+      const razorpayData = await razorpayOrderRes.json();
+
+      // 3. Open Razorpay Checkout
+      const options = {
+        key: razorpayData.key,
+        amount: razorpayData.amount,
+        currency: razorpayData.currency,
+        name: "CozyBerries", // Replace with your company name
+        description: "Order Payment",
+        image: "https://your-logo-url.com/logo.png", // Optional
+        order_id: razorpayData.id,
+        handler: async function (response: any) {
+          // 4. Verify Payment on Backend
+          try {
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: createdOrder.id
+              }),
+            });
+
+            if (verifyRes.ok) {
+              toast.success("Payment Successful & Order Placed!");
+              await sendNotification("Order Success", `${user?.email} order successfully created`, "success");
+              await sendActivity("order_submission_success", `Order successfully created #${generatedOrderId}`, generatedOrderId);
+              setOrderCompleted(true);
+              clearCart();
+              setIsProcessing(false);
+            } else {
+              toast.error("Payment verification failed");
+              setIsProcessing(false);
+            }
+          } catch (error) {
+            console.error("Payment verification error:", error);
+            toast.error("Payment verification failed");
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: user?.user_metadata?.full_name || "",
+          email: user?.email || "",
+          contact: user?.user_metadata?.phone || "",
+        },
+        theme: {
+          color: "#000000",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessing(false);
+            toast("Payment cancelled");
+          }
+        }
+      };
+
+      // Verify Razorpay script is loaded before instantiating
+      if (!window.Razorpay) {
+        toast.error("Payment gateway not loaded. Please refresh the page and try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+
+    } catch (err) {
+      console.error("Order creation error:", err);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      setIsProcessing(false);
+    }
+  };
+
+
+  if (orderCompleted) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-20">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-3xl font-light mb-4">Order Complete!</h1>
+            <p className="text-muted-foreground mb-8">
+              Thank you for your order. We'll send you a confirmation email
+              shortly.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild>
+                <Link href="/products">Continue Shopping</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/orders">View My Orders</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Redirect if cart is empty
-  if (cart.length === 0 && !orderComplete) {
+  if (cart.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
@@ -144,93 +319,9 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedAddressId) {
-      alert("Please select a shipping address");
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // Create order in Supabase
-      const orderData = {
-        items: cart.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image,
-        })),
-        shipping_address_id: selectedAddressId,
-        notes: formData.notes || "",
-      };
-
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(orderData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create order");
-      }
-
-      const { order, payment_url } = await response.json();
-
-      // Clear cart after successful order creation
-      clearCart();
-
-      // Redirect to payment page
-      router.push(payment_url);
-      
-    } catch (error) {
-      console.error("Order creation error:", error);
-      alert(error instanceof Error ? error.message : "Failed to create order. Please try again.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  if (orderComplete) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-20">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-3xl font-light mb-4">Order Complete!</h1>
-            <p className="text-muted-foreground mb-8">
-              Thank you for your order. We'll send you a confirmation email
-              shortly.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild>
-                <Link href="/products">Continue Shopping</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/">Back to Home</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
+      <Script type="text/javascript" src="https://checkout.razorpay.com/v1/checkout.js"></Script>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
@@ -295,11 +386,10 @@ export default function CheckoutPage() {
                       {addresses.map((address) => (
                         <div
                           key={address.id}
-                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                            selectedAddressId === address.id
-                              ? "border-primary bg-primary/5"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
+                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${selectedAddressId === address.id
+                            ? "border-primary bg-primary/5"
+                            : "border-gray-200 hover:border-gray-300"
+                            }`}
                           onClick={() => handleAddressSelect(address.id)}
                         >
                           <div className="flex items-start justify-between">
@@ -343,11 +433,10 @@ export default function CheckoutPage() {
                             </div>
                             <div className="ml-4">
                               <div
-                                className={`w-4 h-4 rounded-full border-2 ${
-                                  selectedAddressId === address.id
-                                    ? "border-primary bg-primary"
-                                    : "border-gray-300"
-                                }`}
+                                className={`w-4 h-4 rounded-full border-2 ${selectedAddressId === address.id
+                                  ? "border-primary bg-primary"
+                                  : "border-gray-300"
+                                  }`}
                               >
                                 {selectedAddressId === address.id && (
                                   <div className="w-full h-full rounded-full bg-white scale-50"></div>
@@ -408,12 +497,14 @@ export default function CheckoutPage() {
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Creating Order...
+                    Processing...
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4" />
-                    {selectedAddressId ? `Create Order - ₹${total.toFixed(2)}` : "Select Address to Continue"}
+                    {selectedAddressId
+                      ? `Pay ₹${total.toFixed(2)}`
+                      : "Select Address to Continue"}
                   </div>
                 )}
               </Button>

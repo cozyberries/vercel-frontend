@@ -11,11 +11,41 @@ export interface UserWishlist {
 
 class WishlistService {
   private supabase = createClient();
+  private fetchRequests = new Map<string, Promise<WishlistItem[]>>();
 
   /**
    * Fetch user's wishlist from Supabase
+   * Note: Caching is handled by API routes, not here
    */
   async getUserWishlist(userId: string): Promise<WishlistItem[]> {
+    try {
+      // Check if we already have a pending request for this user
+      if (this.fetchRequests.has(userId)) {
+        return await this.fetchRequests.get(userId)!;
+      }
+
+      // Create a new request promise
+      const requestPromise = this.fetchWishlistFromDatabase(userId);
+      this.fetchRequests.set(userId, requestPromise);
+
+      try {
+        const result = await requestPromise;
+        return result;
+      } finally {
+        // Clean up the request after completion
+        this.fetchRequests.delete(userId);
+      }
+    } catch (error) {
+      console.error("Error fetching user wishlist:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch wishlist directly from database
+   * Caching is handled by the API routes on the server side
+   */
+  private async fetchWishlistFromDatabase(userId: string): Promise<WishlistItem[]> {
     try {
       const { data, error } = await this.supabase
         .from("user_wishlists")
@@ -29,15 +59,18 @@ class WishlistService {
         return [];
       }
 
-      return data?.items || [];
+      const wishlistItems = data?.items || [];
+      
+      return wishlistItems;
     } catch (error) {
-      console.error("Error fetching user wishlist:", error);
+      console.error("Error fetching wishlist from database:", error);
       return [];
     }
   }
 
   /**
    * Save wishlist to Supabase (upsert operation)
+   * Note: Cache invalidation is handled by API routes
    */
   async saveUserWishlist(userId: string, items: WishlistItem[]): Promise<void> {
     try {
@@ -58,6 +91,7 @@ class WishlistService {
         console.error("Error saving user wishlist:", error);
         throw error;
       }
+
     } catch (error) {
       console.error("Error saving user wishlist:", error);
       throw error;
@@ -66,6 +100,7 @@ class WishlistService {
 
   /**
    * Delete user's wishlist from Supabase
+   * Note: Cache invalidation is handled by API routes
    */
   async clearUserWishlist(userId: string): Promise<void> {
     try {
@@ -78,6 +113,7 @@ class WishlistService {
         console.error("Error clearing user wishlist:", error);
         throw error;
       }
+
     } catch (error) {
       console.error("Error clearing user wishlist:", error);
       throw error;

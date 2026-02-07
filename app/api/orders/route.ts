@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { CreateOrderRequest, OrderCreate, OrderSummary } from "@/lib/types/order";
+import type {
+  CreateOrderRequest,
+  OrderCreate,
+  OrderSummary,
+} from "@/lib/types/order";
 import type { CartItem } from "@/components/cart-context";
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
+    // Get the current user from Supabase session
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -101,7 +108,7 @@ export async function POST(request: NextRequest) {
         address_type: billingAddress.address_type,
         label: billingAddress.label,
       },
-      items: items.map(item => ({
+      items: items.map((item) => ({
         id: item.id,
         name: item.name,
         price: item.price,
@@ -138,7 +145,6 @@ export async function POST(request: NextRequest) {
       order,
       payment_url: paymentUrl,
     });
-    
   } catch (error) {
     console.error("Error in order creation:", error);
     return NextResponse.json(
@@ -151,10 +157,13 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
+    // Get the current user from Supabase session
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -165,31 +174,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = parseInt(searchParams.get("offset") || "0");
-    const status = searchParams.get("status");
 
-    let query = supabase
+    // Fetch orders from database
+    const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (status) {
-      query = query.eq("status", status);
-    }
-
-    const { data: orders, error: ordersError } = await query;
-
     if (ordersError) {
-      console.error("Error fetching orders:", ordersError);
+      console.error("Error fetching orders from database:", ordersError);
       return NextResponse.json(
         { error: "Failed to fetch orders" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ orders });
-    
+    return NextResponse.json({ orders: orders || [] });
   } catch (error) {
     console.error("Error in order fetching:", error);
     return NextResponse.json(
@@ -200,7 +202,10 @@ export async function GET(request: NextRequest) {
 }
 
 function calculateOrderSummary(items: CartItem[]): OrderSummary {
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const delivery_charge = items.length > 0 ? 50 : 0; // ₹50 delivery charge
   const tax_amount = subtotal * 0.1; // 10% tax
   const total_amount = subtotal + delivery_charge + tax_amount;
