@@ -11,7 +11,10 @@
     "test:auth": "playwright test tests/auth.spec.ts",
     "test:signup": "playwright test tests/signup-verification.spec.ts",
     "test:signup:debug": "playwright test tests/signup-debug.spec.ts",
-    "test:db": "playwright test tests/database-schema-check.spec.ts"
+    "test:db": "playwright test tests/database-schema-check.spec.ts",
+    "test:products": "playwright test tests/products.spec.ts --project=chromium",
+    "test:products:headed": "playwright test tests/products.spec.ts --project=chromium --headed",
+    "test:products:debug": "playwright test tests/products.spec.ts --project=chromium --headed --debug"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
