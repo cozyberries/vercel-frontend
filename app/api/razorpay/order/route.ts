@@ -31,9 +31,10 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         orderId = body.orderId;
 
-        if (!orderId) {
+        if (typeof orderId !== "string" || orderId.trim().length === 0) {
             return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
         }
+        orderId = orderId.trim();
 
         // Fetch order to get the correct amount
         const { data: order, error: orderError } = await supabase
