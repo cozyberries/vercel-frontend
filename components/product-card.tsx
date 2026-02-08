@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Product } from "@/lib/services/api";
+import { Product, SizeOption } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
@@ -126,6 +126,24 @@ export default function ProductCard({ product, index }: ProductCardProps) {
             <Link href={`/products/${product.id}`}>{product.name}</Link>
           </h3>
         </div>
+
+        {/* Available Sizes */}
+        {product.sizes && product.sizes.length > 0 && (
+          <div className="flex flex-wrap gap-1 my-1">
+            {product.sizes.map((size: SizeOption) => (
+              <span
+                key={size.name}
+                className={`text-[10px] lg:text-[11px] px-1.5 py-0.5 rounded border ${
+                  (size.stock_quantity ?? 0) > 0
+                    ? "border-gray-300 text-gray-600"
+                    : "border-gray-200 text-gray-300 line-through"
+                }`}
+              >
+                {size.name}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Category and Price */}
         <div className="flex items-center justify-between">

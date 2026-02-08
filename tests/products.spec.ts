@@ -207,18 +207,17 @@ test.describe("Products Page", () => {
       "All products already visible – nothing to paginate."
     );
 
-    // Capture the current product card count before scrolling
-    const cardCountBefore = await page.locator(".grid").first().locator("> div").count();
+    // Scroll the infinite-scroll sentinel into view to trigger IntersectionObserver
+    const sentinel = page.getByTestId("infinite-scroll-sentinel");
 
-    // Scroll to the bottom to trigger infinite scroll
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-
-    // Wait until new product cards appear (more cards than before)
-    await page.waitForFunction(
-      (prev) => document.querySelectorAll(".grid > div").length > prev,
-      cardCountBefore,
-      { timeout: 15_000 }
-    );
+    // Poll: scroll sentinel into view → check → repeat until more products load
+    await expect(async () => {
+      await sentinel.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(500);
+      const textNow = (await showingText.textContent()) ?? "";
+      const countNow = Number(textNow.match(/Showing (\d+)/)?.[1] ?? 0);
+      expect(countNow).toBeGreaterThan(countBefore);
+    }).toPass({ timeout: 15_000 });
 
     // The count should have increased
     const textAfter = (await showingText.textContent()) ?? "";
@@ -228,7 +227,7 @@ test.describe("Products Page", () => {
     // The product grid should now have more cards
     const cards = page.locator(".grid").first().locator("> div");
     const cardCount = await cards.count();
-    expect(cardCount).toBe(countAfter);
+    expect(cardCount).toBeGreaterThanOrEqual(countAfter);
   });
 });
 

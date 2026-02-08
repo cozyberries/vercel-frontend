@@ -15,9 +15,35 @@ interface ReviewItem {
 
 interface ReviewsProps {
   reviews: ReviewItem[];
+  onWriteReview?: () => void;
+  isLoggedIn?: boolean;
 }
 
-export default function Reviews({ reviews }: ReviewsProps) {
+interface ReviewsHeaderProps {
+  onWriteReview?: () => void;
+  isLoggedIn?: boolean;
+}
+
+function ReviewsHeader({ onWriteReview, isLoggedIn = true }: ReviewsHeaderProps) {
+  return (
+    <div className="flex items-center justify-between">
+      <h4 className="whitespace-pre-wrap text-xl">
+        Customer Reviews
+      </h4>
+      {onWriteReview && (
+        <button
+          onClick={onWriteReview}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          <CiStar size={18} />
+          {isLoggedIn ? "Write a Review" : "Login to Review"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function Reviews({ reviews, onWriteReview, isLoggedIn = true }: ReviewsProps) {
   const [showReviews, setShowReviews] = useState(2);
   const { setShowViewReviewModal, setSelectedImgIndex, setSelectedReviewIndex } = useRating();
 
@@ -30,16 +56,21 @@ export default function Reviews({ reviews }: ReviewsProps) {
   };
 
   const getInitials = (name: string) => {
-    return name.split(" ").map((n) => n[0]).join("");
+    if (!name || !name.trim()) return "?";
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
     <div className="bg-[#FFFBF6] p-4">
+      <ReviewsHeader onWriteReview={onWriteReview} isLoggedIn={isLoggedIn} />
       {reviews?.length > 0 ? (
         <div className="space-y-10">
-          <h4 className="whitespace-pre-wrap text-xl">
-            Customer Reviews
-          </h4>
           {reviews.slice(0, showReviews).map((review, reviewInd) => (
             <div key={reviewInd} className="space-y-10">
               <div className="flex items-start gap-4">
@@ -117,11 +148,8 @@ export default function Reviews({ reviews }: ReviewsProps) {
           )}
         </div>
       ) : (
-        <div className="space-y-10">
-          <h4 className="text-xl whitespace-pre-wrap  ">
-            Customer Reviews
-          </h4>
-          <p className="text-gray-500 italic flex items-center justify-center">
+        <div className="space-y-6">
+          <p className="text-gray-500 italic flex items-center justify-center py-4">
             No reviews yet. Be the first to leave a review!
           </p>
         </div>

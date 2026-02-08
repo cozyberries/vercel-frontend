@@ -1,0 +1,93 @@
+# Playwright: Chromium (blocking) + Firefox/WebKit (non-blocking or scheduled)
+# Main dev runs stay fast; cross-browser job catches browser-specific regressions.
+
+name: Playwright
+
+# Disabled: run only manually. Restore push/pull_request/schedule to re-enable.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright-chromium:
+    name: Chromium
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Playwright (Chromium)
+        run: npm run test
+
+      - name: Upload Playwright report (Chromium)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-chromium
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces/screenshots (Chromium)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-chromium
+          path: test-results/
+          retention-days: 14
+
+  playwright-cross-browser:
+    name: Firefox & WebKit
+    runs-on: ubuntu-latest
+    # Do not block PRs; run for visibility and scheduled checks
+    continue-on-error: true
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Firefox and WebKit
+        run: npx playwright install firefox webkit --with-deps
+
+      - name: Run Playwright (Firefox & WebKit)
+        run: npm run test:cross-browser
+
+      - name: Upload Playwright report (Firefox & WebKit)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-cross-browser
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces/screenshots (Firefox & WebKit)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-cross-browser
+          path: test-results/
+          retention-days: 14
