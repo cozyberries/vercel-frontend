@@ -23,7 +23,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 
 config({ path: resolve(process.cwd(), ".env.local") });
@@ -97,7 +97,8 @@ async function fetchProductCatalog() {
         slug
       )
     `)
-    .order("name", { ascending: true });
+    .order("name", { ascending: true })
+    .range(0, 9999);
 
   if (productsError) throw productsError;
 
@@ -278,7 +279,6 @@ async function main() {
     : defaultOutputPath;
 
   // Ensure the parent directory of outputPath exists
-  const { dirname } = await import("path");
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
@@ -305,27 +305,17 @@ async function main() {
 
   // Calculate some stats
   const totalStock = csvData.reduce((sum, row) => {
-    // Check if variant_stock_quantity is explicitly empty/blank
-    const variantStockStr = String(row.variant_stock_quantity || '').trim();
-    const productStockStr = String(row.product_stock_quantity || '').trim();
-    
+    const variantStockStr = String(row.variant_stock_quantity ?? '').trim();
+    const productStockStr = String(row.product_stock_quantity ?? '').trim();
     let stockValue = 0;
-    
-    if (variantStockStr !== '' && variantStockStr !== 'null' && variantStockStr !== 'undefined') {
+    if (variantStockStr !== '') {
       const variantNum = Number(variantStockStr);
-      if (Number.isFinite(variantNum)) {
-        stockValue = variantNum;
-      }
+      if (Number.isFinite(variantNum)) stockValue = variantNum;
     }
-    
-    // Fall back to product stock if variant stock is empty/invalid
-    if (stockValue === 0 && productStockStr !== '' && productStockStr !== 'null' && productStockStr !== 'undefined') {
+    if (stockValue === 0 && productStockStr !== '') {
       const productNum = Number(productStockStr);
-      if (Number.isFinite(productNum)) {
-        stockValue = productNum;
-      }
+      if (Number.isFinite(productNum)) stockValue = productNum;
     }
-    
     return sum + stockValue;
   }, 0);
   const totalValue = csvData.reduce((sum, row) => sum + Number(row.inventory_value), 0);

@@ -36,28 +36,45 @@ test.describe('Signup Verification', () => {
     }
   });
 
-  /** Helper: submit signup form and wait for form submission to complete. */
-  async function submitSignupForm(page: import('@playwright/test').Page, email: string) {
-    await page.goto('/register');
+  type SignupSubmissionResult =
+    | { outcome: 'navigated'; detail?: string }
+    | { outcome: 'verificationShown'; detail?: string }
+    | { outcome: 'errorShown'; detail?: string }
+    | { outcome: 'timeout'; detail?: string };
+
+  /** Helper: wait for signup form result (navigation, verification message, or error). */
+  async function waitForSignupOutcome(page: import('@playwright/test').Page): Promise<SignupSubmissionResult> {
+    const verificationEl = page.getByText(/check your email|verification/i);
+    const errorEl = page.locator('text=/error|failed/i').first();
+    try {
+      const result = await Promise.race([
+        page.waitForURL(/^(?!.*\/register)/, { timeout: 15_000 }).then(() => ({ outcome: 'navigated' as const, detail: page.url() })),
+        verificationEl.waitFor({ state: 'visible', timeout: 15_000 }).then(async () => ({ outcome: 'verificationShown' as const, detail: (await verificationEl.textContent()) ?? undefined })),
+        errorEl.waitFor({ state: 'visible', timeout: 15_000 }).then(async () => ({ outcome: 'errorShown' as const, detail: (await errorEl.textContent()) ?? undefined })),
+      ]);
+      return result;
+    } catch (err) {
+      if (err && typeof err === 'object' && 'name' in err && (err as Error).name !== 'TimeoutError') {
+        console.error('Unexpected error during signup form submission:', err);
+      }
+      return { outcome: 'timeout', detail: err instanceof Error ? err.message : err != null ? String(err) : undefined };
+    }
+  }
+
+  /** Helper: submit signup form and wait for form submission to complete. Returns outcome so callers can assert. */
+  async function submitSignupForm(
+    page: import('@playwright/test').Page,
+    email: string,
+    opts?: { skipGoto?: boolean }
+  ): Promise<SignupSubmissionResult> {
+    if (opts?.skipGoto !== true) {
+      await page.goto('/register');
+    }
     await page.getByLabel(/Email address/i).fill(email);
     await page.getByLabel(/^Password$/i).first().fill(testPassword);
     await page.getByLabel(/Confirm Password/i).fill(testPassword);
     await page.getByRole('button', { name: /Create account/i }).click();
-
-    // Wait for either success message, error, or navigation
-    try {
-      await Promise.race([
-        page.waitForURL(/^(?!.*\/register)/, { timeout: 15_000 }),
-        page.getByText(/check your email|verification/i).waitFor({ state: 'visible', timeout: 15_000 }),
-        page.locator('text=/error|failed/i').first().waitFor({ state: 'visible', timeout: 15_000 })
-      ]);
-    } catch (err) {
-      // Only timeout errors are expected here; log unexpected errors
-      if (err && typeof err === 'object' && 'name' in err && err.name !== 'TimeoutError') {
-        console.error('Unexpected error during signup form submission:', err);
-      }
-      // Form submission completed even if we timed out waiting for result
-    }
+    return waitForSignupOutcome(page);
   }
 
   /** Helper: find user in auth.users by email, or return null. Handles pagination. */
@@ -139,11 +156,13 @@ test.describe('Signup Verification', () => {
     }
 
     // Verify user profile exists in user_profiles table
-    const { data: profile, error: profileError } = await adminSupabase!
+    const profileResult = await adminSupabase!
       .from('user_profiles')
       .select('*')
       .eq('id', createdUser.id)
       .single();
+    const profile = profileResult.data as { id: string; role?: string; is_active?: boolean; is_verified?: boolean } | null;
+    const profileError = profileResult.error;
 
     if (profileError) {
       console.error('Profile error:', profileError);
@@ -174,18 +193,10 @@ test.describe('Signup Verification', () => {
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create your account/i })).toBeVisible();
 
-    await submitSignupForm(page, testEmail);
+    const submission = await submitSignupForm(page, testEmail, { skipGoto: true });
 
-    // Check for success message or error
-    const successMessage = page.getByText(/Check your email for a confirmation link/i);
-    const errorMessage = page.locator('text=/error|failed/i').first();
-
-    const hasSuccess = await successMessage.isVisible().catch(() => false);
-    const hasError = await errorMessage.isVisible().catch(() => false);
-
-    if (hasError) {
-      const errorText = await errorMessage.textContent();
-      console.log('❌ Signup error:', errorText);
+    if (submission.outcome === 'errorShown' && submission.detail) {
+      console.log('❌ Signup error:', submission.detail);
     }
 
     // Verify user was created regardless of email confirmation
@@ -199,11 +210,12 @@ test.describe('Signup Verification', () => {
     expect(createdUser.email).toBe(testEmail);
 
     // Verify user profile exists
-    const { data: profile } = await adminSupabase!
+    const profileResult = await adminSupabase!
       .from('user_profiles')
       .select('*')
       .eq('id', createdUser.id)
       .single();
+    const profile = profileResult.data as { id: string; role?: string } | null;
 
     expect(profile).toBeTruthy();
     expect(profile?.id).toBe(createdUser.id);
@@ -233,14 +245,35 @@ test.describe('Signup Verification', () => {
       return;
     }
 
-    // Wait a bit more for profile creation
-    await page.waitForTimeout(2000);
-
-    const { data: profile, error: profileError } = await adminSupabase!
-      .from('user_profiles')
-      .select('*')
-      .eq('id', createdUser.id)
-      .single();
+    // Poll for profile creation (trigger may be async)
+    const profilePollTimeout = 10_000;
+    const profilePollInterval = 300;
+    const deadline = Date.now() + profilePollTimeout;
+    type ProfileRow = { id: string; role?: string; is_verified?: boolean; is_active?: boolean };
+    let profile: ProfileRow | null = null;
+    let profileError: { code: string } | null = null;
+    while (Date.now() < deadline) {
+      const result = (await adminSupabase!
+        .from('user_profiles')
+        .select('*')
+        .eq('id', createdUser.id)
+        .single()) as { data: ProfileRow | null; error: { code?: string } | null };
+      if (!result.error && result.data) {
+        profile = result.data;
+        break;
+      }
+      profileError = result.error ? { code: result.error.code ?? '' } : null;
+      await page.waitForTimeout(profilePollInterval);
+    }
+    if (profile == null) {
+      const last = await adminSupabase!
+        .from('user_profiles')
+        .select('*')
+        .eq('id', createdUser.id)
+        .single();
+      profile = (last.data as ProfileRow | null) ?? null;
+      profileError = last.error ? { code: (last.error as { code?: string }).code ?? '' } : null;
+    }
 
     if (profileError && profileError.code === 'PGRST116') {
       console.error('❌ BUG DETECTED: User profile was NOT created after signup!');

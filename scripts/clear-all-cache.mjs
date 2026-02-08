@@ -73,7 +73,7 @@ async function clearCacheByPattern(pattern) {
       });
       cursor = result[0];
       keys.push(...result[1]);
-    } while (cursor !== 0);
+    } while (Number(cursor) !== 0);
     
     if (keys.length === 0) {
       console.log(`   ℹ️  No keys found matching pattern: ${pattern}`);

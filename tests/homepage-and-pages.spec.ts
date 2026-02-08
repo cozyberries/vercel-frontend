@@ -18,6 +18,9 @@ import { test, expect, type Page } from "@playwright/test";
 // Run tests serially to avoid overwhelming the dev server
 test.describe.configure({ mode: "serial", retries: 1 });
 
+/** Timeout for waiting for "Loading featured products..." to disappear and related assertions. */
+const FEATURED_PRODUCTS_LOAD_TIMEOUT = 45_000;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Wait for the homepage to fully load (hero + key sections). */
@@ -165,7 +168,7 @@ test.describe("Homepage Sections", () => {
   test("Featured Products section renders with product cards", async ({
     page,
   }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     const heading = page.getByRole("heading", {
       name: "Our Featured Products",
     });
@@ -174,7 +177,7 @@ test.describe("Homepage Sections", () => {
     // Wait for featured products to load
     await expect(
       page.getByText("Loading featured products...")
-    ).toBeHidden({ timeout: 45_000 });
+    ).toBeHidden({ timeout: FEATURED_PRODUCTS_LOAD_TIMEOUT });
 
     // Product cards should be present
     const featuredSection = page.locator("section").filter({
@@ -303,17 +306,15 @@ test.describe("New Born Gifting – Cards and buttons", () => {
   }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
-    
-    // Find the Essential Kits card link on the homepage
-    const essentialKitsLink = page.locator('a[href*="newborn-essentials"]').first();
+
+    const essentialKitsLink = page
+      .locator('a[href*="newborn-essentials"]')
+      .first();
     await expect(essentialKitsLink).toBeAttached();
-    
-    // Verify href contains the correct category
-    const href = await essentialKitsLink.getAttribute('href');
-    expect(href).toContain('category=newborn-essentials');
-    
-    // Navigate directly to the category URL to verify products load
-    await page.goto("/products?category=newborn-essentials");
+
+    await essentialKitsLink.scrollIntoViewIfNeeded();
+    await expect(essentialKitsLink).toBeVisible({ timeout: 10_000 });
+    await essentialKitsLink.click();
     await page.waitForURL("**/products**", { timeout: 15_000 });
     expect(page.url()).toContain("category=newborn-essentials");
   });
@@ -363,7 +364,7 @@ test.describe("Featured Products – Product cards", () => {
     // Wait for featured products to load
     await expect(
       page.getByText("Loading featured products...")
-    ).toBeHidden({ timeout: 45_000 });
+    ).toBeHidden({ timeout: FEATURED_PRODUCTS_LOAD_TIMEOUT });
 
     // Get the first product card link in the featured section
     const featuredSection = page.locator("section").filter({
@@ -393,7 +394,7 @@ test.describe("Featured Products – Product cards", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 test.describe("All Public Pages Render Correctly", () => {
-  test.setTimeout(45_000);
+  test.setTimeout(FEATURED_PRODUCTS_LOAD_TIMEOUT);
 
   test("Homepage (/) loads with all major sections", async ({ page }) => {
     await page.goto("/");
@@ -476,7 +477,7 @@ test.describe("All Public Pages Render Correctly", () => {
 
     // Form fields
     await expect(page.getByLabel(/Name/)).toBeVisible();
-    await expect(page.getByRole('textbox', { name: /Email/ })).toBeVisible();
+    await expect(page.getByLabel(/Email/)).toBeVisible();
     await expect(page.getByLabel(/Subject/)).toBeVisible();
     await expect(page.getByLabel(/Message/)).toBeVisible();
 

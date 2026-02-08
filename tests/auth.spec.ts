@@ -91,16 +91,11 @@ test.describe('User Authentication', () => {
       // Submit the form
       await page.getByRole('button', { name: /Create account/i }).click();
       
-      // Note: Supabase may have password requirements
-      // The error message will depend on Supabase configuration
-      // We'll wait a bit to see if an error appears
-      await page.waitForTimeout(1000);
-      
-      // Check if there's an error message (could be from Supabase)
-      const errorText = await page.locator('text=/password|error|invalid/i').first().textContent().catch(() => null);
-      if (errorText) {
-        expect(errorText).toBeTruthy();
-      }
+      // Wait for error message (Supabase password requirements or validation)
+      const errorLocator = page.locator('text=/password|error|invalid/i').first();
+      await errorLocator.waitFor({ state: 'visible', timeout: 10_000 });
+      const errorText = await errorLocator.textContent();
+      expect(errorText).toBeTruthy();
     });
 
     test('should successfully submit signup form with valid data', async ({ page }) => {
@@ -138,10 +133,14 @@ test.describe('User Authentication', () => {
         console.log('Signup error:', errorText);
       }
       
-      // The form was processed: either success, error, or redirect occurred.
-      // Even if Supabase returned an empty error message, the form processed the request.
-      // The button reverting from "Creating account..." confirms the request completed.
-      expect(hasSuccess || hasError || wasRedirected).toBe(true);
+      const strictMode = process.env.SUPABASE_DETERMINISTIC === 'true' || process.env.TEST_STRICT === 'true';
+      if (strictMode) {
+        // Deterministic environments: require a specific outcome
+        expect(hasSuccess || wasRedirected, 'In strict mode expect success or redirect').toBe(true);
+      } else {
+        // The form was processed: either success, error, or redirect occurred.
+        expect(hasSuccess || hasError || wasRedirected).toBe(true);
+      }
     });
 
     test('should navigate to login page from signup page', async ({ page }) => {
@@ -188,18 +187,11 @@ test.describe('User Authentication', () => {
       // Submit the form
       await page.getByRole('button', { name: /Sign in/i }).click();
       
-      // Wait for error message
-      await page.waitForTimeout(2000);
-      
-      // Check for error message
+      // Wait for error message to appear (exact message depends on Supabase configuration)
       const errorMessage = page.locator('text=/invalid|incorrect|error|wrong/i').first();
-      const hasError = await errorMessage.isVisible().catch(() => false);
-      
-      // Should show an error (exact message depends on Supabase configuration)
-      if (hasError) {
-        const errorText = await errorMessage.textContent();
-        expect(errorText).toBeTruthy();
-      }
+      await expect(errorMessage).toBeVisible({ timeout: 10_000 });
+      const errorText = await errorMessage.textContent();
+      expect(errorText).toBeTruthy();
     });
 
     test('should show error for invalid email format', async ({ page }) => {

@@ -56,8 +56,14 @@ test('debug signup process and capture errors', async ({ page }) => {
   // Submit the form
   await page.getByRole('button', { name: /Create account/i }).click();
 
-  // Wait for response
-  await page.waitForTimeout(5000);
+  // Wait for signup flow to complete: success message, error message, or button reverted (loading done)
+  await Promise.race([
+    page.getByText(/Check your email for a confirmation link/i).waitFor({ state: 'visible', timeout: 15_000 }),
+    page.locator('div.text-red-600').waitFor({ state: 'visible', timeout: 15_000 }),
+    page.getByRole('button', { name: 'Create account' }).waitFor({ state: 'visible', timeout: 15_000 }),
+  ]).catch(() => {
+    // Timeout or other error — continue to capture whatever state the page is in
+  });
 
   // Capture all visible error messages
   const errorElements = await page.locator('text=/error|failed|invalid/i').all();

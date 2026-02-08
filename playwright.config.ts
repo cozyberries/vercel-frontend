@@ -34,12 +34,14 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
-  /* Run only Chromium to avoid cross-browser flakiness with the Next.js dev server */
+  /*
+   * Projects: Chromium is the default for fast dev/CI; Firefox and WebKit run in a
+   * separate CI job or via `npm run test:cross-browser` to catch browser-specific regressions.
+   */
   projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
 
   /* Run your local dev server before starting the tests */
