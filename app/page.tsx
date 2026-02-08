@@ -1,4 +1,3 @@
-import PromoBar from "@/components/promo-bar";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Hero from "@/components/hero";
@@ -15,8 +14,6 @@ import SustainabilitySection from "@/components/sustainability-section";
 export default function Home() {
   return (
     <div className="flex flex-col">
-      <PromoBar />
-
       <Hero />
 
       {/* Shop by Age */}

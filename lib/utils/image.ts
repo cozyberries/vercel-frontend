@@ -1,4 +1,4 @@
-const DEFAULT_PLACEHOLDER = "/placeholder.svg";
+export const DEFAULT_PLACEHOLDER = "/placeholder.svg";
 
 /**
  * Normalizes any value to a string URL safe for Next.js Image src.

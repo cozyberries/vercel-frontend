@@ -5,6 +5,16 @@ import Link from "next/link";
 import { usePreloadedData } from "@/components/data-preloader";
 import { toImageSrc } from "@/lib/utils/image";
 
+/** Category shape used for display and image resolution (image/images may be string or object with url). */
+interface Category {
+  id: string;
+  name: string;
+  slug?: string;
+  display?: boolean;
+  image?: string | { url?: string };
+  images?: { url?: string }[];
+}
+
 // Static category images mapping
 // const categoryImageMap: Record<string, string> = {
 //   accessories: "/categories/accessories.jpg",
@@ -66,12 +76,10 @@ export default function CategoryGrid() {
     );
   }
 
-  const getCategoryImageSrc = (category: (typeof displayCategories)[0]): string => {
-    const raw = (category as { image?: unknown; images?: { url?: string }[] }).image;
-    const images = (category as { images?: { url?: string }[] }).images;
-    const fromRaw = toImageSrc(raw);
+  const getCategoryImageSrc = (category: Category): string => {
+    const fromRaw = toImageSrc(category.image);
     if (fromRaw !== "/placeholder.svg") return fromRaw;
-    const first = images?.[0];
+    const first = category.images?.[0];
     return toImageSrc(first?.url ?? first);
   };
 

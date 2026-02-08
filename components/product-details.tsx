@@ -350,11 +350,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
-                    src={
-                      image && typeof image === "string" && image.trim() !== ""
-                        ? image
-                        : "/placeholder.svg"
-                    }
+                    src={toImageSrc(image)}
                     alt={`${product.name} - View ${index + 1}`}
                     width={80}
                     height={80}
@@ -382,13 +378,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               }}
             >
               <Image
-                src={
-                  product.images?.[selectedImage] &&
-                    typeof product.images[selectedImage] === "string" &&
-                    product.images[selectedImage].trim() !== ""
-                    ? product.images[selectedImage]
-                    : "/placeholder.svg"
-                }
+                src={toImageSrc(product.images?.[selectedImage])}
                 alt={product.name}
                 width={600}
                 height={600}
@@ -399,13 +389,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
                   <Image
-                    src={
-                      product.images?.[selectedImage] &&
-                        typeof product.images[selectedImage] === "string" &&
-                        product.images[selectedImage].trim() !== ""
-                        ? product.images[selectedImage]
-                        : "/placeholder.svg"
-                    }
+                    src={toImageSrc(product.images?.[selectedImage])}
                     alt={product.name}
                     width={600}
                     height={600}
@@ -454,11 +438,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
-                    src={
-                      image && typeof image === "string" && image.trim() !== ""
-                        ? image
-                        : "/placeholder.svg"
-                    }
+                    src={toImageSrc(image)}
                     alt={`${product.name} - View ${index + 1}`}
                     width={100}
                     height={100}
@@ -835,13 +815,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
             <div className="relative w-full max-w-sm">
               <Image
-                src={
-                  product.images?.[selectedImage] &&
-                    typeof product.images[selectedImage] === "string" &&
-                    product.images[selectedImage].trim() !== ""
-                    ? product.images[selectedImage]
-                    : "/placeholder.svg"
-                }
+                src={toImageSrc(product.images?.[selectedImage])}
                 alt={product.name}
                 width={400}
                 height={400}
