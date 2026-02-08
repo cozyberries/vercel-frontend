@@ -77,7 +77,7 @@ jobs:
         run: npm run test:cross-browser
 
       - name: Upload Playwright report (Firefox & WebKit)
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-cross-browser
@@ -85,7 +85,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Playwright traces/screenshots (Firefox & WebKit)
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces-cross-browser
