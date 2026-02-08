@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import ProductCard from "@/components/product-card";
 import FilterSheet from "@/components/FilterSheet";
-import { getProducts, getCategoryOptions, CategoryOption, Product } from "@/lib/services/api";
+import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, CategoryOption, SizeOptionFilter, GenderOptionFilter, Product } from "@/lib/services/api";
 import { ChevronUp, Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -31,6 +31,14 @@ export default function ProductsClient() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  // Size options for filter
+  const [sizeOptions, setSizeOptions] = useState<SizeOptionFilter[]>([]);
+  const [sizeOptionsLoading, setSizeOptionsLoading] = useState(true);
+
+  // Gender options for filter
+  const [genderOptions, setGenderOptions] = useState<GenderOptionFilter[]>([]);
+  const [genderOptionsLoading, setGenderOptionsLoading] = useState(true);
 
   // Error source tracking for reliable retry logic
   const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
@@ -51,9 +59,41 @@ export default function ProductsClient() {
     }
   }, []);
 
+  const fetchSizeOptions = useCallback(async () => {
+    setSizeOptionsLoading(true);
+    try {
+      const data = await getSizeOptions();
+      setSizeOptions(data);
+    } catch {
+      setSizeOptions([]);
+    } finally {
+      setSizeOptionsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
+
+  const fetchGenderOptions = useCallback(async () => {
+    setGenderOptionsLoading(true);
+    try {
+      const data = await getGenderOptions();
+      setGenderOptions(data);
+    } catch {
+      setGenderOptions([]);
+    } finally {
+      setGenderOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSizeOptions();
+  }, [fetchSizeOptions]);
+
+  useEffect(() => {
+    fetchGenderOptions();
+  }, [fetchGenderOptions]);
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -70,6 +110,8 @@ export default function ProductsClient() {
   const currentSort = searchParams.get("sortBy") || "default";
   const currentSortOrder = searchParams.get("sortOrder") || "desc";
   const currentCategory = searchParams.get("category") || "all";
+  const currentSize = searchParams.get("size") || "all";
+  const currentGender = searchParams.get("gender") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
 
@@ -90,6 +132,8 @@ export default function ProductsClient() {
           limit: pageSize,
           page: 1,
           category: currentCategory !== "all" ? currentCategory : undefined,
+          size: currentSize !== "all" ? currentSize : undefined,
+          gender: currentGender !== "all" ? currentGender : undefined,
           sortBy: currentSort !== "default" ? currentSort : undefined,
           sortOrder: currentSortOrder,
           featured: currentFeatured || undefined,
@@ -117,7 +161,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentFeatured, pageSize]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentFeatured, pageSize]);
 
   // Client-side search filtering (search happens on frontend with autocomplete)
   const filteredProducts = useMemo(() => {
@@ -146,6 +190,8 @@ export default function ProductsClient() {
         limit: pageSize,
         page: nextPage,
         category: currentCategory !== "all" ? currentCategory : undefined,
+        size: currentSize !== "all" ? currentSize : undefined,
+        gender: currentGender !== "all" ? currentGender : undefined,
         sortBy: currentSort !== "default" ? currentSort : undefined,
         sortOrder: currentSortOrder,
         featured: currentFeatured || undefined,
@@ -185,6 +231,8 @@ export default function ProductsClient() {
     hasMoreProducts,
     isLoadingMore,
     currentCategory,
+    currentSize,
+    currentGender,
     currentSort,
     currentSortOrder,
     currentFeatured,
@@ -238,6 +286,30 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
+  const handleSizeChange = (size: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (size === "all") {
+      params.delete("size");
+    } else {
+      params.set("size", size);
+    }
+
+    router.push(`/products?${params.toString()}`);
+  };
+
+  const handleGenderChange = (gender: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (gender === "all") {
+      params.delete("gender");
+    } else {
+      params.set("gender", gender);
+    }
+
+    router.push(`/products?${params.toString()}`);
+  };
+
   const handleFeaturedToggle = () => {
     const params = new URLSearchParams(searchParams.toString());
 
@@ -263,13 +335,15 @@ export default function ProductsClient() {
   const hasActiveFilters = useMemo(() => {
     return (
       currentCategory !== "all" ||
+      currentSize !== "all" ||
+      currentGender !== "all" ||
       currentSort !== "default" ||
       currentFeatured ||
       currentSearch !== ""
     );
-  }, [currentCategory, currentSort, currentFeatured, currentSearch]);
+  }, [currentCategory, currentSize, currentGender, currentSort, currentFeatured, currentSearch]);
 
-  if (isLoading || categoriesLoading) {
+  if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) {
     return (
       <div className="text-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -388,11 +462,17 @@ export default function ProductsClient() {
             )}
             <FilterSheet
               categories={categories}
+              sizeOptions={sizeOptions}
+              genderOptions={genderOptions}
               currentCategory={currentCategory}
+              currentSize={currentSize}
+              currentGender={currentGender}
               currentSort={currentSort}
               currentSortOrder={currentSortOrder}
               currentFeatured={currentFeatured}
               onCategoryChange={handleCategoryChange}
+              onSizeChange={handleSizeChange}
+              onGenderChange={handleGenderChange}
               onSortChange={handleSortChange}
               onFeaturedToggle={handleFeaturedToggle}
               onClearFilters={handleClearFilters}
@@ -415,6 +495,36 @@ export default function ProductsClient() {
               {categories.map((cat) => (
                 <SelectItem key={cat.id} value={cat.slug}>
                   {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Size Filter */}
+          <Select value={currentSize} onValueChange={handleSizeChange}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Filter by size" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sizes</SelectItem>
+              {sizeOptions.map((size) => (
+                <SelectItem key={size.id} value={size.name}>
+                  {size.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Gender Filter */}
+          <Select value={currentGender} onValueChange={handleGenderChange}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Gender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Genders</SelectItem>
+              {genderOptions.map((g) => (
+                <SelectItem key={g.id} value={g.name}>
+                  {g.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -497,6 +607,8 @@ export default function ProductsClient() {
             categories.find((c) => c.slug === currentCategory)?.name ||
             currentCategory
           }`}
+        {currentSize !== "all" && ` · Size: ${currentSize}`}
+        {currentGender !== "all" && ` · ${currentGender}`}
         {currentFeatured && " (Featured only)"}
       </div>
 
@@ -544,13 +656,15 @@ export default function ProductsClient() {
               No products found
             </h3>
             <p className="text-gray-500 mb-6">
-              {currentSearch || currentCategory !== "all" || currentFeatured
+              {currentSearch || currentCategory !== "all" || currentSize !== "all" || currentGender !== "all" || currentFeatured
                 ? "We couldn't find any products matching your current filters. Try adjusting your search criteria."
                 : "No products are currently available. Please check back later."}
             </p>
             <div className="space-y-3">
               {(currentSearch ||
                 currentCategory !== "all" ||
+                currentSize !== "all" ||
+                currentGender !== "all" ||
                 currentFeatured) && (
                 <Button
                   variant="outline"

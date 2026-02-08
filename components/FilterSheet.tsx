@@ -25,13 +25,31 @@ interface Category {
   description?: string;
 }
 
+interface SizeOption {
+  id: string;
+  name: string;
+  display_order: number;
+}
+
+interface GenderOption {
+  id: string;
+  name: string;
+  display_order: number;
+}
+
 interface FilterSheetProps {
   categories: Category[];
+  sizeOptions: SizeOption[];
+  genderOptions: GenderOption[];
   currentCategory: string;
+  currentSize: string;
+  currentGender: string;
   currentSort: string;
   currentSortOrder: string;
   currentFeatured: boolean;
   onCategoryChange: (category: string) => void;
+  onSizeChange: (size: string) => void;
+  onGenderChange: (gender: string) => void;
   onSortChange: (sort: string) => void;
   onFeaturedToggle: () => void;
   onClearFilters: () => void;
@@ -39,11 +57,17 @@ interface FilterSheetProps {
 
 export default function FilterSheet({
   categories,
+  sizeOptions,
+  genderOptions,
   currentCategory,
+  currentSize,
+  currentGender,
   currentSort,
   currentSortOrder,
   currentFeatured,
   onCategoryChange,
+  onSizeChange,
+  onGenderChange,
   onSortChange,
   onFeaturedToggle,
   onClearFilters,
@@ -95,6 +119,42 @@ export default function FilterSheet({
               </Select>
             </div>
 
+            {/* Size Filter */}
+            <div>
+              <h3 className="text-sm font-medium mb-3">Size</h3>
+              <Select value={currentSize} onValueChange={onSizeChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sizes</SelectItem>
+                  {sizeOptions.map((size) => (
+                    <SelectItem key={size.id} value={size.name}>
+                      {size.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Gender Filter */}
+            <div>
+              <h3 className="text-sm font-medium mb-3">Gender</h3>
+              <Select value={currentGender} onValueChange={onGenderChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Genders</SelectItem>
+                  {genderOptions.map((g) => (
+                    <SelectItem key={g.id} value={g.name}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Sort Filter */}
             <div>
               <h3 className="text-sm font-medium mb-3">Sort By</h3>
@@ -138,6 +198,18 @@ export default function FilterSheet({
                     </span>
                   </div>
                 )}
+                {currentSize !== "all" && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Size:</span>
+                    <span className="font-medium">{currentSize}</span>
+                  </div>
+                )}
+                {currentGender !== "all" && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Gender:</span>
+                    <span className="font-medium">{currentGender}</span>
+                  </div>
+                )}
                 {currentSort !== "default" && (
                   <div className="flex items-center justify-between text-sm">
                     <span>Sort:</span>
@@ -154,7 +226,7 @@ export default function FilterSheet({
                     <span className="font-medium">Featured Only</span>
                   </div>
                 )}
-                {currentCategory === "all" && currentSort === "default" && !currentFeatured && (
+                {currentCategory === "all" && currentSize === "all" && currentGender === "all" && currentSort === "default" && !currentFeatured && (
                   <p className="text-sm text-muted-foreground">No filters applied</p>
                 )}
               </div>
@@ -166,7 +238,7 @@ export default function FilterSheet({
             <Button onClick={handleApplyFilters} className="w-full">
               Apply Filters
             </Button>
-            {(currentCategory !== "all" || currentSort !== "default" || currentFeatured) && (
+            {(currentCategory !== "all" || currentSize !== "all" || currentGender !== "all" || currentSort !== "default" || currentFeatured) && (
               <Button
                 variant="outline"
                 onClick={handleClearFilters}

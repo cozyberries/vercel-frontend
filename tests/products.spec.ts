@@ -115,7 +115,7 @@ test.describe("Products Page", () => {
 
   // ── 3. Category filter ──────────────────────────────────────────────────
 
-  test("should filter products by category", async ({ page }) => {
+  test("should filter products by category - Pyjamas", async ({ page }) => {
     // Record the initial (unfiltered) product count from the current page
     const showingBefore = await page
       .getByText(/Showing \d+ of \d+ products/)
@@ -152,6 +152,62 @@ test.describe("Products Page", () => {
     const categoryLabels = page.locator(".grid > div p").filter({ hasText: "Pyjamas" });
     const labelCount = await categoryLabels.count();
     expect(labelCount).toBeGreaterThan(0);
+  });
+
+  test("should filter products by category - Frocks", async ({ page }) => {
+    await page.goto("/products?category=frocks");
+    await waitForProductsToLoad(page);
+
+    expect(page.url()).toContain("category=frocks");
+    await expect(page.getByText(/in Frocks/)).toBeVisible();
+
+    const showingText = await page
+      .getByText(/Showing \d+ of \d+ products/)
+      .textContent();
+    const total = Number(showingText?.match(/of (\d+)/)?.[1] ?? 0);
+    expect(total).toBeGreaterThan(0);
+  });
+
+  test("should filter products by category - Rompers", async ({ page }) => {
+    await page.goto("/products?category=rompers");
+    await waitForProductsToLoad(page);
+
+    expect(page.url()).toContain("category=rompers");
+    await expect(page.getByText(/in Rompers/)).toBeVisible();
+
+    const showingText = await page
+      .getByText(/Showing \d+ of \d+ products/)
+      .textContent();
+    const total = Number(showingText?.match(/of (\d+)/)?.[1] ?? 0);
+    expect(total).toBeGreaterThan(0);
+  });
+
+  test("should filter products by category - Newborn Essentials", async ({ page }) => {
+    await page.goto("/products?category=newborn-essentials");
+    await waitForProductsToLoad(page);
+
+    expect(page.url()).toContain("category=newborn-essentials");
+    await expect(page.getByText(/in Newborn Essentials/)).toBeVisible();
+
+    const showingText = await page
+      .getByText(/Showing \d+ of \d+ products/)
+      .textContent();
+    const total = Number(showingText?.match(/of (\d+)/)?.[1] ?? 0);
+    expect(total).toBeGreaterThan(0);
+  });
+
+  test("should filter products by category - Girls Coord Sets", async ({ page }) => {
+    await page.goto("/products?category=girls-coord-sets");
+    await waitForProductsToLoad(page);
+
+    expect(page.url()).toContain("category=girls-coord-sets");
+    await expect(page.getByText(/in Girls Coord Sets/)).toBeVisible();
+
+    const showingText = await page
+      .getByText(/Showing \d+ of \d+ products/)
+      .textContent();
+    const total = Number(showingText?.match(/of (\d+)/)?.[1] ?? 0);
+    expect(total).toBeGreaterThan(0);
   });
 
   // ── 4. Sort toggle ──────────────────────────────────────────────────────

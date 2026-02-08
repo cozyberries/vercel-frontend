@@ -140,6 +140,68 @@ export interface CategoryOption {
   slug: string;
 }
 
+/** Size option for filter dropdown */
+export interface SizeOptionFilter {
+  id: string;
+  name: string;
+  display_order: number;
+}
+
+/** Gender option for filter dropdown */
+export interface GenderOptionFilter {
+  id: string;
+  name: string;
+  display_order: number;
+}
+
+export const getGenderOptions = async (
+  retries = 3
+): Promise<GenderOptionFilter[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/genders/options");
+      return data || [];
+    } catch (error) {
+      console.error(
+        `Error fetching gender options (attempt ${i + 1}/${retries}):`,
+        error
+      );
+      if (i === retries - 1) {
+        console.error("Failed to fetch gender options after all retries");
+        return [];
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
+  }
+  return [];
+};
+
+export const getSizeOptions = async (
+  retries = 3
+): Promise<SizeOptionFilter[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/sizes/options");
+      return data || [];
+    } catch (error) {
+      console.error(
+        `Error fetching size options (attempt ${i + 1}/${retries}):`,
+        error
+      );
+      if (i === retries - 1) {
+        console.error("Failed to fetch size options after all retries");
+        return [];
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
+  }
+  return [];
+};
+
 export const getCategoryOptions = async (
   retries = 3
 ): Promise<CategoryOption[]> => {
@@ -219,6 +281,8 @@ export const getProducts = async (
     sortOrder?: string;
     featured?: boolean;
     search?: string;
+    size?: string;
+    gender?: string;
   } = {},
   retries = 3
 ): Promise<{ products: Product[]; pagination: PaginationInfo }> => {
@@ -233,6 +297,8 @@ export const getProducts = async (
           sortOrder: params.sortOrder,
           featured: params.featured,
           search: params.search,
+          size: params.size,
+          gender: params.gender,
         },
       });
       // Return full product data

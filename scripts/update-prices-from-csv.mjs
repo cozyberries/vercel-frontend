@@ -70,7 +70,7 @@ const ITEM_TO_PRODUCT_PREFIX = {
   "GIRLS J.PAN COLLAR FROCK": ["Frock Japanese"],
   "FRILL SLEEVE FROCK": ["Frock Butterfly Sleeve"],
   "SLEEVELESS FROCK": ["Frock Sleeveless"],
-  PYJAMAS: ["Pyjamas Classic", "Pyjamas Ribbed"],
+  PYJAMAS: ["Pyjama", "Pyjama Ribbed"],
   "BOYS CO ORDS": ["Coords Set Half Sleeve"],
   "JHABLA AND SHORTS-SLEEVELESS": ["Jhabla & Shorts Sleeveless"],
   "JHABLA AND SHORTS-HALF SLEEVES": ["Jhabla & Shorts Half Sleeve"],
