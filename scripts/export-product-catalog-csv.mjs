@@ -40,6 +40,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+/** Page size for Supabase range queries; fetch until a page returns fewer than this. */
+const PAGE_SIZE = 1000;
+
 // Helper to parse images field
 function parseImages(images) {
   try {
@@ -75,11 +78,8 @@ function escapeCsvValue(value) {
 
 async function fetchProductCatalog() {
   console.log("Fetching products...");
-  
-  // Fetch all products with categories
-  const { data: products, error: productsError } = await supabase
-    .from("products")
-    .select(`
+
+  const productSelect = `
       id,
       name,
       description,
@@ -96,20 +96,33 @@ async function fetchProductCatalog() {
         name,
         slug
       )
-    `)
-    .order("name", { ascending: true })
-    .range(0, 9999);
+    `;
 
-  if (productsError) throw productsError;
+  const products = [];
+  let productStart = 0;
+  while (true) {
+    const productEnd = productStart + PAGE_SIZE - 1;
+    const { data: page, error: productsError } = await supabase
+      .from("products")
+      .select(productSelect)
+      .order("name", { ascending: true })
+      .range(productStart, productEnd);
+
+    if (productsError) throw productsError;
+    products.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    console.warn(
+      "Products page returned full page size; fetching next page to avoid truncation."
+    );
+    productStart += PAGE_SIZE;
+  }
 
   console.log(`✓ Fetched ${products.length} products`);
 
-  // Fetch all variants with size and color information
+  // Fetch all variants with size and color information (paginated)
   console.log("Fetching product variants...");
-  
-  const { data: variants, error: variantsError } = await supabase
-    .from("product_variants")
-    .select(`
+
+  const variantSelect = `
       id,
       product_id,
       size_id,
@@ -125,10 +138,26 @@ async function fetchProductCatalog() {
         name,
         hex_code
       )
-    `)
-    .order("product_id", { ascending: true });
+    `;
 
-  if (variantsError) throw variantsError;
+  const variants = [];
+  let variantStart = 0;
+  while (true) {
+    const variantEnd = variantStart + PAGE_SIZE - 1;
+    const { data: page, error: variantsError } = await supabase
+      .from("product_variants")
+      .select(variantSelect)
+      .order("product_id", { ascending: true })
+      .range(variantStart, variantEnd);
+
+    if (variantsError) throw variantsError;
+    variants.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    console.warn(
+      "Variants page returned full page size; fetching next page to avoid truncation."
+    );
+    variantStart += PAGE_SIZE;
+  }
 
   console.log(`✓ Fetched ${variants.length} variants`);
 

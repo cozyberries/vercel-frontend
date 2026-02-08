@@ -17,7 +17,6 @@
 /build
 
 # misc
-.DS_Store
 *.pem
 
 # debug
@@ -79,4 +78,3 @@ logs
 .env.development.local
 .env.test.local
 .env.production.local
-.DS_Store

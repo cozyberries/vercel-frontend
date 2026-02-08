@@ -20,6 +20,9 @@ jobs:
   playwright-chromium:
     name: Chromium
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,11 +40,30 @@ jobs:
       - name: Run Playwright (Chromium)
         run: npm run test
 
+      - name: Upload Playwright report (Chromium)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-chromium
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces/screenshots (Chromium)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-chromium
+          path: test-results/
+          retention-days: 14
+
   playwright-cross-browser:
     name: Firefox & WebKit
     runs-on: ubuntu-latest
     # Do not block PRs; run for visibility and scheduled checks
     continue-on-error: true
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -58,3 +80,19 @@ jobs:
 
       - name: Run Playwright (Firefox & WebKit)
         run: npm run test:cross-browser
+
+      - name: Upload Playwright report (Firefox & WebKit)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-cross-browser
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces/screenshots (Firefox & WebKit)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-cross-browser
+          path: test-results/
+          retention-days: 14
