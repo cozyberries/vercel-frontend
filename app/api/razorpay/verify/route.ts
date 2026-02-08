@@ -25,7 +25,13 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify Signature
-        const secret = process.env.RAZORPAY_KEY_SECRET!;
+        const secret = process.env.RAZORPAY_KEY_SECRET;
+        if (!secret) {
+            return NextResponse.json(
+                { error: "Razorpay is not configured" },
+                { status: 503 }
+            );
+        }
         const bodyStr = razorpay_order_id + "|" + razorpay_payment_id;
 
         const expectedSignature = crypto

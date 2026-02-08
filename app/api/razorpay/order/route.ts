@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import Razorpay from "razorpay";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
-function getRazorpayClient(): Razorpay | null {
+/** Lazy-load Razorpay only at request time so build never instantiates it without env. */
+async function getRazorpayClient(): Promise<InstanceType<typeof import("razorpay")> | null> {
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) return null;
+    const Razorpay = (await import("razorpay")).default;
     return new Razorpay({ key_id: keyId, key_secret: keySecret });
 }
 
 export async function POST(request: NextRequest) {
     let orderId: string | undefined;
     try {
-        const razorpay = getRazorpayClient();
+        const razorpay = await getRazorpayClient();
         if (!razorpay) {
             return NextResponse.json(
                 { error: "Razorpay is not configured" },
