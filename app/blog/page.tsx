@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { toImageSrc } from "@/lib/utils/image";
 
 interface BlogPost {
   id: string;
@@ -245,7 +246,7 @@ export default function BlogPage() {
                 >
                   <div className="aspect-video bg-gray-100 relative">
                     <Image
-                      src={post.image}
+                      src={toImageSrc(post.image)}
                       alt={post.title}
                       fill
                       className="object-cover"
@@ -311,7 +312,7 @@ export default function BlogPage() {
               >
                 <div className="aspect-video bg-gray-100 relative">
                   <Image
-                    src={post.image}
+                    src={toImageSrc(post.image)}
                     alt={post.title}
                     fill
                     className="object-cover"

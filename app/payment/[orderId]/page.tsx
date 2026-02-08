@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import type { Order, PaymentMethod } from "@/lib/types/order";
+import { toImageSrc } from "@/lib/utils/image";
 
 interface PaymentOption {
   id: PaymentMethod;
@@ -519,7 +520,7 @@ export default function PaymentPage() {
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
                         <Image
-                          src={item.image}
+                          src={toImageSrc(item.image)}
                           alt={item.name}
                           fill
                           className="object-cover"

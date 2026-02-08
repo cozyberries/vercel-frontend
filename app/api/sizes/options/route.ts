@@ -10,6 +10,9 @@ export interface SizeOption {
 
 type SizeOptionsCache = { data: SizeOption[]; timestamp: number } | null;
 
+// In-memory cache is only valid within a single instance/process and does not persist
+// across serverless cold starts. Redis (Upstash) remains the primary cache layer;
+// this is only an optimization for burst traffic on the same instance.
 let inMemoryCache: SizeOptionsCache = null;
 const IN_MEMORY_TTL = 120_000; // 2 minutes
 

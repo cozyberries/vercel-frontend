@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
 import image1 from "@/assets/image.png";
 import image2 from "@/assets/image2.png";
-import image3 from "@/assets/image3.png";
 
 export default function NewbornGiftingSection() {
   return (
@@ -114,11 +113,11 @@ export default function NewbornGiftingSection() {
           </div>
         </div>
 
-        {/* Desktop Layout - 3 Cards */}
+        {/* Desktop Layout - 2 Cards */}
         <div className="w-full px-16 hidden lg:block">
           <div className="flex flex-row gap-6 h-[400px]">
-            {/* Card 1 - 45% width with background image */}
-            <div className="w-[45%] h-full">
+            {/* Card 1 - Essential Kits */}
+            <div className="w-1/2 h-full">
               <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
@@ -146,8 +145,8 @@ export default function NewbornGiftingSection() {
               </Link>
             </div>
 
-            {/* Card 2 - 45% width with background image */}
-            <div className="w-[41%] h-full">
+            {/* Card 2 - Soft Clothing */}
+            <div className="w-1/2 h-full">
               <Link href="/products?category=newborn-clothing">
                 <div className="group cursor-pointer h-full">
                   <div
@@ -173,52 +172,6 @@ export default function NewbornGiftingSection() {
                   </div>
                 </div>
               </Link>
-            </div>
-
-            {/* Card 3 - 12% width with 2 rows */}
-            <div className="w-[14%] h-full">
-              <div className="h-full flex flex-col gap-2">
-                {/* First row - Card and Image */}
-                <div className="flex-1">
-                  <Link href="/products?category=newborn-accessories">
-                    <div className="group cursor-pointer h-full">
-                      <div
-                        className="relative h-full overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat"
-                        style={{
-                          backgroundImage:
-                            `url(${image3.src})`,
-                        }}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-all duration-500" />
-
-                        {/* Overlay content */}
-                        <div className="absolute inset-0 flex items-end justify-center p-3">
-                          <div className="text-center text-white">
-                            <h3 className="text-sm font-medium mb-1">
-                              Accessories
-                            </h3>
-                            <p className="text-xs opacity-90">
-                              Perfect finishing touches
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-
-                {/* Second row - View All Button */}
-                <div className="flex-1">
-                  <Link href="/products?age=0-3-months">
-                    <Button
-                      variant="outline"
-                      className="w-full h-full text-xs hover:bg-primary hover:text-primary-foreground transition-colors duration-300"
-                    >
-                      View All Newborn
-                    </Button>
-                  </Link>
-                </div>
-              </div>
             </div>
           </div>
         </div>

@@ -49,12 +49,27 @@ async function run() {
     process.exit(1);
   }
 
-  const toRestore = [];
+  // Build name → target slug map (same id order as ORIGINAL_SLUGS_BY_POSITION)
+  const nameToOriginalSlug = {};
   for (let i = 0; i < ORIGINAL_SLUGS_BY_POSITION.length && i < (categories?.length ?? 0); i++) {
-    const cat = categories[i];
-    const originalSlug = ORIGINAL_SLUGS_BY_POSITION[i];
-    if (cat.slug !== originalSlug) {
-      toRestore.push({ id: cat.id, name: cat.name, currentSlug: cat.slug, restoreSlug: originalSlug });
+    nameToOriginalSlug[categories[i].name] = ORIGINAL_SLUGS_BY_POSITION[i];
+  }
+
+  const toRestore = [];
+  for (const cat of categories ?? []) {
+    const restoreSlug = nameToOriginalSlug[cat.name];
+    if (restoreSlug === undefined) {
+      console.log(`  [skip] No target slug for category: ${cat.name} (id: ${cat.id})`);
+      continue;
+    }
+    if (cat.slug !== restoreSlug) {
+      toRestore.push({
+        id: cat.id,
+        name: cat.name,
+        currentSlug: cat.slug,
+        restoreSlug,
+        originalSlug: cat.slug,
+      });
     }
   }
 
@@ -90,8 +105,8 @@ async function run() {
     const { error: e2 } = await supabase.from("categories").update({ slug: r.restoreSlug }).eq("id", r.id);
     if (e2) {
       console.error(`  ❌ ${r.name} → ${r.restoreSlug}:`, e2.message);
-      // Rollback to temp slug so row is not left in inconsistent state
-      const { error: e3 } = await supabase.from("categories").update({ slug: r.tempSlug }).eq("id", r.id);
+      // Rollback to original slug so row is left in consistent state (not temp slug)
+      const { error: e3 } = await supabase.from("categories").update({ slug: r.originalSlug }).eq("id", r.id);
       if (e3) {
         console.error(`  ❌ Rollback failed for ${r.name}:`, e3.message);
       }

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePreloadedData } from "@/components/data-preloader";
+import { toImageSrc } from "@/lib/utils/image";
 
 // Static category images mapping
 // const categoryImageMap: Record<string, string> = {
@@ -65,6 +66,15 @@ export default function CategoryGrid() {
     );
   }
 
+  const getCategoryImageSrc = (category: (typeof displayCategories)[0]): string => {
+    const raw = (category as { image?: unknown; images?: { url?: string }[] }).image;
+    const images = (category as { images?: { url?: string }[] }).images;
+    const fromRaw = toImageSrc(raw);
+    if (fromRaw !== "/placeholder.svg") return fromRaw;
+    const first = images?.[0];
+    return toImageSrc(first?.url ?? first);
+  };
+
   return (
     <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
       {displayCategories.map((category) => {
@@ -76,7 +86,7 @@ export default function CategoryGrid() {
           >
             <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
               <Image
-                src={category.image || ""}
+                src={getCategoryImageSrc(category)}
                 alt={category.name}
                 width={200}
                 height={200}

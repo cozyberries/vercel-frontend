@@ -3,6 +3,7 @@
 import React, { useState, useContext } from "react";
 import Image from "next/image";
 import { CiStar } from "react-icons/ci";
+import { toImageSrc } from "@/lib/utils/image";
 import { FaStar } from "react-icons/fa";
 import { useRating } from "./rating-context";
 
@@ -120,7 +121,7 @@ export default function Reviews({ reviews, onWriteReview, isLoggedIn = true }: R
                           }}
                         >
                           <Image
-                            src={image}
+                            src={toImageSrc(image)}
                             alt={`UploadedReviewPhoto ${imgInd + 1}`}
                             width={80}
                             height={80}

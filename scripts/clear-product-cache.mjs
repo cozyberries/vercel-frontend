@@ -36,10 +36,15 @@ async function clearCache() {
   console.log("🧹 Clearing product cache...\n");
 
   try {
-    // Clear all product list caches
+    const BATCH_SIZE = 500;
+
+    // Clear all product list caches (batch to avoid redis.del arg limits)
     const productKeys = await redis.keys("products:*");
     if (productKeys.length > 0) {
-      await redis.del(...productKeys);
+      for (let i = 0; i < productKeys.length; i += BATCH_SIZE) {
+        const batch = productKeys.slice(i, i + BATCH_SIZE);
+        await redis.del(...batch);
+      }
       console.log(`✓ Cleared ${productKeys.length} product list cache entries`);
     } else {
       console.log("✓ No product list cache entries found");
@@ -48,7 +53,10 @@ async function clearCache() {
     // Clear individual product caches
     const individualProductKeys = await redis.keys("product:*");
     if (individualProductKeys.length > 0) {
-      await redis.del(...individualProductKeys);
+      for (let i = 0; i < individualProductKeys.length; i += BATCH_SIZE) {
+        const batch = individualProductKeys.slice(i, i + BATCH_SIZE);
+        await redis.del(...batch);
+      }
       console.log(`✓ Cleared ${individualProductKeys.length} individual product cache entries`);
     } else {
       console.log("✓ No individual product cache entries found");
@@ -57,7 +65,10 @@ async function clearCache() {
     // Clear category caches if any
     const categoryKeys = await redis.keys("categories:*");
     if (categoryKeys.length > 0) {
-      await redis.del(...categoryKeys);
+      for (let i = 0; i < categoryKeys.length; i += BATCH_SIZE) {
+        const batch = categoryKeys.slice(i, i + BATCH_SIZE);
+        await redis.del(...batch);
+      }
       console.log(`✓ Cleared ${categoryKeys.length} category cache entries`);
     } else {
       console.log("✓ No category cache entries found");

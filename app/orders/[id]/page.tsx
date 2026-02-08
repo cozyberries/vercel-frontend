@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
+import { toImageSrc } from "@/lib/utils/image";
 import type {
   Order,
   Payment,
@@ -262,7 +263,7 @@ export default function OrderDetailsPage() {
                     <div className="relative w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
                       {item.image && (
                         <Image
-                          src={item.image}
+                          src={toImageSrc(item.image)}
                           alt={item.name}
                           fill
                           className="object-cover"

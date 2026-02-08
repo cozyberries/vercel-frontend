@@ -345,11 +345,6 @@ export const HamburgerSheet = () => {
                 </AnimatePresence>
               </div>
 
-              {/* Accessories */}
-              <MenuItem href="/products?category=accessories">
-                <div className="flex items-center">Accessories</div>
-              </MenuItem>
-
               {/* Need Help Section */}
               <motion.div
                 className="mt-6 pt-4 border-t border-gray-200"

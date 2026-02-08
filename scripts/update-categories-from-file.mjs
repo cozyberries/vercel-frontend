@@ -24,6 +24,7 @@ import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 import { resolve } from "path";
 import { readFileSync } from "fs";
+import { slugify } from "./utils/slugify.mjs";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -45,14 +46,6 @@ const FILE_PATH = resolve(
   process.cwd(),
   args[0] || "product-categories.txt"
 );
-
-function slugify(name) {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-}
 
 async function run() {
   let fileContent;

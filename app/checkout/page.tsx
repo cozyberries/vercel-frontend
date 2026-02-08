@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import Script from "next/script";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
+import { toImageSrc } from "@/lib/utils/image";
 
 interface CheckoutFormData {
   email: string;
@@ -523,7 +524,7 @@ export default function CheckoutPage() {
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
                         <Image
-                          src={item.image}
+                          src={toImageSrc(item.image)}
                           alt={item.name}
                           fill
                           className="object-cover"

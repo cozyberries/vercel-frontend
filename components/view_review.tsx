@@ -5,6 +5,7 @@ import { RiCloseLargeFill } from "react-icons/ri";
 import { IoIosArrowForward } from "react-icons/io";
 import Image from "next/image";
 import { Button } from "./ui/button";
+import { toImageSrc } from "@/lib/utils/image";
 import { useRating } from "./rating-context";
 
 interface Review {
@@ -79,7 +80,7 @@ export default function ViewReview({ reviews }: ViewReviewProps) {
           <div className="relative lg:w-1/2 w-full h-80 lg:h-auto p-2 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
             {currentImage ? (
               <Image
-                src={currentImage}
+                src={toImageSrc(currentImage)}
                 alt="Review"
                 fill
                 className="object-cover p-2"

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { Product } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
+import { toImageSrc } from "@/lib/utils/image";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 
@@ -260,7 +261,7 @@ export default function SearchResultsSheet({
                             suggestion.image && (
                               <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
                                 <Image
-                                  src={suggestion.image}
+                                  src={toImageSrc(suggestion.image)}
                                   alt={suggestion.name}
                                   fill
                                   className="object-cover"
@@ -334,10 +335,10 @@ export default function SearchResultsSheet({
                       <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         <Link href={`/products/${product.id}`}>
                           <Image
-                            src={
-                              product.images?.[0]?.url ||
+                            src={toImageSrc(
+                              product.images?.[0]?.url ?? product.images?.[0],
                               images.staticProductImage
-                            }
+                            )}
                             alt={product.name}
                             fill
                             className="object-cover"

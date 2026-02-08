@@ -66,12 +66,16 @@ export default function MobileBottomHeader() {
       badge: wishlist.length > 0 ? wishlist.length : null,
       onClick: () => setIsWishlistOpen(true),
     },
-    {
-      name: "Orders",
-      href: "/orders",
-      icon: Package,
-      isActive: pathname.startsWith("/orders"),
-    },
+    ...(user
+      ? [
+          {
+            name: "Orders",
+            href: "/orders",
+            icon: Package,
+            isActive: pathname.startsWith("/orders"),
+          },
+        ]
+      : []),
     {
       name: "Profile",
       href: user ? "/profile" : "/login",
@@ -84,7 +88,9 @@ export default function MobileBottomHeader() {
     <>
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 lg:hidden">
-        <div className="grid grid-cols-5 h-16">
+        <div
+          className={`grid h-16 ${navItems.length === 4 ? "grid-cols-4" : "grid-cols-5"}`}
+        >
           {/* Navigation Items */}
           {navItems.map((item) => {
             const Icon = item.icon;

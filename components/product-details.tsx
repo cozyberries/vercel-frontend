@@ -24,6 +24,7 @@ import { useAuth } from "./supabase-auth-provider";
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
+import { toImageSrc } from "@/lib/utils/image";
 
 interface ReviewItem {
   userName: string;
@@ -771,7 +772,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                   <Link href={`/products/${relatedProduct.id}`}>
                     <Image
-                      src={relatedProduct?.images?.[0] ?? "/placeholder.svg"}
+                      src={toImageSrc(relatedProduct?.images?.[0])}
                       alt={relatedProduct?.name}
                       width={400}
                       height={400}

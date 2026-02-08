@@ -49,7 +49,12 @@ export default function ProductsClient() {
     setErrorSource(null);
     try {
       const data = await getCategoryOptions();
-      setCategories(data);
+      setCategories(
+        data.filter(
+          (c) =>
+            c.slug !== "accessories" && c.slug !== "newborn-accessories"
+        )
+      );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load categories";
       setCategoriesError(errorMessage);
@@ -530,60 +535,34 @@ export default function ProductsClient() {
             </SelectContent>
           </Select>
 
-          {/* Sort Toggle Button */}
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (currentSort === "default") {
-                handleSortChange("asc");
-              } else if (
-                currentSort === "price" &&
-                currentSortOrder === "asc"
-              ) {
-                handleSortChange("desc");
-              } else {
-                handleSortChange("default");
-              }
-            }}
-            className="w-[200px] justify-between"
+          {/* Sort By - same as mobile FilterSheet */}
+          <Select
+            value={currentSort === "price" ? currentSortOrder : "default"}
+            onValueChange={handleSortChange}
           >
-            <span>
-              {currentSort === "default"
-                ? "Sort"
-                : currentSortOrder === "asc"
-                ? "Price: Low to High"
-                : "Price: High to Low"}
-            </span>
-            <div className="flex flex-col">
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <svg
-                className="w-3 h-3 -mt-1"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-          </Button>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="asc">Price: Low to High</SelectItem>
+              <SelectItem value="desc">Price: High to Low</SelectItem>
+            </SelectContent>
+          </Select>
 
-          {/* Featured Toggle */}
-          <Button
-            variant={currentFeatured ? "default" : "outline"}
-            onClick={handleFeaturedToggle}
-            className="whitespace-nowrap"
-          >
-            {currentFeatured ? "✓ Featured" : "Show Featured"}
-          </Button>
+          {/* Featured Toggle - same label as mobile (Special Offers) */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-foreground">
+              Special Offers
+            </span>
+            <Button
+              variant={currentFeatured ? "default" : "outline"}
+              onClick={handleFeaturedToggle}
+              className="whitespace-nowrap"
+            >
+              {currentFeatured ? "✓ Featured" : "Show Featured"}
+            </Button>
+          </div>
 
           {/* Clear All Filters Button */}
           {hasActiveFilters && (
