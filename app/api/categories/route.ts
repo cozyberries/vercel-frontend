@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
-import { normalizeUrl, resolveImageUrl } from "@/lib/utils/image";
+import { resolveImageUrl } from "@/lib/utils/image";
 
 // In-memory cache for categories (avoids Redis round-trip on hot path)
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
 
-// Simple rate limit for purge: reject if last purge was within this window (ms)
+// Purge rate limit using Redis to work across serverless instances
 const PURGE_RATE_LIMIT_MS = 60_000;
-let lastPurgeTimestamp = 0;
+const PURGE_RATE_LIMIT_KEY = "purge:categories:last";
 
 function isPurgeAuthorized(request: Request): boolean {
   const key = process.env.PURGE_API_KEY;
@@ -29,14 +29,31 @@ export async function GET(request: Request) {
       if (!isPurgeAuthorized(request)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+      
+      // Check rate limit using Redis (works across serverless instances)
       const now = Date.now();
-      if (now - lastPurgeTimestamp < PURGE_RATE_LIMIT_MS) {
-        return NextResponse.json(
-          { error: "Too many purge attempts", retryAfter: Math.ceil((PURGE_RATE_LIMIT_MS - (now - lastPurgeTimestamp)) / 1000) },
-          { status: 429 }
-        );
+      let lastPurgeTime = 0;
+      
+      try {
+        const cached = await UpstashService.get(PURGE_RATE_LIMIT_KEY);
+        if (cached && typeof cached === 'number') {
+          lastPurgeTime = cached;
+        }
+        
+        if (now - lastPurgeTime < PURGE_RATE_LIMIT_MS) {
+          return NextResponse.json(
+            { error: "Too many purge attempts", retryAfter: Math.ceil((PURGE_RATE_LIMIT_MS - (now - lastPurgeTime)) / 1000) },
+            { status: 429 }
+          );
+        }
+        
+        // Update rate limit timestamp in Redis with TTL (expires after rate limit window)
+        await UpstashService.set(PURGE_RATE_LIMIT_KEY, now, Math.ceil(PURGE_RATE_LIMIT_MS / 1000));
+      } catch (error) {
+        // Fall back to authorization-only check if Redis is unavailable
+        console.warn("Redis rate limit check failed, proceeding with auth-only check:", error);
       }
-      lastPurgeTimestamp = now;
+      
       inMemoryCache = null;
       await UpstashService.delete("categories:list");
     }

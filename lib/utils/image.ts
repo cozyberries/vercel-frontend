@@ -16,13 +16,16 @@ export function normalizeAbsoluteUrl(s: string): string {
 
 /**
  * Normalizes a URL value for safe usage in image src attributes.
- * Strips leading slash from absolute URLs and trims whitespace.
+ * Strips one or two leading slashes from absolute URLs and trims whitespace.
  * Returns undefined if the value is empty or not a string.
  */
 export function normalizeUrl(value: string | undefined): string | undefined {
   if (!value || typeof value !== "string") return undefined;
   const s = value.trim();
-  if (s.startsWith("/") && s.slice(1).startsWith("http")) return s.slice(1);
+  // Strip one or two leading slashes before "http" (handles "/http..." and "//http...")
+  if (s.startsWith("/https") || s.startsWith("//https") || s.startsWith("/http") || s.startsWith("//http")) {
+    return s.replace(/^\/+/, "");
+  }
   if (s.startsWith("http")) return s;
   return s;
 }

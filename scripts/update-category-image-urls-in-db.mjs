@@ -226,10 +226,13 @@ async function main() {
     process.exit(0);
   }
 
-  // Batch-fetch all category images from Cloudinary
-  console.log("   Fetching all category images from Cloudinary...");
-  const urlMap = await fetchAllCategoryUrls();
-  console.log(`   Found ${urlMap.size} category image(s) in Cloudinary.\n`);
+  // Batch-fetch all category images from Cloudinary (skip in dry-run mode)
+  let urlMap = new Map();
+  if (!args.dryRun) {
+    console.log("   Fetching all category images from Cloudinary...");
+    urlMap = await fetchAllCategoryUrls();
+    console.log(`   Found ${urlMap.size} category image(s) in Cloudinary.\n`);
+  }
 
   let updated = 0;
   let skipped = 0;
@@ -237,7 +240,7 @@ async function main() {
     let url;
     if (args.dryRun) {
       const publicId = categoryPublicId(category.slug);
-      console.log(`   [dry-run] ${category.name} (${category.slug}) -> fetch ${publicId}`);
+      console.log(`   [dry-run] ${category.name} (${category.slug}) -> would fetch ${publicId}`);
       updated++;
       continue;
     }

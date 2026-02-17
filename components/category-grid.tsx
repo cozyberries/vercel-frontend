@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePreloadedData } from "@/components/data-preloader";
-import { toImageSrc, PLACEHOLDER_DATA_URL, normalizeAbsoluteUrl } from "@/lib/utils/image";
+import { toImageSrc, PLACEHOLDER_DATA_URL } from "@/lib/utils/image";
 
 /** Category shape used for display and image resolution (image/images may be string or object with url). */
 interface Category {
@@ -77,9 +77,9 @@ export default function CategoryGrid() {
 
   const getCategoryImageSrc = (category: Category): string => {
     const fromRaw = toImageSrc(category.image);
-    if (fromRaw !== PLACEHOLDER_DATA_URL) return normalizeAbsoluteUrl(fromRaw);
+    if (fromRaw !== PLACEHOLDER_DATA_URL) return fromRaw;
     const first = category.images?.[0];
-    return normalizeAbsoluteUrl(toImageSrc(first?.url ?? first));
+    return toImageSrc(first?.url ?? first);
   };
 
   return (
