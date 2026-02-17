@@ -1,10 +1,24 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { normalizeUrl, resolveImageUrl } from "@/lib/utils/image";
 
 // In-memory cache for categories (avoids Redis round-trip on hot path)
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
+
+// Simple rate limit for purge: reject if last purge was within this window (ms)
+const PURGE_RATE_LIMIT_MS = 60_000;
+let lastPurgeTimestamp = 0;
+
+function isPurgeAuthorized(request: Request): boolean {
+  const key = process.env.PURGE_API_KEY;
+  if (!key?.length) return false;
+  const authHeader = request.headers.get("authorization");
+  const apiKey = request.headers.get("x-api-key");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : apiKey?.trim();
+  return token === key;
+}
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +26,17 @@ export async function GET(request: Request) {
     const purge = searchParams.get("purge") === "1";
 
     if (purge) {
+      if (!isPurgeAuthorized(request)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const now = Date.now();
+      if (now - lastPurgeTimestamp < PURGE_RATE_LIMIT_MS) {
+        return NextResponse.json(
+          { error: "Too many purge attempts", retryAfter: Math.ceil((PURGE_RATE_LIMIT_MS - (now - lastPurgeTimestamp)) / 1000) },
+          { status: 429 }
+        );
+      }
+      lastPurgeTimestamp = now;
       inMemoryCache = null;
       await UpstashService.delete("categories:list");
     }
@@ -90,22 +115,6 @@ export async function GET(request: Request) {
 
     // Process categories to add image URLs (use url when set; storage_path may be full URL or relative path).
     // Normalize: strip leading slash so we never return "/https://..." (invalid for img src).
-    const normalizeUrl = (value: string | undefined): string | undefined => {
-      if (!value || typeof value !== "string") return undefined;
-      const s = value.trim();
-      if (s.startsWith("/") && s.slice(1).startsWith("http")) return s.slice(1);
-      if (s.startsWith("http")) return s;
-      return s;
-    };
-    const resolveImageUrl = (img: any) => {
-      const fromUrl = normalizeUrl(img.url);
-      if (fromUrl) return fromUrl;
-      const path = img.storage_path;
-      if (!path) return undefined;
-      const fromPath = normalizeUrl(path);
-      if (fromPath?.startsWith("http")) return fromPath;
-      return path.startsWith("/") ? path : `/${path}`;
-    };
     const categories = (data || []).map((category: any) => {
       const images = (category.categories_images || [])
         .filter((img: any) => img.url || img.storage_path)

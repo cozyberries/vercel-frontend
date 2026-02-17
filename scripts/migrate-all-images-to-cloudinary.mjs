@@ -211,7 +211,8 @@ async function migrateProducts() {
       if (typeof images === "string") {
         try {
           images = images.trim().startsWith("[") ? JSON.parse(images) : [images];
-        } catch {
+        } catch (parseErr) {
+          console.warn(`   ⚠ Failed to parse images for product ${product.id || product.slug} ("${product.name}"): ${parseErr.message}. Raw value: ${JSON.stringify(images)}`);
           images = [];
         }
       } else {
@@ -219,7 +220,9 @@ async function migrateProducts() {
       }
     }
     const newUrls = [];
+    const failedImages = [];
     let changed = false;
+    let allUploadsSucceeded = true;
     for (let i = 0; i < images.length; i++) {
       const u = images[i];
       const url = typeof u === "string" ? u : u?.url || u?.storage_path;
@@ -243,6 +246,8 @@ async function migrateProducts() {
         newUrls.push(cloudinaryUrl);
       } else {
         newUrls.push(url);
+        allUploadsSucceeded = false;
+        failedImages.push(url);
       }
     }
     if (!changed) {
@@ -252,6 +257,11 @@ async function migrateProducts() {
     if (args.dryRun) {
       console.log(`   [dry-run] Would migrate product "${product.name}" (${product.slug})`);
       updated++;
+      continue;
+    }
+    if (!allUploadsSucceeded) {
+      failed++;
+      console.error(`   ✗ ${product.name} (${product.slug}): upload failed for ${failedImages.length} image(s), skipping DB update (will retry on next run):`, failedImages);
       continue;
     }
     const { error: updateErr } = await supabase

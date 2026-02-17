@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePreloadedData } from "@/components/data-preloader";
-import { toImageSrc, PLACEHOLDER_DATA_URL } from "@/lib/utils/image";
+import { toImageSrc, PLACEHOLDER_DATA_URL, normalizeAbsoluteUrl } from "@/lib/utils/image";
 
 /** Category shape used for display and image resolution (image/images may be string or object with url). */
 interface Category {
@@ -16,8 +16,11 @@ interface Category {
   images?: { url?: string }[];
 }
 
-// Slugs to hide from homepage "Shop by Category" (they have their own section, e.g. Newborn Gifting)
-const HIDE_FROM_HOMEPAGE_SLUGS = ["newborn-essentials", "newborn-clothing"];
+// Slugs to hide from homepage "Shop by Category" (configurable via env or props)
+const DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS = ["newborn-essentials", "newborn-clothing"];
+const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
+  ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map(s => s.trim())
+  : DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS;
 
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
@@ -74,15 +77,10 @@ export default function CategoryGrid() {
 
   const getCategoryImageSrc = (category: Category): string => {
     const fromRaw = toImageSrc(category.image);
-    if (fromRaw !== PLACEHOLDER_DATA_URL) return fixImageSrc(fromRaw);
+    if (fromRaw !== PLACEHOLDER_DATA_URL) return normalizeAbsoluteUrl(fromRaw);
     const first = category.images?.[0];
-    return fixImageSrc(toImageSrc(first?.url ?? first));
+    return normalizeAbsoluteUrl(toImageSrc(first?.url ?? first));
   };
-  // Fix wrongly prefixed URLs (e.g. "/https://..." from stale cache)
-  function fixImageSrc(src: string): string {
-    if (typeof src === "string" && src.startsWith("/https://")) return src.slice(1);
-    return src;
-  }
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">

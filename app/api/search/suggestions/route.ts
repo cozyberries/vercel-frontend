@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { resolveImageUrl } from "@/lib/utils/image";
+
+/**
+ * Extract primary or first image URL from product data.
+ */
+function extractProductImageUrl(product: any): string | undefined {
+  const primaryImg = product.product_images?.find((img: any) => img.is_primary) || product.product_images?.[0];
+  if (primaryImg?.url) return primaryImg.url;
+  if (primaryImg?.storage_path) return `/${primaryImg.storage_path}`;
+  if (Array.isArray(product.images) && product.images.length > 0) return product.images[0];
+  return undefined;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,12 +74,10 @@ export async function GET(request: NextRequest) {
     // Process suggestions
     const suggestions = [];
 
-    // Add product suggestions (image: Cloudinary from product_images.url, else products.images[0], else local path)
+    // Add product suggestions
     if (products) {
       for (const product of products) {
-        const primaryImg = product.product_images?.find((img: any) => img.is_primary) || product.product_images?.[0];
-        const imageUrl = primaryImg?.url ?? (primaryImg?.storage_path ? `/${primaryImg.storage_path}` : null)
-          ?? (Array.isArray(product.images) && product.images?.length > 0 ? product.images[0] : undefined);
+        const imageUrl = extractProductImageUrl(product);
         suggestions.push({
           id: product.id,
           name: product.name,

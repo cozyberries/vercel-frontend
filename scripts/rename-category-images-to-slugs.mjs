@@ -41,6 +41,10 @@ for (const [slug, filenames] of Object.entries(mapping)) {
     if (dryRun) {
       console.log(`  ${oldName} → ${newName}`);
     } else {
+      if (existsSync(to)) {
+        console.warn(`  ⚠ Skipping rename (destination already exists): ${oldName} → ${newName}`);
+        return;
+      }
       renameSync(from, to);
       console.log(`  ${oldName} → ${newName}`);
     }

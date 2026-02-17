@@ -1,5 +1,3 @@
-export const DEFAULT_PLACEHOLDER = "/placeholder.svg";
-
 // Data-URL placeholder (gray image) so fallback never 404s
 export const PLACEHOLDER_DATA_URL =
   "data:image/svg+xml," +
@@ -10,10 +8,37 @@ export const PLACEHOLDER_DATA_URL =
 /**
  * Fixes malformed absolute URLs (e.g. "/https://..." from DB/cache) so they load correctly.
  */
-function normalizeAbsoluteUrl(s: string): string {
+export function normalizeAbsoluteUrl(s: string): string {
   const t = s.trim();
   if (t.startsWith("/https") || t.startsWith("//https")) return t.replace(/^\/+/, "");
   return t;
+}
+
+/**
+ * Normalizes a URL value for safe usage in image src attributes.
+ * Strips leading slash from absolute URLs and trims whitespace.
+ * Returns undefined if the value is empty or not a string.
+ */
+export function normalizeUrl(value: string | undefined): string | undefined {
+  if (!value || typeof value !== "string") return undefined;
+  const s = value.trim();
+  if (s.startsWith("/") && s.slice(1).startsWith("http")) return s.slice(1);
+  if (s.startsWith("http")) return s;
+  return s;
+}
+
+/**
+ * Resolves an image URL from an image object (with url or storage_path).
+ * Used by API routes to construct consistent image URLs for responses.
+ */
+export function resolveImageUrl(img: { url?: string; storage_path?: string }): string | undefined {
+  const fromUrl = normalizeUrl(img.url);
+  if (fromUrl) return fromUrl;
+  const path = img.storage_path;
+  if (!path) return undefined;
+  const fromPath = normalizeUrl(path);
+  if (fromPath?.startsWith("http")) return fromPath;
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
 /**

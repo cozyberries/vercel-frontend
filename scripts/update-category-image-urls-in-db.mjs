@@ -120,22 +120,55 @@ async function fetchCloudinaryUrlByPrefix(prefix) {
   }
 }
 
-/** Fetch actual image URL from Cloudinary: try exact public_id first, then list folder. */
-async function fetchCloudinaryUrl(slug) {
+/**
+ * Batch-fetch all category images from Cloudinary in one call.
+ * Returns a Map from slug -> secure_url.
+ */
+async function fetchAllCategoryUrls() {
+  const urlMap = new Map();
+  try {
+    const result = await cloudinary.api.resources({
+      type: "upload",
+      prefix: "cozyberries/categories/",
+      resource_type: "image",
+      max_results: 500,
+    });
+    const resources = result?.resources ?? [];
+    for (const res of resources) {
+      // Parse public_id to extract slug: "cozyberries/categories/<slug>/1" or similar
+      const match = res.public_id.match(/^cozyberries\/categories\/([^/]+)\//);
+      if (match) {
+        const slug = match[1];
+        // Prefer image named "1" (primary); otherwise use first found
+        if (!urlMap.has(slug) || res.public_id.endsWith("/1")) {
+          urlMap.set(slug, res.secure_url);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("   ⚠ Batch fetch from Cloudinary failed, will fall back to per-slug lookups:", err.message);
+  }
+  return urlMap;
+}
+
+/** Fetch actual image URL from Cloudinary: try map lookup first, then fallback to API calls. */
+async function fetchCloudinaryUrl(slug, urlMap) {
+  if (urlMap.has(slug)) return urlMap.get(slug);
+  
+  // Fallback: try exact public_id first, then with extensions
   const publicId = categoryPublicId(slug);
   let url = await fetchCloudinaryUrlByPublicId(publicId);
   if (url) return url;
-  // Try with common extensions (public_id might be stored as "1.jpg" etc.)
   for (const ext of ["jpg", "jpeg", "png", "webp"]) {
     url = await fetchCloudinaryUrlByPublicId(`${publicId}.${ext}`);
     if (url) return url;
   }
-  // Fallback: list assets in cozyberries/categories/<slug>/
+  // Last resort: list assets in cozyberries/categories/<slug>/
   const prefix = `cozyberries/categories/${slug}/`;
   return fetchCloudinaryUrlByPrefix(prefix);
 }
 
-/** Clear categories cache in Redis (categories:list, categories:options, etc.) */
+/** Clear categories cache in Redis (categories:list, categories:options, etc.) using SCAN to avoid blocking */
 async function clearCategoriesCache() {
   if (!UPSTASH_REDIS_REST_URL || !UPSTASH_REDIS_REST_TOKEN) {
     console.warn("   ⚠ Skipping cache clear: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN not set.");
@@ -145,13 +178,32 @@ async function clearCategoriesCache() {
     url: UPSTASH_REDIS_REST_URL,
     token: UPSTASH_REDIS_REST_TOKEN,
   });
-  const keys = await redis.keys("categories:*");
-  if (keys.length === 0) {
+  
+  let cursor = 0;
+  const allKeys = [];
+  const batchSize = 100;
+  
+  do {
+    const result = await redis.scan(cursor, { match: "categories:*", count: batchSize });
+    cursor = result[0];
+    const keys = result[1];
+    if (keys.length > 0) {
+      allKeys.push(...keys);
+    }
+  } while (cursor !== 0);
+  
+  if (allKeys.length === 0) {
     console.log("   Cache: no categories keys found.");
     return;
   }
-  await redis.del(...keys);
-  console.log(`   Cache: cleared ${keys.length} key(s) (categories:*).`);
+  
+  // Delete in batches of 100 to avoid too large commands
+  for (let i = 0; i < allKeys.length; i += batchSize) {
+    const batch = allKeys.slice(i, i + batchSize);
+    await redis.del(...batch);
+  }
+  
+  console.log(`   Cache: cleared ${allKeys.length} key(s) (categories:*).`);
 }
 
 async function main() {
@@ -174,6 +226,11 @@ async function main() {
     process.exit(0);
   }
 
+  // Batch-fetch all category images from Cloudinary
+  console.log("   Fetching all category images from Cloudinary...");
+  const urlMap = await fetchAllCategoryUrls();
+  console.log(`   Found ${urlMap.size} category image(s) in Cloudinary.\n`);
+
   let updated = 0;
   let skipped = 0;
   for (const category of categories) {
@@ -185,35 +242,39 @@ async function main() {
       continue;
     }
 
-    url = await fetchCloudinaryUrl(category.slug);
+    url = await fetchCloudinaryUrl(category.slug, urlMap);
     if (!url) {
       console.warn(`   ⚠ ${category.name} (${category.slug}): no image in cozyberries/categories/${category.slug}/, skipping.`);
       skipped++;
       continue;
     }
 
-    // Delete existing categories_images for this category
-    const { error: delErr } = await supabase
+    // Insert new image row first; only delete old rows after insert succeeds to avoid leaving category without images
+    const { data: insertedRow, error: insErr } = await supabase
       .from("categories_images")
-      .delete()
-      .eq("category_id", category.id);
-
-    if (delErr) {
-      console.warn(`   ⚠ Could not delete old images for ${category.name}:`, delErr.message);
-    }
-
-    // Insert single image row (filename = 1)
-    const { error: insErr } = await supabase.from("categories_images").insert({
-      category_id: category.id,
-      url,
-      storage_path: url,
-      display_order: 0,
-      is_primary: true,
-    });
+      .insert({
+        category_id: category.id,
+        url,
+        storage_path: url,
+        display_order: 0,
+        is_primary: true,
+      })
+      .select("id")
+      .single();
 
     if (insErr) {
       console.error(`   ✗ Failed to insert categories_images for ${category.name}:`, insErr.message);
       continue;
+    }
+
+    const { error: delErr } = await supabase
+      .from("categories_images")
+      .delete()
+      .eq("category_id", category.id)
+      .neq("id", insertedRow.id);
+
+    if (delErr) {
+      console.warn(`   ⚠ Could not delete old images for ${category.name}:`, delErr.message);
     }
 
     // Update categories.image for backward compatibility

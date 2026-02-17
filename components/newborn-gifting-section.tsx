@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
 import { usePreloadedData } from "@/components/data-preloader";
-import { toImageSrc, PLACEHOLDER_DATA_URL } from "@/lib/utils/image";
+import { toImageSrc, PLACEHOLDER_DATA_URL, normalizeAbsoluteUrl } from "@/lib/utils/image";
 
 type CategoryWithImages = {
   slug?: string;
@@ -12,20 +12,12 @@ type CategoryWithImages = {
   images?: { url?: string; storage_path?: string }[];
 };
 
-function fixImageSrc(src: string): string {
-  if (typeof src !== "string") return src;
-  const s = src.trim();
-  // Fix malformed URLs: "/https://..." or "//https://..." so browser can load Cloudinary
-  if (s.startsWith("/https") || s.startsWith("//https")) return s.replace(/^\/+/, "");
-  return s;
-}
-
 function getImageUrl(cat: CategoryWithImages | undefined, index: number): string {
   if (!cat) return PLACEHOLDER_DATA_URL;
   const img = cat.images?.[index];
   const url = img?.url ?? img?.storage_path ?? (index === 0 ? cat.image : undefined);
   const resolved = toImageSrc(url);
-  return resolved === PLACEHOLDER_DATA_URL ? resolved : fixImageSrc(resolved);
+  return resolved === PLACEHOLDER_DATA_URL ? resolved : normalizeAbsoluteUrl(resolved);
 }
 
 export default function NewbornGiftingSection() {
@@ -33,9 +25,10 @@ export default function NewbornGiftingSection() {
   const newbornEssentials = categories.find((c) => c.slug === "newborn-essentials") as CategoryWithImages | undefined;
   const newbornClothing = categories.find((c) => c.slug === "newborn-clothing") as CategoryWithImages | undefined;
   const essentialKitsUrl = getImageUrl(newbornEssentials, 0);
+  const clothingFirstImage = getImageUrl(newbornClothing, 0);
   const softClothingUrl =
-    getImageUrl(newbornClothing, 0) !== PLACEHOLDER_DATA_URL
-      ? getImageUrl(newbornClothing, 0)
+    clothingFirstImage !== PLACEHOLDER_DATA_URL
+      ? clothingFirstImage
       : getImageUrl(newbornEssentials, 1);
 
   return (

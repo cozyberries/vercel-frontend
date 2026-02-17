@@ -107,13 +107,15 @@ api.interceptors.response.use(
 );
 
 // ---------- API Functions ----------
-export const getCategories = async (retries = 3) => {
+export const getCategories = async (cacheBust = false, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/categories", {
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-        params: { _: Date.now() },
-      });
+      const config: any = {};
+      if (cacheBust) {
+        config.headers = { "Cache-Control": "no-cache", Pragma: "no-cache" };
+        config.params = { _: Date.now() };
+      }
+      const { data } = await api.get("/api/categories", config);
       return data || [];
     } catch (error) {
       console.error(

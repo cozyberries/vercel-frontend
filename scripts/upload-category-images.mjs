@@ -252,30 +252,37 @@ async function main() {
       continue;
     }
 
-    // Delete existing categories_images for this category
-    const { error: delErr } = await supabase
-      .from("categories_images")
-      .delete()
-      .eq("category_id", category.id);
-
-    if (delErr) {
-      console.warn(`   ⚠ Could not delete old category images for ${category.name}:`, delErr.message);
-    }
-
-    // Insert new rows: url, storage_path (NOT NULL; use url as value), display_order, is_primary
+    // storage_path: store canonical Cloudinary relative path (public_id) so URLs can be rebuilt from config; url keeps full URL for display/backward compat
     const rows = urls.map((url, i) => ({
       category_id: category.id,
       url,
-      storage_path: url,
+      storage_path: `cozyberries/categories/${slug}/${i + 1}`,
       display_order: i,
       is_primary: i === 0,
     }));
 
-    const { error: insErr } = await supabase.from("categories_images").insert(rows);
+    const { data: insertedRows, error: insErr } = await supabase
+      .from("categories_images")
+      .insert(rows)
+      .select("id");
 
     if (insErr) {
       console.error(`   ✗ Failed to insert categories_images for ${category.name}:`, insErr.message);
       continue;
+    }
+
+    const newIds = (insertedRows || []).map((r) => r.id);
+    if (newIds.length > 0) {
+      const inList = newIds.map((id) => (typeof id === "string" ? `"${id}"` : id)).join(",");
+      const { error: delErr } = await supabase
+        .from("categories_images")
+        .delete()
+        .eq("category_id", category.id)
+        .not("id", "in", `(${inList})`);
+
+      if (delErr) {
+        console.warn(`   ⚠ Could not delete old category images for ${category.name}:`, delErr.message);
+      }
     }
 
     // Update categories.image to first URL (backward compatibility)
