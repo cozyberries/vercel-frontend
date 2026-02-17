@@ -48,6 +48,9 @@ const CACHE_PATTERNS = [
   "products:*",           // Product list queries
   "product:*",            // Individual products
   "categories:*",         // Categories
+  "sizes:*",              // Size options (e.g. sizes:options)
+  "genders:*",           // Gender options (e.g. genders:options)
+  "search:*",             // Search suggestions
   "ratings:*",            // Ratings
   "user:wishlist:*",      // User wishlists
   "user:orders:*",        // User orders

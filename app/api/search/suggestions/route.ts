@@ -30,15 +30,16 @@ export async function GET(request: NextRequest) {
     // 2. Fetch from DB
     const supabase = await createServerSupabaseClient();
 
-    // Search products
+    // Search products (use products.images for image; product_images.url when present)
     const { data: products, error: productsError } = await supabase
       .from("products")
       .select(`
         id,
         name,
         slug,
+        images,
         categories(name, slug),
-        product_images(storage_path, is_primary)
+        product_images(storage_path, url, is_primary)
       `)
       .ilike("name", `%${normalised}%`)
       .limit(5);
@@ -61,16 +62,18 @@ export async function GET(request: NextRequest) {
     // Process suggestions
     const suggestions = [];
 
-    // Add product suggestions
+    // Add product suggestions (image: Cloudinary from product_images.url, else products.images[0], else local path)
     if (products) {
       for (const product of products) {
-        const primaryImage = product.product_images?.find((img: any) => img.is_primary);
+        const primaryImg = product.product_images?.find((img: any) => img.is_primary) || product.product_images?.[0];
+        const imageUrl = primaryImg?.url ?? (primaryImg?.storage_path ? `/${primaryImg.storage_path}` : null)
+          ?? (Array.isArray(product.images) && product.images?.length > 0 ? product.images[0] : undefined);
         suggestions.push({
           id: product.id,
           name: product.name,
           type: "product",
           slug: product.slug,
-          image: primaryImage ? `/${primaryImage.storage_path}` : undefined,
+          image: imageUrl ?? undefined,
           categoryName: Array.isArray(product.categories) ? product.categories[0]?.name : (product.categories as any)?.name,
         });
       }

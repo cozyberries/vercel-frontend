@@ -6,11 +6,18 @@ import { UpstashService } from "@/lib/upstash";
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const purge = searchParams.get("purge") === "1";
+
+    if (purge) {
+      inMemoryCache = null;
+      await UpstashService.delete("categories:list");
+    }
 
     // 1. Check in-memory cache first (instant, no network)
-    if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
+    if (!purge && inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
       return NextResponse.json(inMemoryCache.data, {
         headers: {
           'X-Cache-Status': 'HIT',
@@ -43,7 +50,7 @@ export async function GET() {
       }
     }
 
-    if (cachedCategories) {
+    if (!purge && cachedCategories) {
       // Update in-memory cache
       inMemoryCache = { data: cachedCategories, timestamp: Date.now() };
       return NextResponse.json(cachedCategories, {
@@ -65,6 +72,7 @@ export async function GET() {
         categories_images(
           id,
           storage_path,
+          url,
           is_primary,
           display_order,
           metadata
@@ -80,17 +88,34 @@ export async function GET() {
       );
     }
 
-    // Process categories to add image URLs
+    // Process categories to add image URLs (use url when set; storage_path may be full URL or relative path).
+    // Normalize: strip leading slash so we never return "/https://..." (invalid for img src).
+    const normalizeUrl = (value: string | undefined): string | undefined => {
+      if (!value || typeof value !== "string") return undefined;
+      const s = value.trim();
+      if (s.startsWith("/") && s.slice(1).startsWith("http")) return s.slice(1);
+      if (s.startsWith("http")) return s;
+      return s;
+    };
+    const resolveImageUrl = (img: any) => {
+      const fromUrl = normalizeUrl(img.url);
+      if (fromUrl) return fromUrl;
+      const path = img.storage_path;
+      if (!path) return undefined;
+      const fromPath = normalizeUrl(path);
+      if (fromPath?.startsWith("http")) return fromPath;
+      return path.startsWith("/") ? path : `/${path}`;
+    };
     const categories = (data || []).map((category: any) => {
       const images = (category.categories_images || [])
-        .filter((img: any) => img.storage_path) // Filter out images with null storage_path
+        .filter((img: any) => img.url || img.storage_path)
         .map((img: any) => ({
           id: img.id,
           storage_path: img.storage_path,
           is_primary: img.is_primary,
           display_order: img.display_order,
           metadata: img.metadata,
-          url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
+          url: resolveImageUrl(img),
         }))
         .sort((a: any, b: any) => {
           // Sort by display_order only - first index is primary
