@@ -1,13 +1,36 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
-import image1 from "@/assets/image.png";
-import image2 from "@/assets/image2.png";
+import { usePreloadedData } from "@/components/data-preloader";
+import { toImageSrc, PLACEHOLDER_DATA_URL, normalizeAbsoluteUrl } from "@/lib/utils/image";
+
+type CategoryWithImages = {
+  slug?: string;
+  image?: string;
+  images?: { url?: string; storage_path?: string }[];
+};
+
+function getImageUrl(cat: CategoryWithImages | undefined, index: number): string {
+  if (!cat) return PLACEHOLDER_DATA_URL;
+  const img = cat.images?.[index];
+  const url = img?.url ?? img?.storage_path ?? (index === 0 ? cat.image : undefined);
+  const resolved = toImageSrc(url);
+  return resolved === PLACEHOLDER_DATA_URL ? resolved : normalizeAbsoluteUrl(resolved);
+}
 
 export default function NewbornGiftingSection() {
+  const { categories } = usePreloadedData();
+  const newbornEssentials = categories.find((c) => c.slug === "newborn-essentials") as CategoryWithImages | undefined;
+  const newbornClothing = categories.find((c) => c.slug === "newborn-clothing") as CategoryWithImages | undefined;
+  const essentialKitsUrl = getImageUrl(newbornEssentials, 0);
+  const clothingFirstImage = getImageUrl(newbornClothing, 0);
+  const softClothingUrl =
+    clothingFirstImage !== PLACEHOLDER_DATA_URL
+      ? clothingFirstImage
+      : getImageUrl(newbornEssentials, 1);
+
   return (
     <section className="lg:py-28 py-20 bg-[#f9f7f4] relative overflow-hidden">
       <SnowflakeDecoration
@@ -38,68 +61,45 @@ export default function NewbornGiftingSection() {
           </p>
         </div>
 
-        {/* Mobile Layout - 2 Cards + Button */}
+        {/* Mobile Layout - 2 Cards (aspect-square) + Button */}
         <div className="w-full px-4 lg:hidden">
           <div className="flex flex-col gap-4">
-            {/* Card 1 */}
-            <div className="w-full h-[200px]">
+            <div className="w-full aspect-square max-w-sm mx-auto">
               <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full"
-                    style={{
-                      backgroundImage:
-                        `url(${image1.src})`,
-                    }}
+                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-transform duration-300 group-hover:scale-105"
+                    style={{ backgroundImage: `url(${essentialKitsUrl})` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-
-                    {/* Overlay content */}
                     <div className="absolute inset-0 flex items-end justify-center p-6">
                       <div className="text-center text-white">
-                        <h3 className="text-xl font-light mb-2">
-                          Essential Kits
-                        </h3>
-                        <p className="text-sm opacity-90">
-                          Everything your little one needs
-                        </p>
+                        <h3 className="text-xl font-light mb-2">Essential Kits</h3>
+                        <p className="text-sm opacity-90">Everything your little one needs</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </Link>
             </div>
-
-            {/* Card 2 */}
-            <div className="w-full h-[200px]">
-              <Link href="/products?category=newborn-clothing">
+            <div className="w-full aspect-square max-w-sm mx-auto">
+              <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center hover:scale-105 transition-all duration-300 bg-no-repeat h-full"
-                    style={{
-                      backgroundImage:
-                        `url(${image2.src})`,                    
-                      }}
+                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-transform duration-300 group-hover:scale-105"
+                    style={{ backgroundImage: `url(${softClothingUrl})` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-
-                    {/* Overlay content */}
                     <div className="absolute inset-0 flex items-end justify-center p-6">
                       <div className="text-center text-white">
-                        <h3 className="text-xl font-light mb-2">
-                          Soft Clothing
-                        </h3>
-                        <p className="text-sm opacity-90">
-                          Gentle fabrics for delicate skin
-                        </p>
+                        <h3 className="text-xl font-light mb-2">Soft Clothing</h3>
+                        <p className="text-sm opacity-90">Gentle fabrics for delicate skin</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </Link>
             </div>
-
-            {/* View All Button */}
             <div className="w-full">
               <Link href="/products?age=0-3-months">
                 <Button
@@ -113,60 +113,39 @@ export default function NewbornGiftingSection() {
           </div>
         </div>
 
-        {/* Desktop Layout - 2 Cards */}
+        {/* Desktop Layout - 2 Cards (aspect-square) */}
         <div className="w-full px-16 hidden lg:block">
-          <div className="flex flex-row gap-6 h-[400px]">
-            {/* Card 1 - Essential Kits */}
-            <div className="w-1/2 h-full">
+          <div className="flex flex-row gap-6 justify-center max-w-4xl mx-auto">
+            <div className="w-full max-w-md aspect-square">
               <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full"
-                    style={{
-                      backgroundImage:
-                        `url(${image1.src})`,
-                    }}
+                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-all duration-500 group-hover:scale-105"
+                    style={{ backgroundImage: `url(${essentialKitsUrl})` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-all duration-500" />
-
-                    {/* Overlay content */}
                     <div className="absolute inset-0 flex items-end justify-center p-6">
                       <div className="text-center text-white">
-                        <h3 className="text-xl md:text-2xl font-light mb-2">
-                          Essential Kits
-                        </h3>
-                        <p className="text-sm md:text-base opacity-90">
-                          Everything your little one needs
-                        </p>
+                        <h3 className="text-xl md:text-2xl font-light mb-2">Essential Kits</h3>
+                        <p className="text-sm md:text-base opacity-90">Everything your little one needs</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </Link>
             </div>
-
-            {/* Card 2 - Soft Clothing */}
-            <div className="w-1/2 h-full">
-              <Link href="/products?category=newborn-clothing">
+            <div className="w-full max-w-md aspect-square">
+              <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full"
-                    style={{
-                      backgroundImage:
-                        `url(${image2.src})`,
-                    }}
+                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-all duration-500 group-hover:scale-105"
+                    style={{ backgroundImage: `url(${softClothingUrl})` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-all duration-500" />
-
-                    {/* Overlay content */}
                     <div className="absolute inset-0 flex items-end justify-center p-6">
                       <div className="text-center text-white">
-                        <h3 className="text-xl md:text-2xl font-light mb-2">
-                          Soft Clothing
-                        </h3>
-                        <p className="text-sm md:text-base opacity-90">
-                          Gentle fabrics for delicate skin
-                        </p>
+                        <h3 className="text-xl md:text-2xl font-light mb-2">Soft Clothing</h3>
+                        <p className="text-sm md:text-base opacity-90">Gentle fabrics for delicate skin</p>
                       </div>
                     </div>
                   </div>
