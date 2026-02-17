@@ -39,9 +39,9 @@ export async function GET(request: Request) {
         if (!acquired) {
           const lastPurgeTime = (await UpstashService.get(PURGE_RATE_LIMIT_KEY)) as number | null;
           const last = typeof lastPurgeTime === "number" ? lastPurgeTime : now;
-          const retryAfter = Math.ceil((PURGE_RATE_LIMIT_MS - (now - last)) / 1000);
+          const retryAfter = Math.max(1, Math.min(purgeTtlSeconds, Math.ceil((PURGE_RATE_LIMIT_MS - (now - last)) / 1000)));
           return NextResponse.json(
-            { error: "Too many purge attempts", retryAfter: Math.max(1, retryAfter) },
+            { error: "Too many purge attempts", retryAfter },
             { status: 429 }
           );
         }
