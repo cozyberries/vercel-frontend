@@ -1,16 +1,61 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { resolveImageUrl } from "@/lib/utils/image";
 
 // In-memory cache for categories (avoids Redis round-trip on hot path)
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
 
-export async function GET() {
+// Purge rate limit using Redis to work across serverless instances
+const PURGE_RATE_LIMIT_MS = 60_000;
+const PURGE_RATE_LIMIT_KEY = "purge:categories:last";
+
+function isPurgeAuthorized(request: Request): boolean {
+  const key = process.env.PURGE_API_KEY;
+  if (!key?.length) return false;
+  const authHeader = request.headers.get("authorization");
+  const apiKey = request.headers.get("x-api-key");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : apiKey?.trim();
+  return token === key;
+}
+
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const purge = searchParams.get("purge") === "1";
+
+    if (purge) {
+      if (!isPurgeAuthorized(request)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      
+      // Atomic rate limit: only allow purge if we win the SET NX (key absent/expired)
+      const now = Date.now();
+      const purgeTtlSeconds = Math.ceil(PURGE_RATE_LIMIT_MS / 1000);
+
+      try {
+        const acquired = await UpstashService.setIfNotExists(PURGE_RATE_LIMIT_KEY, now, purgeTtlSeconds);
+        if (!acquired) {
+          const lastPurgeTime = (await UpstashService.get(PURGE_RATE_LIMIT_KEY)) as number | null;
+          const last = typeof lastPurgeTime === "number" ? lastPurgeTime : now;
+          const retryAfter = Math.max(1, Math.min(purgeTtlSeconds, Math.ceil((PURGE_RATE_LIMIT_MS - (now - last)) / 1000)));
+          return NextResponse.json(
+            { error: "Too many purge attempts", retryAfter },
+            { status: 429 }
+          );
+        }
+      } catch (error) {
+        // Fall back to authorization-only check if Redis is unavailable
+        console.warn("Redis rate limit check failed, proceeding with auth-only check:", error);
+      }
+      
+      inMemoryCache = null;
+      await UpstashService.delete("categories:list");
+    }
 
     // 1. Check in-memory cache first (instant, no network)
-    if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
+    if (!purge && inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
       return NextResponse.json(inMemoryCache.data, {
         headers: {
           'X-Cache-Status': 'HIT',
@@ -43,7 +88,7 @@ export async function GET() {
       }
     }
 
-    if (cachedCategories) {
+    if (!purge && cachedCategories) {
       // Update in-memory cache
       inMemoryCache = { data: cachedCategories, timestamp: Date.now() };
       return NextResponse.json(cachedCategories, {
@@ -65,6 +110,7 @@ export async function GET() {
         categories_images(
           id,
           storage_path,
+          url,
           is_primary,
           display_order,
           metadata
@@ -80,17 +126,18 @@ export async function GET() {
       );
     }
 
-    // Process categories to add image URLs
+    // Process categories to add image URLs (use url when set; storage_path may be full URL or relative path).
+    // Normalize: strip leading slash so we never return "/https://..." (invalid for img src).
     const categories = (data || []).map((category: any) => {
       const images = (category.categories_images || [])
-        .filter((img: any) => img.storage_path) // Filter out images with null storage_path
+        .filter((img: any) => img.url || img.storage_path)
         .map((img: any) => ({
           id: img.id,
           storage_path: img.storage_path,
           is_primary: img.is_primary,
           display_order: img.display_order,
           metadata: img.metadata,
-          url: `/${img.storage_path}`, // Dynamic path from database (Next.js serves from /public at root)
+          url: resolveImageUrl(img),
         }))
         .sort((a: any, b: any) => {
           // Sort by display_order only - first index is primary

@@ -168,20 +168,26 @@ export async function POST(request: NextRequest) {
     try {
       const { data: fullCats } = await supabase
         .from("categories")
-        .select(`*, categories_images(id, storage_path, is_primary, display_order, metadata)`)
+        .select(`*, categories_images(id, storage_path, url, is_primary, display_order, metadata)`)
         .eq("display", true)
         .order("name", { ascending: true });
 
+      const resolveImageUrl = (img: any) => {
+        if (img.url && typeof img.url === "string" && img.url.startsWith("http")) return img.url;
+        const path = img.storage_path;
+        if (!path) return undefined;
+        return path.startsWith("http") ? path : `/${path}`;
+      };
       const processed = (fullCats || []).map((cat: any) => {
         const images = (cat.categories_images || [])
-          .filter((img: any) => img.storage_path)
+          .filter((img: any) => img.url || img.storage_path)
           .map((img: any) => ({
             id: img.id,
             storage_path: img.storage_path,
             is_primary: img.is_primary,
             display_order: img.display_order,
             metadata: img.metadata,
-            url: `/${img.storage_path}`,
+            url: resolveImageUrl(img),
           }))
           .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
         return { ...cat, images };

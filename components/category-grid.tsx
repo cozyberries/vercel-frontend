@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePreloadedData } from "@/components/data-preloader";
-import { toImageSrc } from "@/lib/utils/image";
+import { toImageSrc, PLACEHOLDER_DATA_URL } from "@/lib/utils/image";
 
 /** Category shape used for display and image resolution (image/images may be string or object with url). */
 interface Category {
@@ -15,27 +16,28 @@ interface Category {
   images?: { url?: string }[];
 }
 
-// Static category images mapping
-// const categoryImageMap: Record<string, string> = {
-//   accessories: "/categories/accessories.jpg",
-//   boy: "/categories/boy.jpg",
-//   girl: "/categories/girl.jpg",
-//   newborn: "/categories/newborn.jpg",
-//   unisex: "/categories/unisex.webp",
-//   // Add more mappings as needed
-// };
+// Slugs to hide from homepage "Shop by Category" (configurable via env or props)
+const DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS = [
+  "newborn-essentials",
+  "newborn-clothing",
+];
+const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
+  ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map((s) => s.trim())
+  : DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS;
 
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
 
-  // Filter categories to show only those with display=true
+  // Filter categories: display=true and not in the separate newborn section
   const displayCategories = categories.filter(
-    (category) => category.display === true
+    (category) =>
+      category.display === true &&
+      !HIDE_FROM_HOMEPAGE_SLUGS.includes(category.slug ?? ""),
   );
 
   if (isLoading) {
     return (
-      <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
         {Array.from({ length: 10 }).map((_, index) => (
           <div
             key={index}
@@ -78,43 +80,70 @@ export default function CategoryGrid() {
 
   const getCategoryImageSrc = (category: Category): string => {
     const fromRaw = toImageSrc(category.image);
-    if (fromRaw !== "/placeholder.svg") return fromRaw;
+    if (fromRaw !== PLACEHOLDER_DATA_URL) return fromRaw;
     const first = category.images?.[0];
     return toImageSrc(first?.url ?? first);
   };
 
   return (
-    <div className="grid lg:grid-cols-5 md:grid-cols-3 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
       {displayCategories.map((category) => {
+        const imageSrc = getCategoryImageSrc(category);
         return (
-          <Link
+          <CategoryCard
             key={category.id}
-            href={`/products?category=${category.slug}`}
-            className="group flex flex-col"
-          >
-            <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
-              <Image
-                src={getCategoryImageSrc(category)}
-                alt={category.name}
-                width={200}
-                height={200}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-
-              {/* Full-area subtle overlay that darkens on hover (preserves current behaviour) */}
-              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500 pointer-events-none" />
-
-              {/* Bottom-to-top gradient overlay (top transparent). Darkens slightly on hover */}
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/30 to-transparent group-hover:from-black/60 transition-all duration-500 pointer-events-none" />
-
-              {/* Category label placed on the image */}
-              <h3 className="absolute bottom-3 left-3 right-3 text-center text-white text-sm md:text-base lg:text-lg font-medium drop-shadow-sm transition-colors group-hover:text-white">
-                {category.name}
-              </h3>
-            </div>
-          </Link>
+            category={category}
+            imageSrc={imageSrc}
+          />
         );
       })}
     </div>
+  );
+}
+
+function CategoryCard({
+  category,
+  imageSrc,
+}: {
+  category: { id: string; name: string; slug?: string };
+  imageSrc: string;
+}) {
+  const [src, setSrc] = useState(imageSrc);
+  useEffect(() => {
+    setSrc(imageSrc);
+  }, [imageSrc]);
+  const isPlaceholder = src === PLACEHOLDER_DATA_URL || src.startsWith("data:");
+
+  return (
+    <Link
+      href={`/products?category=${category.slug}`}
+      className="group flex flex-col"
+    >
+      <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
+        <Image
+          src={src}
+          alt={category.name}
+          width={200}
+          height={200}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={() => {
+            if (!isPlaceholder) {
+              setSrc(PLACEHOLDER_DATA_URL);
+            }
+          }}
+        />
+        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500" />
+        {/* Full-area subtle overlay that darkens on hover (preserves current behaviour) */}
+        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500 pointer-events-none" />
+
+        {/* Bottom-to-top gradient overlay (top transparent). Darkens slightly on hover */}
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/30 to-transparent group-hover:from-black/60 transition-all duration-500 pointer-events-none" />
+
+        {/* Category label placed on the image */}
+        <h3 className="absolute bottom-3 left-3 right-3 text-center text-white text-sm md:text-base lg:text-lg font-medium drop-shadow-sm transition-colors group-hover:text-white">
+          {category.name}
+        </h3>
+      </div>
+    </Link>
   );
 }

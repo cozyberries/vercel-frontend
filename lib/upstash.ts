@@ -79,6 +79,30 @@ export class UpstashService {
     }
   }
 
+  /**
+   * Atomically set key only if it does not exist (or has expired), with TTL.
+   * Used for rate limiting to avoid TOCTOU races between concurrent requests.
+   *
+   * The try/catch intentionally re-throws errors so callers (e.g., rate-limiting
+   * callers) can detect failures and implement fallback behavior. @upstash/redis
+   * set with nx returns "OK" on success and null if the key already exists.
+   *
+   * @param key - Redis key to set
+   * @param value - Value to store (serialized as JSON). null/undefined short-circuit to false
+   * @param ttlSeconds - TTL in seconds for the key
+   * @returns true if the key was set (caller "won"), false if key already existed or value was null/undefined
+   */
+  static async setIfNotExists(key: string, value: any, ttlSeconds: number): Promise<boolean> {
+    try {
+      if (value === null || value === undefined) return false;
+      const serialized = JSON.stringify(value);
+      const result = await redis.set(key, serialized, { nx: true, ex: ttlSeconds });
+      return result === "OK";
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Generic cache setter
   static async set(key: string, value: any, ttl?: number) {
     try {

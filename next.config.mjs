@@ -18,18 +18,6 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'aqvcyyhuqcjnhohaclib.supabase.co',
-        port: '',
-        pathname: '/storage/v1/object/public/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'aqvcyyhuqcjnhohaclib.supabase.co',
-        port: '',
-        pathname: '/storage/v1/object/sign/**',
-      },
-      {
-        protocol: 'https',
         hostname: 'res.cloudinary.com',
         port: '',
         pathname: '/**',
