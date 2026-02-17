@@ -79,6 +79,22 @@ export class UpstashService {
     }
   }
 
+  /**
+   * Atomically set key only if it does not exist (or has expired), with TTL.
+   * Returns true if the key was set (caller "won"), false if key already existed.
+   * Used for rate limiting to avoid TOCTOU races between concurrent requests.
+   */
+  static async setIfNotExists(key: string, value: any, ttlSeconds: number): Promise<boolean> {
+    try {
+      if (value === null || value === undefined) return false;
+      const serialized = JSON.stringify(value);
+      const result = await redis.set(key, serialized, { nx: true, ex: ttlSeconds });
+      return result === "OK";
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Generic cache setter
   static async set(key: string, value: any, ttl?: number) {
     try {

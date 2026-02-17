@@ -10,7 +10,7 @@ export const PLACEHOLDER_DATA_URL =
  */
 export function normalizeAbsoluteUrl(s: string): string {
   const t = s.trim();
-  if (t.startsWith("/https") || t.startsWith("//https")) return t.replace(/^\/+/, "");
+  if (t.startsWith("/https") || t.startsWith("//https") || t.startsWith("/http") || t.startsWith("//http")) return t.replace(/^\/+/, "");
   return t;
 }
 
@@ -26,7 +26,6 @@ export function normalizeUrl(value: string | undefined): string | undefined {
   if (s.startsWith("/https") || s.startsWith("//https") || s.startsWith("/http") || s.startsWith("//http")) {
     return s.replace(/^\/+/, "");
   }
-  if (s.startsWith("http")) return s;
   return s;
 }
 

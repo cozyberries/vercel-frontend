@@ -300,8 +300,10 @@ async function main() {
     await clearCategoriesCache();
   }
 
+  const updatedVerb = args.dryRun ? "would be updated" : "updated";
+  const dryRunSuffix = args.dryRun ? " (dry run)" : "";
   console.log("\n══════════════════════════════════════════════════");
-  console.log(`Done. ${updated} categor${updated === 1 ? "y" : "ies"} updated${skipped ? `, ${skipped} skipped (no image on Cloudinary)` : ""}.`);
+  console.log(`Done. ${updated} categor${updated === 1 ? "y" : "ies"} ${updatedVerb}${skipped ? `, ${skipped} skipped (no image on Cloudinary)` : ""}.${dryRunSuffix}`);
   console.log("══════════════════════════════════════════════════\n");
 }
 

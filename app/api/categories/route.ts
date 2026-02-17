@@ -30,25 +30,21 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       
-      // Check rate limit using Redis (works across serverless instances)
+      // Atomic rate limit: only allow purge if we win the SET NX (key absent/expired)
       const now = Date.now();
-      let lastPurgeTime = 0;
-      
+      const purgeTtlSeconds = Math.ceil(PURGE_RATE_LIMIT_MS / 1000);
+
       try {
-        const cached = await UpstashService.get(PURGE_RATE_LIMIT_KEY);
-        if (cached && typeof cached === 'number') {
-          lastPurgeTime = cached;
-        }
-        
-        if (now - lastPurgeTime < PURGE_RATE_LIMIT_MS) {
+        const acquired = await UpstashService.setIfNotExists(PURGE_RATE_LIMIT_KEY, now, purgeTtlSeconds);
+        if (!acquired) {
+          const lastPurgeTime = (await UpstashService.get(PURGE_RATE_LIMIT_KEY)) as number | null;
+          const last = typeof lastPurgeTime === "number" ? lastPurgeTime : now;
+          const retryAfter = Math.ceil((PURGE_RATE_LIMIT_MS - (now - last)) / 1000);
           return NextResponse.json(
-            { error: "Too many purge attempts", retryAfter: Math.ceil((PURGE_RATE_LIMIT_MS - (now - lastPurgeTime)) / 1000) },
+            { error: "Too many purge attempts", retryAfter: Math.max(1, retryAfter) },
             { status: 429 }
           );
         }
-        
-        // Update rate limit timestamp in Redis with TTL (expires after rate limit window)
-        await UpstashService.set(PURGE_RATE_LIMIT_KEY, now, Math.ceil(PURGE_RATE_LIMIT_MS / 1000));
       } catch (error) {
         // Fall back to authorization-only check if Redis is unavailable
         console.warn("Redis rate limit check failed, proceeding with auth-only check:", error);
