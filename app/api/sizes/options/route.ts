@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { setAgeSlugToSizeSlugsCache } from "@/lib/age-slug-sizes";
 
 export interface SizeOption {
   id: string;
+  slug: string;
   name: string;
   display_order: number;
 }
@@ -57,7 +59,7 @@ export async function GET() {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("sizes")
-      .select("id, name, display_order")
+      .select("id, slug, name, display_order")
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -70,10 +72,26 @@ export async function GET() {
     }
 
     const options: SizeOption[] = (data || []).map((row) => ({
-      id: String(row.id),
+      id: String(row.slug ?? row.id),
+      slug: String(row.slug ?? row.id),
       name: String(row.name),
       display_order: Number(row.display_order ?? 0),
     }));
+
+    // Cache age_slug → size_slugs from sizes table
+    const { data: ageSlugRows } = await supabase
+      .from("sizes")
+      .select("age_slug, slug")
+      .not("age_slug", "is", null);
+    const ageSlugToSlugs: Record<string, string[]> = {};
+    for (const row of ageSlugRows ?? []) {
+      const aslug = String(row.age_slug ?? "").trim();
+      const sslug = row.slug;
+      if (!aslug || !sslug) continue;
+      if (!ageSlugToSlugs[aslug]) ageSlugToSlugs[aslug] = [];
+      ageSlugToSlugs[aslug].push(String(sslug));
+    }
+    setAgeSlugToSizeSlugsCache(ageSlugToSlugs);
 
     inMemoryCache = { data: options, timestamp: Date.now() };
     UpstashService.set(cacheKey, options, 7200).catch((err) => {

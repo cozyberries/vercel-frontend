@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { getAgeSlugToSizeSlugs } from "@/lib/age-slug-sizes";
 import { Product, ProductCreate } from "@/lib/types/product";
 
 // Type for aggregated size information
@@ -80,52 +81,39 @@ function setMemoryCache(key: string, entry: MemoryCacheEntry): void {
   }
 }
 
-// Resolve size param to size_id (accepts size name or UUID)
-async function resolveSizeId(
+// Resolve size param to size_slug (accepts size name or slug)
+async function resolveSizeSlug(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   size: string
 ): Promise<string | null> {
-  const isUUID =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(size);
-  if (isUUID) {
-    return size;
-  }
-  const { data, error } = await supabase
+  // Try slug match first, then name (case-insensitive)
+  let { data, error } = await supabase
     .from("sizes")
-    .select("id")
+    .select("slug")
+    .eq("slug", size)
+    .limit(1)
+    .maybeSingle();
+  if (!error && data?.slug) return data.slug;
+  const { data: byName, error: err2 } = await supabase
+    .from("sizes")
+    .select("slug")
     .ilike("name", size)
     .limit(1)
     .maybeSingle();
-  if (error) {
-    console.error("Failed to resolve size in products route:", error.message);
+  if (err2) {
+    console.error("Failed to resolve size in products route:", err2.message);
     return null;
   }
-  return data?.id ?? null;
+  return byName?.slug ?? null;
 }
 
-// Homepage "Shop by Age" slugs → DB size names (products are filtered by variant sizes).
-const AGE_SLUG_TO_SIZE_NAMES: Record<string, string[]> = {
-  "0-3-months": ["0-3M"],
-  "3-6-months": ["3-6M"],
-  "6-12-months": ["6-12M"],
-  "1-2-years": ["1-2Y"],
-  "2-3-years": ["2-3Y"],
-  "3-6-years": ["3-4Y", "4-5Y", "5-6Y"],
-};
-
-// Resolve age slug to size_ids for filtering (products that have at least one variant in any of these sizes).
-async function resolveAgeToSizeIds(
+// Resolve age slug to size_slugs for filtering (from sizes.age_slug; cached via lib/age-slug-sizes.ts).
+async function resolveAgeToSizeSlugs(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   ageSlug: string
 ): Promise<string[]> {
-  const sizeNames = AGE_SLUG_TO_SIZE_NAMES[ageSlug];
-  if (!sizeNames?.length) return [];
-  const ids: string[] = [];
-  for (const name of sizeNames) {
-    const id = await resolveSizeId(supabase, name);
-    if (id) ids.push(id);
-  }
-  return ids;
+  const map = await getAgeSlugToSizeSlugs(supabase);
+  return map[ageSlug] ?? [];
 }
 
 // Resolve gender param to one or more gender_ids for filtering.
@@ -246,56 +234,36 @@ async function refreshCacheInBackground(
     }
   }
 
-  // Age filter (from "Shop by Age"): products that have at least one variant in any of the age's sizes
+  // Age filter (from "Shop by Age"): products.size_slugs overlaps with age's size slugs
   if (params.age) {
-    const ageSizeIds = await resolveAgeToSizeIds(supabase, params.age);
-    if (ageSizeIds.length > 0) {
-      const { data: variantRows, error: variantError } = await supabase
-        .from("product_variants")
-        .select("product_id")
-        .in("size_id", ageSizeIds);
-      if (!variantError) {
-        const productIds = [...new Set((variantRows || []).map((r) => r.product_id))];
-        if (productIds.length > 0) {
-          query = query.in("id", productIds);
-        } else {
-          query = query.eq("id", "00000000-0000-0000-0000-000000000000"); // no match
-        }
-      }
+    const ageSizeSlugs = await resolveAgeToSizeSlugs(supabase, params.age);
+    if (ageSizeSlugs.length > 0) {
+      query = query.overlaps("size_slugs", ageSizeSlugs);
     } else {
       query = query.eq("id", "00000000-0000-0000-0000-000000000000"); // unknown age slug
     }
   }
 
+  // Size filter: products.size_slugs contains this size (single query, no variant round-trip)
   if (params.size) {
-    const sizeId = await resolveSizeId(supabase, params.size);
-    if (sizeId) {
-      const { data: variantRows, error: variantError } = await supabase
-        .from("product_variants")
-        .select("product_id")
-        .eq("size_id", sizeId);
-      if (variantError) {
-        console.error("Failed to fetch product_variants by size:", variantError.message);
-        return;
-      }
-      const productIds = [...new Set((variantRows || []).map((r) => r.product_id))];
-      if (productIds.length === 0) {
-        // No products have this size; return empty without hitting products table
-        const emptyResponse = {
-          products: [],
-          pagination: {
-            currentPage: params.page,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: params.limit,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-        };
-        UpstashService.set(cacheKey, emptyResponse, 1800).catch(() => {});
-        return;
-      }
-      query = query.in("id", productIds);
+    const sizeSlug = await resolveSizeSlug(supabase, params.size);
+    if (sizeSlug) {
+      query = query.contains("size_slugs", [sizeSlug]);
+    } else {
+      // Unknown size: return empty without hitting products table
+      const emptyResponse = {
+        products: [],
+        pagination: {
+          currentPage: params.page,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: params.limit,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      };
+      UpstashService.set(cacheKey, emptyResponse, 1800).catch(() => {});
+      return;
     }
   }
 
@@ -579,10 +547,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Age filter (from "Shop by Age"): products that have at least one variant in any of the age's sizes
+    // Age filter (from "Shop by Age"): products.size_slugs overlaps with age's size slugs
     if (age) {
-      const ageSizeIds = await resolveAgeToSizeIds(supabase, age);
-      if (ageSizeIds.length === 0) {
+      const ageSizeSlugs = await resolveAgeToSizeSlugs(supabase, age);
+      if (ageSizeSlugs.length === 0) {
         const response = {
           products: [],
           pagination: {
@@ -605,48 +573,13 @@ export async function GET(request: NextRequest) {
           },
         });
       }
-      const { data: variantRows, error: variantError } = await supabase
-        .from("product_variants")
-        .select("product_id")
-        .in("size_id", ageSizeIds);
-      if (variantError) {
-        return NextResponse.json(
-          { error: "Failed to filter by age", details: variantError.message },
-          { status: 500 }
-        );
-      }
-      const productIds = [...new Set((variantRows || []).map((r) => r.product_id))];
-      if (productIds.length === 0) {
-        const response = {
-          products: [],
-          pagination: {
-            currentPage: page,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: limit,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-        };
-        setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
-        UpstashService.set(cacheKey, response, 1800).catch(() => {});
-        return NextResponse.json(response, {
-          headers: {
-            "X-Cache-Status": "MISS",
-            "X-Cache-Key": cacheKey,
-            "X-Data-Source": "SUPABASE_DATABASE",
-            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
-          },
-        });
-      }
-      query = query.in("id", productIds);
+      query = query.overlaps("size_slugs", ageSizeSlugs);
     }
 
-    // Size filter: only products that have at least one variant in this size
+    // Size filter: products.size_slugs contains this size (single query, no variant round-trip)
     if (size) {
-      const sizeId = await resolveSizeId(supabase, size);
-      if (!sizeId) {
-        // Unknown size: return empty result (do not silently return all products)
+      const sizeSlug = await resolveSizeSlug(supabase, size);
+      if (!sizeSlug) {
         const response = {
           products: [],
           pagination: {
@@ -669,41 +602,7 @@ export async function GET(request: NextRequest) {
           },
         });
       }
-      const { data: variantRows, error: variantError } = await supabase
-        .from("product_variants")
-        .select("product_id")
-        .eq("size_id", sizeId);
-      if (variantError) {
-        return NextResponse.json(
-          { error: "Failed to filter by size", details: variantError.message },
-          { status: 500 }
-        );
-      }
-      const productIds = [...new Set((variantRows || []).map((r) => r.product_id))];
-      if (productIds.length === 0) {
-        const response = {
-          products: [],
-          pagination: {
-            currentPage: page,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: limit,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-        };
-        setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
-        UpstashService.set(cacheKey, response, 1800).catch(() => {});
-        return NextResponse.json(response, {
-          headers: {
-            "X-Cache-Status": "MISS",
-            "X-Cache-Key": cacheKey,
-            "X-Data-Source": "SUPABASE_DATABASE",
-            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
-          },
-        });
-      }
-      query = query.in("id", productIds);
+      query = query.contains("size_slugs", [sizeSlug]);
     }
 
     // Add search filtering

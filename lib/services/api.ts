@@ -7,7 +7,7 @@ export interface ProductVariant {
   price: number;
   stock_quantity: number;
   size: string;
-  size_id?: string;
+  size_slug?: string;
   color?: string;
   color_id?: string;
   display_order?: number;
@@ -423,7 +423,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       price: v.price ?? data.price,
       stock_quantity: v.stock_quantity,
       size: v.size,
-      size_id: v.size_id,
+      size_slug: v.size_slug,
       color: v.color,
       color_id: v.color_id,
       display_order: v.display_order ?? 0,

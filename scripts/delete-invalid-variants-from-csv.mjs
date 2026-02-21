@@ -93,7 +93,7 @@ async function main() {
   console.log();
 
   const [sizesRes, colorsRes] = await Promise.all([
-    supabase.from("sizes").select("id, name"),
+    supabase.from("sizes").select("slug, name"),
     supabase.from("colors").select("id, name"),
   ]);
 
@@ -101,7 +101,7 @@ async function main() {
   if (colorsRes.error) throw new Error(colorsRes.error.message);
 
   const sizeByName = Object.fromEntries(
-    (sizesRes.data || []).map((s) => [s.name, s.id])
+    (sizesRes.data || []).map((s) => [s.name, s.slug])
   );
   const colorByName = Object.fromEntries(
     (colorsRes.data || []).map((c) => [c.name, c.id])
@@ -110,15 +110,15 @@ async function main() {
   const toDelete = [];
   const skipped = [];
   for (const row of rows) {
-    const sizeId = sizeByName[row.size];
+    const sizeSlug = sizeByName[row.size];
     const colorId = colorByName[row.color];
-    if (!sizeId || !colorId) {
+    if (!sizeSlug || !colorId) {
       skipped.push(row);
       continue;
     }
     toDelete.push({
       product_id: row.product_id,
-      size_id: sizeId,
+      size_slug: sizeSlug,
       color_id: colorId,
     });
   }
@@ -132,21 +132,21 @@ async function main() {
   const productIds = [...new Set(toDelete.map((d) => d.product_id))];
   const { data: variants, error: fetchErr } = await supabase
     .from("product_variants")
-    .select("id, product_id, size_id, color_id")
+    .select("id, product_id, size_slug, color_id")
     .in("product_id", productIds);
 
   if (fetchErr) throw new Error(fetchErr.message);
 
   const variantByKey = new Map();
   for (const v of variants || []) {
-    const key = `${v.product_id}:${v.size_id}:${v.color_id}`;
+    const key = `${v.product_id}:${v.size_slug}:${v.color_id}`;
     variantByKey.set(key, v);
   }
 
   const idsToDelete = [];
   const notFound = [];
   for (const d of toDelete) {
-    const key = `${d.product_id}:${d.size_id}:${d.color_id}`;
+    const key = `${d.product_id}:${d.size_slug}:${d.color_id}`;
     const variant = variantByKey.get(key);
     if (variant) {
       idsToDelete.push(variant.id);
@@ -158,7 +158,7 @@ async function main() {
   if (notFound.length > 0) {
     console.log(`⚠ No matching variant for ${notFound.length} row(s):`);
     for (const n of notFound)
-      console.log(`   product_id=${n.product_id} size_id=${n.size_id} color_id=${n.color_id}`);
+      console.log(`   product_id=${n.product_id} size_slug=${n.size_slug} color_id=${n.color_id}`);
     console.log();
   }
 

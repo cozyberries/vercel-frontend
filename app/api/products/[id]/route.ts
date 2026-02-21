@@ -71,7 +71,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         created_at,
         updated_at,
         categories(name, slug),
-        product_variants(id, price, stock_quantity, sku, size_id, color_id, sizes(id, name, display_order), colors(id, name, hex_code))
+        product_variants(id, price, stock_quantity, sku, size_slug, color_id, sizes(slug, name, display_order), colors(id, name, hex_code))
       `
       )
       .eq("id", id)
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         price: v.price ?? data.price,
         stock_quantity: Number(v.stock_quantity ?? 0),
         size: v.sizes?.name || null,
-        size_id: v.size_id,
+        size_slug: v.size_slug ?? v.sizes?.slug ?? null,
         color: v.colors?.name || null,
         color_id: v.color_id,
         display_order: v.sizes?.display_order ?? 0,

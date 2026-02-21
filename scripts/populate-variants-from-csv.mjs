@@ -156,7 +156,7 @@ async function main() {
   // 1. Load DB reference data
   const [productsRes, sizesRes, colorsRes] = await Promise.all([
     supabase.from("products").select("id, name"),
-    supabase.from("sizes").select("id, name, display_order"),
+    supabase.from("sizes").select("slug, name, display_order"),
     supabase.from("colors").select("id, name"),
   ]);
 
@@ -168,7 +168,7 @@ async function main() {
     productsRes.data.map((p) => [p.name, p.id])
   );
   const sizesByName = Object.fromEntries(
-    sizesRes.data.map((s) => [s.name, s.id])
+    sizesRes.data.map((s) => [s.name, s.slug])
   );
   const colorsByName = Object.fromEntries(
     colorsRes.data.map((c) => [c.name, c.id])
@@ -215,7 +215,7 @@ async function main() {
     }
 
     // Size (may be empty for items like TOWEL, SWADDLE, BLANKET)
-    let sizeId = null;
+    let sizeSlug = null;
     if (row.size) {
       const sizeName = SIZE_MAP[row.size];
       if (!sizeName) {
@@ -225,8 +225,8 @@ async function main() {
         });
         continue;
       }
-      sizeId = sizesByName[sizeName];
-      if (!sizeId) {
+      sizeSlug = sizesByName[sizeName];
+      if (!sizeSlug) {
         unmatched.push({
           ...row,
           reason: `Size not in DB: "${sizeName}" (from "${row.size}")`,
@@ -252,7 +252,7 @@ async function main() {
       if (productId) {
         variants.push({
           product_id: productId,
-          size_id: sizeId,
+          size_slug: sizeSlug,
           color_id: colorId,
           stock_quantity: row.currentStock,
           _meta: {
@@ -339,19 +339,19 @@ async function main() {
     return;
   }
 
-  // Upsert variants: (product_id, size_id, color_id) is unique, but NULL size_id
+  // Upsert variants: (product_id, size_slug, color_id) is unique, but NULL size_slug
   // never matches in SQL unique constraints. So we batch-upsert rows with
-  // non-null size_id and handle null size_id via explicit select/update/insert.
+  // non-null size_slug and handle null size_slug via explicit select/update/insert.
   console.log("Upserting product variants...");
   const batchSize = 50;
-  const withSize = variants.filter((v) => v.size_id != null);
-  const withoutSize = variants.filter((v) => v.size_id == null);
+  const withSize = variants.filter((v) => v.size_slug != null);
+  const withoutSize = variants.filter((v) => v.size_slug == null);
   let upserted = 0;
 
   for (let i = 0; i < withSize.length; i += batchSize) {
     const batch = withSize.slice(i, i + batchSize).map((v) => ({
       product_id: v.product_id,
-      size_id: v.size_id,
+      size_slug: v.size_slug,
       color_id: v.color_id,
       stock_quantity: v.stock_quantity,
     }));
@@ -359,7 +359,7 @@ async function main() {
     const { error } = await supabase
       .from("product_variants")
       .upsert(batch, {
-        onConflict: "product_id,size_id,color_id",
+        onConflict: "product_id,size_slug,color_id",
         ignoreDuplicates: false,
       });
 
@@ -377,7 +377,7 @@ async function main() {
       .select("id")
       .eq("product_id", v.product_id)
       .eq("color_id", v.color_id)
-      .is("size_id", null)
+      .is("size_slug", null)
       .maybeSingle();
 
     if (existing) {
@@ -386,18 +386,18 @@ async function main() {
         .update({ stock_quantity: v.stock_quantity })
         .eq("id", existing.id);
       if (error) {
-        console.error(`Error updating variant (product_id=${v.product_id}, color_id=${v.color_id}, size_id=null):`, error);
+        console.error(`Error updating variant (product_id=${v.product_id}, color_id=${v.color_id}, size_slug=null):`, error);
         process.exit(1);
       }
     } else {
       const { error } = await supabase.from("product_variants").insert({
         product_id: v.product_id,
-        size_id: null,
+        size_slug: null,
         color_id: v.color_id,
         stock_quantity: v.stock_quantity,
       });
       if (error) {
-        console.error(`Error inserting variant (product_id=${v.product_id}, color_id=${v.color_id}, size_id=null):`, error);
+        console.error(`Error inserting variant (product_id=${v.product_id}, color_id=${v.color_id}, size_slug=null):`, error);
         process.exit(1);
       }
     }

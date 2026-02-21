@@ -7,7 +7,7 @@
  * - Does not sum stock: duplicate (product_id, size, prints) are reported; first occurrence is used
  * - Truncates all product_variants.stock_quantity to 0
  * - Sets color_id and stock_quantity for each (product_id, size) from the CSV (Prints (New) → color_id)
- * - Matches variants by (product_id, size_id); inserts new variants if missing for (product_id, size_id, color_id)
+ * - Matches variants by (product_id, size_slug); inserts new variants if missing for (product_id, size_slug, color_id)
  * - Recomputes products.stock_quantity from variant sums
  *
  * Usage:
@@ -188,14 +188,14 @@ async function main() {
 
   // Load sizes and colors from DB
   const [sizesRes, colorsRes] = await Promise.all([
-    supabase.from("sizes").select("id, name"),
+    supabase.from("sizes").select("slug, name"),
     supabase.from("colors").select("id, name"),
   ]);
 
   if (sizesRes.error) throw new Error(sizesRes.error.message);
   if (colorsRes.error) throw new Error(colorsRes.error.message);
 
-  const sizeByName = Object.fromEntries((sizesRes.data || []).map((s) => [s.name, s.id]));
+  const sizeByName = Object.fromEntries((sizesRes.data || []).map((s) => [s.name, s.slug]));
   const colors = colorsRes.data || [];
   const colorByName = Object.fromEntries(colors.map((c) => [c.name, c.id]));
 
@@ -206,14 +206,14 @@ async function main() {
     return colorByName[name] ?? colorByName[PRINTS_NEW_TO_DB_COLOR[name]] ?? null;
   }
 
-  // Build (product_id, size_id, color_id) -> current_stock
+  // Build (product_id, size_slug, color_id) -> current_stock
   const stockUpdates = [];
   const skippedSize = [];
   const skippedColor = [];
   for (const row of rows) {
-    const sizeId = sizeByName[row.size_name];
+    const sizeSlug = sizeByName[row.size_name];
     const colorId = resolveColorId(row.prints_new);
-    if (!sizeId) {
+    if (!sizeSlug) {
       skippedSize.push({ product_id: row.product_id, size_name: row.size_name, prints_new: row.prints_new });
       continue;
     }
@@ -223,7 +223,7 @@ async function main() {
     }
     stockUpdates.push({
       product_id: row.product_id,
-      size_id: sizeId,
+      size_slug: sizeSlug,
       color_id: colorId,
       stock_quantity: row.current_stock,
     });
@@ -248,9 +248,9 @@ async function main() {
 
   if (DRY_RUN) {
     const sample = stockUpdates.slice(0, 10);
-    console.log("Sample (product_id, size_id, color_id → stock_quantity):");
+    console.log("Sample (product_id, size_slug, color_id → stock_quantity):");
     for (const u of sample) {
-      console.log(`  ${u.product_id} ${u.size_id} ${u.color_id} → ${u.stock_quantity}`);
+      console.log(`  ${u.product_id} ${u.size_slug} ${u.color_id} → ${u.stock_quantity}`);
     }
     console.log("\nDRY RUN — no changes written. Rerun without --dry-run to apply.\n");
     return;
@@ -261,7 +261,7 @@ async function main() {
   const productIdsFromCsv = [...new Set(stockUpdates.map((u) => u.product_id))];
   const { data: allVariants, error: fetchErr } = await supabase
     .from("product_variants")
-    .select("id, product_id, size_id, color_id, stock_quantity, price")
+    .select("id, product_id, size_slug, color_id, stock_quantity, price")
     .in("product_id", productIdsFromCsv);
 
   if (fetchErr) throw new Error(fetchErr.message);
@@ -292,20 +292,20 @@ async function main() {
   }
   console.log(`\n✓ Set stock_quantity = 0 for ${zeroed} variants.\n`);
 
-  // 3. Build (product_id, size_id) -> list of variants (for matching null color_id)
+  // 3. Build (product_id, size_slug) -> list of variants (for matching null color_id)
   const variantsByProductSize = new Map();
   for (const v of allVariants || []) {
-    const key = `${v.product_id}:${v.size_id}`;
+    const key = `${v.product_id}:${v.size_slug}`;
     if (!variantsByProductSize.has(key)) variantsByProductSize.set(key, []);
     variantsByProductSize.get(key).push(v);
   }
 
-  // 4. Apply CSV: set color_id and stock_quantity for each (product_id, size_id, color_id)
+  // 4. Apply CSV: set color_id and stock_quantity for each (product_id, size_slug, color_id)
   console.log("Applying color_id and stock_quantity from CSV...");
   let updated = 0;
   let inserted = 0;
   for (const u of stockUpdates) {
-    const key = `${u.product_id}:${u.size_id}`;
+    const key = `${u.product_id}:${u.size_slug}`;
     const candidates = variantsByProductSize.get(key) || [];
 
     // Prefer variant that already has this color_id; else use one with color_id null
@@ -332,7 +332,7 @@ async function main() {
         0;
       const { error: insErr } = await supabase.from("product_variants").insert({
         product_id: u.product_id,
-        size_id: u.size_id,
+        size_slug: u.size_slug,
         color_id: u.color_id,
         stock_quantity: u.stock_quantity,
         price,

@@ -12,7 +12,7 @@ export interface ProductVariant {
   price: number;
   stock_quantity: number;
   size: string;
-  size_id?: string;
+  size_slug?: string;
   color?: string;
   color_id?: string;
   display_order?: number;

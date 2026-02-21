@@ -121,6 +121,11 @@ export default function ProductsClient() {
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
 
+  // Scroll to top when landing on products page or when any filter/category/age changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [searchParams.toString()]);
+
   // Load products with server-side filtering, sorting
   useEffect(() => {
     // Wait until viewport is known so we fetch with the correct page size (once)

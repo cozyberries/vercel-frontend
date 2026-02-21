@@ -132,14 +132,14 @@ async function main() {
 
   // Load sizes and colors from DB
   const [sizesRes, colorsRes] = await Promise.all([
-    supabase.from("sizes").select("id, name"),
+    supabase.from("sizes").select("slug, name"),
     supabase.from("colors").select("id, name"),
   ]);
 
   if (sizesRes.error) throw new Error(sizesRes.error.message);
   if (colorsRes.error) throw new Error(colorsRes.error.message);
 
-  const sizeByName = Object.fromEntries((sizesRes.data || []).map((s) => [s.name, s.id]));
+  const sizeByName = Object.fromEntries((sizesRes.data || []).map((s) => [s.name, s.slug]));
   const colorByName = Object.fromEntries((colorsRes.data || []).map((c) => [c.name, c.id]));
 
   function resolveColorId(csvColor) {
@@ -148,14 +148,14 @@ async function main() {
     return colorByName[name] ?? colorByName[CSV_COLOR_TO_DB_COLOR[name]] ?? null;
   }
 
-  // Build (product_id, size_id, color_id) -> stock_quantity
+  // Build (product_id, size_slug, color_id) -> stock_quantity
   const updates = [];
   const skippedSize = [];
   const skippedColor = [];
   for (const row of rows) {
-    const sizeId = sizeByName[row.size];
+    const sizeSlug = sizeByName[row.size];
     const colorId = resolveColorId(row.color);
-    if (!sizeId) {
+    if (!sizeSlug) {
       skippedSize.push({ product_id: row.product_id, size: row.size, color: row.color });
       continue;
     }
@@ -165,7 +165,7 @@ async function main() {
     }
     updates.push({
       product_id: row.product_id,
-      size_id: sizeId,
+      size_slug: sizeSlug,
       color_id: colorId,
       stock_quantity: row.stock_quantity,
     });
@@ -190,9 +190,9 @@ async function main() {
 
   if (DRY_RUN) {
     const sample = updates.slice(0, 15);
-    console.log("Sample (product_id, size_id, color_id → stock_quantity):");
+    console.log("Sample (product_id, size_slug, color_id → stock_quantity):");
     for (const u of sample) {
-      console.log(`  ${u.product_id} ${u.size_id} ${u.color_id} → ${u.stock_quantity}`);
+      console.log(`  ${u.product_id} ${u.size_slug} ${u.color_id} → ${u.stock_quantity}`);
     }
     console.log("\nDRY RUN — no changes written. Rerun without --dry-run to apply.\n");
     return;
@@ -202,24 +202,24 @@ async function main() {
   const productIds = [...new Set(updates.map((u) => u.product_id))];
   const { data: variants, error: fetchErr } = await supabase
     .from("product_variants")
-    .select("id, product_id, size_id, color_id, stock_quantity")
+    .select("id, product_id, size_slug, color_id, stock_quantity")
     .in("product_id", productIds);
 
   if (fetchErr) throw new Error(fetchErr.message);
 
   const variantByKey = new Map();
   for (const v of variants || []) {
-    const key = `${v.product_id}:${v.size_id}:${v.color_id}`;
+    const key = `${v.product_id}:${v.size_slug}:${v.color_id}`;
     variantByKey.set(key, v);
   }
 
   let updated = 0;
   const notFound = [];
   for (const u of updates) {
-    const key = `${u.product_id}:${u.size_id}:${u.color_id}`;
+    const key = `${u.product_id}:${u.size_slug}:${u.color_id}`;
     const variant = variantByKey.get(key);
     if (!variant) {
-      notFound.push({ product_id: u.product_id, size_id: u.size_id, color_id: u.color_id, stock_quantity: u.stock_quantity });
+      notFound.push({ product_id: u.product_id, size_slug: u.size_slug, color_id: u.color_id, stock_quantity: u.stock_quantity });
       continue;
     }
     const { error: upErr } = await supabase
@@ -232,7 +232,7 @@ async function main() {
   if (notFound.length > 0) {
     console.log(`⚠ No matching variant for ${notFound.length} row(s) (product_id + size + color):`);
     for (const n of notFound.slice(0, 10))
-      console.log(`   product_id=${n.product_id} size_id=${n.size_id} color_id=${n.color_id}`);
+      console.log(`   product_id=${n.product_id} size_slug=${n.size_slug} color_id=${n.color_id}`);
     if (notFound.length > 10) console.log(`   ... and ${notFound.length - 10} more`);
     console.log();
   }
