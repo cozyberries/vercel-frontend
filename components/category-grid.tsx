@@ -17,9 +17,12 @@ interface Category {
 }
 
 // Slugs to hide from homepage "Shop by Category" (configurable via env or props)
-const DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS = ["newborn-essentials", "newborn-clothing"];
+const DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS = [
+  "newborn-essentials",
+  "newborn-clothing",
+];
 const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
-  ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map(s => s.trim())
+  ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map((s) => s.trim())
   : DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS;
 
 export default function CategoryGrid() {
@@ -29,7 +32,7 @@ export default function CategoryGrid() {
   const displayCategories = categories.filter(
     (category) =>
       category.display === true &&
-      !HIDE_FROM_HOMEPAGE_SLUGS.includes(category.slug ?? "")
+      !HIDE_FROM_HOMEPAGE_SLUGS.includes(category.slug ?? ""),
   );
 
   if (isLoading) {
@@ -130,9 +133,14 @@ function CategoryCard({
           }}
         />
         <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500" />
-      </div>
-      <div className="text-center">
-        <h3 className="text-gray-900 text-sm md:text-base lg:text-lg font-medium group-hover:text-primary transition-colors">
+        {/* Full-area subtle overlay that darkens on hover (preserves current behaviour) */}
+        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500 pointer-events-none" />
+
+        {/* Bottom-to-top gradient overlay (top transparent). Darkens slightly on hover */}
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/30 to-transparent group-hover:from-black/60 transition-all duration-500 pointer-events-none" />
+
+        {/* Category label placed on the image */}
+        <h3 className="absolute bottom-3 left-3 right-3 text-center text-white text-sm md:text-base lg:text-lg font-medium drop-shadow-sm transition-colors group-hover:text-white">
           {category.name}
         </h3>
       </div>
