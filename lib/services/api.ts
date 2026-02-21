@@ -288,6 +288,7 @@ export const getProducts = async (
     search?: string;
     size?: string;
     gender?: string;
+    age?: string;
   } = {},
   retries = 3
 ): Promise<{ products: Product[]; pagination: PaginationInfo }> => {
@@ -304,6 +305,7 @@ export const getProducts = async (
           search: params.search,
           size: params.size,
           gender: params.gender,
+          age: params.age,
         },
       });
       // Return full product data

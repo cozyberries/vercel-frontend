@@ -103,6 +103,31 @@ async function resolveSizeId(
   return data?.id ?? null;
 }
 
+// Homepage "Shop by Age" slugs → DB size names (products are filtered by variant sizes).
+const AGE_SLUG_TO_SIZE_NAMES: Record<string, string[]> = {
+  "0-3-months": ["0-3M"],
+  "3-6-months": ["3-6M"],
+  "6-12-months": ["6-12M"],
+  "1-2-years": ["1-2Y"],
+  "2-3-years": ["2-3Y"],
+  "3-6-years": ["3-4Y", "4-5Y", "5-6Y"],
+};
+
+// Resolve age slug to size_ids for filtering (products that have at least one variant in any of these sizes).
+async function resolveAgeToSizeIds(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  ageSlug: string
+): Promise<string[]> {
+  const sizeNames = AGE_SLUG_TO_SIZE_NAMES[ageSlug];
+  if (!sizeNames?.length) return [];
+  const ids: string[] = [];
+  for (const name of sizeNames) {
+    const id = await resolveSizeId(supabase, name);
+    if (id) ids.push(id);
+  }
+  return ids;
+}
+
 // Resolve gender param to one or more gender_ids for filtering.
 // Boy → Boy + Unisex, Girl → Girl + Unisex, Unisex → Unisex only.
 async function resolveGenderIdsForFilter(
@@ -163,6 +188,7 @@ async function refreshCacheInBackground(
     sortOrder: string;
     size: string | null;
     gender: string | null;
+    age: string | null;
   }
 ) {
   const supabase = await createServerSupabaseClient();
@@ -217,6 +243,27 @@ async function refreshCacheInBackground(
     const genderIds = await resolveGenderIdsForFilter(supabase, params.gender);
     if (genderIds.length > 0) {
       query = query.in("gender_id", genderIds);
+    }
+  }
+
+  // Age filter (from "Shop by Age"): products that have at least one variant in any of the age's sizes
+  if (params.age) {
+    const ageSizeIds = await resolveAgeToSizeIds(supabase, params.age);
+    if (ageSizeIds.length > 0) {
+      const { data: variantRows, error: variantError } = await supabase
+        .from("product_variants")
+        .select("product_id")
+        .in("size_id", ageSizeIds);
+      if (!variantError) {
+        const productIds = [...new Set((variantRows || []).map((r) => r.product_id))];
+        if (productIds.length > 0) {
+          query = query.in("id", productIds);
+        } else {
+          query = query.eq("id", "00000000-0000-0000-0000-000000000000"); // no match
+        }
+      }
+    } else {
+      query = query.eq("id", "00000000-0000-0000-0000-000000000000"); // unknown age slug
     }
   }
 
@@ -343,6 +390,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const size = searchParams.get("size");
     const gender = searchParams.get("gender");
+    const age = searchParams.get("age");
     const sortBy = searchParams.get("sortBy") || "default";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
@@ -364,7 +412,7 @@ export async function GET(request: NextRequest) {
 
     // Create cache key based on all parameters
     // Every unique filter combination gets its own Redis entry
-    const cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"}:feat_${featured}:sortb_${sortBy}:sorto_${sortOrder}${search ? `:q_${encodeURIComponent(search)}` : ""}${size ? `:size_${encodeURIComponent(size)}` : ""}${gender ? `:gender_${encodeURIComponent(gender)}` : ""}`;
+    const cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"}:feat_${featured}:sortb_${sortBy}:sorto_${sortOrder}${search ? `:q_${encodeURIComponent(search)}` : ""}${size ? `:size_${encodeURIComponent(size)}` : ""}${gender ? `:gender_${encodeURIComponent(gender)}` : ""}${age ? `:age_${encodeURIComponent(age)}` : ""}`;
 
     // 1. Check in-memory cache first (instant); LRU get touches the key
     const memEntry = getMemoryCache(cacheKey);
@@ -422,6 +470,7 @@ export async function GET(request: NextRequest) {
           search,
           size,
           gender,
+          age,
           sortBy,
           sortOrder,
         }),
@@ -442,6 +491,7 @@ export async function GET(request: NextRequest) {
               search,
               size,
               gender,
+              age,
               sortBy,
               sortOrder,
             });
@@ -527,6 +577,69 @@ export async function GET(request: NextRequest) {
       if (genderIds.length > 0) {
         query = query.in("gender_id", genderIds);
       }
+    }
+
+    // Age filter (from "Shop by Age"): products that have at least one variant in any of the age's sizes
+    if (age) {
+      const ageSizeIds = await resolveAgeToSizeIds(supabase, age);
+      if (ageSizeIds.length === 0) {
+        const response = {
+          products: [],
+          pagination: {
+            currentPage: page,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: limit,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
+        setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
+        UpstashService.set(cacheKey, response, 1800).catch(() => {});
+        return NextResponse.json(response, {
+          headers: {
+            "X-Cache-Status": "MISS",
+            "X-Cache-Key": cacheKey,
+            "X-Data-Source": "SUPABASE_DATABASE",
+            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+          },
+        });
+      }
+      const { data: variantRows, error: variantError } = await supabase
+        .from("product_variants")
+        .select("product_id")
+        .in("size_id", ageSizeIds);
+      if (variantError) {
+        return NextResponse.json(
+          { error: "Failed to filter by age", details: variantError.message },
+          { status: 500 }
+        );
+      }
+      const productIds = [...new Set((variantRows || []).map((r) => r.product_id))];
+      if (productIds.length === 0) {
+        const response = {
+          products: [],
+          pagination: {
+            currentPage: page,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: limit,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
+        setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
+        UpstashService.set(cacheKey, response, 1800).catch(() => {});
+        return NextResponse.json(response, {
+          headers: {
+            "X-Cache-Status": "MISS",
+            "X-Cache-Key": cacheKey,
+            "X-Data-Source": "SUPABASE_DATABASE",
+            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+          },
+        });
+      }
+      query = query.in("id", productIds);
     }
 
     // Size filter: only products that have at least one variant in this size
@@ -701,6 +814,7 @@ export async function GET(request: NextRequest) {
           search,
           size,
           gender,
+          age,
           sortBy,
           sortOrder,
         }),

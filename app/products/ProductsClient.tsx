@@ -117,6 +117,7 @@ export default function ProductsClient() {
   const currentCategory = searchParams.get("category") || "all";
   const currentSize = searchParams.get("size") || "all";
   const currentGender = searchParams.get("gender") || "all";
+  const currentAge = searchParams.get("age") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
 
@@ -139,6 +140,7 @@ export default function ProductsClient() {
           category: currentCategory !== "all" ? currentCategory : undefined,
           size: currentSize !== "all" ? currentSize : undefined,
           gender: currentGender !== "all" ? currentGender : undefined,
+          age: currentAge !== "all" ? currentAge : undefined,
           sortBy: currentSort !== "default" ? currentSort : undefined,
           sortOrder: currentSortOrder,
           featured: currentFeatured || undefined,
@@ -166,7 +168,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentFeatured, pageSize]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, pageSize]);
 
   // Client-side search filtering (search happens on frontend with autocomplete)
   const filteredProducts = useMemo(() => {
@@ -197,6 +199,7 @@ export default function ProductsClient() {
         category: currentCategory !== "all" ? currentCategory : undefined,
         size: currentSize !== "all" ? currentSize : undefined,
         gender: currentGender !== "all" ? currentGender : undefined,
+        age: currentAge !== "all" ? currentAge : undefined,
         sortBy: currentSort !== "default" ? currentSort : undefined,
         sortOrder: currentSortOrder,
         featured: currentFeatured || undefined,
@@ -238,6 +241,7 @@ export default function ProductsClient() {
     currentCategory,
     currentSize,
     currentGender,
+    currentAge,
     currentSort,
     currentSortOrder,
     currentFeatured,
@@ -342,11 +346,12 @@ export default function ProductsClient() {
       currentCategory !== "all" ||
       currentSize !== "all" ||
       currentGender !== "all" ||
+      currentAge !== "all" ||
       currentSort !== "default" ||
       currentFeatured ||
       currentSearch !== ""
     );
-  }, [currentCategory, currentSize, currentGender, currentSort, currentFeatured, currentSearch]);
+  }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
 
   if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) {
     return (

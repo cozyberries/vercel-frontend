@@ -10,13 +10,18 @@ import { useWishlist } from "./wishlist-context";
 import { useCart } from "./cart-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
+import { formatPrice } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
   index: number; // Used to set image loading priority (e.g. priority for first N images); not used by getCornerRounding()
+  /** BCP 47 locale for price formatting (default: "en-IN") */
+  locale?: string;
+  /** ISO 4217 currency code (default: "INR") */
+  currency?: string;
 }
 
-export default function ProductCard({ product, index }: ProductCardProps) {
+export default function ProductCard({ product, index, locale = "en-IN", currency = "INR" }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, updateQuantity, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
@@ -35,7 +40,6 @@ export default function ProductCard({ product, index }: ProductCardProps) {
 
   return (
     <div
-      key={product.id}
       className={`group flex flex-col lg:min-h-[320px] min-h-[300px] overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
       onClick={handleCardClick}
     >
@@ -212,7 +216,7 @@ export default function ProductCard({ product, index }: ProductCardProps) {
             </p>
           )}
           <p className="text-[11px] sm:text-xs lg:text-sm font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
-            ₹{product.price.toFixed(2)}
+            {formatPrice(product.price, locale, currency)}
           </p>
         </div>
       </div>
