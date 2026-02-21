@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, ShoppingCart } from "lucide-react";
@@ -17,8 +18,11 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, index }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToCart } = useCart();
+  const { addToCart, updateQuantity, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
+  const cartItem = cart.find((item) => item.id === product.id);
+  const inCart = !!cartItem;
+  const [showHoverImage, setShowHoverImage] = useState(false);
 
   // Use consistent rounded corners for all cards
   const getCornerRounding = () => {
@@ -32,11 +36,15 @@ export default function ProductCard({ product, index }: ProductCardProps) {
   return (
     <div
       key={product.id}
-      className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
+      className={`group flex flex-col lg:min-h-[320px] min-h-[300px] overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
       onClick={handleCardClick}
     >
       {/* Image Section - larger on mobile and desktop */}
-      <div className={`relative overflow-hidden lg:h-[78%] h-[72%]`}>
+      <div
+        className={`relative overflow-hidden lg:h-[78%] h-[72%]`}
+        onMouseEnter={() => setShowHoverImage(true)}
+        onMouseLeave={() => setShowHoverImage(false)}
+      >
         {/* Featured Badge */}
         {product.is_featured && (
           <span className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 bg-amber-500 text-white text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full shadow-md">
@@ -59,8 +67,9 @@ export default function ProductCard({ product, index }: ProductCardProps) {
             priority={index < 4}
             className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
           />
-          {/* Second Image (shown on hover if available) */}
-          {product.images?.[1] &&
+          {/* Second Image (deferred until hover to avoid loading on paint) */}
+          {showHoverImage &&
+            product.images?.[1] &&
             typeof product.images[1] === "string" &&
             product.images[1].trim() !== "" && (
               <Image
@@ -108,22 +117,37 @@ export default function ProductCard({ product, index }: ProductCardProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/90 hover:bg-white shadow-md hover:shadow-lg pointer-events-auto border-0"
+            className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
+              inCart
+                ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
+                : "bg-white/90 hover:bg-white"
+            }`}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              addToCart({
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                image: product.images?.[0],
-                quantity: 1,
-              });
-              toast.success(`${product.name} added to cart!`);
+              if (inCart && cartItem) {
+                updateQuantity(product.id, cartItem.quantity + 1);
+                toast.success(`${product.name} quantity updated in cart`);
+              } else {
+                addToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.images?.[0],
+                  quantity: 1,
+                });
+                toast.success(`${product.name} added to cart!`);
+              }
             }}
-            aria-label="Add to cart"
+            aria-label={inCart ? "Add another (quantity updated)" : "Add to cart"}
           >
-            <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700" />
+            <ShoppingCart
+              className={`h-4 w-4 sm:h-5 sm:w-5 transition-colors duration-200 ${
+                inCart
+                  ? "fill-primary text-primary"
+                  : "text-gray-700 hover:text-primary"
+              }`}
+            />
           </Button>
         </div>
 
