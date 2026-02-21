@@ -29,11 +29,11 @@ export async function getAgeSlugToSizeSlugs(
 
   const map: AgeSlugToSizeSlugs = {};
   for (const row of data ?? []) {
-    const slug = String(row.age_slug ?? "").trim();
+    const ageSlug = String(row.age_slug ?? "").trim();
     const sizeSlug = row.slug;
-    if (!slug || !sizeSlug) continue;
-    if (!map[slug]) map[slug] = [];
-    map[slug].push(String(sizeSlug));
+    if (!ageSlug || !sizeSlug) continue;
+    if (!map[ageSlug]) map[ageSlug] = [];
+    map[ageSlug].push(String(sizeSlug));
   }
 
   UpstashService.set(CACHE_KEY, map, CACHE_TTL).catch((err) => {

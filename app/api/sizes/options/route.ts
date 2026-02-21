@@ -59,7 +59,7 @@ export async function GET() {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("sizes")
-      .select("id, slug, name, display_order")
+      .select("id, slug, name, display_order, age_slug")
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -78,16 +78,13 @@ export async function GET() {
       display_order: Number(row.display_order ?? 0),
     }));
 
-    // Cache age_slug → size_slugs from sizes table
-    const { data: ageSlugRows } = await supabase
-      .from("sizes")
-      .select("age_slug, slug")
-      .not("age_slug", "is", null);
+    // Cache age_slug → size_slugs from the same rows (no second round-trip)
     const ageSlugToSlugs: Record<string, string[]> = {};
-    for (const row of ageSlugRows ?? []) {
-      const aslug = String(row.age_slug ?? "").trim();
+    for (const row of data ?? []) {
+      const aslug = row.age_slug != null ? String(row.age_slug).trim() : "";
+      if (!aslug) continue;
       const sslug = row.slug;
-      if (!aslug || !sslug) continue;
+      if (!sslug) continue;
       if (!ageSlugToSlugs[aslug]) ageSlugToSlugs[aslug] = [];
       ageSlugToSlugs[aslug].push(String(sslug));
     }

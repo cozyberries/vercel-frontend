@@ -4,7 +4,7 @@
  * Delete product_variants listed in "non-existing product" CSV.
  *
  * CSV columns: product_id, name, size, color, stock_quantity
- * Matches variants by (product_id, size_id, color_id) and deletes them.
+ * Matches variants by (product_id, size_slug, color_id) and deletes them.
  * Recomputes products.stock_quantity from remaining variant sums.
  *
  * Usage:
