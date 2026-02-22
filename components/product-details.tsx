@@ -38,7 +38,7 @@ interface User {
   name: string;
 }
 
-export default function ProductDetails({ id: productId }: { id: string }) {
+export default function ProductDetails({ id: productSlug }: { id: string }) {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -144,7 +144,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       if (response.ok) {
         setShowReviewForm(false);
         // Refresh reviews
-        await fetchReviews(productId);
+        await fetchReviews(productSlug);
         await fetchUsers();
         
         // Fire and forget notifications (non-blocking)
@@ -177,10 +177,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
 
   // Set the product slug in the rating context so reviews are fetched and the review form knows the target product
   useEffect(() => {
-    if (productId) {
-      setProductSlug(productId);
+    if (productSlug) {
+      setProductSlug(productSlug);
     }
-  }, [productId, setProductSlug]);
+  }, [productSlug, setProductSlug]);
 
   // Check if mobile screen
   useEffect(() => {
@@ -197,9 +197,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   // Fetch all reviews
   useEffect(() => {
     const fetchReviews = async () => {
-      if (!productId || !reviews || reviews.length === 0 || !users || users.length === 0) return;
+      if (!productSlug || !reviews || reviews.length === 0 || !users || users.length === 0) return;
       try {
-        const productReviews = reviews.filter((rev) => rev.product_slug === productId);
+        const productReviews = reviews.filter((rev) => rev.product_slug === productSlug);
         setAllReviews(productReviews.map((rev: RatingItem) => ({
           userName: users?.find((user) => user?.id === rev?.user_id)?.name || "Unknown User",
           review: rev.comment,
@@ -214,14 +214,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       }
     };
     fetchReviews();
-  }, [reviews, productId, users]);
+  }, [reviews, productSlug, users]);
 
 
   // Fetch product data
   useEffect(() => {
     const fetchProduct = async () => {
       // First try to get from preloaded data
-      const preloadedProduct = getDetailedProductById(productId);
+      const preloadedProduct = getDetailedProductById(productSlug);
       if (preloadedProduct) {
         setProduct(preloadedProduct);
         return;
@@ -230,7 +230,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       // If not found in preloaded data, fetch from API
       setIsLoadingProduct(true);
       try {
-        const fetchedProduct = await getProductById(productId);
+        const fetchedProduct = await getProductById(productSlug);
         setProduct(fetchedProduct);
       } catch (error) {
         console.error("Error fetching product:", error);
@@ -240,10 +240,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       }
     };
 
-    if (productId) {
+    if (productSlug) {
       fetchProduct();
     }
-  }, [productId, getDetailedProductById]);
+  }, [productSlug, getDetailedProductById]);
 
   useEffect(() => {
     // Set default selections if product is loaded

@@ -37,7 +37,8 @@ export default function AgeGrid() {
       .then((opts) => {
         setAgeOptions(opts);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[AgeGrid] Failed to load age options:", err);
         setAgeOptions([]);
       })
       .finally(() => setIsLoading(false));

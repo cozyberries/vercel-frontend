@@ -71,14 +71,17 @@ export async function GET() {
       );
     }
 
-    const options: SizeOption[] = (data || []).map((row) => {
+    const options: SizeOption[] = (data || []).flatMap((row) => {
       const slug = String(row.slug ?? "").toLowerCase().trim();
-      return {
-        id: slug,
-        slug,
-        name: String(row.name),
-        display_order: Number(row.display_order ?? 0),
-      };
+      if (slug === "") return [];
+      return [
+        {
+          id: slug,
+          slug,
+          name: String(row.name),
+          display_order: Number(row.display_order ?? 0),
+        },
+      ];
     });
 
     // Cache available size slugs (used for age filter; no age_slug)

@@ -91,8 +91,8 @@ export default function NewbornGiftingSection() {
 
         {/* Desktop Layout - 1 Card (aspect-square) */}
         <div className="w-full px-16 hidden lg:block">
-          <div className="flex flex-row gap-6 justify-center max-w-4xl mx-auto">
-            <div className="w-full max-w-md aspect-square">
+          <div className="max-w-4xl mx-auto">
+            <div className="w-full max-w-md aspect-square mx-auto">
               <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div

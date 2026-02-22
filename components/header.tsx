@@ -35,7 +35,6 @@ export default function Header() {
                 alt="CozyBerries"
                 width={180}
                 height={50}
-                priority
                 className="h-full w-auto object-contain"
               />
             </Link>
