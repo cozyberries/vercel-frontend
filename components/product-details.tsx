@@ -51,7 +51,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
-  const { reviews, showViewReviewModal, fetchReviews, setProductId: setRatingProductId } = useRating();
+  const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
   const [users, setUsers] = useState<User[]>([]);
   const [productRating, setProductRating] = useState<number>(0);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -178,9 +178,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   // Set the product ID in the rating context so reviews are fetched and the review form knows the target product
   useEffect(() => {
     if (productId) {
-      setRatingProductId(productId);
+      setProductSlug(productId);
     }
-  }, [productId, setRatingProductId]);
+  }, [productId, setProductSlug]);
 
   // Check if mobile screen
   useEffect(() => {
@@ -750,7 +750,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             {relatedProducts?.map((relatedProduct) => (
               <div key={relatedProduct?.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                  <Link href={`/products/${relatedProduct.id}`}>
+                  <Link href={`/products/${relatedProduct.slug}`}>
                     <Image
                       src={toImageSrc(relatedProduct?.images?.[0])}
                       alt={relatedProduct?.name}
@@ -771,7 +771,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 <div className="text-center">
                   <h3 className="text-sm font-medium mb-1">
                     <Link
-                      href={`/products/${relatedProduct.id}`}
+                      href={`/products/${relatedProduct.slug}`}
                       className="hover:text-primary"
                     >
                       {relatedProduct.name}

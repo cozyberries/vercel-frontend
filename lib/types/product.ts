@@ -62,6 +62,7 @@ export interface ProductUpdate {
 }
 
 export interface Product extends ProductBase {
+  /** Product.id is generated from Product.slug at runtime; retained for compatibility. */
   id: string;
   created_at: string;
   updated_at?: string;

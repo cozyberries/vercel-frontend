@@ -77,7 +77,7 @@ export default function OrdersPage() {
   const [showForm, setShowForm] = useState(false);
   const [currentOffset, setCurrentOffset] = useState(0);
   const [hasMoreOrders, setHasMoreOrders] = useState(true);
-  const { reviews, fetchReviews, setProductId } = useRating();
+  const { reviews, fetchReviews, setProductSlug } = useRating();
 
   const fetchOrders = useCallback(async (offset = 0, append = false) => {
     if (fetchingRef.current) return;
@@ -417,7 +417,7 @@ export default function OrdersPage() {
                         <Button
                           onClick={() => {
                             setShowForm(true);
-                            setProductId(item.id);
+                            setProductSlug(item.id);
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
                           variant="outline"

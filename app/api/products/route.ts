@@ -340,8 +340,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      const escapedSearch = search
+        .replace(/\\/g, "\\\\")
+        .replace(/%/g, "\\%")
+        .replace(/_/g, "\\_");
       query = query.or(
-        `name.ilike.%${search}%,description.ilike.%${search}%`
+        `name.ilike.%${escapedSearch}%,description.ilike.%${escapedSearch}%`
       );
     }
 
@@ -457,16 +461,34 @@ export async function POST(request: NextRequest) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
+    const supabase = await createServerSupabaseClient();
+
+    const { data: existingSlugs } = await supabase
+      .from("products")
+      .select("slug")
+      .or(`slug.eq.${slug},slug.like.${slug}-%`);
+
+    let uniqueSlug = slug;
+    if (existingSlugs && existingSlugs.length > 0) {
+      const slugSet = new Set(existingSlugs.map((p: { slug: string }) => p.slug));
+      if (slugSet.has(slug)) {
+        let counter = 1;
+        while (slugSet.has(`${slug}-${counter}`)) {
+          counter++;
+        }
+        uniqueSlug = `${slug}-${counter}`;
+      }
+    }
+
     const productData = {
       name: body.name,
       description: body.description || null,
       price: body.price,
-      slug,
+      slug: uniqueSlug,
       stock_quantity: 0,
       is_featured: false,
     };
 
-    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("products")
       .insert([productData])

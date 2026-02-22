@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabase
           .from("ratings")
           .update({ images: uploadedUrls })
+          .eq("id", data.id)
           .eq("user_id", authUser.id)
           .eq("product_slug", product_slug);
 
@@ -139,8 +140,7 @@ export async function POST(request: NextRequest) {
           const { data: updatedData } = await supabase
             .from("ratings")
             .select("*")
-            .eq("user_id", authUser.id)
-            .eq("product_slug", product_slug)
+            .eq("id", data.id)
             .single();
           if (updatedData) {
             responseData = { ...data, images: updatedData.images };

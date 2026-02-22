@@ -37,10 +37,15 @@ export async function GET(request: NextRequest) {
     // 2. Fetch from DB
     const supabase = await createServerSupabaseClient();
 
+    const escapedNormalised = normalised
+      .replace(/\\/g, "\\\\")
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_");
+
     const { data: products, error: productsError } = await supabase
       .from("products")
       .select(`slug, name, category_slug, categories(name, slug), product_images(url, is_primary, display_order)`)
-      .ilike("name", `%${normalised}%`)
+      .ilike("name", `%${escapedNormalised}%`)
       .limit(5);
 
     if (productsError) {
@@ -50,7 +55,7 @@ export async function GET(request: NextRequest) {
     const { data: categories, error: categoriesError } = await supabase
       .from("categories")
       .select("slug, name")
-      .ilike("name", `%${normalised}%`)
+      .ilike("name", `%${escapedNormalised}%`)
       .limit(3);
 
     if (categoriesError) {

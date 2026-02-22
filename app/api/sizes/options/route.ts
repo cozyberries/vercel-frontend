@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
-import { setAgeSlugToSizeSlugsCache } from "@/lib/age-slug-sizes";
+import { setAgeSlugsCache } from "@/lib/age-slug-sizes";
 
 export interface SizeOption {
   id: string;
@@ -81,15 +81,14 @@ export async function GET() {
       };
     });
 
-    // Cache slug → size_slugs from the same rows (used for age filter; no age_slug)
-    const slugToSlugs: Record<string, string[]> = {};
+    // Cache available size slugs (used for age filter; no age_slug)
+    const slugSet = new Set<string>();
     for (const row of data ?? []) {
       const slug = row.slug != null ? String(row.slug).trim().toLowerCase() : "";
       if (!slug) continue;
-      if (!slugToSlugs[slug]) slugToSlugs[slug] = [];
-      slugToSlugs[slug].push(slug);
+      slugSet.add(slug);
     }
-    setAgeSlugToSizeSlugsCache(slugToSlugs);
+    setAgeSlugsCache(Array.from(slugSet));
 
     inMemoryCache = { data: options, timestamp: Date.now() };
     UpstashService.set(cacheKey, options, 7200).catch((err) => {

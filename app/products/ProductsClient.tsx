@@ -20,6 +20,20 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 const PAGE_SIZE_MOBILE = 4;
 const PAGE_SIZE_DESKTOP = 12;
 
+function parseApiError(err: unknown, fallback: string): string {
+  const data =
+    err &&
+    typeof err === "object" &&
+    "response" in err
+      ? (err as { response?: { data?: { error?: string; details?: string } } })
+          .response?.data
+      : null;
+  if (data?.error) {
+    return data.details ? `${data.error}: ${data.details}` : data.error;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -161,13 +175,7 @@ export default function ProductsClient() {
         setHasMoreProducts(response.pagination.hasNextPage);
       } catch (err: unknown) {
         console.error("Error loading products:", err);
-        const apiError = err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: string; details?: string } } }).response?.data
-          : null;
-        const errorMessage = apiError?.error
-          ? (apiError.details ? `${apiError.error}: ${apiError.details}` : apiError.error)
-          : (err instanceof Error ? err.message : "Failed to load products");
-        setError(errorMessage);
+        setError(parseApiError(err, "Failed to load products"));
         setErrorSource('products');
         setAllProducts([]);
         setTotalItems(0);
@@ -236,11 +244,9 @@ export default function ProductsClient() {
       });
       setCurrentPage(nextPage);
       setHasMoreProducts(response.pagination.hasNextPage);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error loading more products:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load more products"
-      );
+      setError(parseApiError(err, "Failed to load products"));
     } finally {
       setIsLoadingMore(false);
     }

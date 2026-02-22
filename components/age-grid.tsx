@@ -29,10 +29,29 @@ const FALLBACK_IMAGE = images.age.age_zero_three_m;
 
 export default function AgeGrid() {
   const [ageOptions, setAgeOptions] = useState<AgeOptionFilter[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    getAgeOptions().then(setAgeOptions);
+    setIsLoading(true);
+    getAgeOptions()
+      .then(setAgeOptions)
+      .catch(() => setAgeOptions([]))
+      .finally(() => setIsLoading(false));
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-full aspect-square bg-neutral-200 animate-pulse"
+            aria-hidden
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-3 gap-4 md:gap-6 lg:gap-8">

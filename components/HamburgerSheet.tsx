@@ -53,9 +53,27 @@ export const HamburgerSheet = () => {
   const [expandedDropdowns, setExpandedDropdowns] = useState<string[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [ageOptions, setAgeOptions] = useState<AgeOptionFilter[]>([]);
+  const [ageOptionsError, setAgeOptionsError] = useState<string | null>(null);
 
   useEffect(() => {
-    getAgeOptions().then(setAgeOptions);
+    let mounted = true;
+    getAgeOptions()
+      .then((options) => {
+        if (mounted) {
+          setAgeOptions(options);
+          setAgeOptionsError(null);
+        }
+      })
+      .catch((err) => {
+        if (mounted) {
+          console.error("Failed to load age options:", err);
+          setAgeOptions([]);
+          setAgeOptionsError("Unable to load age options");
+        }
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const toggleDropdown = (dropdown: string) => {
@@ -195,14 +213,20 @@ export const HamburgerSheet = () => {
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="ml-2 overflow-hidden"
                     >
-                      {ageOptions.map((age) => (
-                        <DropdownItem
-                          key={age.id}
-                          href={`/products?age=${encodeURIComponent(age.slug)}`}
-                        >
-                          {age.name}
-                        </DropdownItem>
-                      ))}
+                      {ageOptionsError ? (
+                        <p className="px-6 py-2 text-sm text-muted-foreground">
+                          {ageOptionsError}
+                        </p>
+                      ) : (
+                        ageOptions.map((age) => (
+                          <DropdownItem
+                            key={age.id}
+                            href={`/products?age=${encodeURIComponent(age.slug)}`}
+                          >
+                            {age.name}
+                          </DropdownItem>
+                        ))
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

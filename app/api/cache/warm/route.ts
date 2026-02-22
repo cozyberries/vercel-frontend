@@ -25,13 +25,20 @@ const PRODUCTS_SELECT = `
 `;
 
 function processProducts(rows: any[]): Product[] {
+  const aggregateSizes =
+    typeof aggregateSizesFromVariants === "function" ? aggregateSizesFromVariants : null;
+
   return rows.map((product: any) => {
     const images = [...(product.product_images || [])]
       .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
       .map((img: any) => img.url)
       .filter(Boolean)
       .slice(0, 3);
-    const sizes = aggregateSizesFromVariants(product.product_variants || [], product.price);
+    const variants = Array.isArray(product.product_variants) ? product.product_variants : [];
+    const fallbackPrice =
+      typeof product.price === "number" && !Number.isNaN(product.price) ? product.price : 0;
+    const sizes =
+      aggregateSizes ? aggregateSizes(variants, fallbackPrice) : [];
     return {
       ...product,
       id: product.slug,
@@ -155,7 +162,10 @@ export async function POST(request: NextRequest) {
       const byProduct = new Map<string, any[]>();
       for (const r of ratings || []) {
         const key = r.product_slug;
-        if (!key) continue;
+        if (!key) {
+          console.warn("[cache warm] Rating missing product_slug:", { id: r.id, user_id: r.user_id, created_at: r.created_at });
+          continue;
+        }
         const arr = byProduct.get(key) || [];
         arr.push(r);
         byProduct.set(key, arr);
@@ -241,8 +251,16 @@ export async function POST(request: NextRequest) {
     }
 
     const status = errors.length > 0 ? 207 : 200;
+    const PREVIEW_KEYS = 50;
     return NextResponse.json(
-      { success: true, message: "Cache warming completed", timestamp: new Date().toISOString(), warmed: warmed.length, keys: warmed, errors },
+      {
+        success: true,
+        message: "Cache warming completed",
+        timestamp: new Date().toISOString(),
+        warmed: warmed.length,
+        keysPreview: warmed.slice(0, PREVIEW_KEYS),
+        errors,
+      },
       { status }
     );
   } catch (error) {

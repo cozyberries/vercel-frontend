@@ -42,7 +42,7 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
     const previewImageRef = useRef(previewImage);
     previewImageRef.current = previewImage;
     const [loading, setLoading] = useState(false);
-    const { productId } = useRating();
+    const { productSlug } = useRating();
     const { user } = useAuth();
     const router = useRouter();
 
@@ -83,7 +83,7 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
             ).filter((f): f is File => f != null);
             const submitData = {
                 user_id: user?.id,
-                product_slug: productId,
+                product_slug: productSlug,
                 rating: rating,
                 comment: comment,
                 imageFiles,
