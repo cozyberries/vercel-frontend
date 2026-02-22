@@ -159,9 +159,14 @@ export default function ProductsClient() {
         setAllProducts(uniqueProducts);
         setTotalItems(response.pagination.totalItems);
         setHasMoreProducts(response.pagination.hasNextPage);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Error loading products:", err);
-        const errorMessage = err instanceof Error ? err.message : "Failed to load products";
+        const apiError = err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { error?: string; details?: string } } }).response?.data
+          : null;
+        const errorMessage = apiError?.error
+          ? (apiError.details ? `${apiError.error}: ${apiError.details}` : apiError.error)
+          : (err instanceof Error ? err.message : "Failed to load products");
         setError(errorMessage);
         setErrorSource('products');
         setAllProducts([]);

@@ -1,20 +1,18 @@
 export interface ProductImage {
-  id: string;
-  storage_path: string;
+  url: string;
   is_primary?: boolean;
   display_order?: number;
-  url?: string;
 }
 
 export interface ProductVariant {
-  id: string;
-  sku?: string;
+  slug: string;
   price: number;
   stock_quantity: number;
   size: string;
   size_slug?: string;
   color?: string;
-  color_id?: string;
+  color_slug?: string;
+  color_hex?: string;
   display_order?: number;
 }
 
@@ -26,7 +24,7 @@ export interface SizeOption {
 }
 
 export interface RelatedProduct {
-  id: string;
+  slug: string;
   name: string;
   price: number;
   category: string;
@@ -58,12 +56,10 @@ export interface ProductUpdate {
   name?: string;
   description?: string;
   price?: number;
-  category_id?: string; 
+  category_slug?: string;
   stock_quantity?: number;
   is_featured?: boolean;
-  images?: string[];
 }
-
 
 export interface Product extends ProductBase {
   id: string;
@@ -72,26 +68,17 @@ export interface Product extends ProductBase {
   slug?: string;
   stock_quantity?: number;
   is_featured?: boolean;
-  category_id?: string;
-  categories?: { name: string };
+  category_slug?: string;
+  gender_slug?: string;
+  categories?: { name: string; slug: string };
   images?: string[];
   variants?: ProductVariant[];
   sizes?: SizeOption[];
 }
 
-export interface CategoryImage {
-  id: string;
-  storage_path: string;
-  is_primary?: boolean;
-  display_order?: number;
-  metadata?: any;
-  url?: string;
-}
-
 export interface Category {
-  id: string;
-  name: string;
   slug: string;
+  name: string;
   description?: string;
   image?: string;
 }

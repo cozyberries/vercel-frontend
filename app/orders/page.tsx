@@ -35,7 +35,7 @@ import { sendActivity } from "@/lib/utils/activities";
 /** Form payload shape when submitting a rating from the orders page. */
 interface RatingFormData {
   user_id: string;
-  product_id: string;
+  product_slug: string;
   rating: number;
   comment: string;
   imageFiles?: File[];
@@ -185,7 +185,7 @@ export default function OrdersPage() {
 
   // check if the product is already rated
   const isProductRated = useCallback((productId: string) => {
-    return reviews.some((review) => review.product_id === productId && review.user_id === user?.id);
+    return reviews.some((review) => review.product_slug === productId && review.user_id === user?.id);
   }, [reviews, user]);
 
   // Show loading during initial auth OR during any order fetch (first or subsequent)
@@ -255,7 +255,7 @@ export default function OrdersPage() {
     try {
       const formData = new FormData();
       formData.append("user_id", data.user_id);
-      formData.append("product_id", data.product_id);
+      formData.append("product_slug", data.product_slug);
       formData.append("rating", String(data.rating));
       if (data.comment) formData.append("comment", data.comment);
       if (data.imageFiles?.length) {
@@ -270,12 +270,12 @@ export default function OrdersPage() {
       if (response.ok) {
         setShowForm(false);
         await fetchReviews();
-        await sendNotification("Rating Submitted", `User ${user?.id ?? "unknown"} submitted a rating for #${data.product_id}`, "success");
-        await sendActivity("rating_submission_success", `User ${user?.id ?? "unknown"} submitted a rating for #${data.product_id}`, data.product_id);
+        await sendNotification("Rating Submitted", `User ${user?.id ?? "unknown"} submitted a rating for #${data.product_slug}`, "success");
+        await sendActivity("rating_submission_success", `User ${user?.id ?? "unknown"} submitted a rating for #${data.product_slug}`, data.product_slug);
         toast.success("Rating submitted successfully");
       } else {
         toast.error("Failed to submit rating");
-        await sendActivity("rating_submission_failed", `User ${user?.id ?? "unknown"} failed to submit a rating for #${data.product_id}`, data.product_id);
+        await sendActivity("rating_submission_failed", `User ${user?.id ?? "unknown"} failed to submit a rating for #${data.product_slug}`, data.product_slug);
       }
     } catch (error) {
       console.error("Error submitting rating:", error);

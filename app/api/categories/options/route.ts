@@ -61,7 +61,7 @@ export async function GET() {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("categories")
-      .select("id, name, slug")
+      .select("slug, name")
       .eq("display", true)
       .order("name", { ascending: true });
 
@@ -74,7 +74,7 @@ export async function GET() {
     }
 
     const options: CategoryOption[] = (data || []).map((row) => ({
-      id: String(row.id),
+      id: String(row.slug),
       name: String(row.name),
       slug: String(row.slug),
     }));

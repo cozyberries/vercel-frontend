@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, ChevronRight, Home, Mail, Instagram } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,46 +15,7 @@ import {
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { usePreloadedData } from "@/components/data-preloader";
-
-// Age ranges data from age-grid component
-const ageRanges = [
-  {
-    id: "0-3m",
-    name: "0-3 Months",
-    slug: "0-3-months",
-    description: "Newborn essentials",
-  },
-  {
-    id: "3-6m",
-    name: "3-6 Months",
-    slug: "3-6-months",
-    description: "Growing baby comfort",
-  },
-  {
-    id: "6-12m",
-    name: "6-12 Months",
-    slug: "6-12-months",
-    description: "Active crawler styles",
-  },
-  {
-    id: "1-2y",
-    name: "1-2 Years",
-    slug: "1-2-years",
-    description: "Toddler adventures",
-  },
-  {
-    id: "2-3y",
-    name: "2-3 Years",
-    slug: "2-3-years",
-    description: "Independent explorer",
-  },
-  {
-    id: "3-6y",
-    name: "3-6 Years",
-    slug: "3-6-years",
-    description: "Little personality",
-  },
-];
+import { getAgeOptions, type AgeOptionFilter } from "@/lib/services/api";
 
 // Animation variants
 const containerVariants = {
@@ -91,6 +52,11 @@ export const HamburgerSheet = () => {
   const [open, setOpen] = useState(false);
   const [expandedDropdowns, setExpandedDropdowns] = useState<string[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [ageOptions, setAgeOptions] = useState<AgeOptionFilter[]>([]);
+
+  useEffect(() => {
+    getAgeOptions().then(setAgeOptions);
+  }, []);
 
   const toggleDropdown = (dropdown: string) => {
     setExpandedDropdowns((prev) =>
@@ -229,12 +195,12 @@ export const HamburgerSheet = () => {
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="ml-2 overflow-hidden"
                     >
-                      {ageRanges.map((ageRange) => (
+                      {ageOptions.map((age) => (
                         <DropdownItem
-                          key={ageRange.id}
-                          href={`/products?age=${ageRange.slug}`}
+                          key={age.id}
+                          href={`/products?age=${encodeURIComponent(age.slug)}`}
                         >
-                          {ageRange.name}
+                          {age.name}
                         </DropdownItem>
                       ))}
                     </motion.div>
@@ -244,19 +210,36 @@ export const HamburgerSheet = () => {
 
               {/* Girls Clothing Dropdown */}
               <div>
-                <MenuItem onClick={() => toggleDropdown("girls-clothing")}>
-                  <div className="flex items-center">Girls Clothing</div>
-                  <motion.div
-                    animate={{
-                      rotate: expandedDropdowns.includes("girls-clothing")
-                        ? 90
-                        : 0,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                <div className="flex items-center justify-between px-3 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                  <Link
+                    href="/products?gender=girl"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center flex-1 min-w-0"
                   >
-                    <ChevronRight className="h-4 w-4" />
-                  </motion.div>
-                </MenuItem>
+                    <span className="truncate">Girls Clothing</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleDropdown("girls-clothing");
+                    }}
+                    className="p-1 shrink-0 rounded hover:bg-gray-100"
+                    aria-expanded={expandedDropdowns.includes("girls-clothing")}
+                  >
+                    <motion.div
+                      animate={{
+                        rotate: expandedDropdowns.includes("girls-clothing")
+                          ? 90
+                          : 0,
+                      }}
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </motion.div>
+                  </button>
+                </div>
                 <AnimatePresence>
                   {expandedDropdowns.includes("girls-clothing") && (
                     <motion.div
@@ -270,7 +253,7 @@ export const HamburgerSheet = () => {
                       <DropdownItem href="/products?category=frocks">
                         Frocks
                       </DropdownItem>
-                      <DropdownItem href="/products?category=coord-sets-girls">
+                      <DropdownItem href="/products?category=girls-coord-sets">
                         Coord Sets
                       </DropdownItem>
                     </motion.div>
@@ -280,19 +263,36 @@ export const HamburgerSheet = () => {
 
               {/* Boys Clothing Dropdown */}
               <div>
-                <MenuItem onClick={() => toggleDropdown("boys-clothing")}>
-                  <div className="flex items-center">Boys Clothing</div>
-                  <motion.div
-                    animate={{
-                      rotate: expandedDropdowns.includes("boys-clothing")
-                        ? 90
-                        : 0,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                <div className="flex items-center justify-between px-3 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                  <Link
+                    href="/products?gender=boy"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center flex-1 min-w-0"
                   >
-                    <ChevronRight className="h-4 w-4" />
-                  </motion.div>
-                </MenuItem>
+                    <span className="truncate">Boys Clothing</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleDropdown("boys-clothing");
+                    }}
+                    className="p-1 shrink-0 rounded hover:bg-gray-100"
+                    aria-expanded={expandedDropdowns.includes("boys-clothing")}
+                  >
+                    <motion.div
+                      animate={{
+                        rotate: expandedDropdowns.includes("boys-clothing")
+                          ? 90
+                          : 0,
+                      }}
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </motion.div>
+                  </button>
+                </div>
                 <AnimatePresence>
                   {expandedDropdowns.includes("boys-clothing") && (
                     <motion.div
@@ -303,7 +303,7 @@ export const HamburgerSheet = () => {
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="ml-2 overflow-hidden"
                     >
-                      <DropdownItem href="/products?category=coord-sets-boys">
+                      <DropdownItem href="/products?category=boys-coord-sets">
                         Coord Sets
                       </DropdownItem>
                     </motion.div>
@@ -313,17 +313,34 @@ export const HamburgerSheet = () => {
 
               {/* Unisex Dropdown */}
               <div>
-                <MenuItem onClick={() => toggleDropdown("unisex")}>
-                  <div className="flex items-center">Unisex</div>
-                  <motion.div
-                    animate={{
-                      rotate: expandedDropdowns.includes("unisex") ? 90 : 0,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                <div className="flex items-center justify-between px-3 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                  <Link
+                    href="/products?gender=unisex"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center flex-1 min-w-0"
                   >
-                    <ChevronRight className="h-4 w-4" />
-                  </motion.div>
-                </MenuItem>
+                    <span className="truncate">Unisex</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleDropdown("unisex");
+                    }}
+                    className="p-1 shrink-0 rounded hover:bg-gray-100"
+                    aria-expanded={expandedDropdowns.includes("unisex")}
+                  >
+                    <motion.div
+                      animate={{
+                        rotate: expandedDropdowns.includes("unisex") ? 90 : 0,
+                      }}
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </motion.div>
+                  </button>
+                </div>
                 <AnimatePresence>
                   {expandedDropdowns.includes("unisex") && (
                     <motion.div

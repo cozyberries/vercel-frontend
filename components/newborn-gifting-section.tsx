@@ -9,13 +9,13 @@ import { toImageSrc, PLACEHOLDER_DATA_URL, normalizeAbsoluteUrl } from "@/lib/ut
 type CategoryWithImages = {
   slug?: string;
   image?: string;
-  images?: { url?: string; storage_path?: string }[];
+  images?: { url?: string }[];
 };
 
 function getImageUrl(cat: CategoryWithImages | undefined, index: number): string {
   if (!cat) return PLACEHOLDER_DATA_URL;
   const img = cat.images?.[index];
-  const url = img?.url ?? img?.storage_path ?? (index === 0 ? cat.image : undefined);
+  const url = img?.url ?? (index === 0 ? cat.image : undefined);
   const resolved = toImageSrc(url);
   return resolved === PLACEHOLDER_DATA_URL ? resolved : normalizeAbsoluteUrl(resolved);
 }
@@ -101,7 +101,7 @@ export default function NewbornGiftingSection() {
               </Link>
             </div>
             <div className="w-full">
-              <Link href="/products?age=0-3-months">
+              <Link href="/products?age=0-3m">
                 <Button
                   variant="outline"
                   className="w-full h-12 text-sm hover:bg-primary hover:text-primary-foreground transition-colors duration-300"

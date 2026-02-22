@@ -30,17 +30,11 @@ export function normalizeUrl(value: string | undefined): string | undefined {
 }
 
 /**
- * Resolves an image URL from an image object (with url or storage_path).
+ * Resolves an image URL from an image object.
  * Used by API routes to construct consistent image URLs for responses.
  */
-export function resolveImageUrl(img: { url?: string; storage_path?: string }): string | undefined {
-  const fromUrl = normalizeUrl(img.url);
-  if (fromUrl) return fromUrl;
-  const path = img.storage_path;
-  if (!path) return undefined;
-  const fromPath = normalizeUrl(path);
-  if (fromPath?.startsWith("http")) return fromPath;
-  return path.startsWith("/") ? path : `/${path}`;
+export function resolveImageUrl(img: { url?: string }): string | undefined {
+  return normalizeUrl(img.url);
 }
 
 /**

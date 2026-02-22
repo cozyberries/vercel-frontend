@@ -1,13 +1,13 @@
 import { UpstashService } from "@/lib/upstash";
 
-const CACHE_KEY = "sizes:age_slug_to_slugs";
+const CACHE_KEY = "sizes:slug_to_size_slugs";
 const CACHE_TTL = 7200; // 2 hours, align with sizes options
 
 export type AgeSlugToSizeSlugs = Record<string, string[]>;
 
 /**
- * Returns age_slug → size_slug[] from cache or DB (sizes table).
- * Populate cache by calling setAgeSlugToSizeSlugsCache() when fetching sizes (e.g. in sizes options route).
+ * Returns slug → size_slug[] from cache or DB (sizes table).
+ * Uses slug column for filtering; no age_slug. Populate cache via setAgeSlugToSizeSlugsCache (e.g. in sizes options route).
  */
 export async function getAgeSlugToSizeSlugs(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase-server").createServerSupabaseClient>>
@@ -19,35 +19,33 @@ export async function getAgeSlugToSizeSlugs(
 
   const { data, error } = await supabase
     .from("sizes")
-    .select("age_slug, slug")
-    .not("age_slug", "is", null);
+    .select("slug");
 
   if (error) {
-    console.error("Failed to fetch sizes (age_slug, slug):", error.message);
+    console.error("Failed to fetch sizes (slug):", error.message);
     return {};
   }
 
   const map: AgeSlugToSizeSlugs = {};
   for (const row of data ?? []) {
-    const ageSlug = String(row.age_slug ?? "").trim();
-    const sizeSlug = row.slug;
-    if (!ageSlug || !sizeSlug) continue;
-    if (!map[ageSlug]) map[ageSlug] = [];
-    map[ageSlug].push(String(sizeSlug));
+    const slug = String(row.slug ?? "").trim().toLowerCase();
+    if (!slug) continue;
+    if (!map[slug]) map[slug] = [];
+    map[slug].push(slug);
   }
 
   UpstashService.set(CACHE_KEY, map, CACHE_TTL).catch((err) => {
-    console.error("Failed to cache age_slug_to_size_slugs:", err);
+    console.error("Failed to cache slug_to_size_slugs:", err);
   });
 
   return map;
 }
 
 /**
- * Cache age_slug → size_slug[] (e.g. after fetching sizes so both stay in sync).
+ * Cache slug → size_slug[] (e.g. after fetching sizes so both stay in sync).
  */
 export function setAgeSlugToSizeSlugsCache(map: AgeSlugToSizeSlugs): void {
   UpstashService.set(CACHE_KEY, map, CACHE_TTL).catch((err) => {
-    console.error("Failed to cache age_slug_to_size_slugs:", err);
+    console.error("Failed to cache slug_to_size_slugs:", err);
   });
 }

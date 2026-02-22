@@ -2,8 +2,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 
 export interface RatingItem {
-    id: string;
-    product_id: string;
+    product_slug: string;
     user_id: string;
     rating: number;
     comment: string;
@@ -38,7 +37,7 @@ export function RatingProvider({ children }: { children: ReactNode }) {
     const fetchReviews = useCallback(async (productId?: string) => {
         try {
             const url = productId 
-                ? `/api/ratings?product_id=${encodeURIComponent(productId)}`
+                ? `/api/ratings?product_slug=${encodeURIComponent(productId)}`
                 : `/api/ratings`;
             const response = await fetch(url);
             if (response.ok) {

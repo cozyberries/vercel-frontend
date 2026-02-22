@@ -83,7 +83,7 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
             ).filter((f): f is File => f != null);
             const submitData = {
                 user_id: user?.id,
-                product_id: productId,
+                product_slug: productId,
                 rating: rating,
                 comment: comment,
                 imageFiles,

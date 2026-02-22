@@ -64,7 +64,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         const response = await getProducts({
           limit: 12,
           page: 1,
-          category: product?.category_id || undefined,
+          category: product?.category_slug || undefined,
           sortBy: "price",
           sortOrder: "asc",
           featured: true,
@@ -72,7 +72,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         });
 
         const filtered = response.products.filter(
-          (p) => p.id !== product?.id && p.category_id === product?.category_id
+          (p) => p.slug !== product?.slug && p.category_slug === product?.category_slug
         );
         setRelatedProducts(filtered);
       } catch (err) {
@@ -81,7 +81,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     };
 
     loadProducts();
-  }, [product?.id, product?.category_id])
+  }, [product?.slug, product?.category_slug])
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -129,7 +129,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     try {
       const formData = new FormData();
       formData.append("user_id", data.user_id);
-      formData.append("product_id", data.product_id);
+      formData.append("product_slug", data.product_slug);
       formData.append("rating", String(data.rating));
       if (data.comment) formData.append("comment", data.comment);
       if (data.imageFiles?.length > 0) {
@@ -150,14 +150,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         // Fire and forget notifications (non-blocking)
         sendNotification(
           "Rating Submitted",
-          `User ${user?.id} has submitted a rating for product #${data?.product_id}`,
+          `User ${user?.id} has submitted a rating for product #${data?.product_slug}`,
           "success"
         ).catch((error) => console.error("Failed to send notification:", error));
         
         sendActivity(
           "rating_submission_success",
-          `User ${user?.id} submitted a rating for product #${data?.product_id}`,
-          data?.product_id
+          `User ${user?.id} submitted a rating for product #${data?.product_slug}`,
+          data?.product_slug
         ).catch((error) => console.error("Failed to log activity:", error));
         
         toast.success("Review submitted successfully!");
@@ -165,8 +165,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         toast.error("Failed to submit review");
         sendActivity(
           "rating_submission_failed",
-          `User ${user?.id} failed to submit a rating for product #${data?.product_id}`,
-          data?.product_id
+          `User ${user?.id} failed to submit a rating for product #${data?.product_slug}`,
+          data?.product_slug
         ).catch((error) => console.error("Failed to log activity:", error));
       }
     } catch (error) {
@@ -199,7 +199,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     const fetchReviews = async () => {
       if (!productId || !reviews || reviews.length === 0 || !users || users.length === 0) return;
       try {
-        const productReviews = reviews.filter((rev) => rev.product_id === productId);
+        const productReviews = reviews.filter((rev) => rev.product_slug === productId);
         setAllReviews(productReviews.map((rev: RatingItem) => ({
           userName: users?.find((user) => user?.id === rev?.user_id)?.name || "Unknown User",
           review: rev.comment,

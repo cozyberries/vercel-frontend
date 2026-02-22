@@ -96,17 +96,17 @@ test.describe("Products Page", () => {
   // ── 2. Filter controls are present ──────────────────────────────────────
 
   test("should display filter controls on desktop", async ({ page }) => {
-    // Desktop filter bar – the container is hidden md:flex so visible at 1280px
+    // Desktop filter bar
     const desktopFilters = page.locator(".hidden.md\\:flex").first();
     await expect(desktopFilters).toBeVisible();
 
-    // Category dropdown trigger – the Radix Select trigger shows "All Categories"
+    // Category dropdown trigger shows "All Categories"
     const categoryTrigger = desktopFilters.getByText("All Categories");
     await expect(categoryTrigger).toBeVisible();
 
-    // Sort button shows "Sort" text
-    const sortButton = desktopFilters.getByText("Sort");
-    await expect(sortButton).toBeVisible();
+    // Sort select shows "Default" (initial value)
+    const sortSelect = desktopFilters.getByText("Default");
+    await expect(sortSelect).toBeVisible();
 
     // Featured toggle
     const featuredButton = desktopFilters.getByText("Show Featured");
@@ -173,7 +173,7 @@ test.describe("Products Page", () => {
     await waitForProductsToLoad(page);
 
     expect(page.url()).toContain("category=rompers");
-    await expect(page.getByText(/in Rompers/)).toBeVisible();
+    await expect(page.getByText(/products in Rompers/).first()).toBeVisible();
 
     const showingText = await page
       .getByText(/Showing \d+ of \d+ products/)

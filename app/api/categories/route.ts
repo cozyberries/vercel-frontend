@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
-import { resolveImageUrl } from "@/lib/utils/image";
-
 // In-memory cache for categories (avoids Redis round-trip on hot path)
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
@@ -105,17 +103,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("categories")
-      .select(`
-        *,
-        categories_images(
-          id,
-          storage_path,
-          url,
-          is_primary,
-          display_order,
-          metadata
-        )
-      `)
+      .select("slug, name, description, image, display, created_at, updated_at")
       .eq("display", true)
       .order("name", { ascending: true });
 
@@ -126,29 +114,11 @@ export async function GET(request: Request) {
       );
     }
 
-    // Process categories to add image URLs (use url when set; storage_path may be full URL or relative path).
-    // Normalize: strip leading slash so we never return "/https://..." (invalid for img src).
-    const categories = (data || []).map((category: any) => {
-      const images = (category.categories_images || [])
-        .filter((img: any) => img.url || img.storage_path)
-        .map((img: any) => ({
-          id: img.id,
-          storage_path: img.storage_path,
-          is_primary: img.is_primary,
-          display_order: img.display_order,
-          metadata: img.metadata,
-          url: resolveImageUrl(img),
-        }))
-        .sort((a: any, b: any) => {
-          // Sort by display_order only - first index is primary
-          return (a.display_order || 0) - (b.display_order || 0);
-        });
-
-      return {
-        ...category,
-        images,
-      };
-    });
+    const categories = (data || []).map((category: any) => ({
+      ...category,
+      id: category.slug,
+      images: category.image ? [{ url: category.image, is_primary: true, display_order: 0 }] : [],
+    }));
 
     
     // Update in-memory cache
