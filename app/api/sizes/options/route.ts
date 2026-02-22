@@ -78,7 +78,7 @@ export async function GET() {
         {
           id: slug,
           slug,
-          name: String(row.name),
+          name: String(row.name ?? ""),
           display_order: Number(row.display_order ?? 0),
         },
       ];
