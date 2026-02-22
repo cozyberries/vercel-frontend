@@ -55,7 +55,7 @@ export async function GET() {
     // Order is enforced in this route (Unisex, Girl(s), Boy(s)), not by DB display_order
     const { data, error } = await supabase
       .from("genders")
-      .select("id, name, display_order");
+      .select("slug, name, display_order");
 
     if (error) {
       console.error("Failed to retrieve gender options:", error);
@@ -66,7 +66,7 @@ export async function GET() {
     }
 
     const rawOptions: GenderOption[] = (data || []).map((row) => ({
-      id: String(row.id),
+      id: String(row.slug),
       name: String(row.name),
       display_order: Number(row.display_order ?? 0),
     }));

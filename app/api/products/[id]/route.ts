@@ -19,28 +19,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Create cache key for individual product
     const cacheKey = `product:${id}`;
 
-    // Try to get from cache first with timeout (skip if slow)
     let cachedProduct = null;
     let timeoutId: NodeJS.Timeout | null = null;
     try {
       const cachePromise = UpstashService.getCachedProduct(id);
       const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Cache timeout')), 500);
+        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 500);
       });
-      cachedProduct = await Promise.race([cachePromise, timeoutPromise]) as any;
-    } catch (error) {
-      // Cache lookup timed out or failed, skip cache and fetch from DB
-      console.warn(`Cache lookup failed or timed out for product ${id}, fetching from DB`);
+      cachedProduct = (await Promise.race([cachePromise, timeoutPromise])) as any;
+    } catch {
+      console.warn(`Cache lookup timed out for product ${id}, fetching from DB`);
     } finally {
-      // Always clear the timeout to prevent memory leaks
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     }
-    
+
     if (cachedProduct) {
       return NextResponse.json(cachedProduct, {
         headers: {
@@ -48,33 +42,46 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           "X-Cache-Key": cacheKey,
           "X-Data-Source": "REDIS_CACHE",
           "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-        }
+        },
       });
     }
 
     const supabase = await createServerSupabaseClient();
-    // Optimized query: select only needed fields instead of *
-    // Include product_variants with joined size and color names
+
+    // Single query — slug is the PK; images, features, variants all joined
     const { data, error } = await supabase
       .from("products")
       .select(
         `
-        id,
+        slug,
         name,
         description,
         price,
-        slug,
+        care_instructions,
         stock_quantity,
         is_featured,
-        images,
-        category_id,
         created_at,
         updated_at,
+        category_slug,
+        gender_slug,
+        size_slugs,
+        color_slugs,
         categories(name, slug),
-        product_variants(id, price, stock_quantity, sku, size_id, color_id, sizes(id, name, display_order), colors(id, name, hex_code))
-      `
+        genders(name, slug),
+        product_images(url, is_primary, display_order),
+        product_features(feature, display_order),
+        product_variants(
+          slug,
+          price,
+          stock_quantity,
+          size_slug,
+          color_slug,
+          sizes(slug, name, display_order),
+          colors(slug, name, hex_code, base_color)
+        )
+        `
       )
-      .eq("id", id)
+      .eq("slug", id)
       .single();
 
     if (error) {
@@ -90,38 +97,46 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Process variants into a flat structure with size/color names
-    const variants = (data.product_variants || [])
+    const images = [...(data.product_images || [])]
+      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      .map((img: any) => img.url)
+      .filter(Boolean);
+
+    const features = [...(data.product_features || [])]
+      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      .map((f: any) => f.feature);
+
+    const variants = [...(data.product_variants || [])]
       .map((v: any) => ({
-        id: v.id,
-        sku: v.sku,
+        slug: v.slug,
         price: v.price ?? data.price,
         stock_quantity: Number(v.stock_quantity ?? 0),
-        size: v.sizes?.name || null,
-        size_id: v.size_id,
-        color: v.colors?.name || null,
-        color_id: v.color_id,
+        size: v.sizes?.name ?? null,
+        size_slug: v.size_slug ?? v.sizes?.slug ?? null,
+        color: v.colors?.name ?? null,
+        color_slug: v.color_slug,
+        color_hex: v.colors?.hex_code ?? null,
         display_order: v.sizes?.display_order ?? 0,
       }))
       .sort((a: any, b: any) => a.display_order - b.display_order);
 
-    // Build deduplicated sizes list using shared helper (same logic as list route)
     const sizes = aggregateSizesFromVariants(
       data.product_variants || [],
       data.price ?? 0
     );
 
-    // Process product images and attach variants/sizes
     const product = {
       ...data,
-      images: (data.images || []).filter((url: string) => url),
+      id: data.slug,
+      images,
+      features,
       variants,
       sizes,
-      product_variants: undefined, // remove raw nested data
+      product_images: undefined,
+      product_features: undefined,
+      product_variants: undefined,
     };
 
-    // Cache the product asynchronously (non-blocking) for 30 minutes
-    // This improves first-time load performance by not waiting for cache write
     UpstashService.cacheProduct(id, product, 1800).catch((error) => {
       console.error(`Failed to cache product ${id}:`, error);
     });
@@ -156,7 +171,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const body: ProductUpdate = await request.json();
 
-    // Filter out undefined values
     const updateData = Object.fromEntries(
       Object.entries(body).filter(([_, value]) => value !== undefined)
     );
@@ -172,7 +186,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { data, error } = await supabase
       .from("products")
       .update(updateData)
-      .eq("id", id)
+      .eq("slug", id)
       .select()
       .single();
 
@@ -189,7 +203,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Invalidate cache for this product and all product list caches
     await Promise.all([
       UpstashService.delete(`product:${id}`),
       UpstashService.deletePattern("products:*"),
@@ -219,7 +232,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { data, error } = await supabase
       .from("products")
       .delete()
-      .eq("id", id)
+      .eq("slug", id)
       .select()
       .single();
 
@@ -236,7 +249,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Invalidate cache for this product and all product list caches
     await Promise.all([
       UpstashService.delete(`product:${id}`),
       UpstashService.deletePattern("products:*"),

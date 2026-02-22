@@ -125,11 +125,11 @@ async function fetchProductCatalog() {
   const variantSelect = `
       id,
       product_id,
-      size_id,
+      size_slug,
       color_id,
       stock_quantity,
       sizes (
-        id,
+        slug,
         name,
         display_order
       ),

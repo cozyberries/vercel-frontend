@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
-import { resolveImageUrl } from "@/lib/utils/image";
-
-/**
- * Extract primary or first image URL from product data.
- */
 function extractProductImageUrl(product: any): string | undefined {
-  const primaryImg = product.product_images?.find((img: any) => img.is_primary) || product.product_images?.[0];
-  if (primaryImg?.url) return primaryImg.url;
-  if (primaryImg?.storage_path) return `/${primaryImg.storage_path}`;
-  if (Array.isArray(product.images) && product.images.length > 0) return product.images[0];
-  return undefined;
+  const sorted = [...(product.product_images || [])].sort(
+    (a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)
+  );
+  const primary = sorted.find((img: any) => img.is_primary) ?? sorted[0];
+  return primary?.url ?? undefined;
 }
 
 export async function GET(request: NextRequest) {
@@ -42,29 +37,25 @@ export async function GET(request: NextRequest) {
     // 2. Fetch from DB
     const supabase = await createServerSupabaseClient();
 
-    // Search products (use products.images for image; product_images.url when present)
+    const escapedNormalised = normalised
+      .replace(/\\/g, "\\\\")
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_");
+
     const { data: products, error: productsError } = await supabase
       .from("products")
-      .select(`
-        id,
-        name,
-        slug,
-        images,
-        categories(name, slug),
-        product_images(storage_path, url, is_primary)
-      `)
-      .ilike("name", `%${normalised}%`)
+      .select(`slug, name, category_slug, categories(name, slug), product_images(url, is_primary, display_order)`)
+      .ilike("name", `%${escapedNormalised}%`)
       .limit(5);
 
     if (productsError) {
       console.error("Error fetching products:", productsError);
     }
 
-    // Search categories
     const { data: categories, error: categoriesError } = await supabase
       .from("categories")
-      .select("id, name, slug")
-      .ilike("name", `%${normalised}%`)
+      .select("slug, name")
+      .ilike("name", `%${escapedNormalised}%`)
       .limit(3);
 
     if (categoriesError) {
@@ -74,26 +65,26 @@ export async function GET(request: NextRequest) {
     // Process suggestions
     const suggestions = [];
 
-    // Add product suggestions
     if (products) {
       for (const product of products) {
         const imageUrl = extractProductImageUrl(product);
         suggestions.push({
-          id: product.id,
+          id: product.slug,
           name: product.name,
           type: "product",
           slug: product.slug,
           image: imageUrl ?? undefined,
-          categoryName: Array.isArray(product.categories) ? product.categories[0]?.name : (product.categories as any)?.name,
+          categoryName: Array.isArray(product.categories)
+            ? product.categories[0]?.name
+            : (product.categories as any)?.name,
         });
       }
     }
 
-    // Add category suggestions
     if (categories) {
       for (const category of categories) {
         suggestions.push({
-          id: category.id,
+          id: category.slug,
           name: category.name,
           type: "category",
           slug: category.slug,

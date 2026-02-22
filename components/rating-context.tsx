@@ -2,8 +2,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 
 export interface RatingItem {
-    id: string;
-    product_id: string;
+    product_slug: string;
     user_id: string;
     rating: number;
     comment: string;
@@ -14,9 +13,9 @@ export interface RatingItem {
 interface RatingContextType {
     reviews: RatingItem[];
     reviewsLoading: boolean;
-    fetchReviews: (productId?: string) => Promise<void>;
-    setProductId: (productId: string) => void;
-    productId: string;
+    fetchReviews: (productSlug?: string) => Promise<void>;
+    setProductSlug: (productSlug: string) => void;
+    productSlug: string;
     showViewReviewModal: boolean;
     setShowViewReviewModal: (value: boolean) => void;
     selectedReviewIndex: number | null;
@@ -30,15 +29,15 @@ const RatingContext = createContext<RatingContextType | undefined>(undefined);
 export function RatingProvider({ children }: { children: ReactNode }) {
     const [reviews, setReviews] = useState<RatingItem[]>([]);
     const [reviewsLoading, setReviewsLoading] = useState(false);
-    const [productId, setProductId] = useState<string>("");
+    const [productSlug, setProductSlug] = useState<string>("");
     const [selectedImgIndex, setSelectedImgIndex] = useState<number>(0);
     const [selectedReviewIndex, setSelectedReviewIndex] = useState<number | null>(null);
     const [showViewReviewModal, setShowViewReviewModal] = useState(false);
 
-    const fetchReviews = useCallback(async (productId?: string) => {
+    const fetchReviews = useCallback(async (productSlug?: string) => {
         try {
-            const url = productId 
-                ? `/api/ratings?product_id=${encodeURIComponent(productId)}`
+            const url = productSlug 
+                ? `/api/ratings?product_slug=${encodeURIComponent(productSlug)}`
                 : `/api/ratings`;
             const response = await fetch(url);
             if (response.ok) {
@@ -51,14 +50,14 @@ export function RatingProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // Only fetch reviews when a specific product is being viewed.
-    // Clear reviews immediately when productId changes so stale reviews aren't shown while the new fetch resolves.
+    // Clear reviews immediately when productSlug changes so stale reviews aren't shown while the new fetch resolves.
     useEffect(() => {
-        if (productId) {
+        if (productSlug) {
             setReviews([]);
             setReviewsLoading(true);
-            fetchReviews(productId).finally(() => setReviewsLoading(false));
+            fetchReviews(productSlug).finally(() => setReviewsLoading(false));
         }
-    }, [productId, fetchReviews]);
+    }, [productSlug, fetchReviews]);
 
     return (
         <RatingContext.Provider
@@ -66,8 +65,8 @@ export function RatingProvider({ children }: { children: ReactNode }) {
                 reviews,
                 reviewsLoading,
                 fetchReviews,
-                setProductId,
-                productId,
+                setProductSlug,
+                productSlug,
                 selectedImgIndex,
                 setSelectedImgIndex,
                 showViewReviewModal,

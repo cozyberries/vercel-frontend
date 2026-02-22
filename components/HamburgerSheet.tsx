@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, ChevronRight, Home, Mail, Instagram } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,46 +15,7 @@ import {
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { usePreloadedData } from "@/components/data-preloader";
-
-// Age ranges data from age-grid component
-const ageRanges = [
-  {
-    id: "0-3m",
-    name: "0-3 Months",
-    slug: "0-3-months",
-    description: "Newborn essentials",
-  },
-  {
-    id: "3-6m",
-    name: "3-6 Months",
-    slug: "3-6-months",
-    description: "Growing baby comfort",
-  },
-  {
-    id: "6-12m",
-    name: "6-12 Months",
-    slug: "6-12-months",
-    description: "Active crawler styles",
-  },
-  {
-    id: "1-2y",
-    name: "1-2 Years",
-    slug: "1-2-years",
-    description: "Toddler adventures",
-  },
-  {
-    id: "2-3y",
-    name: "2-3 Years",
-    slug: "2-3-years",
-    description: "Independent explorer",
-  },
-  {
-    id: "3-6y",
-    name: "3-6 Years",
-    slug: "3-6-years",
-    description: "Little personality",
-  },
-];
+import { getAgeOptions, type AgeOptionFilter } from "@/lib/services/api";
 
 // Animation variants
 const containerVariants = {
@@ -91,6 +52,29 @@ export const HamburgerSheet = () => {
   const [open, setOpen] = useState(false);
   const [expandedDropdowns, setExpandedDropdowns] = useState<string[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [ageOptions, setAgeOptions] = useState<AgeOptionFilter[]>([]);
+  const [ageOptionsError, setAgeOptionsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getAgeOptions()
+      .then((options) => {
+        if (mounted) {
+          setAgeOptions(options);
+          setAgeOptionsError(null);
+        }
+      })
+      .catch((err) => {
+        if (mounted) {
+          console.error("Failed to load age options:", err);
+          setAgeOptions([]);
+          setAgeOptionsError("Unable to load age options");
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const toggleDropdown = (dropdown: string) => {
     setExpandedDropdowns((prev) =>
@@ -229,26 +213,32 @@ export const HamburgerSheet = () => {
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="ml-2 overflow-hidden"
                     >
-                      {ageRanges.map((ageRange) => (
-                        <DropdownItem
-                          key={ageRange.id}
-                          href={`/products?age=${ageRange.slug}`}
-                        >
-                          {ageRange.name}
-                        </DropdownItem>
-                      ))}
+                      {ageOptionsError ? (
+                        <p className="px-6 py-2 text-sm text-muted-foreground">
+                          {ageOptionsError}
+                        </p>
+                      ) : (
+                        ageOptions.map((age) => (
+                          <DropdownItem
+                            key={age.id}
+                            href={`/products?age=${encodeURIComponent(age.slug)}`}
+                          >
+                            {age.name}
+                          </DropdownItem>
+                        ))
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Girls Clothing Dropdown */}
+              {/* Shop by Category Dropdown (from DB) */}
               <div>
-                <MenuItem onClick={() => toggleDropdown("girls-clothing")}>
-                  <div className="flex items-center">Girls Clothing</div>
+                <MenuItem onClick={() => toggleDropdown("shop-by-category")}>
+                  <div className="flex items-center">Shop by Category</div>
                   <motion.div
                     animate={{
-                      rotate: expandedDropdowns.includes("girls-clothing")
+                      rotate: expandedDropdowns.includes("shop-by-category")
                         ? 90
                         : 0,
                     }}
@@ -258,7 +248,7 @@ export const HamburgerSheet = () => {
                   </motion.div>
                 </MenuItem>
                 <AnimatePresence>
-                  {expandedDropdowns.includes("girls-clothing") && (
+                  {expandedDropdowns.includes("shop-by-category") && (
                     <motion.div
                       variants={dropdownVariants}
                       initial="hidden"
@@ -267,83 +257,41 @@ export const HamburgerSheet = () => {
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="ml-2 overflow-hidden"
                     >
-                      <DropdownItem href="/products?category=frocks">
-                        Frocks
-                      </DropdownItem>
-                      <DropdownItem href="/products?category=coord-sets-girls">
-                        Coord Sets
-                      </DropdownItem>
+                      {categoriesLoading ? (
+                        <p className="px-6 py-2 text-sm text-muted-foreground">
+                          Loading…
+                        </p>
+                      ) : categories.length === 0 ? (
+                        <p className="px-6 py-2 text-sm text-muted-foreground">
+                          No categories
+                        </p>
+                      ) : (
+                        categories
+                          .filter((c) => c.display === true)
+                          .map((cat) => (
+                            <DropdownItem
+                              key={cat.id}
+                              href={`/products?category=${encodeURIComponent(cat.slug ?? "")}`}
+                            >
+                              {cat.name}
+                            </DropdownItem>
+                          ))
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Boys Clothing Dropdown */}
-              <div>
-                <MenuItem onClick={() => toggleDropdown("boys-clothing")}>
-                  <div className="flex items-center">Boys Clothing</div>
-                  <motion.div
-                    animate={{
-                      rotate: expandedDropdowns.includes("boys-clothing")
-                        ? 90
-                        : 0,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </motion.div>
-                </MenuItem>
-                <AnimatePresence>
-                  {expandedDropdowns.includes("boys-clothing") && (
-                    <motion.div
-                      variants={dropdownVariants}
-                      initial="hidden"
-                      animate="visible"
-                      exit="hidden"
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      className="ml-2 overflow-hidden"
-                    >
-                      <DropdownItem href="/products?category=coord-sets-boys">
-                        Coord Sets
-                      </DropdownItem>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Unisex Dropdown */}
-              <div>
-                <MenuItem onClick={() => toggleDropdown("unisex")}>
-                  <div className="flex items-center">Unisex</div>
-                  <motion.div
-                    animate={{
-                      rotate: expandedDropdowns.includes("unisex") ? 90 : 0,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </motion.div>
-                </MenuItem>
-                <AnimatePresence>
-                  {expandedDropdowns.includes("unisex") && (
-                    <motion.div
-                      variants={dropdownVariants}
-                      initial="hidden"
-                      animate="visible"
-                      exit="hidden"
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      className="ml-2 overflow-hidden"
-                    >
-                      <DropdownItem href="/products?category=jhabla-shorts-unisex">
-                        Jhabla and Shorts
-                      </DropdownItem>
-                      <DropdownItem href="/products?category=pyjamas">
-                        Pyjamas
-                      </DropdownItem>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              {/* Gender links (no sub-items; category list is above) */}
+              <MenuItem href="/products?gender=girl">
+                <div className="flex items-center">Girls Clothing</div>
+              </MenuItem>
+              <MenuItem href="/products?gender=boy">
+                <div className="flex items-center">Boys Clothing</div>
+              </MenuItem>
+              <MenuItem href="/products?gender=unisex">
+                <div className="flex items-center">Unisex</div>
+              </MenuItem>
 
               {/* Need Help Section */}
               <motion.div

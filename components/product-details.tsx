@@ -38,7 +38,7 @@ interface User {
   name: string;
 }
 
-export default function ProductDetails({ id: productId }: { id: string }) {
+export default function ProductDetails({ id: productSlug }: { id: string }) {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -51,7 +51,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
-  const { reviews, showViewReviewModal, fetchReviews, setProductId: setRatingProductId } = useRating();
+  const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
   const [users, setUsers] = useState<User[]>([]);
   const [productRating, setProductRating] = useState<number>(0);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -64,7 +64,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         const response = await getProducts({
           limit: 12,
           page: 1,
-          category: product?.category_id || undefined,
+          category: product?.category_slug || undefined,
           sortBy: "price",
           sortOrder: "asc",
           featured: true,
@@ -72,7 +72,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         });
 
         const filtered = response.products.filter(
-          (p) => p.id !== product?.id && p.category_id === product?.category_id
+          (p) => p.slug !== product?.slug && p.category_slug === product?.category_slug
         );
         setRelatedProducts(filtered);
       } catch (err) {
@@ -81,7 +81,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     };
 
     loadProducts();
-  }, [product?.id, product?.category_id])
+  }, [product?.slug, product?.category_slug])
 
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
@@ -129,7 +129,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     try {
       const formData = new FormData();
       formData.append("user_id", data.user_id);
-      formData.append("product_id", data.product_id);
+      formData.append("product_slug", data.product_slug);
       formData.append("rating", String(data.rating));
       if (data.comment) formData.append("comment", data.comment);
       if (data.imageFiles?.length > 0) {
@@ -144,20 +144,20 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       if (response.ok) {
         setShowReviewForm(false);
         // Refresh reviews
-        await fetchReviews(productId);
+        await fetchReviews(productSlug);
         await fetchUsers();
         
         // Fire and forget notifications (non-blocking)
         sendNotification(
           "Rating Submitted",
-          `User ${user?.id} has submitted a rating for product #${data?.product_id}`,
+          `User ${user?.id} has submitted a rating for product #${data?.product_slug}`,
           "success"
         ).catch((error) => console.error("Failed to send notification:", error));
         
         sendActivity(
           "rating_submission_success",
-          `User ${user?.id} submitted a rating for product #${data?.product_id}`,
-          data?.product_id
+          `User ${user?.id} submitted a rating for product #${data?.product_slug}`,
+          data?.product_slug
         ).catch((error) => console.error("Failed to log activity:", error));
         
         toast.success("Review submitted successfully!");
@@ -165,8 +165,8 @@ export default function ProductDetails({ id: productId }: { id: string }) {
         toast.error("Failed to submit review");
         sendActivity(
           "rating_submission_failed",
-          `User ${user?.id} failed to submit a rating for product #${data?.product_id}`,
-          data?.product_id
+          `User ${user?.id} failed to submit a rating for product #${data?.product_slug}`,
+          data?.product_slug
         ).catch((error) => console.error("Failed to log activity:", error));
       }
     } catch (error) {
@@ -175,12 +175,12 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     }
   };
 
-  // Set the product ID in the rating context so reviews are fetched and the review form knows the target product
+  // Set the product slug in the rating context so reviews are fetched and the review form knows the target product
   useEffect(() => {
-    if (productId) {
-      setRatingProductId(productId);
+    if (productSlug) {
+      setProductSlug(productSlug);
     }
-  }, [productId, setRatingProductId]);
+  }, [productSlug, setProductSlug]);
 
   // Check if mobile screen
   useEffect(() => {
@@ -197,9 +197,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
   // Fetch all reviews
   useEffect(() => {
     const fetchReviews = async () => {
-      if (!productId || !reviews || reviews.length === 0 || !users || users.length === 0) return;
+      if (!productSlug || !reviews || reviews.length === 0 || !users || users.length === 0) return;
       try {
-        const productReviews = reviews.filter((rev) => rev.product_id === productId);
+        const productReviews = reviews.filter((rev) => rev.product_slug === productSlug);
         setAllReviews(productReviews.map((rev: RatingItem) => ({
           userName: users?.find((user) => user?.id === rev?.user_id)?.name || "Unknown User",
           review: rev.comment,
@@ -214,14 +214,14 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       }
     };
     fetchReviews();
-  }, [reviews, productId, users]);
+  }, [reviews, productSlug, users]);
 
 
   // Fetch product data
   useEffect(() => {
     const fetchProduct = async () => {
       // First try to get from preloaded data
-      const preloadedProduct = getDetailedProductById(productId);
+      const preloadedProduct = getDetailedProductById(productSlug);
       if (preloadedProduct) {
         setProduct(preloadedProduct);
         return;
@@ -230,7 +230,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       // If not found in preloaded data, fetch from API
       setIsLoadingProduct(true);
       try {
-        const fetchedProduct = await getProductById(productId);
+        const fetchedProduct = await getProductById(productSlug);
         setProduct(fetchedProduct);
       } catch (error) {
         console.error("Error fetching product:", error);
@@ -240,10 +240,10 @@ export default function ProductDetails({ id: productId }: { id: string }) {
       }
     };
 
-    if (productId) {
+    if (productSlug) {
       fetchProduct();
     }
-  }, [productId, getDetailedProductById]);
+  }, [productSlug, getDetailedProductById]);
 
   useEffect(() => {
     // Set default selections if product is loaded
@@ -747,10 +747,12 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             You May Also Like
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {relatedProducts?.map((relatedProduct) => (
+            {relatedProducts
+              ?.filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
+              ?.map((relatedProduct) => (
               <div key={relatedProduct?.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                  <Link href={`/products/${relatedProduct.id}`}>
+                  <Link href={`/products/${relatedProduct.slug}`}>
                     <Image
                       src={toImageSrc(relatedProduct?.images?.[0])}
                       alt={relatedProduct?.name}
@@ -771,7 +773,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
                 <div className="text-center">
                   <h3 className="text-sm font-medium mb-1">
                     <Link
-                      href={`/products/${relatedProduct.id}`}
+                      href={`/products/${relatedProduct.slug}`}
                       className="hover:text-primary"
                     >
                       {relatedProduct.name}

@@ -64,7 +64,7 @@ export default function Home() {
       <NewbornGiftingSection />
 
       {/* Featured Products */}
-      <section className="py-28 bg-background relative overflow-hidden">
+      <section className="pt-12 lg:pt-16 pb-28 bg-background relative overflow-hidden">
         <SnowflakeDecoration
           position="top-right"
           size="lg"

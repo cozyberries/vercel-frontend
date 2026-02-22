@@ -42,7 +42,7 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
     const previewImageRef = useRef(previewImage);
     previewImageRef.current = previewImage;
     const [loading, setLoading] = useState(false);
-    const { productId } = useRating();
+    const { productSlug } = useRating();
     const { user } = useAuth();
     const router = useRouter();
 
@@ -77,13 +77,18 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
             setLoading(false);
             return;
         }
+        if (!productSlug) {
+            toast.error("Product is missing; cannot submit rating");
+            setLoading(false);
+            return;
+        }
         try {
             const imageFiles = previewImage.map((item) =>
                 item instanceof File ? item : blobUrlToFileRef.current.get(item)
             ).filter((f): f is File => f != null);
             const submitData = {
                 user_id: user?.id,
-                product_id: productId,
+                product_slug: productSlug,
                 rating: rating,
                 comment: comment,
                 imageFiles,

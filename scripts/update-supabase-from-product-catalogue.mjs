@@ -141,7 +141,7 @@ async function main() {
   // Load categories and sizes from Supabase
   const [categoriesRes, sizesRes, productsRes] = await Promise.all([
     supabase.from("categories").select("id, name, slug"),
-    supabase.from("sizes").select("id, name"),
+    supabase.from("sizes").select("slug, name"),
     supabase.from("products").select("id, name, price, category_id"),
   ]);
 
@@ -177,11 +177,11 @@ async function main() {
     return bySlug?.id ?? null;
   }
 
-  // Resolve size token to size_id
-  function resolveSizeId(sizeToken) {
+  // Resolve size token to size_slug
+  function resolveSizeSlug(sizeToken) {
     const dbName = SIZE_TOKEN_TO_DB_NAME[sizeToken] ?? sizeToken;
     const size = sizeByName[dbName];
-    return size?.id ?? null;
+    return size?.slug ?? null;
   }
 
   // Build product updates: one per distinct product_id (name, category_id, min price)
@@ -208,23 +208,23 @@ async function main() {
     entry.base_price = Math.min(...entry.prices);
   }
 
-  // Build variant price updates: (product_id, size_id) -> price from CSV rows
+  // Build variant price updates: (product_id, size_slug) -> price from CSV rows
   const variantPriceUpdates = new Map();
-  const variantKey = (productId, sizeId) => `${productId}:${sizeId}`;
+  const variantKey = (productId, sizeSlug) => `${productId}:${sizeSlug}`;
 
   for (const row of csvRows) {
     const sizeTokens = parseAvailableSizes(row.available_size);
     for (const token of sizeTokens) {
-      const sizeId = resolveSizeId(token);
-      if (!sizeId) {
+      const sizeSlug = resolveSizeSlug(token);
+      if (!sizeSlug) {
         console.warn(
           `  ⚠ Unknown size token "${token}" for product ${row.product_id} (row price ${row.price})`
         );
         continue;
       }
-    variantPriceUpdates.set(variantKey(row.product_id, sizeId), {
+    variantPriceUpdates.set(variantKey(row.product_id, sizeSlug), {
       product_id: row.product_id,
-      size_id: sizeId,
+      size_slug: sizeSlug,
       price: row.price,
     });
     }
@@ -355,7 +355,7 @@ async function main() {
     console.log("\n── Sample variant rows (after truncate, these will be inserted) ──");
     const variantList = [...variantPriceUpdates.entries()].slice(0, 10);
     for (const [key, v] of variantList) {
-      console.log(`  product=${v.product_id} size=${v.size_id} → price=${v.price}`);
+      console.log(`  product=${v.product_id} size=${v.size_slug} → price=${v.price}`);
     }
     console.log("\nDRY RUN — no changes written. Rerun without --dry-run to apply.\n");
     return;
@@ -389,7 +389,7 @@ async function main() {
     if (!variantsByProduct.has(v.product_id)) {
       variantsByProduct.set(v.product_id, []);
     }
-    variantsByProduct.get(v.product_id).push({ size_id: v.size_id, price: v.price });
+    variantsByProduct.get(v.product_id).push({ size_slug: v.size_slug, price: v.price });
   }
 
   let productsProcessed = 0;
@@ -415,9 +415,9 @@ async function main() {
       continue;
     }
 
-    const rows = toInsert.map(({ size_id, price }) => ({
+    const rows = toInsert.map(({ size_slug, price }) => ({
       product_id: productId,
-      size_id,
+      size_slug,
       color_id: null,
       price,
       stock_quantity: 0,
@@ -450,17 +450,17 @@ async function main() {
   const productIds = productIdsToUpdate.map((p) => p.id);
   const { data: dbVariants, error: fetchValErr } = await supabase
     .from("product_variants")
-    .select("product_id, size_id, price")
+    .select("product_id, size_slug, price")
     .in("product_id", productIds);
 
   if (fetchValErr) {
     console.error("❌ Validation: failed to fetch variants:", fetchValErr.message);
   } else {
-    const sizeById = Object.fromEntries((sizesRes.data || []).map((s) => [s.id, s.name]));
+    const sizeBySlug = Object.fromEntries((sizesRes.data || []).map((s) => [s.slug, s.name]));
     const byProduct = new Map();
     for (const v of dbVariants || []) {
       if (!byProduct.has(v.product_id)) byProduct.set(v.product_id, []);
-      byProduct.get(v.product_id).push({ size_id: v.size_id, size_name: sizeById[v.size_id] || v.size_id, price: v.price });
+      byProduct.get(v.product_id).push({ size_slug: v.size_slug, size_name: sizeBySlug[v.size_slug] || v.size_slug, price: v.price });
     }
 
     let ok = 0;
@@ -471,10 +471,10 @@ async function main() {
       const expected = variantsByProduct.get(productId) || [];
       const actual = byProduct.get(productId) || [];
 
-      const missing = expected.filter((e) => !actual.some((a) => a.size_id === e.size_id));
-      const extra = actual.filter((a) => !expected.some((e) => e.size_id === a.size_id));
+      const missing = expected.filter((e) => !actual.some((a) => a.size_slug === e.size_slug));
+      const extra = actual.filter((a) => !expected.some((e) => e.size_slug === a.size_slug));
       const wrongPrice = expected.filter((e) => {
-        const a = actual.find((x) => x.size_id === e.size_id);
+        const a = actual.find((x) => x.size_slug === e.size_slug);
         return a && a.price !== e.price;
       });
 
@@ -483,9 +483,9 @@ async function main() {
         console.log(`  ✓ ${productId}  ${p.name?.slice(0, 40) ?? ""}...  ${actual.length} sizes OK`);
       } else {
         const parts = [];
-        if (missing.length) parts.push(`missing: ${missing.map((m) => sizeById[m.size_id] || m.size_id).join(", ")}`);
-        if (extra.length) parts.push(`extra: ${extra.map((e) => e.size_name || e.size_id).join(", ")}`);
-        if (wrongPrice.length) parts.push(`wrong price: ${wrongPrice.map((w) => `${sizeById[w.size_id]}=${w.price}`).join(", ")}`);
+        if (missing.length) parts.push(`missing: ${missing.map((m) => sizeBySlug[m.size_slug] || m.size_slug).join(", ")}`);
+        if (extra.length) parts.push(`extra: ${extra.map((e) => e.size_name || e.size_slug).join(", ")}`);
+        if (wrongPrice.length) parts.push(`wrong price: ${wrongPrice.map((w) => `${sizeBySlug[w.size_slug]}=${w.price}`).join(", ")}`);
         console.log(`  ✗ ${productId}  ${p.name?.slice(0, 40) ?? ""}  ${parts.join("; ")}`);
         issues.push({ productId, name: p.name, missing, extra, wrongPrice });
       }

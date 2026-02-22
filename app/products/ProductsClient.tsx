@@ -20,6 +20,20 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 const PAGE_SIZE_MOBILE = 4;
 const PAGE_SIZE_DESKTOP = 12;
 
+function parseApiError(err: unknown, fallback: string): string {
+  const data =
+    err &&
+    typeof err === "object" &&
+    "response" in err
+      ? (err as { response?: { data?: { error?: string; details?: string } } })
+          .response?.data
+      : null;
+  if (data?.error) {
+    return data.details ? `${data.error}: ${data.details}` : data.error;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -117,8 +131,14 @@ export default function ProductsClient() {
   const currentCategory = searchParams.get("category") || "all";
   const currentSize = searchParams.get("size") || "all";
   const currentGender = searchParams.get("gender") || "all";
+  const currentAge = searchParams.get("age") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
+
+  // Scroll to top when landing on products page or when any filter/category/age changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [searchParams.toString()]);
 
   // Load products with server-side filtering, sorting
   useEffect(() => {
@@ -139,6 +159,7 @@ export default function ProductsClient() {
           category: currentCategory !== "all" ? currentCategory : undefined,
           size: currentSize !== "all" ? currentSize : undefined,
           gender: currentGender !== "all" ? currentGender : undefined,
+          age: currentAge !== "all" ? currentAge : undefined,
           sortBy: currentSort !== "default" ? currentSort : undefined,
           sortOrder: currentSortOrder,
           featured: currentFeatured || undefined,
@@ -152,10 +173,9 @@ export default function ProductsClient() {
         setAllProducts(uniqueProducts);
         setTotalItems(response.pagination.totalItems);
         setHasMoreProducts(response.pagination.hasNextPage);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Error loading products:", err);
-        const errorMessage = err instanceof Error ? err.message : "Failed to load products";
-        setError(errorMessage);
+        setError(parseApiError(err, "Failed to load products"));
         setErrorSource('products');
         setAllProducts([]);
         setTotalItems(0);
@@ -166,7 +186,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentFeatured, pageSize]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, pageSize]);
 
   // Client-side search filtering (search happens on frontend with autocomplete)
   const filteredProducts = useMemo(() => {
@@ -197,6 +217,7 @@ export default function ProductsClient() {
         category: currentCategory !== "all" ? currentCategory : undefined,
         size: currentSize !== "all" ? currentSize : undefined,
         gender: currentGender !== "all" ? currentGender : undefined,
+        age: currentAge !== "all" ? currentAge : undefined,
         sortBy: currentSort !== "default" ? currentSort : undefined,
         sortOrder: currentSortOrder,
         featured: currentFeatured || undefined,
@@ -223,11 +244,9 @@ export default function ProductsClient() {
       });
       setCurrentPage(nextPage);
       setHasMoreProducts(response.pagination.hasNextPage);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error loading more products:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load more products"
-      );
+      setError(parseApiError(err, "Failed to load products"));
     } finally {
       setIsLoadingMore(false);
     }
@@ -238,6 +257,7 @@ export default function ProductsClient() {
     currentCategory,
     currentSize,
     currentGender,
+    currentAge,
     currentSort,
     currentSortOrder,
     currentFeatured,
@@ -342,11 +362,12 @@ export default function ProductsClient() {
       currentCategory !== "all" ||
       currentSize !== "all" ||
       currentGender !== "all" ||
+      currentAge !== "all" ||
       currentSort !== "default" ||
       currentFeatured ||
       currentSearch !== ""
     );
-  }, [currentCategory, currentSize, currentGender, currentSort, currentFeatured, currentSearch]);
+  }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
 
   if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) {
     return (

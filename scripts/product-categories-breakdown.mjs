@@ -100,7 +100,7 @@ async function run() {
   let variantsList;
   try {
     productsList = await fetchAllRows(supabase, "products", "id, name, gender_id, category_id");
-    variantsList = await fetchAllRows(supabase, "product_variants", "id, product_id, color_id, size_id");
+    variantsList = await fetchAllRows(supabase, "product_variants", "id, product_id, color_id, size_slug");
   } catch (err) {
     console.error("Supabase fetch error:", err);
     process.exit(1);

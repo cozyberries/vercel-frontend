@@ -1,22 +1,33 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, Eye } from "lucide-react";
+import { Heart, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Product, SizeOption } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
+import { useCart } from "./cart-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
+import { formatPrice } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
   index: number; // Used to set image loading priority (e.g. priority for first N images); not used by getCornerRounding()
+  /** BCP 47 locale for price formatting (default: "en-IN") */
+  locale?: string;
+  /** ISO 4217 currency code (default: "INR") */
+  currency?: string;
 }
 
-export default function ProductCard({ product, index }: ProductCardProps) {
+export default function ProductCard({ product, index, locale = "en-IN", currency = "INR" }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { addToCart, updateQuantity, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
+  const cartItem = cart.find((item) => item.id === product.id);
+  const inCart = !!cartItem;
+  const [showHoverImage, setShowHoverImage] = useState(false);
 
   // Use consistent rounded corners for all cards
   const getCornerRounding = () => {
@@ -29,12 +40,15 @@ export default function ProductCard({ product, index }: ProductCardProps) {
 
   return (
     <div
-      key={product.id}
-      className={`group flex flex-col lg:min-h-[320px] min-h-[300px]  overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
+      className={`group flex flex-col lg:min-h-[320px] min-h-[300px] overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
       onClick={handleCardClick}
     >
-      {/* Image Section */}
-      <div className={`relative overflow-hidden lg:h-[75%] h-[68%] `}>
+      {/* Image Section - larger on mobile and desktop */}
+      <div
+        className={`relative overflow-hidden lg:h-[78%] h-[72%]`}
+        onMouseEnter={() => setShowHoverImage(true)}
+        onMouseLeave={() => setShowHoverImage(false)}
+      >
         {/* Featured Badge */}
         {product.is_featured && (
           <span className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 bg-amber-500 text-white text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full shadow-md">
@@ -57,8 +71,9 @@ export default function ProductCard({ product, index }: ProductCardProps) {
             priority={index < 4}
             className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
           />
-          {/* Second Image (shown on hover if available) */}
-          {product.images?.[1] &&
+          {/* Second Image (deferred until hover to avoid loading on paint) */}
+          {showHoverImage &&
+            product.images?.[1] &&
             typeof product.images[1] === "string" &&
             product.images[1].trim() !== "" && (
               <Image
@@ -71,38 +86,74 @@ export default function ProductCard({ product, index }: ProductCardProps) {
             )}
         </Link>
 
-        {/* Heart Icon Button for Wishlist */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-white/90 hover:bg-white rounded-full h-7 w-7 sm:h-8 sm:w-8 shadow-md hover:shadow-lg transition-all duration-200 opacity-0 group-hover:opacity-100 z-10"
-          onClick={(e) => {
-            e.preventDefault();
-            if (inWishlist) {
-              removeFromWishlist(product.id);
-              toast.success(`${product.name} removed from wishlist!`);
-            } else {
-              addToWishlist({
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                image: product.images?.[0],
-              });
-              toast.success(`${product.name} added to wishlist!`);
-            }
-          }}
-        >
-          <Heart
-            className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors duration-200 ${
-              inWishlist
-                ? "fill-red-500 text-red-500"
-                : "text-gray-600 hover:text-red-500"
+        {/* Wishlist top-left, Add to cart top-right (visible on mobile; on desktop show on hover) */}
+        <div className="absolute top-2 left-2 right-2 z-10 flex justify-between items-start pointer-events-none md:pointer-events-auto md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/90 hover:bg-white shadow-md hover:shadow-lg pointer-events-auto border-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (inWishlist) {
+                removeFromWishlist(product.id);
+                toast.success(`${product.name} removed from wishlist!`);
+              } else {
+                addToWishlist({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.images?.[0],
+                });
+                toast.success(`${product.name} added to wishlist!`);
+              }
+            }}
+            aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+          >
+            <Heart
+              className={`h-4 w-4 sm:h-5 sm:w-5 transition-colors duration-200 ${
+                inWishlist
+                  ? "fill-red-500 text-red-500"
+                  : "text-gray-600 hover:text-red-500"
+              }`}
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
+              inCart
+                ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
+                : "bg-white/90 hover:bg-white"
             }`}
-          />
-          <span className="sr-only">
-            {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
-          </span>
-        </Button>
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (inCart && cartItem) {
+                updateQuantity(product.id, cartItem.quantity + 1);
+                toast.success(`${product.name} quantity updated in cart`);
+              } else {
+                addToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.images?.[0],
+                  quantity: 1,
+                });
+                toast.success(`${product.name} added to cart!`);
+              }
+            }}
+            aria-label={inCart ? "Add another (quantity updated)" : "Add to cart"}
+          >
+            <ShoppingCart
+              className={`h-4 w-4 sm:h-5 sm:w-5 transition-colors duration-200 ${
+                inCart
+                  ? "fill-primary text-primary"
+                  : "text-gray-700 hover:text-primary"
+              }`}
+            />
+          </Button>
+        </div>
 
         {/* Quick view overlay
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
@@ -118,22 +169,34 @@ export default function ProductCard({ product, index }: ProductCardProps) {
         </div> */}
       </div>
 
-      {/* Content Section */}
-      <div className="flex flex-col lg:h-[25%] h-[32%] border px-1 py-2 lg:px-3 lg:py-3 justify-between bg-white">
-        {/* Product Info */}
-        <div className="space-y-1">
-          <h3 className="text-[13px] lg:text-[.9rem] font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors duration-200">
+      {/* Content Section - compact, smaller text, no extra spacing */}
+      <div className="flex flex-col lg:h-[22%] h-[28%] min-h-0 border px-1 py-1 lg:px-3 lg:py-2 justify-between bg-white gap-0">
+        {/* Product title - slider with enough height so title is visible above scrollbar */}
+        <div
+          className="flex min-h-[1.375rem] flex-shrink-0 overflow-x-auto overflow-y-hidden scroll-smooth -mx-0.5 px-0.5 pt-0 pb-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full"
+          style={{ WebkitOverflowScrolling: "touch" }}
+          onClick={(e) => e.stopPropagation()}
+          role="region"
+          aria-label="Product name"
+        >
+          <h3 className="shrink-0 text-[10px] sm:text-[12px] lg:text-[.85rem] font-semibold text-gray-900 whitespace-nowrap leading-tight group-hover:text-primary transition-colors duration-200">
             <Link href={`/products/${product.id}`}>{product.name}</Link>
           </h3>
         </div>
 
-        {/* Available Sizes */}
+        {/* Available Sizes - horizontal slider, no top/bottom margin */}
         {product.sizes && product.sizes.length > 0 && (
-          <div className="flex flex-wrap gap-1 my-1">
+          <div
+            className="flex gap-1 items-center flex-shrink-0 overflow-x-auto overflow-y-hidden scroll-smooth pb-0.5 -mx-0.5 px-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full"
+            style={{ WebkitOverflowScrolling: "touch" }}
+            onClick={(e) => e.stopPropagation()}
+            role="region"
+            aria-label="Available sizes"
+          >
             {product.sizes.map((size: SizeOption) => (
               <span
                 key={size.name}
-                className={`text-[10px] lg:text-[11px] px-1.5 py-0.5 rounded border ${
+                className={`shrink-0 text-[9px] lg:text-[10px] px-1 py-0.5 rounded border whitespace-nowrap ${
                   (size.stock_quantity ?? 0) > 0
                     ? "border-gray-300 text-gray-600"
                     : "border-gray-200 text-gray-300 line-through"
@@ -145,15 +208,15 @@ export default function ProductCard({ product, index }: ProductCardProps) {
           </div>
         )}
 
-        {/* Category and Price */}
-        <div className="flex items-center justify-between">
+        {/* Category and Price - smaller text */}
+        <div className="flex items-center justify-between flex-shrink-0">
           {product.categories?.name && (
-            <p className="text-xs text-gray-500 font-medium">
+            <p className="text-[10px] lg:text-xs text-gray-500 font-medium">
               {product.categories.name}
             </p>
           )}
-          <p className="text-[13px] sm:text-sm lg:text-[.9rem] font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
-            ₹{product.price.toFixed(2)}
+          <p className="text-[11px] sm:text-xs lg:text-sm font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
+            {formatPrice(product.price, locale, currency)}
           </p>
         </div>
       </div>

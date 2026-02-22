@@ -2,14 +2,14 @@ import axios from "axios";
 import { normalizeProduct } from "@/lib/utils/product";
 // ---------- Types ----------
 export interface ProductVariant {
-  id: string;
-  sku?: string;
+  slug: string;
   price: number;
   stock_quantity: number;
   size: string;
-  size_id?: string;
+  size_slug?: string;
   color?: string;
-  color_id?: string;
+  color_slug?: string;
+  color_hex?: string;
   display_order?: number;
 }
 
@@ -21,11 +21,9 @@ export interface SizeOption {
 }
 
 export interface ProductImage {
-  id: string;
-  storage_path: string;
+  url: string;
   is_primary?: boolean;
   display_order?: number;
-  url?: string;
 }
 
 export interface RelatedProduct {
@@ -45,9 +43,9 @@ export interface Product {
   care_instructions: string;
   stock_quantity: number;
   is_featured: boolean;
-  category_id: string;
+  category_slug: string;
   category: string;
-  categories: { name: string };
+  categories: { name: string; slug: string };
   features: string[];
   images: string[];
   colors: string[];
@@ -63,7 +61,7 @@ export interface SimplifiedProduct {
   price: number;
   description?: string;
   category?: string;
-  categoryId?: string;
+  categorySlug?: string;
   categoryName?: string;
   image?: string;
   is_featured?: boolean;
@@ -158,6 +156,38 @@ export interface GenderOptionFilter {
   name: string;
   display_order: number;
 }
+
+/** Age option for filter (from DB: name for display, slug for filter) */
+export interface AgeOptionFilter {
+  id: string;
+  name: string;
+  slug: string;
+  display_order: number;
+}
+
+export const getAgeOptions = async (
+  retries = 3
+): Promise<AgeOptionFilter[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await api.get("/api/ages/options");
+      return data || [];
+    } catch (error) {
+      console.error(
+        `Error fetching age options (attempt ${i + 1}/${retries}):`,
+        error
+      );
+      if (i === retries - 1) {
+        console.error("Failed to fetch age options after all retries");
+        return [];
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, i) * 1000)
+      );
+    }
+  }
+  return [];
+};
 
 export const getGenderOptions = async (
   retries = 3
@@ -288,6 +318,7 @@ export const getProducts = async (
     search?: string;
     size?: string;
     gender?: string;
+    age?: string;
   } = {},
   retries = 3
 ): Promise<{ products: Product[]; pagination: PaginationInfo }> => {
@@ -304,6 +335,7 @@ export const getProducts = async (
           search: params.search,
           size: params.size,
           gender: params.gender,
+          age: params.age,
         },
       });
       // Return full product data
@@ -319,25 +351,14 @@ export const getProducts = async (
         },
       };
     } catch (error) {
-      console.error(
+      console.warn(
         `Error fetching products (attempt ${i + 1}/${retries}):`,
         error
       );
 
-      // If it's the last retry, return empty response
+      // On last retry, rethrow so the caller can show the real API error (e.g. 400 body)
       if (i === retries - 1) {
-        console.error("Failed to fetch products after all retries");
-        return {
-          products: [],
-          pagination: {
-            currentPage: 1,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: 12,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-        };
+        throw error;
       }
 
       // Wait before retrying (exponential backoff)
@@ -401,29 +422,20 @@ export const getProductById = async (id: string): Promise<Product | null> => {
   try {
     const { data } = await api.get(`/api/products/${id}`);
 
-    // Handle images as strings (new format) or objects (old format)
     const images: string[] =
-      data.images
-        ?.map((img: any) => {
-          if (typeof img === "string") {
-            return img;
-          } else if (img && typeof img === "object") {
-            return img.url || `/${img.storage_path}`;
-          }
-          return "";
-        })
-        .filter((url: string) => url && url.trim() !== "") || [];
+      (data.images || [])
+        .map((img: any) => (typeof img === "string" ? img : img?.url || ""))
+        .filter((url: string) => url && url.trim() !== "");
 
-    // Variants and sizes are now pre-processed by the API route
     const variants: ProductVariant[] = (data.variants || []).map((v: any) => ({
-      id: v.id,
-      sku: v.sku,
+      slug: v.slug,
       price: v.price ?? data.price,
       stock_quantity: v.stock_quantity,
       size: v.size,
-      size_id: v.size_id,
+      size_slug: v.size_slug,
       color: v.color,
-      color_id: v.color_id,
+      color_slug: v.color_slug,
+      color_hex: v.color_hex,
       display_order: v.display_order ?? 0,
     }));
 
@@ -449,7 +461,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       variants,
       features: (data.features || []).map((f: any) => f.feature || f),
       relatedProducts: (data.relatedProducts || []).map((p: any) => ({
-        id: p.id,
+        slug: p.slug,
         name: p.name,
         price: p.price,
         category: p.category,

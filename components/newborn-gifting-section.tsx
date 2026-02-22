@@ -9,13 +9,13 @@ import { toImageSrc, PLACEHOLDER_DATA_URL, normalizeAbsoluteUrl } from "@/lib/ut
 type CategoryWithImages = {
   slug?: string;
   image?: string;
-  images?: { url?: string; storage_path?: string }[];
+  images?: { url?: string }[];
 };
 
 function getImageUrl(cat: CategoryWithImages | undefined, index: number): string {
   if (!cat) return PLACEHOLDER_DATA_URL;
   const img = cat.images?.[index];
-  const url = img?.url ?? img?.storage_path ?? (index === 0 ? cat.image : undefined);
+  const url = img?.url ?? (index === 0 ? cat.image : undefined);
   const resolved = toImageSrc(url);
   return resolved === PLACEHOLDER_DATA_URL ? resolved : normalizeAbsoluteUrl(resolved);
 }
@@ -23,16 +23,10 @@ function getImageUrl(cat: CategoryWithImages | undefined, index: number): string
 export default function NewbornGiftingSection() {
   const { categories } = usePreloadedData();
   const newbornEssentials = categories.find((c) => c.slug === "newborn-essentials") as CategoryWithImages | undefined;
-  const newbornClothing = categories.find((c) => c.slug === "newborn-clothing") as CategoryWithImages | undefined;
   const essentialKitsUrl = getImageUrl(newbornEssentials, 0);
-  const clothingFirstImage = getImageUrl(newbornClothing, 0);
-  const softClothingUrl =
-    clothingFirstImage !== PLACEHOLDER_DATA_URL
-      ? clothingFirstImage
-      : getImageUrl(newbornEssentials, 1);
 
   return (
-    <section className="lg:py-28 py-20 bg-[#f9f7f4] relative overflow-hidden">
+    <section className="lg:pt-28 pt-20 lg:pb-16 pb-12 bg-[#f9f7f4] relative overflow-hidden">
       <SnowflakeDecoration
         position="top-left"
         size="md"
@@ -61,7 +55,7 @@ export default function NewbornGiftingSection() {
           </p>
         </div>
 
-        {/* Mobile Layout - 2 Cards (aspect-square) + Button */}
+        {/* Mobile Layout - 1 Card (aspect-square) + Button */}
         <div className="w-full px-4 lg:hidden">
           <div className="flex flex-col gap-4">
             <div className="w-full aspect-square max-w-sm mx-auto">
@@ -82,26 +76,8 @@ export default function NewbornGiftingSection() {
                 </div>
               </Link>
             </div>
-            <div className="w-full aspect-square max-w-sm mx-auto">
-              <Link href="/products?category=newborn-essentials">
-                <div className="group cursor-pointer h-full">
-                  <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-transform duration-300 group-hover:scale-105"
-                    style={{ backgroundImage: `url(${softClothingUrl})` }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                    <div className="absolute inset-0 flex items-end justify-center p-6">
-                      <div className="text-center text-white">
-                        <h3 className="text-xl font-light mb-2">Soft Clothing</h3>
-                        <p className="text-sm opacity-90">Gentle fabrics for delicate skin</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </div>
             <div className="w-full">
-              <Link href="/products?age=0-3-months">
+              <Link href="/products?age=0-3m">
                 <Button
                   variant="outline"
                   className="w-full h-12 text-sm hover:bg-primary hover:text-primary-foreground transition-colors duration-300"
@@ -113,10 +89,10 @@ export default function NewbornGiftingSection() {
           </div>
         </div>
 
-        {/* Desktop Layout - 2 Cards (aspect-square) */}
+        {/* Desktop Layout - 1 Card (aspect-square) */}
         <div className="w-full px-16 hidden lg:block">
-          <div className="flex flex-row gap-6 justify-center max-w-4xl mx-auto">
-            <div className="w-full max-w-md aspect-square">
+          <div className="max-w-4xl mx-auto">
+            <div className="w-full max-w-md aspect-square mx-auto">
               <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
@@ -128,24 +104,6 @@ export default function NewbornGiftingSection() {
                       <div className="text-center text-white">
                         <h3 className="text-xl md:text-2xl font-light mb-2">Essential Kits</h3>
                         <p className="text-sm md:text-base opacity-90">Everything your little one needs</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </div>
-            <div className="w-full max-w-md aspect-square">
-              <Link href="/products?category=newborn-essentials">
-                <div className="group cursor-pointer h-full">
-                  <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-all duration-500 group-hover:scale-105"
-                    style={{ backgroundImage: `url(${softClothingUrl})` }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-all duration-500" />
-                    <div className="absolute inset-0 flex items-end justify-center p-6">
-                      <div className="text-center text-white">
-                        <h3 className="text-xl md:text-2xl font-light mb-2">Soft Clothing</h3>
-                        <p className="text-sm md:text-base opacity-90">Gentle fabrics for delicate skin</p>
                       </div>
                     </div>
                   </div>

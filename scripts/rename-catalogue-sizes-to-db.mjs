@@ -71,7 +71,7 @@ async function main() {
 
   const { data: sizes, error } = await supabase
     .from("sizes")
-    .select("id, name")
+    .select("slug, name")
     .order("display_order", { ascending: true })
     .order("name", { ascending: true });
 

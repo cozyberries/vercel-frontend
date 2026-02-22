@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
-import { setAgeSlugsCache } from "@/lib/age-slug-sizes";
 
-export interface SizeOption {
+export interface AgeOption {
   id: string;
-  slug: string;
   name: string;
+  slug: string;
   display_order: number;
 }
 
-type SizeOptionsCache = { data: SizeOption[]; timestamp: number } | null;
+type AgeOptionsCache = { data: AgeOption[]; timestamp: number } | null;
 
-// In-memory cache is only valid within a single instance/process and does not persist
-// across serverless cold starts. Redis (Upstash) remains the primary cache layer;
-// this is only an optimization for burst traffic on the same instance.
-let inMemoryCache: SizeOptionsCache = null;
+let inMemoryCache: AgeOptionsCache = null;
 const IN_MEMORY_TTL = 120_000; // 2 minutes
 
 export async function GET() {
@@ -30,15 +26,15 @@ export async function GET() {
       });
     }
 
-    const cacheKey = "sizes:options";
-    let cached: SizeOption[] | null = null;
+    const cacheKey = "ages:options";
+    let cached: AgeOption[] | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
     try {
       const cachePromise = UpstashService.get(cacheKey);
       const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 300);
       });
-      cached = (await Promise.race([cachePromise, timeoutPromise])) as SizeOption[] | null;
+      cached = (await Promise.race([cachePromise, timeoutPromise])) as AgeOption[] | null;
     } catch {
       // continue to DB
     } finally {
@@ -64,33 +60,26 @@ export async function GET() {
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("Failed to retrieve size options:", error);
+      console.error("Failed to retrieve age options:", error);
       return NextResponse.json(
-        { error: "Failed to retrieve size options" },
+        { error: "Failed to retrieve age options" },
         { status: 500 }
       );
     }
 
-    const options: SizeOption[] = (data || []).flatMap((row) => {
+    const options: AgeOption[] = (data || []).map((row) => {
       const slug = String(row.slug ?? "").toLowerCase().trim();
-      if (slug === "") return [];
-      return [
-        {
-          id: slug,
-          slug,
-          name: String(row.name ?? ""),
-          display_order: Number(row.display_order ?? 0),
-        },
-      ];
+      return {
+        id: slug,
+        name: String(row.name ?? ""),
+        slug,
+        display_order: Number(row.display_order ?? 0),
+      };
     });
-
-    // Cache available size slugs (used for age filter; no age_slug)
-    const slugSet = new Set(options.map((o) => o.slug).filter(Boolean));
-    setAgeSlugsCache(Array.from(slugSet));
 
     inMemoryCache = { data: options, timestamp: Date.now() };
     UpstashService.set(cacheKey, options, 7200).catch((err) => {
-      console.error("Failed to cache size options:", err);
+      console.error("Failed to cache age options:", err);
     });
 
     return NextResponse.json(options, {
@@ -101,7 +90,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Unexpected error in size options:", error);
+    console.error("Unexpected error in age options:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product } from "@/lib/types/product";
+import { aggregateSizesFromVariants } from "@/app/api/products/route";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Build the same cache key the products list API uses */
 function productsCacheKey(params: {
   limit: number;
   page: number;
@@ -19,63 +15,47 @@ function productsCacheKey(params: {
   return `products:lt_${params.limit}:pg_${params.page}:cat_${params.category}:feat_${params.featured}:sortb_${params.sortBy}:sorto_${params.sortOrder}`;
 }
 
-/** Parse product images from various formats to a normalized array */
-function parseProductImages(images: any): string[] {
-  try {
-    if (!images) {
-      return [];
-    }
+const PRODUCTS_SELECT = `
+  slug, name, description, price, stock_quantity, is_featured, created_at, updated_at,
+  category_slug, gender_slug, size_slugs, color_slugs,
+  categories(name, slug),
+  genders(name, slug),
+  product_images(url, is_primary, display_order),
+  product_variants(price, stock_quantity, size_slug, sizes(name, display_order))
+`;
 
-    let parsedImages: any = images;
-
-    // Handle string inputs (could be JSON or a single URL)
-    if (typeof images === "string") {
-      const trimmed = images.trim();
-      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        parsedImages = JSON.parse(trimmed);
-      } else {
-        // Plain string URL
-        return trimmed ? [trimmed] : [];
-      }
-    }
-
-    // Handle array results
-    if (Array.isArray(parsedImages)) {
-      return parsedImages.filter((url: any) => typeof url === "string" && url);
-    }
-
-    // Handle object results from JSON.parse (e.g., {"url": "..."})
-    if (typeof parsedImages === "object" && parsedImages !== null) {
-      // Try to extract URL-like values from the object
-      const values = Object.values(parsedImages);
-      const urls = values.filter((val: any) => typeof val === "string" && val);
-      return urls as string[];
-    }
-
-    // Fallback for any other type
-    return [];
-  } catch {
-    // Return empty array on any parsing error
-    return [];
-  }
-}
-
-/** Process raw product rows into the shape the frontend expects */
 function processProducts(rows: any[]): Product[] {
+  const aggregateSizes =
+    typeof aggregateSizesFromVariants === "function" ? aggregateSizesFromVariants : null;
+
   return rows.map((product: any) => {
-    const parsedImages = parseProductImages(product.images);
-    return { ...product, images: parsedImages.slice(0, 3) };
+    const images = [...(product.product_images || [])]
+      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      .map((img: any) => img.url)
+      .filter(Boolean)
+      .slice(0, 3);
+    const variants = Array.isArray(product.product_variants) ? product.product_variants : [];
+    const fallbackPrice =
+      typeof product.price === "number" && !Number.isNaN(product.price) ? product.price : 0;
+    const sizes =
+      aggregateSizes ? aggregateSizes(variants, fallbackPrice) : [];
+    return {
+      ...product,
+      id: product.slug,
+      images,
+      sizes,
+      product_images: undefined,
+      product_variants: undefined,
+    };
   });
 }
 
-/** Fetch & cache a single "products page" from DB */
 async function warmProductsPage(
   supabase: any,
   params: {
     limit: number;
     page: number;
     category: string;
-    categoryId?: string;
     featured: boolean;
     sortBy: string;
     sortOrder: string;
@@ -84,15 +64,11 @@ async function warmProductsPage(
 ): Promise<{ key: string; count: number; totalItems: number }> {
   let query = supabase
     .from("products")
-    .select(
-      `id, name, description, price, slug, stock_quantity, is_featured, created_at, updated_at, category_id, categories(name, slug), images`,
-      { count: "exact" }
-    );
+    .select(PRODUCTS_SELECT, { count: "exact" });
 
   if (params.featured) query = query.eq("is_featured", true);
-  if (params.categoryId) query = query.eq("category_id", params.categoryId);
+  if (params.category !== "all") query = query.eq("category_slug", params.category);
 
-  // Sorting
   if (params.sortBy === "price") {
     query = query.order("price", { ascending: params.sortOrder === "asc" });
   } else if (params.sortBy === "name") {
@@ -100,7 +76,7 @@ async function warmProductsPage(
   } else {
     query = query.order("created_at", { ascending: false });
   }
-  query = query.order("id", { ascending: true });
+  query = query.order("slug", { ascending: true });
 
   const offset = (params.page - 1) * params.limit;
   const { data, count, error } = await query.range(offset, offset + params.limit - 1);
@@ -126,23 +102,10 @@ async function warmProductsPage(
     },
   };
 
-  const key = productsCacheKey({
-    limit: params.limit,
-    page: params.page,
-    category: params.category,
-    featured: params.featured,
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
-  });
-
+  const key = productsCacheKey(params);
   await UpstashService.set(key, response, ttl);
-
   return { key, count: products.length, totalItems };
 }
-
-// ---------------------------------------------------------------------------
-// POST  — full cache warm
-// ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
   try {
@@ -150,48 +113,34 @@ export async function POST(request: NextRequest) {
     const warmed: string[] = [];
     const errors: string[] = [];
 
-    // ── 1. Category options (lightweight) ────────────────────────────
+    // 1. Category options
     try {
       const { data: catOpts } = await supabase
         .from("categories")
-        .select("id, name, slug")
+        .select("slug, name")
         .eq("display", true)
         .order("name", { ascending: true });
 
-      await UpstashService.set("categories:options", catOpts || [], 7200);
+      const options = (catOpts || []).map((c: any) => ({ id: c.slug, name: c.name, slug: c.slug }));
+      await UpstashService.set("categories:options", options, 7200);
       warmed.push("categories:options");
     } catch (e: any) {
       errors.push(`category options: ${e.message}`);
     }
 
-    // ── 2. Full categories (with images, for homepage) ───────────────
+    // 2. Full categories (with image, for homepage)
     try {
       const { data: fullCats } = await supabase
         .from("categories")
-        .select(`*, categories_images(id, storage_path, url, is_primary, display_order, metadata)`)
+        .select("slug, name, description, image, display, created_at, updated_at")
         .eq("display", true)
         .order("name", { ascending: true });
 
-      const resolveImageUrl = (img: any) => {
-        if (img.url && typeof img.url === "string" && img.url.startsWith("http")) return img.url;
-        const path = img.storage_path;
-        if (!path) return undefined;
-        return path.startsWith("http") ? path : `/${path}`;
-      };
-      const processed = (fullCats || []).map((cat: any) => {
-        const images = (cat.categories_images || [])
-          .filter((img: any) => img.url || img.storage_path)
-          .map((img: any) => ({
-            id: img.id,
-            storage_path: img.storage_path,
-            is_primary: img.is_primary,
-            display_order: img.display_order,
-            metadata: img.metadata,
-            url: resolveImageUrl(img),
-          }))
-          .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-        return { ...cat, images };
-      });
+      const processed = (fullCats || []).map((cat: any) => ({
+        ...cat,
+        id: cat.slug,
+        images: cat.image ? [{ url: cat.image, is_primary: true, display_order: 0 }] : [],
+      }));
 
       await UpstashService.set("categories:list", processed, 3600);
       warmed.push("categories:list");
@@ -199,7 +148,7 @@ export async function POST(request: NextRequest) {
       errors.push(`full categories: ${e.message}`);
     }
 
-    // ── 3. Ratings (all) ─────────────────────────────────────────────
+    // 3. Ratings
     const RATINGS_CONCURRENCY = 20;
     try {
       const { data: ratings } = await supabase
@@ -210,20 +159,24 @@ export async function POST(request: NextRequest) {
       await UpstashService.set("ratings:all", ratings || [], 900);
       warmed.push("ratings:all");
 
-      // Per-product ratings (parallel with bounded concurrency)
       const byProduct = new Map<string, any[]>();
       for (const r of ratings || []) {
-        const arr = byProduct.get(r.product_id) || [];
+        const key = r.product_slug;
+        if (!key) {
+          console.warn("[cache warm] Rating missing product_slug:", { id: r.id, user_id: r.user_id, created_at: r.created_at });
+          continue;
+        }
+        const arr = byProduct.get(key) || [];
         arr.push(r);
-        byProduct.set(r.product_id, arr);
+        byProduct.set(key, arr);
       }
       const ratingEntries = [...byProduct.entries()];
       for (let i = 0; i < ratingEntries.length; i += RATINGS_CONCURRENCY) {
         const chunk = ratingEntries.slice(i, i + RATINGS_CONCURRENCY);
         const keys = await Promise.all(
-          chunk.map(([pid, arr]) =>
-            UpstashService.set(`ratings:product:${pid}`, arr, 900).then(
-              () => `ratings:product:${pid}`
+          chunk.map(([slug, arr]) =>
+            UpstashService.set(`ratings:product:${slug}`, arr, 900).then(
+              () => `ratings:product:${slug}`
             )
           )
         );
@@ -233,11 +186,11 @@ export async function POST(request: NextRequest) {
       errors.push(`ratings: ${e.message}`);
     }
 
-    // ── 4. Individual products ───────────────────────────────────────
+    // 4. Individual products
     try {
       const { data: allProds } = await supabase
         .from("products")
-        .select(`id, name, description, price, slug, stock_quantity, is_featured, images, category_id, created_at, updated_at, categories(name, slug)`)
+        .select(PRODUCTS_SELECT)
         .order("created_at", { ascending: false });
 
       const productList = allProds || [];
@@ -245,13 +198,10 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < productList.length; i += PRODUCTS_CONCURRENCY) {
         const chunk = productList.slice(i, i + PRODUCTS_CONCURRENCY);
         const keys = await Promise.all(
-          chunk.map(async (product) => {
-            const processed = {
-              ...product,
-              images: parseProductImages(product.images),
-            };
-            await UpstashService.cacheProduct(product.id, processed, 1800);
-            return `product:${product.id}`;
+          chunk.map(async (product: any) => {
+            const processed = processProducts([product])[0];
+            await UpstashService.cacheProduct(product.slug, processed, 1800);
+            return `product:${product.slug}`;
           })
         );
         warmed.push(...keys);
@@ -260,20 +210,17 @@ export async function POST(request: NextRequest) {
       errors.push(`individual products: ${e.message}`);
     }
 
-    // ── 5. Product list pages — all common filter combinations ───────
-    // Fetch category slugs + IDs for per-category warming
+    // 5. Product list pages — common filter combinations
     const { data: catRows, error: catError } = await supabase
       .from("categories")
-      .select("id, slug")
+      .select("slug")
       .eq("display", true);
 
     if (catError) {
-      console.error("Cache warm: failed to fetch categories:", catError.message);
       errors.push(`categories fetch: ${catError.message}`);
     }
-    const categoryMap = new Map((catRows || []).map((c: any) => [c.slug, c.id]));
 
-    const PAGE_SIZES = [4, 12]; // mobile / desktop
+    const PAGE_SIZES = [4, 12];
     const SORT_COMBOS = [
       { sortBy: "default", sortOrder: "desc" },
       { sortBy: "price", sortOrder: "asc" },
@@ -287,21 +234,12 @@ export async function POST(request: NextRequest) {
         for (const cat of CATEGORIES) {
           for (const feat of FEATURED_FLAGS) {
             try {
-              // Warm first 3 pages for each combination
               const pagesToWarm = 3;
               for (let page = 1; page <= pagesToWarm; page++) {
                 const result = await warmProductsPage(supabase, {
-                  limit,
-                  page,
-                  category: cat,
-                  categoryId: cat !== "all" ? categoryMap.get(cat) : undefined,
-                  featured: feat,
-                  sortBy,
-                  sortOrder,
+                  limit, page, category: cat, featured: feat, sortBy, sortOrder,
                 });
                 warmed.push(result.key);
-
-                // Stop paging if no more data
                 if (result.count === 0 || result.count < limit) break;
               }
             } catch (e: any) {
@@ -313,13 +251,14 @@ export async function POST(request: NextRequest) {
     }
 
     const status = errors.length > 0 ? 207 : 200;
+    const PREVIEW_KEYS = 50;
     return NextResponse.json(
       {
         success: true,
         message: "Cache warming completed",
         timestamp: new Date().toISOString(),
         warmed: warmed.length,
-        keys: warmed,
+        keysPreview: warmed.slice(0, PREVIEW_KEYS),
         errors,
       },
       { status }
@@ -327,30 +266,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Cache warming error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: "Cache warming failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { success: false, error: "Cache warming failed", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// GET   — health check
-// ---------------------------------------------------------------------------
-
 export async function GET() {
   return NextResponse.json({
     message: "Cache warming endpoint",
     usage: "POST to warm all caches",
-    warmsKeys: [
-      "categories:options (id/name/slug for filters)",
-      "categories:list (full with images for homepage)",
-      "ratings:all + ratings:product:{id}",
-      "product:{id} (each individual product)",
-      "products:lt_{4|12}:pg_{1-3}:cat_{all|slug}:feat_{true|false}:sortb_{default|price}:sorto_{asc|desc}",
-    ],
   });
 }

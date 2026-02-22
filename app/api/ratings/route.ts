@@ -3,18 +3,17 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { UpstashService } from "@/lib/upstash";
 
-function invalidateRatingCaches(productId: string): void {
+function invalidateRatingCaches(productSlug: string): void {
   UpstashService.delete("ratings:all").catch(() => {});
-  UpstashService.delete(`ratings:product:${productId}`).catch(() => {});
+  UpstashService.delete(`ratings:product:${productSlug}`).catch(() => {});
 }
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    
-    // Authenticate the request
+
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !authUser) {
       return NextResponse.json(
         { error: "Unauthorized: Please log in to submit a rating" },
@@ -25,12 +24,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     const user_id = formData.get("user_id") as string | null;
-    const product_id = formData.get("product_id") as string | null;
+    const product_slug = (formData.get("product_slug") ?? formData.get("product_id")) as string | null;
     const ratingValue = Number(formData.get("rating"));
     const comment = (formData.get("comment") as string) || "";
     const imageFiles = formData.getAll("images") as File[];
 
-    // Validate user_id matches authenticated user
     if (user_id !== authUser.id) {
       return NextResponse.json(
         { error: "Forbidden: User ID mismatch" },
@@ -38,7 +36,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate rating is a valid number within bounds (1-5)
     if (!Number.isFinite(ratingValue) || ratingValue < 1 || ratingValue > 5 || !Number.isInteger(ratingValue)) {
       return NextResponse.json(
         { error: "Invalid rating: Must be an integer between 1 and 5" },
@@ -46,13 +43,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!product_id) {
-      return NextResponse.json({ error: "Missing product_id" }, { status: 400 });
+    if (!product_slug) {
+      return NextResponse.json({ error: "Missing product_slug" }, { status: 400 });
     }
 
-    // Validate and limit image uploads
     const MAX_IMAGES = 5;
-    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
     const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
 
     if (imageFiles.length > MAX_IMAGES) {
@@ -62,35 +58,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate each image
     const validImages: File[] = [];
     for (const file of imageFiles) {
       if (!(file instanceof File) || file.size === 0) continue;
-      
       if (!ALLOWED_TYPES.includes(file.type)) {
         return NextResponse.json(
           { error: `Invalid file type: ${file.type}. Allowed types: ${ALLOWED_TYPES.join(", ")}` },
           { status: 400 }
         );
       }
-      
       if (file.size > MAX_IMAGE_SIZE) {
         return NextResponse.json(
           { error: `File too large: ${file.name} exceeds ${MAX_IMAGE_SIZE / (1024 * 1024)}MB limit` },
           { status: 400 }
         );
       }
-      
       validImages.push(file);
     }
 
-    // First insert the review without images
     const { data, error } = await supabase
       .from("ratings")
       .insert([
         {
-          user_id: authUser.id, // Use authenticated user ID
-          product_id,
+          user_id: authUser.id,
+          product_slug,
           rating: ratingValue,
           comment,
           images: [],
@@ -102,53 +93,44 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     let responseData = data;
+    let uploadStatus: Array<{ file: string; status: "success" | "failed"; url?: string; reason?: string }> | undefined;
+    let imageUpdateWarning: string | undefined;
 
-    // Invalidate ratings caches so next read picks up the new review
-    invalidateRatingCaches(product_id);
-
-    // Upload images to Cloudinary in parallel after the review is saved
     if (validImages.length > 0) {
       const uploadResults = await Promise.allSettled(
-        validImages.map((file) => 
-          uploadImageToCloudinary(file).then(url => ({ file: file.name, url, status: 'success' }))
+        validImages.map((file) =>
+          uploadImageToCloudinary(file).then((url) => ({ file: file.name, url, status: "success" }))
         )
       );
-      
+
       const uploadedUrls: string[] = [];
-      const uploadStatus: Array<{ file: string; status: 'success' | 'failed'; url?: string; reason?: string }> = [];
-      
+      uploadStatus = [];
+
       for (let i = 0; i < uploadResults.length; i++) {
         const result = uploadResults[i];
         const fileName = validImages[i].name;
-        
         if (result.status === "fulfilled") {
           uploadedUrls.push(result.value.url);
-          uploadStatus.push({ file: fileName, status: 'success', url: result.value.url });
+          uploadStatus.push({ file: fileName, status: "success", url: result.value.url });
         } else {
           const reason = result.reason?.message || String(result.reason);
           console.error(`Failed to upload review image ${fileName}:`, result.reason);
-          uploadStatus.push({ file: fileName, status: 'failed', reason });
+          uploadStatus.push({ file: fileName, status: "failed", reason });
         }
       }
 
-      // Update the review with the uploaded image URLs
       if (uploadedUrls.length > 0) {
         const { error: updateError } = await supabase
           .from("ratings")
           .update({ images: uploadedUrls })
-          .eq("id", data.id);
+          .eq("id", data.id)
+          .eq("user_id", authUser.id)
+          .eq("product_slug", product_slug);
 
         if (updateError) {
           console.error("Failed to update review images:", updateError);
-          invalidateRatingCaches(product_id);
-          return NextResponse.json({ 
-            success: true, 
-            rating: responseData,
-            uploadStatus,
-            warning: "Review created but failed to save image URLs to database"
-          });
+          imageUpdateWarning = "Review created but failed to save image URLs to database";
         } else {
-          // Fetch the updated rating to get the latest state
           const { data: updatedData } = await supabase
             .from("ratings")
             .select("*")
@@ -157,17 +139,19 @@ export async function POST(request: NextRequest) {
           if (updatedData) {
             responseData = { ...data, images: updatedData.images };
           }
-          invalidateRatingCaches(product_id);
         }
       }
-      
-      return NextResponse.json({ 
-        success: true, 
-        rating: responseData,
-        uploadStatus
-      });
     }
 
+    invalidateRatingCaches(product_slug);
+    if (uploadStatus !== undefined) {
+      return NextResponse.json({
+        success: true,
+        rating: responseData,
+        uploadStatus,
+        ...(imageUpdateWarning && { warning: imageUpdateWarning }),
+      });
+    }
     return NextResponse.json({ success: true, rating: responseData });
   } catch (error: any) {
     console.error("Error submitting rating:", error);
@@ -178,12 +162,10 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const productId = searchParams.get("product_id");
+    const productSlug = searchParams.get("product_slug") ?? searchParams.get("product_id");
 
-    // Build a cache key specific to the product (or all ratings)
-    const cacheKey = productId ? `ratings:product:${productId}` : "ratings:all";
+    const cacheKey = productSlug ? `ratings:product:${productSlug}` : "ratings:all";
 
-    // 1. Try Redis cache
     const cached = await UpstashService.get(cacheKey).catch(() => null);
     if (cached) {
       return NextResponse.json(cached, {
@@ -196,17 +178,15 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2. Fetch from DB
     const supabase = await createServerSupabaseClient();
     let query = supabase.from("ratings").select("*").order("created_at", { ascending: false });
-    if (productId) {
-      query = query.eq("product_id", productId);
+    if (productSlug) {
+      query = query.eq("product_slug", productSlug);
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // 3. Cache in Redis for 15 minutes
     const payload = data ?? [];
     UpstashService.set(cacheKey, payload, 900).catch(() => {});
 
