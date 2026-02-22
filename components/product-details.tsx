@@ -175,7 +175,7 @@ export default function ProductDetails({ id: productId }: { id: string }) {
     }
   };
 
-  // Set the product ID in the rating context so reviews are fetched and the review form knows the target product
+  // Set the product slug in the rating context so reviews are fetched and the review form knows the target product
   useEffect(() => {
     if (productId) {
       setProductSlug(productId);
@@ -747,7 +747,9 @@ export default function ProductDetails({ id: productId }: { id: string }) {
             You May Also Like
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {relatedProducts?.map((relatedProduct) => (
+            {relatedProducts
+              ?.filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
+              ?.map((relatedProduct) => (
               <div key={relatedProduct?.id} className="group">
                 <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                   <Link href={`/products/${relatedProduct.slug}`}>

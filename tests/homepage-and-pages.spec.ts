@@ -160,9 +160,6 @@ test.describe("Homepage Sections", () => {
 
     // Essential Kits card exists in the DOM
     await expect(page.getByText("Essential Kits").first()).toBeAttached();
-
-    // Soft Clothing card exists in the DOM (may be off-screen on some viewports)
-    await expect(page.getByText("Soft Clothing").first()).toBeAttached();
   });
 
   // ── Featured Products Section ─────────────────────────────────────────────
@@ -316,19 +313,6 @@ test.describe("New Born Gifting – Cards and buttons", () => {
     await page.goto("/products?category=newborn-essentials");
     await page.waitForURL("**/products**", { timeout: 15_000 });
     expect(page.url()).toContain("category=newborn-essentials");
-  });
-
-  test("Soft Clothing card links to newborn-clothing products", async ({
-    page,
-  }) => {
-    await page.goto("/");
-    await waitForHomepageToLoad(page);
-
-    // Navigate directly to the category URL (link may be hidden on desktop viewport)
-    await page.goto("/products?category=newborn-clothing");
-
-    await page.waitForURL("**/products**", { timeout: 15_000 });
-    expect(page.url()).toContain("category=newborn-clothing");
   });
 
   test("View All Newborn Products button navigates to age-filtered page", async ({

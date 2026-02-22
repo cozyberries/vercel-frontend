@@ -34,8 +34,12 @@ export default function AgeGrid() {
   useEffect(() => {
     setIsLoading(true);
     getAgeOptions()
-      .then(setAgeOptions)
-      .catch(() => setAgeOptions([]))
+      .then((opts) => {
+        setAgeOptions(opts);
+      })
+      .catch(() => {
+        setAgeOptions([]);
+      })
       .finally(() => setIsLoading(false));
   }, []);
 

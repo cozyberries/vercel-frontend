@@ -77,6 +77,11 @@ export default function RatingForm({ onSubmitRating, onCancel, redirectTo }: Rat
             setLoading(false);
             return;
         }
+        if (!productSlug) {
+            toast.error("Product is missing; cannot submit rating");
+            setLoading(false);
+            return;
+        }
         try {
             const imageFiles = previewImage.map((item) =>
                 item instanceof File ? item : blobUrlToFileRef.current.get(item)

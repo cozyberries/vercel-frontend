@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     let responseData = data;
-
-    invalidateRatingCaches(product_slug);
+    let uploadStatus: Array<{ file: string; status: "success" | "failed"; url?: string; reason?: string }> | undefined;
+    let imageUpdateWarning: string | undefined;
 
     if (validImages.length > 0) {
       const uploadResults = await Promise.allSettled(
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       );
 
       const uploadedUrls: string[] = [];
-      const uploadStatus: Array<{ file: string; status: "success" | "failed"; url?: string; reason?: string }> = [];
+      uploadStatus = [];
 
       for (let i = 0; i < uploadResults.length; i++) {
         const result = uploadResults[i];
@@ -129,13 +129,7 @@ export async function POST(request: NextRequest) {
 
         if (updateError) {
           console.error("Failed to update review images:", updateError);
-          invalidateRatingCaches(product_slug);
-          return NextResponse.json({
-            success: true,
-            rating: responseData,
-            uploadStatus,
-            warning: "Review created but failed to save image URLs to database",
-          });
+          imageUpdateWarning = "Review created but failed to save image URLs to database";
         } else {
           const { data: updatedData } = await supabase
             .from("ratings")
@@ -145,13 +139,19 @@ export async function POST(request: NextRequest) {
           if (updatedData) {
             responseData = { ...data, images: updatedData.images };
           }
-          invalidateRatingCaches(product_slug);
         }
       }
-
-      return NextResponse.json({ success: true, rating: responseData, uploadStatus });
     }
 
+    invalidateRatingCaches(product_slug);
+    if (uploadStatus !== undefined) {
+      return NextResponse.json({
+        success: true,
+        rating: responseData,
+        uploadStatus,
+        ...(imageUpdateWarning && { warning: imageUpdateWarning }),
+      });
+    }
     return NextResponse.json({ success: true, rating: responseData });
   } catch (error: any) {
     console.error("Error submitting rating:", error);

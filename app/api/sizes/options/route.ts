@@ -82,12 +82,7 @@ export async function GET() {
     });
 
     // Cache available size slugs (used for age filter; no age_slug)
-    const slugSet = new Set<string>();
-    for (const row of data ?? []) {
-      const slug = row.slug != null ? String(row.slug).trim().toLowerCase() : "";
-      if (!slug) continue;
-      slugSet.add(slug);
-    }
+    const slugSet = new Set(options.map((o) => o.slug).filter(Boolean));
     setAgeSlugsCache(Array.from(slugSet));
 
     inMemoryCache = { data: options, timestamp: Date.now() };

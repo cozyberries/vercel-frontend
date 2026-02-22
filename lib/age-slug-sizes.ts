@@ -7,7 +7,7 @@ export type AgeSlugs = string[];
 
 /**
  * Returns all available size slugs from cache or DB (sizes table).
- * Uses slug column for filtering; no age_slug. Populate cache via setAgeSlugsSlugsCache (e.g. in sizes options route).
+ * Uses slug column for filtering; no age_slug. Populate cache via setAgeSlugsCache (e.g. in sizes options route).
  */
 export async function getAvailableAgeSlugs(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase-server").createServerSupabaseClient>>
