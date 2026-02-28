@@ -14,6 +14,7 @@ import { useCart } from "@/components/cart-context";
 import { images } from "@/app/assets/images";
 import CartItem from "@/components/CartItem";
 import Link from "next/link";
+import { DELIVERY_CHARGE_INR } from "@/lib/constants";
 
 export default function CartSheet() {
   const { cart, updateQuantity, removeFromCart, clearCart, isLoading } =
@@ -23,7 +24,7 @@ export default function CartSheet() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const deliveryCharge = cart.length > 0 ? 50 : 0;
+  const deliveryCharge = cart.length > 0 ? DELIVERY_CHARGE_INR : 0;
   const grandTotal = subtotal + deliveryCharge;
 
   return (

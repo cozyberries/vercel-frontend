@@ -26,6 +26,7 @@ import Script from "next/script";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
+import { DELIVERY_CHARGE_INR } from "@/lib/constants";
 
 interface CheckoutFormData {
   email: string;
@@ -72,7 +73,7 @@ export default function CheckoutPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const deliveryCharge = cart.length > 0 ? 50 : 0;
+  const deliveryCharge = cart.length > 0 ? DELIVERY_CHARGE_INR : 0;
   const tax = subtotal * 0.1; // 10% tax
   const total = subtotal + deliveryCharge + tax;
 

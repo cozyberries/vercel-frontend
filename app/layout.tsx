@@ -47,7 +47,8 @@ export default function RootLayout({
         />
         <link rel="manifest" href="/site.webmanifest" />
       </head>
-      <body className={inter.className}>
+      {/* suppressHydrationWarning on body helps when a browser extension (e.g. Cursor) injects data-cursor-ref into the DOM after server render */}
+      <body className={inter.className} suppressHydrationWarning>
         <SupabaseAuthProvider>
           <DataPreloader>
             <WishlistProvider>

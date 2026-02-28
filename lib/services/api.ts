@@ -165,13 +165,36 @@ export interface AgeOptionFilter {
   display_order: number;
 }
 
+/** Slugs combined into a single "3-6 Years" option in Shop by Age */
+const COMBINED_3_6_SLUGS = new Set([
+  "3-4y", "4-5y", "5-6y", "3-4-years", "4-5-years", "5-6-years",
+]);
+
+/** Collapse 3-4y, 4-5y, 5-6y into one "3-6y" option; click filters for all three sizes. Keeps 2-3y and never duplicates 3-6y. */
+export function normalizeAgeOptions(opts: AgeOptionFilter[]): AgeOptionFilter[] {
+  const combined = opts.filter((a) => COMBINED_3_6_SLUGS.has(a.slug));
+  const rest = opts.filter((a) => !COMBINED_3_6_SLUGS.has(a.slug));
+  const has3To6Already = rest.some((a) => a.slug === "3-6y" || a.slug === "3-6-years");
+  if (combined.length > 0 && !has3To6Already) {
+    const displayOrder = Math.min(...combined.map((a) => a.display_order));
+    rest.push({
+      id: "3-6y",
+      name: "3-6 Years",
+      slug: "3-6y",
+      display_order: displayOrder,
+    });
+  }
+  return rest.sort((a, b) => a.display_order - b.display_order);
+}
+
 export const getAgeOptions = async (
   retries = 3
 ): Promise<AgeOptionFilter[]> => {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await api.get("/api/ages/options");
-      return data || [];
+      const raw = data || [];
+      return normalizeAgeOptions(raw);
     } catch (error) {
       console.error(
         `Error fetching age options (attempt ${i + 1}/${retries}):`,

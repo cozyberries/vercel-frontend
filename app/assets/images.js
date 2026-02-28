@@ -3,14 +3,14 @@ export const images = {
     staticProductImage: "/placeholder.jpg", // Default fallback image for products
     staticCategoryImage: "/placeholder.jpg", // Default fallback image for categories
     heroImages: [
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1759569803/1_lmob4o.jpg",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1759569803/2_nweetj.avif",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1759569802/3_e3bjdk.jpg"
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772276506/gifting-3_rnup8u_1dd134.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772275805/3_mbog2e_b4c119.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772275616/2_nfftaj_5d28c0.png"
     ],
     mobileHeroImages: [
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1759569803/mobile1_fuoeb3.jpg",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1759569801/mobile2_zy89o2.webp",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1759569802/3_e3bjdk.jpg"
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772276506/gifting-3_rnup8u_1dd134.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772275805/3_mbog2e_b4c119.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772275616/2_nfftaj_5d28c0.png"
     ],
 
     age: {

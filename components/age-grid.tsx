@@ -7,6 +7,7 @@ import { images } from "@/app/assets/images";
 import { getAgeOptions, type AgeOptionFilter } from "@/lib/services/api";
 
 // Slug → image for known ages (DB-driven list; images are static assets)
+// 3-4y, 4-5y, 5-6y combined into 3-6 in UI; one image for 3-6
 const SLUG_TO_IMAGE: Record<string, string> = {
   "0-3m": images.age.age_zero_three_m,
   "0-3-months": images.age.age_zero_three_m,
