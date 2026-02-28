@@ -173,18 +173,6 @@ export default function FilterSheet({
               </Select>
             </div>
 
-            {/* Featured Toggle */}
-            <div>
-              <h3 className="text-sm font-medium mb-3">Special Offers</h3>
-              <Button
-                variant={currentFeatured ? "default" : "outline"}
-                onClick={onFeaturedToggle}
-                className="w-full justify-start"
-              >
-                {currentFeatured ? "✓ Featured" : "Show Featured"}
-              </Button>
-            </div>
-
             {/* Active Filters Summary */}
             <div className="border-t pt-4">
               <h3 className="text-sm font-medium mb-3">Active Filters</h3>

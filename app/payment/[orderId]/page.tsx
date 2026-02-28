@@ -553,7 +553,7 @@ export default function PaymentPage() {
                   <span>₹{order.delivery_charge.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Tax</span>
+                  <span>GST (5%)</span>
                   <span>₹{order.tax_amount.toFixed(2)}</span>
                 </div>
                 <Separator />

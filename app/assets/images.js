@@ -7,10 +7,11 @@ export const images = {
         "https://res.cloudinary.com/dxokykvty/image/upload/v1772275805/3_mbog2e_b4c119.png",
         "https://res.cloudinary.com/dxokykvty/image/upload/v1772275616/2_nfftaj_5d28c0.png"
     ],
+    // Mobile heroes use Cloudinary transforms (w_768, q_auto, f_auto) for smaller, optimized assets.
     mobileHeroImages: [
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1772276506/gifting-3_rnup8u_1dd134.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1772275805/3_mbog2e_b4c119.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1772275616/2_nfftaj_5d28c0.png"
+        "https://res.cloudinary.com/dxokykvty/image/upload/w_768,q_auto,f_auto/v1772276506/gifting-3_rnup8u_1dd134.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/w_768,q_auto,f_auto/v1772275805/3_mbog2e_b4c119.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/w_768,q_auto,f_auto/v1772275616/2_nfftaj_5d28c0.png"
     ],
 
     age: {
