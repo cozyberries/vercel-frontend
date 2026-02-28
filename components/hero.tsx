@@ -95,7 +95,7 @@ export default function Hero() {
             <Button
               asChild
               size="lg"
-              className="bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+              className="bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl hover:scale-105 transition-[transform,box-shadow] duration-300"
             >
               <Link href="/products">Shop Now</Link>
             </Button>
@@ -109,7 +109,7 @@ export default function Hero() {
           <button
             key={index}
             onClick={() => goToSlide(index)}
-            className={`w-3 h-3 rounded-full transition-all duration-300 ${
+            className={`w-3 h-3 rounded-full transition-[transform,background-color] duration-300 ${
               index === currentIndex
                 ? "bg-white shadow-lg scale-125"
                 : "bg-white/50 hover:bg-white/80 hover:scale-110"

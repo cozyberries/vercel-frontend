@@ -87,7 +87,7 @@ export default function MobileBottomHeader() {
   return (
     <>
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 lg:hidden">
         <div
           className={`grid h-16 ${navItems.length === 4 ? "grid-cols-4" : "grid-cols-5"}`}
         >

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { images } from "@/app/assets/images";
@@ -23,11 +24,15 @@ export default function WishlistItem({
 }: WishlistItemProps) {
   return (
     <div className="flex items-center gap-4 border-b pb-4">
-      <img
-        src={item.image || images.staticProductImage}
-        alt={item.name}
-        className="w-16 h-16 object-cover rounded"
-      />
+      <div className="relative w-16 h-16 flex-shrink-0">
+        <Image
+          src={item.image || images.staticProductImage}
+          alt={item.name}
+          fill
+          sizes="64px"
+          className="object-cover rounded"
+        />
+      </div>
       <div className="flex-1">
         <div className="font-medium line-clamp-2">
           <Link href={`/products/${item.id}`}>{item.name}</Link>

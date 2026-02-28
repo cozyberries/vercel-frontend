@@ -149,7 +149,7 @@ export default function FeaturedProducts() {
             <div className="relative">
               <div
                 ref={scrollContainerRef}
-                className="flex transition-transform duration-700 ease-out"
+                className="flex transition-transform duration-500 ease-out will-change-transform"
                 style={{
                   transform: `translateX(-${
                     currentIndex * (isMobile ? 100 : 33.33)

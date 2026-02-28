@@ -23,12 +23,12 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-20">
+        <div className="relative flex items-center justify-between h-20">
           {/* Mobile menu */}
           <HamburgerSheet />
 
-          {/* Logo */}
-          <div className="flex-1 lg:relative fixed flex w-full left-0 items-center justify-center lg:justify-start h-full">
+          {/* Logo — centred on mobile via absolute positioning inside the header row */}
+          <div className="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 lg:flex-1 flex items-center h-full">
             <Link href="/" className="flex items-center h-full">
               <Image
                 src={images.logoURL}
@@ -36,6 +36,7 @@ export default function Header() {
                 width={180}
                 height={50}
                 className="h-full w-auto object-contain"
+                priority
               />
             </Link>
           </div>

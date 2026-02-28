@@ -91,7 +91,7 @@ export default function FilterSheet({
           Filters
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[350px] sm:w-[400px] p-0">
+      <SheetContent side="left" className="w-[min(90vw,400px)] p-0">
         <div className="flex h-full flex-col">
           <SheetHeader className="p-4 border-b">
             <SheetTitle className="flex items-center gap-2">

@@ -79,7 +79,7 @@ export default function SustainabilitySection() {
                   {sustainabilityCards.map((card, index) => (
                     <div
                       key={index}
-                      className="bg-[#f9f7f4] border border-[#c8c6aa] rounded-xl p-4 md:p-8 hover:scale-105 transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[160px] md:min-h-[220px]"
+                      className="bg-[#f9f7f4] border border-[#c8c6aa] rounded-xl p-4 md:p-8 hover:scale-105 transition-transform duration-300 flex flex-col items-center justify-center text-center min-h-[160px] md:min-h-[220px]"
                     >
                       <div className="text-[#a2a587] mb-3 md:mb-6">
                         <div className="md:hidden w-8 h-8 flex items-center justify-center">
