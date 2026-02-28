@@ -21,10 +21,7 @@ const footerLinks = [
   },
   {
     title: "About",
-    links: [
-      { name: "Our Story", href: "/about" },
-      { name: "Blog", href: "/blog" },
-    ],
+    links: [{ name: "Our Story", href: "/about" }],
   },
 ];
 

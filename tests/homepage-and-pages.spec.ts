@@ -545,11 +545,6 @@ test.describe("All Public Pages Render Correctly", () => {
     await expect(page.locator("h1").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("Blog page (/blog) renders", async ({ page }) => {
-    await page.goto("/blog");
-
-    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15_000 });
-  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -640,7 +635,6 @@ test.describe("Footer Navigation", () => {
     await expect(
       footer.getByRole("link", { name: "Our Story" })
     ).toBeVisible();
-    await expect(footer.getByRole("link", { name: "Blog" })).toBeVisible();
 
     // Copyright
     await expect(footer.getByText(/CozyBerries. All rights reserved/)).toBeVisible();
