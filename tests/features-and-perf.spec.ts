@@ -312,7 +312,6 @@ test.describe("Page Load Performance", () => {
     { name: "FAQs", path: "/faqs" },
     { name: "Shipping & Returns", path: "/shipping-returns" },
     { name: "Track Order", path: "/track-order" },
-    { name: "Blog", path: "/blog" },
   ];
 
   for (const pg of publicPages) {

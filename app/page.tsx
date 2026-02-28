@@ -4,7 +4,6 @@ import Hero from "@/components/hero";
 import FeaturedProducts from "@/components/featured-products";
 import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
-import Newsletter from "@/components/newsletter";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
 import GingerbreadDecoration from "@/components/GingerbreadDecoration";
 import ContactSidebar from "@/components/ContactSidebar";
@@ -147,9 +146,6 @@ export default function Home() {
 
       {/* Sustainability */}
       <SustainabilitySection />
-
-      {/* Newsletter */}
-      <Newsletter />
 
       {/* Contact Sidebar */}
       <ContactSidebar />
