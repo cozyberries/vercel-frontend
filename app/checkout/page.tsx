@@ -271,10 +271,12 @@ export default function CheckoutPage() {
           script.async = true;
           script.onload = () => {
             console.warn = originalWarn;
+            script.remove();
             resolve();
           };
           script.onerror = () => {
             console.warn = originalWarn;
+            script.remove();
             reject(new Error("Failed to load payment gateway"));
           };
           document.body.appendChild(script);

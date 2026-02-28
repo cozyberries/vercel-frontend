@@ -399,7 +399,7 @@ export default function OrderDetailsPage() {
                 <div className="flex justify-between text-xs sm:text-sm">
                   <span>
                     {order.subtotal > 0 && order.tax_amount != null
-                      ? `GST (${((order.tax_amount / order.subtotal) * 100).toFixed(1)}%)`
+                      ? `GST (${((order.tax_amount / order.subtotal) * 100).toFixed(0)}%)`
                       : "GST"}
                   </span>
                   <span>₹{order.tax_amount.toFixed(2)}</span>
