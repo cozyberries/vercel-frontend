@@ -22,10 +22,11 @@ import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
 import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
-import Script from "next/script";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
+import { DELIVERY_CHARGE_INR, GST_RATE } from "@/lib/constants";
+import { images } from "@/app/assets/images";
 
 interface CheckoutFormData {
   email: string;
@@ -72,9 +73,9 @@ export default function CheckoutPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const deliveryCharge = cart.length > 0 ? 50 : 0;
-  const tax = subtotal * 0.1; // 10% tax
-  const total = subtotal + deliveryCharge + tax;
+  const deliveryCharge = cart.length > 0 ? DELIVERY_CHARGE_INR : 0;
+  const gst = cart.length > 0 ? subtotal * GST_RATE : 0;
+  const total = subtotal + deliveryCharge + gst;
 
   // Redirect if user is not authenticated
   useEffect(() => {
@@ -207,7 +208,7 @@ export default function CheckoutPage() {
         currency: razorpayData.currency,
         name: "CozyBerries", // Replace with your company name
         description: "Order Payment",
-        image: "https://your-logo-url.com/logo.png", // Optional
+        image: typeof window !== "undefined" ? `${window.location.origin}${images.logoURL}` : images.logoURL,
         order_id: razorpayData.id,
         handler: async function (response: any) {
           // 4. Verify Payment on Backend
@@ -256,11 +257,30 @@ export default function CheckoutPage() {
         }
       };
 
-      // Verify Razorpay script is loaded before instantiating
+      // Load Razorpay script on demand to avoid third-party console warnings on page load
       if (!window.Razorpay) {
-        toast.error("Payment gateway not loaded. Please refresh the page and try again.");
-        setIsProcessing(false);
-        return;
+        // Razorpay's script triggers "Unrecognized feature: 'otp-credentials'" in some browsers; harmless.
+        const originalWarn = console.warn;
+        console.warn = (...args: unknown[]) => {
+          const msg = typeof args[0] === "string" && args[0].includes("otp-credentials") ? undefined : args;
+          if (msg !== undefined) originalWarn.apply(console, msg);
+        };
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.async = true;
+          script.onload = () => {
+            console.warn = originalWarn;
+            script.remove();
+            resolve();
+          };
+          script.onerror = () => {
+            console.warn = originalWarn;
+            script.remove();
+            reject(new Error("Failed to load payment gateway"));
+          };
+          document.body.appendChild(script);
+        });
       }
 
       const paymentObject = new window.Razorpay(options);
@@ -322,7 +342,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Script type="text/javascript" src="https://checkout.razorpay.com/v1/checkout.js"></Script>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
@@ -557,8 +576,8 @@ export default function CheckoutPage() {
                   <span>₹{deliveryCharge.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Tax</span>
-                  <span>₹{tax.toFixed(2)}</span>
+                  <span>{`GST (${(GST_RATE * 100).toFixed(0)}%)`}</span>
+                  <span>₹{gst.toFixed(2)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-medium">

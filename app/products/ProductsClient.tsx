@@ -571,20 +571,6 @@ export default function ProductsClient() {
             </SelectContent>
           </Select>
 
-          {/* Featured Toggle - same label as mobile (Special Offers) */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">
-              Special Offers
-            </span>
-            <Button
-              variant={currentFeatured ? "default" : "outline"}
-              onClick={handleFeaturedToggle}
-              className="whitespace-nowrap"
-            >
-              {currentFeatured ? "✓ Featured" : "Show Featured"}
-            </Button>
-          </div>
-
           {/* Clear All Filters Button */}
           {hasActiveFilters && (
             <Button

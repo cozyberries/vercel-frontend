@@ -329,9 +329,16 @@ export async function GET(request: NextRequest) {
       if (genderSlugs.length > 0) query = query.in("gender_slug", genderSlugs);
     }
 
-    // Age: age slug IS the size slug — direct array contains
+    // Age: filter by size. 3-6y is combined → filter by all three sizes (3-4y, 4-5y, 5-6y)
     if (age) {
-      query = query.contains("size_slugs", [age.trim().toLowerCase()]);
+      const ageSlug = age.trim().toLowerCase();
+      const is3To6Years =
+        ageSlug === "3-6y" || ageSlug === "3-6-years";
+      if (is3To6Years) {
+        query = query.overlaps("size_slugs", ["3-4y", "4-5y", "5-6y"]);
+      } else {
+        query = query.contains("size_slugs", [ageSlug]);
+      }
     }
 
     // Size: slug IS the identifier — direct array contains, no lookup
