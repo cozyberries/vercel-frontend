@@ -85,14 +85,19 @@ export async function POST(request: NextRequest) {
         // NOTE: payment insert + order update are not wrapped in a DB transaction.
         // If the update fails, the compensating rollback below deletes the payment.
         // A Supabase RPC wrapping both in a single transaction would be more robust.
-        const { error: orderUpdateError } = await supabase
+        const { data: updatedRows, error: orderUpdateError } = await supabase
             .from("orders")
             .update({ status: "processing" })
             .eq("id", orderId)
-            .eq("status", "payment_pending");
+            .eq("status", "payment_pending")
+            .select("id");
 
-        if (orderUpdateError) {
-            console.error("Order update error:", orderUpdateError);
+        if (orderUpdateError || !updatedRows || updatedRows.length !== 1) {
+            if (orderUpdateError) {
+                console.error("Order update error:", orderUpdateError);
+            } else {
+                console.error("Order update affected 0 rows — likely a concurrent payment confirmation", { orderId });
+            }
             // Rollback: remove the orphaned payment record
             const { error: rollbackError } = await supabase
                 .from("payments")
@@ -102,8 +107,8 @@ export async function POST(request: NextRequest) {
                 console.error("Payment rollback failed:", rollbackError);
             }
             return NextResponse.json(
-                { error: "Failed to confirm payment. Please try again." },
-                { status: 500 }
+                { error: "Payment already confirmed for this order" },
+                { status: 409 }
             );
         }
 
