@@ -67,7 +67,7 @@ export default function AgeGrid() {
           <Link
             key={age.id}
             href={`/products?age=${encodeURIComponent(age.slug)}`}
-            className="group relative overflow-hidden rounded-full aspect-square transition-all duration-500 hover:scale-105"
+            className="group relative overflow-hidden rounded-full aspect-square transition-transform duration-300 hover:scale-105"
           >
             <div className="relative w-full h-full">
               <Image
@@ -75,9 +75,9 @@ export default function AgeGrid() {
                 alt={age.name}
                 fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 16vw"
-                className="object-cover transition-all duration-700 ease-out scale-125 group-hover:scale-110 group-hover:rotate-12"
+                className="object-cover transition-transform duration-500 ease-out scale-125 group-hover:scale-110 group-hover:rotate-12"
               />
-              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-all duration-500 rounded-full" />
+              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-[background-color] duration-300 rounded-full" />
 
               {/* Swirl effect overlay */}
               <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500">

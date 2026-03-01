@@ -314,7 +314,7 @@ export default function SearchResultsSheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[400px] sm:w-[500px] p-0">
+      <SheetContent side="right" className="w-[min(95vw,500px)] p-0">
         <div className="flex h-full flex-col">
           <SheetHeader className="p-4 border-b">
             <SheetTitle>Search Products</SheetTitle>

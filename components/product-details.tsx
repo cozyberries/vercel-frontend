@@ -335,7 +335,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
+    <div className="container mx-auto px-4 py-8 pb-40 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
         <div className="space-y-4 lg:space-y-0 lg:flex lg:gap-4">
@@ -364,7 +364,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
-              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-all duration-300 ease-out ${!isMobile
+              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-[opacity,transform] duration-300 ease-out ${!isMobile
                   ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
                   : "cursor-pointer"
                 }`}
@@ -546,7 +546,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                           key={size.name}
                           onClick={() => !isOutOfStock && setSelectedSize(size)}
                           disabled={isOutOfStock}
-                          className={`relative flex flex-col items-center justify-center px-2 py-2.5 border rounded-lg text-sm transition-all duration-200
+                          className={`relative flex flex-col items-center justify-center px-2 py-2.5 border rounded-lg text-sm transition-[border-color,background-color,color,box-shadow] duration-200
                             ${isSelected
                               ? "border-black bg-black text-white shadow-sm"
                               : isOutOfStock
@@ -844,7 +844,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
       )}
 
       {/* Sticky Mobile Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 md:hidden">
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 md:hidden">
         <div className="flex gap-3">
           <Button
             size="lg"

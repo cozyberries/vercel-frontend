@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Heart, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Product, SizeOption } from "@/lib/services/api";
@@ -22,6 +23,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, index, locale = "en-IN", currency = "INR" }: ProductCardProps) {
+  const router = useRouter();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, updateQuantity, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
@@ -29,18 +31,13 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
   const inCart = !!cartItem;
   const [showHoverImage, setShowHoverImage] = useState(false);
 
-  // Use consistent rounded corners for all cards
-  const getCornerRounding = () => {
-    return "rounded-2xl";
-  };
-
   const handleCardClick = () => {
-    window.location.href = `/products/${product.id}`;
+    router.push(`/products/${product.id}`);
   };
 
   return (
     <div
-      className={`group flex flex-col lg:min-h-[320px] min-h-[300px] overflow-hidden bg-white transition-all duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer ${getCornerRounding()}`}
+      className={`group flex flex-col lg:min-h-[320px] min-h-[300px] overflow-hidden bg-white transition-shadow duration-300 border border-gray-200/50 shadow-sm lg:hover:shadow-md cursor-pointer rounded-2xl`}
       onClick={handleCardClick}
     >
       {/* Image Section - larger on mobile and desktop */}
@@ -68,8 +65,9 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             alt={product.name}
             width={400}
             height={400}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             priority={index < 4}
-            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-0"
+            className="w-full h-full object-cover transition-[transform,opacity] duration-500 group-hover:scale-105 group-hover:opacity-0"
           />
           {/* Second Image (deferred until hover to avoid loading on paint) */}
           {showHoverImage &&
@@ -81,7 +79,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                 alt={product.name}
                 width={400}
                 height={400}
-                className="absolute inset-0 w-full h-full object-cover transition-all duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-110"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                className="absolute inset-0 w-full h-full object-cover transition-[transform,opacity] duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-105"
               />
             )}
         </Link>

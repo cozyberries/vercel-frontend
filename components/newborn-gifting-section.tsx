@@ -96,10 +96,10 @@ export default function NewbornGiftingSection() {
               <Link href="/products?category=newborn-essentials">
                 <div className="group cursor-pointer h-full">
                   <div
-                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-all duration-500 group-hover:scale-105"
+                    className="relative overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat h-full w-full aspect-square transition-transform duration-500 group-hover:scale-105"
                     style={{ backgroundImage: `url(${essentialKitsUrl})` }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-all duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-[background-color] duration-500" />
                     <div className="absolute inset-0 flex items-end justify-center p-6">
                       <div className="text-center text-white">
                         <h3 className="text-xl md:text-2xl font-light mb-2">Essential Kits</h3>

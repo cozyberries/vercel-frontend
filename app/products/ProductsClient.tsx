@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ProductCard from "@/components/product-card";
+import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
 import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, CategoryOption, SizeOptionFilter, GenderOptionFilter, Product } from "@/lib/services/api";
 import { ChevronUp, Loader2 } from "lucide-react";
@@ -370,10 +371,12 @@ export default function ProductsClient() {
   }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
 
   if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) {
+    const skeletonCount = isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
     return (
-      <div className="text-center p-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-lg">Loading products...</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-8">
+        {Array.from({ length: skeletonCount }).map((_, i) => (
+          <ProductCardSkeleton key={i} />
+        ))}
       </div>
     );
   }
@@ -608,11 +611,12 @@ export default function ProductsClient() {
           </div>
 
           {/* Infinite Scroll Sentinel */}
-          <div ref={sentinelRef} data-testid="infinite-scroll-sentinel" className="flex justify-center py-8">
+          <div ref={sentinelRef} data-testid="infinite-scroll-sentinel" className="py-4">
             {isLoadingMore && (
-              <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Loading more products...</span>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-8">
+                {Array.from({ length: isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
+                  <ProductCardSkeleton key={i} />
+                ))}
               </div>
             )}
             {!hasMoreProducts && allProducts.length > 0 && !currentSearch && (

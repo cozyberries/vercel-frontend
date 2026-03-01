@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Hero from "@/components/hero";
-import FeaturedProducts from "@/components/featured-products";
 import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
-import SnowflakeDecoration from "@/components/SnowflakeDecoration";
-import GingerbreadDecoration from "@/components/GingerbreadDecoration";
-import ContactSidebar from "@/components/ContactSidebar";
-import NewbornGiftingSection from "@/components/newborn-gifting-section";
-import SustainabilitySection from "@/components/sustainability-section";
+import {
+  FeaturedProducts,
+  SnowflakeDecoration,
+  GingerbreadDecoration,
+  ContactSidebar,
+  NewbornGiftingSection,
+  SustainabilitySection,
+} from "@/components/HomeClientSections";
 
 export default function Home() {
   return (

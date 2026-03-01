@@ -39,7 +39,7 @@ export default function WishlistSheet() {
           <span className="sr-only">Wishlist</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[350px] sm:w-[400px] p-0">
+      <SheetContent side="right" className="w-[min(90vw,400px)] p-0">
         <div className="flex h-full flex-col">
           <SheetHeader className="p-4 border-b">
             <SheetTitle>Your Wishlist</SheetTitle>

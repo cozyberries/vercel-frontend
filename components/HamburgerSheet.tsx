@@ -157,7 +157,7 @@ export const HamburgerSheet = () => {
           <span className="sr-only">Open menu</span>
         </button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-80">
+      <SheetContent side="left" className="w-[min(85vw,320px)]">
         <div className="flex flex-col h-full">
           {/* Header with Logo */}
           <div className="border-b py-4">
