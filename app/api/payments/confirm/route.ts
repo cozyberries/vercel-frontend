@@ -93,12 +93,7 @@ export async function POST(request: NextRequest) {
             .select("id");
 
         if (orderUpdateError || !updatedRows || updatedRows.length !== 1) {
-            if (orderUpdateError) {
-                console.error("Order update error:", orderUpdateError);
-            } else {
-                console.error("Order update affected 0 rows — likely a concurrent payment confirmation", { orderId });
-            }
-            // Rollback: remove the orphaned payment record
+            // Rollback: remove the orphaned payment record in all failure paths
             const { error: rollbackError } = await supabase
                 .from("payments")
                 .delete()
@@ -106,6 +101,17 @@ export async function POST(request: NextRequest) {
             if (rollbackError) {
                 console.error("Payment rollback failed:", rollbackError);
             }
+
+            if (orderUpdateError) {
+                console.error("Order update error:", orderUpdateError);
+                return NextResponse.json(
+                    { error: "Failed to update order status. Please try again." },
+                    { status: 500 }
+                );
+            }
+
+            // No DB error but 0 rows affected — concurrent confirmation race
+            console.error("Order update affected 0 rows — likely a concurrent payment confirmation", { orderId });
             return NextResponse.json(
                 { error: "Payment already confirmed for this order" },
                 { status: 409 }
