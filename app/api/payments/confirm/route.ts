@@ -81,11 +81,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
         }
 
-        // Update order status to processing
+        // Update order status to processing.
+        // NOTE: payment insert + order update are not wrapped in a DB transaction.
+        // If the update fails, the compensating rollback below deletes the payment.
+        // A Supabase RPC wrapping both in a single transaction would be more robust.
         const { error: orderUpdateError } = await supabase
             .from("orders")
             .update({ status: "processing" })
-            .eq("id", orderId);
+            .eq("id", orderId)
+            .eq("status", "payment_pending");
 
         if (orderUpdateError) {
             console.error("Order update error:", orderUpdateError);
