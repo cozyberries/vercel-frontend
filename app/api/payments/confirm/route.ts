@@ -99,7 +99,11 @@ export async function POST(request: NextRequest) {
                 .delete()
                 .eq("id", insertedPayment.id);
             if (rollbackError) {
-                console.error("Payment rollback failed:", rollbackError);
+                console.error("Payment rollback failed — orphaned payment may require manual cleanup:", {
+                    rollbackError,
+                    paymentId: insertedPayment.id,
+                    orderId,
+                });
             }
 
             if (orderUpdateError) {
