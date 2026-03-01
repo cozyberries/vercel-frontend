@@ -74,11 +74,13 @@ export async function POST(request: NextRequest) {
             status: "processing",
         };
 
-        const { error: paymentInsertError } = await supabase
+        const { data: insertedPayment, error: paymentInsertError } = await supabase
             .from("payments")
-            .insert(paymentData);
+            .insert(paymentData)
+            .select("id")
+            .single();
 
-        if (paymentInsertError) {
+        if (paymentInsertError || !insertedPayment) {
             console.error("Payment insert error:", paymentInsertError);
             return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
         }
@@ -91,8 +93,16 @@ export async function POST(request: NextRequest) {
 
         if (orderUpdateError) {
             console.error("Order update error:", orderUpdateError);
+            // Rollback: remove the orphaned payment record
+            const { error: rollbackError } = await supabase
+                .from("payments")
+                .delete()
+                .eq("id", insertedPayment.id);
+            if (rollbackError) {
+                console.error("Payment rollback failed:", rollbackError);
+            }
             return NextResponse.json(
-                { error: "Payment recorded but order status update failed" },
+                { error: "Failed to confirm payment. Please try again." },
                 { status: 500 }
             );
         }
