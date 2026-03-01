@@ -41,22 +41,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check for existing payment to prevent duplicates
-        const { data: existingPayment } = await supabase
-            .from("payments")
-            .select("id")
-            .eq("order_id", orderId)
-            .limit(1)
-            .single();
-
-        if (existingPayment) {
-            return NextResponse.json(
-                { error: "Payment already exists for this order" },
-                { status: 409 }
-            );
-        }
-
-        // Create payment record
+        // Create payment record (relies on DB unique constraint on order_id to prevent duplicates)
         const paymentReference = `upi_manual_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         const paymentData = {
             order_id: orderId,
@@ -80,8 +65,19 @@ export async function POST(request: NextRequest) {
             .select("id")
             .single();
 
-        if (paymentInsertError || !insertedPayment) {
+        if (paymentInsertError) {
+            // Unique constraint violation — duplicate payment for this order
+            if (paymentInsertError.code === "23505") {
+                return NextResponse.json(
+                    { error: "Payment already exists for this order" },
+                    { status: 409 }
+                );
+            }
             console.error("Payment insert error:", paymentInsertError);
+            return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
+        }
+
+        if (!insertedPayment) {
             return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
         }
 

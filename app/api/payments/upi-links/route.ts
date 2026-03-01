@@ -18,13 +18,17 @@ export async function GET(request: NextRequest) {
 
         const { data: order, error: orderError } = await supabase
             .from("orders")
-            .select("id, total_amount, order_number, user_id")
+            .select("id, total_amount, order_number, user_id, status")
             .eq("id", orderId)
             .eq("user_id", user.id)
             .single();
 
         if (orderError || !order) {
             return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        }
+
+        if (order.status !== "payment_pending") {
+            return NextResponse.json({ error: "Order is not eligible for payment" }, { status: 409 });
         }
 
         const upiId = process.env.UPI_ID;
