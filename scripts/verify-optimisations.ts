@@ -4,7 +4,7 @@
  */
 import { chromium, devices, type Page, type Browser } from "@playwright/test";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = process.env.VERIFY_BASE_URL ?? "http://localhost:3000";
 
 interface Metric {
   label: string;
@@ -130,7 +130,7 @@ async function testSheetWidths(page: Page) {
   }).then(h => h.asElement());
 
   if (cartTrigger) {
-    await cartBtn.click();
+    await cartTrigger.click();
     await page.waitForTimeout(400);
 
     const sheetWidth = await page.evaluate(() => {
@@ -163,16 +163,18 @@ async function testProductCardNavigation(page: Page) {
   if (productCard) {
     // Track full-page HTML requests — soft nav only fetches JSON/RSC payloads, not text/html
     const fullPageRequests: string[] = [];
-    page.on("response", (res) => {
+    const onResponse = (res: import("@playwright/test").Response) => {
       const ct = res.headers()["content-type"] ?? "";
       if (ct.includes("text/html") && res.status() === 200) {
         fullPageRequests.push(res.url());
       }
-    });
+    };
+    page.on("response", onResponse);
 
     const navPromise = page.waitForURL(/\/products\/.+/, { timeout: 5000 });
     await productCard.click();
     await navPromise.catch(() => {});
+    page.off("response", onResponse);
     await page.waitForTimeout(500);
 
     const currentUrl = page.url();
@@ -236,7 +238,7 @@ async function testMobileLayout(page: Page) {
 
   // Check product detail page mobile CTA doesn't cover bottom nav
   await page.goto(`${BASE_URL}/products`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(3000);
+  await page.waitForSelector("a[href*='/products/']", { timeout: 8000 }).catch(() => {});
 
   const firstProduct = await page.$("a[href*='/products/']");
   if (firstProduct) {

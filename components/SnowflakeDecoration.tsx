@@ -97,6 +97,14 @@ export default function SnowflakeDecoration({
   const [hasEntered, setHasEntered] = useState(false);
   const isVisible = useRef(false);
 
+  // Keep latest prop values accessible inside the observer without rebuilding it
+  const animationTypeRef = useRef(animationType);
+  const delayRef = useRef(delay);
+  const opacityRef = useRef(opacity);
+  animationTypeRef.current = animationType;
+  delayRef.current = delay;
+  opacityRef.current = opacity;
+
   // IntersectionObserver: start animation on enter, reset cleanly on exit
   useEffect(() => {
     const el = ref.current;
@@ -108,7 +116,9 @@ export default function SnowflakeDecoration({
           isVisible.current = true;
           setHasEntered(true);
           controls.set(INITIAL_POSE);
-          controls.start(getAnimation(animationType, delay, opacity));
+          controls.start(
+            getAnimation(animationTypeRef.current, delayRef.current, opacityRef.current),
+          );
         } else {
           isVisible.current = false;
           controls.stop();
