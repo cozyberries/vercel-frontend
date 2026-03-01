@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -26,25 +26,17 @@ import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
 import { DELIVERY_CHARGE_INR, GST_RATE } from "@/lib/constants";
-import { images } from "@/app/assets/images";
 
 interface CheckoutFormData {
   email: string;
   notes?: string;
 }
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
 export default function CheckoutPage() {
-  const { cart, clearCart } = useCart();
+  const { cart } = useCart();
   const { user, loading } = useAuth();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderCompleted, setOrderCompleted] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     null
   );
@@ -155,7 +147,7 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      let generatedOrderId = `ORD-${Date.now()}`;
+      const generatedOrderId = `ORD-${Date.now()}`;
 
       // 1. Create order on backend
       const orderRes = await fetch("/api/orders", {
@@ -186,105 +178,8 @@ export default function CheckoutPage() {
       const orderData = await orderRes.json();
       const createdOrder = orderData.order;
 
-      // 2. Create Razorpay Order
-      const razorpayOrderRes = await fetch("/api/razorpay/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: createdOrder.id,
-        }),
-      });
-
-      if (!razorpayOrderRes.ok) {
-        throw new Error("Failed to create Razorpay order");
-      }
-
-      const razorpayData = await razorpayOrderRes.json();
-
-      // 3. Open Razorpay Checkout
-      const options = {
-        key: razorpayData.key,
-        amount: razorpayData.amount,
-        currency: razorpayData.currency,
-        name: "CozyBerries", // Replace with your company name
-        description: "Order Payment",
-        image: typeof window !== "undefined" ? `${window.location.origin}${images.logoURL}` : images.logoURL,
-        order_id: razorpayData.id,
-        handler: async function (response: any) {
-          // 4. Verify Payment on Backend
-          try {
-            const verifyRes = await fetch("/api/razorpay/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                orderId: createdOrder.id
-              }),
-            });
-
-            if (verifyRes.ok) {
-              toast.success("Payment Successful & Order Placed!");
-              await sendNotification("Order Success", `${user?.email} order successfully created`, "success");
-              await sendActivity("order_submission_success", `Order successfully created #${generatedOrderId}`, generatedOrderId);
-              setOrderCompleted(true);
-              clearCart();
-              setIsProcessing(false);
-            } else {
-              toast.error("Payment verification failed");
-              setIsProcessing(false);
-            }
-          } catch (error) {
-            console.error("Payment verification error:", error);
-            toast.error("Payment verification failed");
-            setIsProcessing(false);
-          }
-        },
-        prefill: {
-          name: user?.user_metadata?.full_name || "",
-          email: user?.email || "",
-          contact: user?.user_metadata?.phone || "",
-        },
-        theme: {
-          color: "#000000",
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessing(false);
-            toast("Payment cancelled");
-          }
-        }
-      };
-
-      // Load Razorpay script on demand to avoid third-party console warnings on page load
-      if (!window.Razorpay) {
-        // Razorpay's script triggers "Unrecognized feature: 'otp-credentials'" in some browsers; harmless.
-        const originalWarn = console.warn;
-        console.warn = (...args: unknown[]) => {
-          const msg = typeof args[0] === "string" && args[0].includes("otp-credentials") ? undefined : args;
-          if (msg !== undefined) originalWarn.apply(console, msg);
-        };
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://checkout.razorpay.com/v1/checkout.js";
-          script.async = true;
-          script.onload = () => {
-            console.warn = originalWarn;
-            script.remove();
-            resolve();
-          };
-          script.onerror = () => {
-            console.warn = originalWarn;
-            script.remove();
-            reject(new Error("Failed to load payment gateway"));
-          };
-          document.body.appendChild(script);
-        });
-      }
-
-      const paymentObject = new window.Razorpay(options);
-      paymentObject.open();
+      // 2. Redirect to payment page
+      router.push(`/payment/${createdOrder.id}`);
 
     } catch (err) {
       console.error("Order creation error:", err);
@@ -293,33 +188,6 @@ export default function CheckoutPage() {
     }
   };
 
-
-  if (orderCompleted) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-20">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-3xl font-light mb-4">Order Complete!</h1>
-            <p className="text-muted-foreground mb-8">
-              Thank you for your order. We'll send you a confirmation email
-              shortly.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild>
-                <Link href="/products">Continue Shopping</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/orders">View My Orders</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Redirect if cart is empty
   if (cart.length === 0) {

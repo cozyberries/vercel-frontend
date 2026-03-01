@@ -21,7 +21,10 @@
     "test:pages:debug": "playwright test tests/homepage-and-pages.spec.ts --project=chromium --headed --debug",
     "test:features": "playwright test tests/features-and-perf.spec.ts --project=chromium",
     "test:features:headed": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed",
-    "test:features:debug": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed --debug"
+    "test:features:debug": "playwright test tests/features-and-perf.spec.ts --project=chromium --headed --debug",
+    "test:payment": "playwright test --project=payment",
+    "test:payment:headed": "playwright test --project=payment --headed",
+    "test:payment:debug": "playwright test --project=payment --headed --debug"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -55,6 +58,7 @@
     "lucide-react": "^0.469.0",
     "next": "15.1.11",
     "next-themes": "^0.4.4",
+    "qrcode": "^1.5.4",
     "razorpay": "^2.9.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -73,6 +77,7 @@
     "@playwright/test": "^1.49.1",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.19.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.16.0",
