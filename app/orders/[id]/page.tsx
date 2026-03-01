@@ -154,8 +154,8 @@ export default function OrderDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-4 sm:py-8">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-full">
         {/* Header */}
         <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Button variant="ghost" size="sm" asChild>
@@ -175,7 +175,7 @@ export default function OrderDetailsPage() {
 
         <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6 min-w-0">
             {/* Order Status */}
             <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
@@ -380,7 +380,7 @@ export default function OrderDetailsPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-4 sm:space-y-6 min-w-0">
             {/* Order Summary */}
             <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
               <h2 className="text-base sm:text-lg font-semibold mb-4">

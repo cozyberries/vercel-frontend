@@ -42,6 +42,24 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+
+    // Auth setup for payment tests — signs in the test user and saves session
+    {
+      name: 'payment-auth-setup',
+      testMatch: /payment-auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Payment tests — run after auth setup, reuse the saved session
+    {
+      name: 'payment',
+      testMatch: /payment\.spec\.ts/,
+      dependencies: ['payment-auth-setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'tests/.auth/payment-user.json',
+        video: 'on',
+      },
+    },
   ],
 
   /* Run your local dev server before starting the tests */
