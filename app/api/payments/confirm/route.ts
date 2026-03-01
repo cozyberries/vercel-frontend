@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create payment record (relies on DB unique constraint on order_id to prevent duplicates)
-        const paymentReference = `upi_manual_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        const paymentReference = `upi_manual_${crypto.randomUUID()}`;
         const paymentData = {
             order_id: orderId,
             user_id: user.id,
