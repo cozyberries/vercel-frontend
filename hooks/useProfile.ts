@@ -325,8 +325,10 @@ export function useProfile(user: any) {
   };
 
   const handleDeleteAddress = async (addressId: string) => {
+    if (isSavingRef.current) return;
     if (!confirm("Are you sure you want to delete this address?")) return;
 
+    isSavingRef.current = true;
     try {
       const response = await fetch(`/api/profile/addresses/${addressId}`, {
         method: "DELETE",
@@ -341,10 +343,14 @@ export function useProfile(user: any) {
     } catch (error) {
       console.error("Error deleting address:", error);
       alert("Failed to delete address. Please try again.");
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   const handleSetDefault = async (addressId: string) => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     try {
       // Find the address to get its complete data
       const addressToUpdate = addresses.find(addr => addr.id === addressId);
@@ -391,6 +397,8 @@ export function useProfile(user: any) {
     } catch (error) {
       console.error("Error setting default address:", error);
       alert("Failed to set default address. Please try again.");
+    } finally {
+      isSavingRef.current = false;
     }
   };
 

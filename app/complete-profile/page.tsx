@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import PhoneInput from "@/components/PhoneInput";
 
 export default function CompleteProfilePage() {
   const [phone, setPhone] = useState("");
@@ -74,37 +73,12 @@ export default function CompleteProfilePage() {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <Label htmlFor="phone">Phone Number *</Label>
-            <div className="relative mt-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 text-sm">+91</span>
-              </div>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                required
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
-                  if (phoneError) setPhoneError("");
-                }}
-                onBlur={() => {
-                  if (phone) {
-                    const result = validateRequiredPhoneNumber(phone);
-                    if (!result.isValid) setPhoneError(result.error || "");
-                  }
-                }}
-                placeholder="98765 43210"
-                className={`pl-12 ${phoneError ? "border-red-500" : ""}`}
-              />
-            </div>
-            {phoneError && (
-              <div className="text-red-600 text-sm mt-1">{phoneError}</div>
-            )}
-          </div>
+          <PhoneInput
+            value={phone}
+            onChange={setPhone}
+            error={phoneError}
+            onErrorChange={setPhoneError}
+          />
 
           {error && (
             <div className="text-red-600 text-sm text-center">{error}</div>

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { sendActivity } from "@/lib/utils/activities";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import PhoneInput from "@/components/PhoneInput";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -43,7 +44,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const { error } = await signUp(email, password, phone);
+    const { error } = await signUp(email, password, phone.replace(/\D/g, ""));
     if (error) {
       setError(error.message);
       await sendActivity("user_registration_failed", `User ${email} registration failed`, email);
@@ -145,37 +146,12 @@ export default function RegisterPage() {
                 className="mt-1"
               />
             </div>
-            <div>
-              <Label htmlFor="phone">Phone Number *</Label>
-              <div className="relative mt-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 text-sm">+91</span>
-                </div>
-                <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    if (phoneError) setPhoneError("");
-                  }}
-                  onBlur={() => {
-                    if (phone) {
-                      const result = validateRequiredPhoneNumber(phone);
-                      if (!result.isValid) setPhoneError(result.error || "");
-                    }
-                  }}
-                  placeholder="98765 43210"
-                  className={`pl-12 ${phoneError ? "border-red-500" : ""}`}
-                />
-              </div>
-              {phoneError && (
-                <div className="text-red-600 text-sm mt-1">{phoneError}</div>
-              )}
-            </div>
+            <PhoneInput
+              value={phone}
+              onChange={setPhone}
+              error={phoneError}
+              onErrorChange={setPhoneError}
+            />
             <div>
               <Label htmlFor="password">Password</Label>
               <Input

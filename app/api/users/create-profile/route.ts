@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     let profileData = null;
     let hasError = false;
-    let errorDetails: any = {};
+    let errorDetails: Record<string, { message?: string }> = {};
 
     // Try user_profiles first
     const { data: userProfileData, error: userProfileError } = await supabase

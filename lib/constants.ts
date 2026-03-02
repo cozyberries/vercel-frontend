@@ -6,3 +6,6 @@ export const FREE_DELIVERY_THRESHOLD = 2999;
 
 /** GST rate (5%). Used in cart summary and can be aligned with checkout. */
 export const GST_RATE = 0.05;
+
+/** Human-readable GST percentage label derived from GST_RATE. */
+export const GST_PERCENT_LABEL = `GST (${(GST_RATE * 100).toFixed(0)}%)`;

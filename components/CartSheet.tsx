@@ -14,7 +14,7 @@ import { useCart } from "@/components/cart-context";
 import { images } from "@/app/assets/images";
 import CartItem from "@/components/CartItem";
 import Link from "next/link";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
 
 export default function CartSheet() {
   const { cart, updateQuantity, removeFromCart, clearCart, isLoading } =
@@ -107,7 +107,7 @@ export default function CartSheet() {
                 )}
               </div>
               <div className="flex justify-between items-center text-base">
-                <span className="font-medium">GST (5%)</span>
+                <span className="font-medium">{GST_PERCENT_LABEL}</span>
                 <span className="font-semibold">₹{gst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-base">

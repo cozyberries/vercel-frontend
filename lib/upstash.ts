@@ -166,8 +166,13 @@ export class UpstashService {
       pipeline.get(key);
       pipeline.ttl(key);
       const results = await pipeline.exec();
-      const data = results[0] as any;
-      const ttl = results[1] as number;
+
+      if (!Array.isArray(results) || results.length < 2) {
+        return { data: null, ttl: -1, isStale: false };
+      }
+
+      const data = results[0] as unknown;
+      const ttl = typeof results[1] === "number" ? results[1] : -1;
       
       if (!data) return { data: null, ttl: -1, isStale: false };
 

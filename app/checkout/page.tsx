@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
 
 interface CheckoutFormData {
   email: string;
@@ -448,7 +448,7 @@ export default function CheckoutPage() {
                   )}
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>{`GST (${(GST_RATE * 100).toFixed(0)}%)`}</span>
+                  <span>{GST_PERCENT_LABEL}</span>
                   <span>₹{gst.toFixed(2)}</span>
                 </div>
                 <Separator />
