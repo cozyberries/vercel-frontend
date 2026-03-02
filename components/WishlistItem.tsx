@@ -58,7 +58,7 @@ const WishlistItem: React.FC<WishlistItemProps> = ({
             <ShoppingCart className="h-4 w-4" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)}>
+        <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)} aria-label="Remove from wishlist">
         <HiOutlineTrash />
       </Button>
       </div>

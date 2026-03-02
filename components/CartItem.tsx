@@ -11,7 +11,7 @@ interface CartItemProps {
   onRemove: (id: string, size?: string, color?: string) => void;
 }
 
-export default function CartItem({
+export default function CartItemRow({
   item,
   onQuantityChange,
   onRemove,
