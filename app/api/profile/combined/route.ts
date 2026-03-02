@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
 
 // Timeout for cache operations (in milliseconds)
-const CACHE_TIMEOUT = 500; // 500ms - if cache takes longer, skip it
+const CACHE_TIMEOUT = 2000; // 2s - Upstash REST API can be slow from non-edge environments
 
 /**
  * Combined endpoint to fetch both profile and addresses in a single request

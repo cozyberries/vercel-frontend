@@ -5,6 +5,14 @@ export interface ValidationResult {
   error?: string;
 }
 
+// Phone number validation (required version - for signup flows)
+export const validateRequiredPhoneNumber = (phone: string): ValidationResult => {
+  if (!phone || phone.trim() === "") {
+    return { isValid: false, error: "Phone number is required" };
+  }
+  return validatePhoneNumber(phone);
+};
+
 // Phone number validation
 export const validatePhoneNumber = (phone: string): ValidationResult => {
   if (!phone || phone.trim() === "") {

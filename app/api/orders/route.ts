@@ -6,7 +6,7 @@ import type {
   OrderSummary,
 } from "@/lib/types/order";
 import type { CartItem } from "@/components/cart-context";
-import { DELIVERY_CHARGE_INR, GST_RATE } from "@/lib/constants";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -207,7 +207,7 @@ function calculateOrderSummary(items: CartItem[]): OrderSummary {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const delivery_charge = items.length > 0 ? DELIVERY_CHARGE_INR : 0;
+  const delivery_charge = items.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
   const tax_amount = items.length > 0 ? subtotal * GST_RATE : 0;
   const total_amount = subtotal + delivery_charge + tax_amount;
 

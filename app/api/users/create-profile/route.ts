@@ -1,19 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase-server";
-import { generateNameFromEmail } from "@/lib/utils/validation";
+import { PostgrestError } from "@supabase/supabase-js";
+import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
+import { generateNameFromEmail, validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import { UpstashService } from "@/lib/upstash";
 
 // Initialize user profile after signup
 // This endpoint uses admin client to bypass RLS and create profile
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, email } = body;
+    const { userId, email, phone } = body;
 
     if (!userId || !email) {
       return NextResponse.json(
         { error: "userId and email are required" },
         { status: 400 }
       );
+    }
+
+    // --- Auth check: verify the caller's session matches the claimed userId ---
+    const sessionSupabase = await createServerSupabaseClient();
+    const { data: { user: sessionUser } } = await sessionSupabase.auth.getUser();
+
+    if (!sessionUser || sessionUser.id !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: session does not match userId" },
+        { status: 401 }
+      );
+    }
+
+    // --- Rate limiting: 2 profile creations per user per hour ---
+    const rateLimit = await UpstashService.checkRateLimit(`create_profile:${userId}`, 2, 3600);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    // Validate phone if provided
+    if (phone) {
+      const phoneValidation = validateRequiredPhoneNumber(phone);
+      if (!phoneValidation.isValid) {
+        return NextResponse.json(
+          { error: phoneValidation.error || "Invalid phone number" },
+          { status: 400 }
+        );
+      }
     }
 
     // Use admin client to bypass RLS
@@ -45,7 +78,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     let profileData = null;
     let hasError = false;
-    let errorDetails: any = {};
+    let errorDetails: Record<string, PostgrestError> = {};
 
     // Try user_profiles first
     const { data: userProfileData, error: userProfileError } = await supabase
@@ -56,11 +89,11 @@ export async function POST(request: NextRequest) {
           full_name: generatedName,
           role: "customer",
           is_active: true,
-          created_at: now,
           updated_at: now,
         },
         {
           onConflict: "id",
+          ignoreDuplicates: false,
         }
       )
       .select()
@@ -74,19 +107,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Also try profiles table (used by profile routes)
+    const profilesPayload: Record<string, string> = {
+      id: userId,
+      full_name: generatedName,
+      updated_at: now,
+    };
+    if (phone) {
+      profilesPayload.phone = phone.replace(/\D/g, "");
+    }
     const { data: profileDataAlt, error: profileErrorAlt } = await supabase
       .from("profiles")
-      .upsert(
-        {
-          id: userId,
-          full_name: generatedName,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          onConflict: "id",
-        }
-      )
+      .upsert(profilesPayload, {
+        onConflict: "id",
+      })
       .select()
       .single();
 

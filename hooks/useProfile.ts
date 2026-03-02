@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { User } from "@supabase/supabase-js";
 import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
 
@@ -72,6 +72,9 @@ export function useProfile(user: any) {
     state: "",
     postal_code: "",
   });
+
+  // Ref-based guard to prevent double-submission (state updates are batched)
+  const isSavingRef = useRef(false);
 
   // Fetch profile data and addresses using combined endpoint for better performance
   useEffect(() => {
@@ -212,6 +215,8 @@ export function useProfile(user: any) {
   };
 
   const handleAddAddress = async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setIsSaving(true);
     try {
       const response = await fetch("/api/profile/addresses", {
@@ -261,11 +266,14 @@ export function useProfile(user: any) {
       console.error("Error adding address:", error);
       alert("Failed to add address. Please try again.");
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   };
 
   const handleUpdateAddress = async (addressId: string) => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setIsSaving(true);
     try {
       const response = await fetch(`/api/profile/addresses/${addressId}`, {
@@ -311,13 +319,16 @@ export function useProfile(user: any) {
       console.error("Error updating address:", error);
       alert("Failed to update address. Please try again.");
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   };
 
   const handleDeleteAddress = async (addressId: string) => {
+    if (isSavingRef.current) return;
     if (!confirm("Are you sure you want to delete this address?")) return;
 
+    isSavingRef.current = true;
     try {
       const response = await fetch(`/api/profile/addresses/${addressId}`, {
         method: "DELETE",
@@ -332,10 +343,14 @@ export function useProfile(user: any) {
     } catch (error) {
       console.error("Error deleting address:", error);
       alert("Failed to delete address. Please try again.");
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   const handleSetDefault = async (addressId: string) => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     try {
       // Find the address to get its complete data
       const addressToUpdate = addresses.find(addr => addr.id === addressId);
@@ -382,6 +397,8 @@ export function useProfile(user: any) {
     } catch (error) {
       console.error("Error setting default address:", error);
       alert("Failed to set default address. Please try again.");
+    } finally {
+      isSavingRef.current = false;
     }
   };
 

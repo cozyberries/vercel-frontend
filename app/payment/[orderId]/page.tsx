@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
-import { GST_RATE } from "@/lib/constants";
+import { GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
 import type { Order } from "@/lib/types/order";
 import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
@@ -408,7 +408,7 @@ export default function PaymentPage() {
                   <span>₹{order.delivery_charge.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>GST ({(GST_RATE * 100).toFixed(0)}%)</span>
+                  <span>{GST_PERCENT_LABEL}</span>
                   <span>₹{order.tax_amount.toFixed(2)}</span>
                 </div>
                 <Separator />

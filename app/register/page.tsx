@@ -9,9 +9,13 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { sendActivity } from "@/lib/utils/activities";
+import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import PhoneInput from "@/components/PhoneInput";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +37,14 @@ export default function RegisterPage() {
       return;
     }
 
-    const { error } = await signUp(email, password);
+    const phoneValidation = validateRequiredPhoneNumber(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneError(phoneValidation.error || "Invalid phone number");
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await signUp(email, password, phone.replace(/\D/g, ""));
     if (error) {
       setError(error.message);
       await sendActivity("user_registration_failed", `User ${email} registration failed`, email);
@@ -135,6 +146,12 @@ export default function RegisterPage() {
                 className="mt-1"
               />
             </div>
+            <PhoneInput
+              value={phone}
+              onChange={setPhone}
+              error={phoneError}
+              onErrorChange={setPhoneError}
+            />
             <div>
               <Label htmlFor="password">Password</Label>
               <Input

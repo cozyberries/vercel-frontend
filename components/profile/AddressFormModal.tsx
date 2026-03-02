@@ -56,20 +56,20 @@ export default function AddressFormModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-medium">
-              {isEditing ? "Edit Address" : "Add New Address"}
-            </h3>
-            <Button variant="outline" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center md:p-4 z-50">
+      <div className="bg-white rounded-t-2xl md:rounded-lg shadow-xl max-w-2xl w-full max-h-[92vh] md:max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b md:border-b-0 shrink-0">
+          <h3 className="text-lg md:text-xl font-medium">
+            {isEditing ? "Edit Address" : "Add New Address"}
+          </h3>
+          <Button variant="outline" size="icon" onClick={onClose} aria-label="Close address form">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
 
+        <div className="flex-1 overflow-y-auto p-4 md:px-6 md:pb-2">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="address_type">Address Type</Label>
                 <select
@@ -98,7 +98,7 @@ export default function AddressFormModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="full_name">Full Name</Label>
                 <Input
@@ -110,7 +110,7 @@ export default function AddressFormModal({
                 />
                 {validationErrors.full_name && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1" />
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                     {validationErrors.full_name}
                   </div>
                 )}
@@ -133,7 +133,7 @@ export default function AddressFormModal({
                 </div>
                 {validationErrors.phone && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1" />
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                     {validationErrors.phone}
                   </div>
                 )}
@@ -156,7 +156,7 @@ export default function AddressFormModal({
               />
               {validationErrors.address_line_1 && (
                 <div className="flex items-center mt-1 text-sm text-red-600">
-                  <AlertCircle className="w-4 h-4 mr-1" />
+                  <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                   {validationErrors.address_line_1}
                 </div>
               )}
@@ -174,7 +174,7 @@ export default function AddressFormModal({
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="city">City *</Label>
                 <Input
@@ -187,7 +187,7 @@ export default function AddressFormModal({
                 />
                 {validationErrors.city && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1" />
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                     {validationErrors.city}
                   </div>
                 )}
@@ -204,12 +204,12 @@ export default function AddressFormModal({
                 />
                 {validationErrors.state && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1" />
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                     {validationErrors.state}
                   </div>
                 )}
               </div>
-              <div>
+              <div className="col-span-2 md:col-span-1">
                 <Label htmlFor="postal_code">PIN Code *</Label>
                 <Input
                   id="postal_code"
@@ -223,7 +223,7 @@ export default function AddressFormModal({
                 />
                 {validationErrors.postal_code && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1" />
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                     {validationErrors.postal_code}
                   </div>
                 )}
@@ -266,14 +266,17 @@ export default function AddressFormModal({
               </Label>
             </div>
           </div>
+        </div>
 
-          <div className="flex justify-between mt-6">
+        <div className="border-t p-4 md:px-6 md:pb-6 shrink-0 space-y-3 md:space-y-0">
+          {/* Mobile: stacked buttons */}
+          <div className="flex flex-col-reverse md:flex-row md:justify-between gap-3">
             {/* Delete Button - Only show when editing */}
             {isEditing && onDelete && (
               <Button
                 variant="outline"
                 onClick={onDelete}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                className="w-full md:w-auto text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete Address
@@ -281,10 +284,7 @@ export default function AddressFormModal({
             )}
 
             {/* Action Buttons */}
-            <div className="flex space-x-3 ml-auto">
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
+            <div className="flex flex-col md:flex-row gap-3 md:ml-auto">
               <Button
                 onClick={onSave}
                 disabled={
@@ -300,12 +300,16 @@ export default function AddressFormModal({
                   !!validationErrors.state ||
                   !!validationErrors.postal_code
                 }
+                className="w-full md:w-auto"
               >
                 {isSaving
                   ? "Saving..."
                   : isEditing
                   ? "Update Address"
                   : "Add Address"}
+              </Button>
+              <Button variant="outline" onClick={onClose} className="w-full md:w-auto">
+                Cancel
               </Button>
             </div>
           </div>
