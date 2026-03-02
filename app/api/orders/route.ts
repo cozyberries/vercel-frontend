@@ -5,8 +5,8 @@ import type {
   OrderCreate,
   OrderSummary,
   OrderItemInput,
-  OrderItem,
 } from "@/lib/types/order";
+import { mapOrderItems } from "@/lib/utils/order-mapper";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
@@ -73,6 +73,69 @@ export async function POST(request: NextRequest) {
       }
       billingAddress = billingAddr;
     }
+
+    // ── Server-side price validation ─────────────────────────────────────────
+    // Collect every unique product slug referenced in the cart.
+    const productSlugs = [...new Set(items.map((item) => item.id))];
+
+    // Fetch base prices from the products table (slug is the PK).
+    const { data: products, error: productsError } = await supabase
+      .from("products")
+      .select("slug, price")
+      .in("slug", productSlugs);
+
+    if (productsError) {
+      console.error("Error fetching product prices:", productsError);
+      return NextResponse.json(
+        { error: "Failed to validate product prices" },
+        { status: 500 }
+      );
+    }
+
+    // Fetch all variant prices for the same products so size-specific prices
+    // (which may differ from the base price) are also accepted.
+    const { data: variants, error: variantsError } = await supabase
+      .from("product_variants")
+      .select("product_slug, price")
+      .in("product_slug", productSlugs);
+
+    if (variantsError) {
+      console.error("Error fetching variant prices:", variantsError);
+      return NextResponse.json(
+        { error: "Failed to validate product prices" },
+        { status: 500 }
+      );
+    }
+
+    // Build a map: product_slug → Set of all valid prices (base + variants).
+    const validPriceMap = new Map<string, Set<number>>();
+
+    for (const product of products ?? []) {
+      validPriceMap.set(product.slug, new Set([Number(product.price)]));
+    }
+    for (const variant of variants ?? []) {
+      const set = validPriceMap.get(variant.product_slug) ?? new Set<number>();
+      set.add(Number(variant.price));
+      validPriceMap.set(variant.product_slug, set);
+    }
+
+    // Reject any item whose price is not in the server-authoritative set.
+    for (const item of items) {
+      const validPrices = validPriceMap.get(item.id);
+      if (!validPrices) {
+        return NextResponse.json(
+          { error: `Product not found: ${item.id}` },
+          { status: 400 }
+        );
+      }
+      if (!validPrices.has(item.price)) {
+        return NextResponse.json(
+          { error: `Invalid price for product ${item.id}` },
+          { status: 400 }
+        );
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const orderSummary = calculateOrderSummary(items);
 
@@ -164,19 +227,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Attach items to the response so the client can redirect immediately
+    // Attach items to the response so the client can redirect immediately.
+    // Re-use the shared mapper by adapting the input items to OrderItemRow shape.
     const orderWithItems = {
       ...order,
-      items: items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        image: item.image,
-        size: item.size,
-        color: item.color,
-        sku: item.sku,
-      } satisfies OrderItem)),
+      items: mapOrderItems(
+        items.map((item) => ({
+          id: "",           // unused by mapper (it reads product_id)
+          order_id: order.id,
+          product_id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image ?? null,
+          size: item.size ?? null,
+          color: item.color ?? null,
+          sku: item.sku ?? null,
+          created_at: "",   // unused by mapper
+        }))
+      ),
     };
 
     return NextResponse.json({
@@ -243,19 +312,6 @@ export async function GET(request: NextRequest) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function mapOrderItems(rows: any[]): OrderItem[] {
-  return rows.map((row) => ({
-    id: row.product_id,
-    name: row.name,
-    price: Number(row.price),
-    quantity: row.quantity,
-    ...(row.image ? { image: row.image } : {}),
-    ...(row.size ? { size: row.size } : {}),
-    ...(row.color ? { color: row.color } : {}),
-    ...(row.sku ? { sku: row.sku } : {}),
-  }));
-}
 
 function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
   const subtotal = items.reduce(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
-import type { OrderItem } from "@/lib/types/order";
+import { mapOrderItems } from "@/lib/utils/order-mapper";
 
 interface RouteParams {
   params: Promise<{
@@ -152,20 +152,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function mapOrderItems(rows: any[]): OrderItem[] {
-  return rows.map((row) => ({
-    id: row.product_id,
-    name: row.name,
-    price: Number(row.price),
-    quantity: row.quantity,
-    ...(row.image ? { image: row.image } : {}),
-    ...(row.size ? { size: row.size } : {}),
-    ...(row.color ? { color: row.color } : {}),
-    ...(row.sku ? { sku: row.sku } : {}),
-  }));
-}
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {

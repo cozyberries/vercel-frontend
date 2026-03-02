@@ -63,18 +63,9 @@ export interface OrderItem {
   sku?: string;
 }
 
-/** Shape of a line-item as submitted by the client at checkout. */
-export interface OrderItemInput {
-  /** product_id / product slug */
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
-  size?: string;
-  color?: string;
-  sku?: string;
-}
+/** Shape of a line-item as submitted by the client at checkout.
+ *  Structurally identical to OrderItem — aliased to avoid duplication. */
+export type OrderItemInput = OrderItem;
 
 export interface OrderBase {
   user_id: string;
