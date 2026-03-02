@@ -298,26 +298,48 @@ export async function GET(request: NextRequest) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Converts rupees to paise (smallest unit) for integer-safe arithmetic. */
+function rupeesToPaise(rupees: number): number {
+  return Math.round(rupees * 100);
+}
+
+/** Rounds to 2 decimal places for final display conversion from paise. */
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+const FREE_DELIVERY_THRESHOLD_PAISE = Math.round(FREE_DELIVERY_THRESHOLD * 100);
+const DELIVERY_CHARGE_PAISE = Math.round(DELIVERY_CHARGE_INR * 100);
+const GST_PERCENT = Math.round(GST_RATE * 100); // integer percentage for exact calculation
+
 function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
-  const subtotal = round2(
-    items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  if (items.length === 0) {
+    return {
+      subtotal: 0,
+      delivery_charge: 0,
+      tax_amount: 0,
+      total_amount: 0,
+      currency: "INR",
+    };
+  }
+
+  const subtotal_paise = items.reduce(
+    (sum, item) => sum + rupeesToPaise(item.price) * item.quantity,
+    0
   );
-  const delivery_charge =
-    items.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD
-      ? DELIVERY_CHARGE_INR
-      : 0;
-  const tax_amount = round2(items.length > 0 ? subtotal * GST_RATE : 0);
-  const total_amount = round2(subtotal + delivery_charge + tax_amount);
+
+  const delivery_charge_paise =
+    subtotal_paise < FREE_DELIVERY_THRESHOLD_PAISE ? DELIVERY_CHARGE_PAISE : 0;
+
+  const tax_paise = Math.round((subtotal_paise * GST_PERCENT) / 100);
+
+  const total_paise = subtotal_paise + delivery_charge_paise + tax_paise;
 
   return {
-    subtotal,
-    delivery_charge,
-    tax_amount,
-    total_amount,
+    subtotal: round2(subtotal_paise / 100),
+    delivery_charge: round2(delivery_charge_paise / 100),
+    tax_amount: round2(tax_paise / 100),
+    total_amount: round2(total_paise / 100),
     currency: "INR",
   };
 }
