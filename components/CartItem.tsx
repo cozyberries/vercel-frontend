@@ -3,19 +3,10 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { images } from "@/app/assets/images";
-
-export interface CartLineItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
-  size?: string;
-  color?: string;
-}
+import type { CartItem } from "@/components/cart-context";
 
 interface CartItemProps {
-  item: CartLineItem;
+  item: CartItem;
   onQuantityChange: (id: string, quantity: number, size?: string, color?: string) => void;
   onRemove: (id: string, size?: string, color?: string) => void;
 }

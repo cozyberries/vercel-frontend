@@ -370,8 +370,8 @@ export default function PaymentPage() {
 
               {/* Items */}
               <div className="space-y-4 mb-6">
-                {order.items.map((item, idx) => (
-                  <div key={`${item.id}-${item.product_details?.size ?? ""}-${item.product_details?.color ?? ""}-${idx}`} className="flex gap-3">
+                {order.items.map((item) => (
+                  <div key={`${item.id}-${item.product_details?.size ?? ""}-${item.product_details?.color ?? ""}`} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
                         <Image
