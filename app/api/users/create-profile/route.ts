@@ -29,9 +29,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Rate limiting: 5 profile creations per IP per hour ---
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const rateLimit = await UpstashService.checkRateLimit(`create_profile:${ip}`, 5, 3600);
+    // --- Rate limiting: 2 profile creations per user per hour ---
+    const rateLimit = await UpstashService.checkRateLimit(`create_profile:${userId}`, 2, 3600);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },

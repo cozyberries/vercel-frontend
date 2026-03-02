@@ -58,7 +58,7 @@ export default function PhoneInput({
             if (error && onErrorChange) onErrorChange("");
           }}
           onBlur={handleBlur}
-          placeholder="98765 43210"
+          placeholder="9876543210"
           className={`pl-12 ${error ? "border-red-500" : ""}`}
         />
       </div>
