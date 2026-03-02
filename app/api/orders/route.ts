@@ -6,7 +6,7 @@ import type {
   OrderSummary,
   OrderItemInput,
 } from "@/lib/types/order";
-import { mapOrderItems } from "@/lib/utils/order-mapper";
+import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
@@ -228,24 +228,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Attach items to the response so the client can redirect immediately.
-    // Re-use the shared mapper by adapting the input items to OrderItemRow shape.
     const orderWithItems = {
       ...order,
-      items: mapOrderItems(
-        items.map((item) => ({
-          id: "",           // unused by mapper (it reads product_id)
-          order_id: order.id,
-          product_id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image ?? null,
-          size: item.size ?? null,
-          color: item.color ?? null,
-          sku: item.sku ?? null,
-          created_at: "",   // unused by mapper
-        }))
-      ),
+      items: mapOrderItemInputs(items),
     };
 
     return NextResponse.json({
@@ -313,17 +298,20 @@ export async function GET(request: NextRequest) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
+  const subtotal = round2(
+    items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   );
   const delivery_charge =
     items.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD
       ? DELIVERY_CHARGE_INR
       : 0;
-  const tax_amount = items.length > 0 ? subtotal * GST_RATE : 0;
-  const total_amount = subtotal + delivery_charge + tax_amount;
+  const tax_amount = round2(items.length > 0 ? subtotal * GST_RATE : 0);
+  const total_amount = round2(subtotal + delivery_charge + tax_amount);
 
   return {
     subtotal,

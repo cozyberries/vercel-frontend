@@ -1,4 +1,4 @@
-import type { OrderItem } from "@/lib/types/order";
+import type { OrderItem, OrderItemInput } from "@/lib/types/order";
 
 /**
  * Typed shape of a row returned by Supabase from the order_items table.
@@ -30,5 +30,23 @@ export function mapOrderItems(rows: OrderItemRow[]): OrderItem[] {
     ...(row.size ? { size: row.size } : {}),
     ...(row.color ? { color: row.color } : {}),
     ...(row.sku ? { sku: row.sku } : {}),
+  }));
+}
+
+/**
+ * Maps client-submitted OrderItemInput[] (no DB-specific fields) into the
+ * API-facing OrderItem shape, avoiding the need to fabricate dummy id /
+ * created_at values just to satisfy the full OrderItemRow contract.
+ */
+export function mapOrderItemInputs(items: OrderItemInput[]): OrderItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    ...(item.image ? { image: item.image } : {}),
+    ...(item.size ? { size: item.size } : {}),
+    ...(item.color ? { color: item.color } : {}),
+    ...(item.sku ? { sku: item.sku } : {}),
   }));
 }
