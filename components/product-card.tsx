@@ -46,7 +46,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
               size: v.size,
               color: v.color,
               price: v.price,
-              label: [v.size, v.color].filter(Boolean).join(" / ") || v.size,
+              label:
+                [v.size, v.color].filter(Boolean).join(" / ") || v.size || "—",
             }))
         : (product.sizes ?? [])
             .filter((s) => (s.stock_quantity ?? 0) > 0)
@@ -249,7 +250,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                         <div className="flex min-w-0 shrink flex-col">
                           <span className="truncate font-medium">{opt.label}</span>
                           <span className="text-xs text-muted-foreground">
-                            ₹{opt.price.toFixed(0)}
+                            {formatPrice(opt.price, locale, currency)}
                           </span>
                         </div>
                         <div className="shrink-0 pl-1">
