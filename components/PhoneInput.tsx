@@ -22,11 +22,19 @@ export default function PhoneInput({
   id = "phone",
 }: PhoneInputProps) {
   const handleBlur = () => {
-    if (value && onErrorChange) {
+    if (!onErrorChange) return;
+
+    if (value) {
       const result = validateRequiredPhoneNumber(value);
       if (!result.isValid) {
         onErrorChange(result.error || "Invalid phone number");
+      } else if (error) {
+        onErrorChange("");
       }
+    } else if (required) {
+      onErrorChange("Phone number is required");
+    } else if (error) {
+      onErrorChange("");
     }
   };
 
@@ -45,7 +53,8 @@ export default function PhoneInput({
           required={required}
           value={value}
           onChange={(e) => {
-            onChange(e.target.value);
+            const sanitized = e.target.value.replace(/[^0-9]/g, "");
+            onChange(sanitized);
             if (error && onErrorChange) onErrorChange("");
           }}
           onBlur={handleBlur}

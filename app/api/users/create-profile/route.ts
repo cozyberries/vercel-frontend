@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase-server";
+import { PostgrestError } from "@supabase/supabase-js";
+import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
 import { generateNameFromEmail, validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import { UpstashService } from "@/lib/upstash";
 
 // Initialize user profile after signup
 // This endpoint uses admin client to bypass RLS and create profile
@@ -13,6 +15,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "userId and email are required" },
         { status: 400 }
+      );
+    }
+
+    // --- Auth check: verify the caller's session matches the claimed userId ---
+    const sessionSupabase = await createServerSupabaseClient();
+    const { data: { user: sessionUser } } = await sessionSupabase.auth.getUser();
+
+    if (!sessionUser || sessionUser.id !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: session does not match userId" },
+        { status: 401 }
+      );
+    }
+
+    // --- Rate limiting: 5 profile creations per IP per hour ---
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rateLimit = await UpstashService.checkRateLimit(`create_profile:${ip}`, 5, 3600);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
       );
     }
 
@@ -56,7 +79,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     let profileData = null;
     let hasError = false;
-    let errorDetails: Record<string, { message?: string }> = {};
+    let errorDetails: Record<string, PostgrestError> = {};
 
     // Try user_profiles first
     const { data: userProfileData, error: userProfileError } = await supabase
