@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Filter, X } from "lucide-react";
+import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -37,6 +37,13 @@ interface GenderOption {
   display_order: number;
 }
 
+interface FilterValues {
+  category: string;
+  size: string;
+  gender: string;
+  sort: string;
+}
+
 interface FilterSheetProps {
   categories: Category[];
   sizeOptions: SizeOption[];
@@ -46,12 +53,7 @@ interface FilterSheetProps {
   currentGender: string;
   currentSort: string;
   currentSortOrder: string;
-  currentFeatured: boolean;
-  onCategoryChange: (category: string) => void;
-  onSizeChange: (size: string) => void;
-  onGenderChange: (gender: string) => void;
-  onSortChange: (sort: string) => void;
-  onFeaturedToggle: () => void;
+  onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
 }
 
@@ -64,17 +66,37 @@ export default function FilterSheet({
   currentGender,
   currentSort,
   currentSortOrder,
-  currentFeatured,
-  onCategoryChange,
-  onSizeChange,
-  onGenderChange,
-  onSortChange,
-  onFeaturedToggle,
+  onApplyFilters,
   onClearFilters,
 }: FilterSheetProps) {
   const [open, setOpen] = useState(false);
 
+  // Local pending state — only sent to parent on "Apply"
+  const [pendingCategory, setPendingCategory] = useState(currentCategory);
+  const [pendingSize, setPendingSize] = useState(currentSize);
+  const [pendingGender, setPendingGender] = useState(currentGender);
+  const [pendingSort, setPendingSort] = useState(
+    currentSort === "price" ? currentSortOrder : "default"
+  );
+
+  // Reset local state when sheet opens (sync with actual URL params)
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      setPendingCategory(currentCategory);
+      setPendingSize(currentSize);
+      setPendingGender(currentGender);
+      setPendingSort(currentSort === "price" ? currentSortOrder : "default");
+    }
+    setOpen(isOpen);
+  };
+
   const handleApplyFilters = () => {
+    onApplyFilters({
+      category: pendingCategory,
+      size: pendingSize,
+      gender: pendingGender,
+      sort: pendingSort,
+    });
     setOpen(false);
   };
 
@@ -84,7 +106,7 @@ export default function FilterSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
         <Button variant="outline" className="flex items-center gap-2 md:hidden">
           <Filter className="h-4 w-4" />
@@ -104,7 +126,7 @@ export default function FilterSheet({
             {/* Category Filter */}
             <div>
               <h3 className="text-sm font-medium mb-3">Category</h3>
-              <Select value={currentCategory} onValueChange={onCategoryChange}>
+              <Select value={pendingCategory} onValueChange={setPendingCategory}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
@@ -122,7 +144,7 @@ export default function FilterSheet({
             {/* Size Filter */}
             <div>
               <h3 className="text-sm font-medium mb-3">Size</h3>
-              <Select value={currentSize} onValueChange={onSizeChange}>
+              <Select value={pendingSize} onValueChange={setPendingSize}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Filter by size" />
                 </SelectTrigger>
@@ -140,7 +162,7 @@ export default function FilterSheet({
             {/* Gender Filter */}
             <div>
               <h3 className="text-sm font-medium mb-3">Gender</h3>
-              <Select value={currentGender} onValueChange={onGenderChange}>
+              <Select value={pendingGender} onValueChange={setPendingGender}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Gender" />
                 </SelectTrigger>
@@ -159,8 +181,8 @@ export default function FilterSheet({
             <div>
               <h3 className="text-sm font-medium mb-3">Sort By</h3>
               <Select
-                value={currentSort === "price" ? currentSortOrder : "default"}
-                onValueChange={onSortChange}
+                value={pendingSort}
+                onValueChange={setPendingSort}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Sort by" />
@@ -173,49 +195,41 @@ export default function FilterSheet({
               </Select>
             </div>
 
-            {/* Active Filters Summary */}
+            {/* Selected Filters Summary */}
             <div className="border-t pt-4">
-              <h3 className="text-sm font-medium mb-3">Active Filters</h3>
+              <h3 className="text-sm font-medium mb-3">Selected Filters</h3>
               <div className="space-y-2">
-                {currentCategory !== "all" && (
+                {pendingCategory !== "all" && (
                   <div className="flex items-center justify-between text-sm">
                     <span>Category:</span>
                     <span className="font-medium">
-                      {categories.find((c) => c.slug === currentCategory)?.name ||
-                        currentCategory}
+                      {categories.find((c) => c.slug === pendingCategory)?.name ||
+                        pendingCategory}
                     </span>
                   </div>
                 )}
-                {currentSize !== "all" && (
+                {pendingSize !== "all" && (
                   <div className="flex items-center justify-between text-sm">
                     <span>Size:</span>
-                    <span className="font-medium">{currentSize}</span>
+                    <span className="font-medium">{pendingSize}</span>
                   </div>
                 )}
-                {currentGender !== "all" && (
+                {pendingGender !== "all" && (
                   <div className="flex items-center justify-between text-sm">
                     <span>Gender:</span>
-                    <span className="font-medium">{currentGender}</span>
+                    <span className="font-medium">{pendingGender}</span>
                   </div>
                 )}
-                {currentSort !== "default" && (
+                {pendingSort !== "default" && (
                   <div className="flex items-center justify-between text-sm">
                     <span>Sort:</span>
                     <span className="font-medium">
-                      {currentSort === "price"
-                        ? `Price ${currentSortOrder === "asc" ? "Low to High" : "High to Low"}`
-                        : "Default"}
+                      {pendingSort === "asc" ? "Price Low to High" : "Price High to Low"}
                     </span>
                   </div>
                 )}
-                {currentFeatured && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Filter:</span>
-                    <span className="font-medium">Featured Only</span>
-                  </div>
-                )}
-                {currentCategory === "all" && currentSize === "all" && currentGender === "all" && currentSort === "default" && !currentFeatured && (
-                  <p className="text-sm text-muted-foreground">No filters applied</p>
+                {pendingCategory === "all" && pendingSize === "all" && pendingGender === "all" && pendingSort === "default" && (
+                  <p className="text-sm text-muted-foreground">No filters selected</p>
                 )}
               </div>
             </div>
@@ -226,7 +240,7 @@ export default function FilterSheet({
             <Button onClick={handleApplyFilters} className="w-full">
               Apply Filters
             </Button>
-            {(currentCategory !== "all" || currentSize !== "all" || currentGender !== "all" || currentSort !== "default" || currentFeatured) && (
+            {(pendingCategory !== "all" || pendingSize !== "all" || pendingGender !== "all" || pendingSort !== "default") && (
               <Button
                 variant="outline"
                 onClick={handleClearFilters}

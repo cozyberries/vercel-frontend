@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
-import { DELIVERY_CHARGE_INR, GST_RATE } from "@/lib/constants";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
 
 interface CheckoutFormData {
   email: string;
@@ -65,7 +65,7 @@ export default function CheckoutPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const deliveryCharge = cart.length > 0 ? DELIVERY_CHARGE_INR : 0;
+  const deliveryCharge = cart.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
   const gst = cart.length > 0 ? subtotal * GST_RATE : 0;
   const total = subtotal + deliveryCharge + gst;
 
@@ -441,7 +441,11 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
-                  <span>₹{deliveryCharge.toFixed(2)}</span>
+                  {deliveryCharge === 0 ? (
+                    <span className="text-green-600 font-medium">FREE</span>
+                  ) : (
+                    <span>₹{deliveryCharge.toFixed(2)}</span>
+                  )}
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>{`GST (${(GST_RATE * 100).toFixed(0)}%)`}</span>
@@ -458,7 +462,11 @@ export default function CheckoutPage() {
               <div className="bg-background p-4 rounded-md">
                 <div className="flex items-center gap-3 mb-2">
                   <Truck className="w-4 h-4 text-primary" />
-                  <span className="font-medium text-sm">Free Delivery</span>
+                  <span className="font-medium text-sm">
+                    {deliveryCharge === 0
+                      ? "Free Delivery"
+                      : `Spend ₹${(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} more for free delivery`}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Estimated delivery: 3-5 business days

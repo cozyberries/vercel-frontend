@@ -498,12 +498,32 @@ export default function ProductsClient() {
               currentGender={currentGender}
               currentSort={currentSort}
               currentSortOrder={currentSortOrder}
-              currentFeatured={currentFeatured}
-              onCategoryChange={handleCategoryChange}
-              onSizeChange={handleSizeChange}
-              onGenderChange={handleGenderChange}
-              onSortChange={handleSortChange}
-              onFeaturedToggle={handleFeaturedToggle}
+              onApplyFilters={(filters) => {
+                const params = new URLSearchParams(searchParams.toString());
+
+                // Category
+                if (filters.category === "all") params.delete("category");
+                else params.set("category", filters.category);
+
+                // Size
+                if (filters.size === "all") params.delete("size");
+                else params.set("size", filters.size);
+
+                // Gender
+                if (filters.gender === "all") params.delete("gender");
+                else params.set("gender", filters.gender);
+
+                // Sort
+                if (filters.sort === "default") {
+                  params.delete("sortBy");
+                  params.delete("sortOrder");
+                } else {
+                  params.set("sortBy", "price");
+                  params.set("sortOrder", filters.sort);
+                }
+
+                router.push(`/products?${params.toString()}`);
+              }}
               onClearFilters={handleClearFilters}
             />
           </div>

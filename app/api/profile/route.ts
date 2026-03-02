@@ -25,7 +25,7 @@ export async function GET() {
       const cacheResult = await Promise.race([
         CacheService.getProfile(user.id),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Cache timeout")), 500)
+          setTimeout(() => reject(new Error("Cache timeout")), 2000)
         ),
       ]) as { data: any; ttl: number; isStale: boolean };
 

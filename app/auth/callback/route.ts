@@ -18,12 +18,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get the correct base URL for redirect
+    const getBaseUrl = () => {
+      const { protocol, host } = requestUrl;
+      return `${protocol}//${host}`;
+    };
+
     // If this is a new OAuth user, create their profile
     if (data?.user && data?.user.email) {
       try {
         // Use admin client to check and create profile
         const adminSupabase = createAdminSupabaseClient();
-        
+
         // Check if profile exists
         const { data: existingProfile } = await adminSupabase
           .from("user_profiles")
@@ -72,21 +78,40 @@ export async function GET(request: NextRequest) {
                 onConflict: "id",
               }
             );
+
+          // New user — redirect to complete profile (phone required)
+          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
+        }
+
+        // Existing user — check if phone is missing
+        const { data: profileWithPhone, error: phoneCheckError } = await adminSupabase
+          .from("profiles")
+          .select("phone")
+          .eq("id", data.user.id)
+          .single();
+
+        if (phoneCheckError) {
+          console.error("Error checking phone:", phoneCheckError);
+          // Safe fallback: prompt user to complete profile if check fails
+          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
+        }
+
+        if (!profileWithPhone?.phone) {
+          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
         }
       } catch (profileError) {
         // Don't fail the OAuth flow if profile creation fails
         console.error("Error creating OAuth user profile:", profileError);
+        // Safe fallback: redirect to complete-profile so user can retry
+        return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
       }
     }
+
+    // Existing user with phone — redirect to home
+    return NextResponse.redirect(new URL("/", getBaseUrl()));
   }
 
-  // Get the correct base URL for redirect
-  const getBaseUrl = () => {
-    // For Vercel deployments, use the request URL origin
-    const { protocol, host } = requestUrl;
-    return `${protocol}//${host}`;
-  };
-
-  // Redirect to home page after successful authentication
-  return NextResponse.redirect(new URL("/", getBaseUrl()));
+  // No code — redirect to home
+  const { protocol, host } = requestUrl;
+  return NextResponse.redirect(new URL("/", `${protocol}//${host}`));
 }

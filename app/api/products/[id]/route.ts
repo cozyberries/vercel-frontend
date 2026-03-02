@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
       const cachePromise = UpstashService.getCachedProduct(id);
       const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 500);
+        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
       });
       cachedProduct = (await Promise.race([cachePromise, timeoutPromise])) as any;
     } catch {

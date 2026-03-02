@@ -159,12 +159,15 @@ export class UpstashService {
   }
 
   // Get cache with TTL information for stale-while-revalidate
+  // Uses pipeline to batch GET + TTL into a single HTTP request
   static async getWithTTL(key: string) {
     try {
-      const [data, ttl] = await Promise.all([
-        redis.get(key),
-        redis.ttl(key)
-      ]);
+      const pipeline = redis.pipeline();
+      pipeline.get(key);
+      pipeline.ttl(key);
+      const results = await pipeline.exec();
+      const data = results[0] as any;
+      const ttl = results[1] as number;
       
       if (!data) return { data: null, ttl: -1, isStale: false };
 

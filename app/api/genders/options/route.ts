@@ -31,7 +31,7 @@ export async function GET() {
     try {
       const cachePromise = UpstashService.get(cacheKey);
       const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 300);
+        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
       });
       cached = (await Promise.race([cachePromise, timeoutPromise])) as GenderOption[] | null;
     } catch {

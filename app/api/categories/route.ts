@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     try {
       const cachePromise = UpstashService.get(cacheKey);
       const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Cache timeout')), 300);
+        timeoutId = setTimeout(() => reject(new Error('Cache timeout')), 2000);
       });
       cachedCategories = await Promise.race([cachePromise, timeoutPromise]);
     } catch (err) {

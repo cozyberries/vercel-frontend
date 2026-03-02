@@ -270,7 +270,7 @@ export async function GET(request: NextRequest) {
     try {
       const cachePromise = UpstashService.getWithTTL(cacheKey);
       const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 500);
+        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
       });
       const result = (await Promise.race([cachePromise, timeoutPromise])) as {
         data: any;

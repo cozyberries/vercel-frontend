@@ -25,7 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, phone?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<{ success: boolean; error?: any }>;
   refreshProfile: () => Promise<void>;
@@ -254,7 +254,7 @@ export function SupabaseAuthProvider({
     return { error };
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, phone?: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -272,6 +272,7 @@ export function SupabaseAuthProvider({
           body: JSON.stringify({
             userId: data.user.id,
             email: email,
+            phone: phone,
           }),
         });
 
