@@ -161,14 +161,8 @@ export default function CheckoutPage() {
             price: item.price,
             quantity: item.quantity,
             image: item.image,
-            ...(item.size || item.color
-              ? {
-                  product_details: {
-                    ...(item.size ? { size: item.size } : {}),
-                    ...(item.color ? { color: item.color } : {}),
-                  },
-                }
-              : {}),
+            ...(item.size ? { size: item.size } : {}),
+            ...(item.color ? { color: item.color } : {}),
           })),
           shipping_address_id: selectedAddressId,
           notes: formData.notes || "",

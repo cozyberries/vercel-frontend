@@ -4,15 +4,15 @@ import type {
   CreateOrderRequest,
   OrderCreate,
   OrderSummary,
+  OrderItemInput,
+  OrderItem,
 } from "@/lib/types/order";
-import type { CartItem } from "@/components/cart-context";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
 
-    // Get the current user from Supabase session
     const {
       data: { user },
       error: authError,
@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
     const body: CreateOrderRequest = await request.json();
     const { items, shipping_address_id, billing_address_id, notes } = body;
 
-    // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: "Items are required" },
@@ -43,7 +42,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get shipping address
     const { data: shippingAddress, error: shippingError } = await supabase
       .from("user_addresses")
       .select("*")
@@ -58,7 +56,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get billing address if provided, otherwise use shipping address
     let billingAddress = shippingAddress;
     if (billing_address_id && billing_address_id !== shipping_address_id) {
       const { data: billingAddr, error: billingError } = await supabase
@@ -77,10 +74,8 @@ export async function POST(request: NextRequest) {
       billingAddress = billingAddr;
     }
 
-    // Calculate order totals
     const orderSummary = calculateOrderSummary(items);
 
-    // Prepare order data
     const orderData: OrderCreate = {
       user_id: user.id,
       customer_email: user.email!,
@@ -109,14 +104,6 @@ export async function POST(request: NextRequest) {
         address_type: billingAddress.address_type,
         label: billingAddress.label,
       },
-      items: items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        image: item.image,
-        ...(item.product_details ? { product_details: item.product_details } : {}),
-      })),
       subtotal: orderSummary.subtotal,
       delivery_charge: orderSummary.delivery_charge,
       tax_amount: orderSummary.tax_amount,
@@ -125,14 +112,13 @@ export async function POST(request: NextRequest) {
       notes,
     };
 
-    // Create the order
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert(orderData)
       .select()
       .single();
 
-    if (orderError) {
+    if (orderError || !order) {
       console.error("Error creating order:", orderError);
       return NextResponse.json(
         { error: "Failed to create order" },
@@ -140,12 +126,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate payment URL for the dummy payment page
-    const paymentUrl = `/payment/${order.id}`;
+    // Insert each line-item into the normalised order_items table
+    const itemRows = items.map((item) => ({
+      order_id: order.id,
+      product_id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image ?? null,
+      size: item.size ?? null,
+      color: item.color ?? null,
+      sku: item.sku ?? null,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("order_items")
+      .insert(itemRows);
+
+    if (itemsError) {
+      // Compensate: delete the orphaned order so the DB stays consistent.
+      // NOTE: this is not atomic — a Supabase RPC wrapping both inserts in a
+      // Postgres transaction would be strictly more robust.
+      const { error: deleteError } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", order.id);
+      if (deleteError) {
+        console.error("Compensating order delete failed — orphaned order may require manual cleanup:", {
+          deleteError,
+          orderId: order.id,
+        });
+      }
+      console.error("Error inserting order items:", itemsError);
+      return NextResponse.json(
+        { error: "Failed to save order items" },
+        { status: 500 }
+      );
+    }
+
+    // Attach items to the response so the client can redirect immediately
+    const orderWithItems = {
+      ...order,
+      items: items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image,
+        size: item.size,
+        color: item.color,
+        sku: item.sku,
+      } satisfies OrderItem)),
+    };
 
     return NextResponse.json({
-      order,
-      payment_url: paymentUrl,
+      order: orderWithItems,
+      payment_url: `/payment/${order.id}`,
     });
   } catch (error) {
     console.error("Error in order creation:", error);
@@ -160,7 +196,6 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
 
-    // Get the current user from Supabase session
     const {
       data: { user },
       error: authError,
@@ -177,10 +212,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Fetch orders from database
     const { data: orders, error: ordersError } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, order_items(*)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -193,7 +227,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ orders: orders || [] });
+    const mapped = (orders || []).map(({ order_items, ...order }) => ({
+      ...order,
+      items: mapOrderItems(order_items ?? []),
+    }));
+
+    return NextResponse.json({ orders: mapped });
   } catch (error) {
     console.error("Error in order fetching:", error);
     return NextResponse.json(
@@ -203,12 +242,30 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function calculateOrderSummary(items: CartItem[]): OrderSummary {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function mapOrderItems(rows: any[]): OrderItem[] {
+  return rows.map((row) => ({
+    id: row.product_id,
+    name: row.name,
+    price: Number(row.price),
+    quantity: row.quantity,
+    ...(row.image ? { image: row.image } : {}),
+    ...(row.size ? { size: row.size } : {}),
+    ...(row.color ? { color: row.color } : {}),
+    ...(row.sku ? { sku: row.sku } : {}),
+  }));
+}
+
+function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
   const subtotal = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const delivery_charge = items.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
+  const delivery_charge =
+    items.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD
+      ? DELIVERY_CHARGE_INR
+      : 0;
   const tax_amount = items.length > 0 ? subtotal * GST_RATE : 0;
   const total_amount = subtotal + delivery_charge + tax_amount;
 

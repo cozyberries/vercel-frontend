@@ -389,7 +389,7 @@ export default function OrdersPage() {
                 <div className="space-y-2 sm:space-y-3 mb-4">
                   {order.items.slice(0, 3).map((item, idx) => (
                     <div
-                      key={`${item.id}-${item.product_details?.size ?? ""}-${item.product_details?.color ?? ""}-${idx}`}
+                      key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}-${idx}`}
                       className="flex items-center gap-2 sm:gap-3"
                     >
                       <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-md overflow-hidden flex-shrink-0">
@@ -406,11 +406,11 @@ export default function OrdersPage() {
                         <h4 className="font-medium text-xs sm:text-sm truncate">
                           {item.name}
                         </h4>
-                        {(item.product_details?.size || item.product_details?.color) && (
+                        {(item.size || item.color) && (
                           <p className="text-xs text-muted-foreground">
                             {[
-                              item.product_details?.size && `Size: ${item.product_details.size}`,
-                              item.product_details?.color && `Color: ${item.product_details.color}`,
+                              item.size && `Size: ${item.size}`,
+                              item.color && `Color: ${item.color}`,
                             ]
                               .filter(Boolean)
                               .join(" · ")}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
+import type { OrderItem } from "@/lib/types/order";
 
 interface RouteParams {
   params: Promise<{
@@ -80,16 +81,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     console.log(
       `Cache MISS for order details ${id}, user ${user.id}, fetching from database`
     );
-    const { data: order, error: orderError } = await supabase
+    const { data: rawOrder, error: orderError } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, order_items(*)")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
 
-    if (orderError || !order) {
+    if (orderError || !rawOrder) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
+
+    const { order_items, ...orderFields } = rawOrder;
+    const order = {
+      ...orderFields,
+      items: mapOrderItems(order_items ?? []),
+    };
 
     // Get associated payments
     const { data: payments, error: paymentsError } = await supabase
@@ -145,50 +152,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-/**
- * Background refresh function for order details stale-while-revalidate pattern
- */
-async function refreshOrderDetailsInBackground(
-  userId: string,
-  orderId: string,
-  supabase: any
-): Promise<void> {
-  try {
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .eq("user_id", userId)
-      .single();
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-    if (orderError || !order) {
-      console.error("Error in background order details refresh:", orderError);
-      return;
-    }
-
-    const { data: payments, error: paymentsError } = await supabase
-      .from("payments")
-      .select("*")
-      .eq("order_id", orderId)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (paymentsError) {
-      console.error(
-        "Error fetching payments in background refresh:",
-        paymentsError
-      );
-    }
-
-    const orderDetails = {
-      order,
-      payments: payments || [],
-    };
-
-    await CacheService.setOrderDetails(userId, orderId, orderDetails);
-  } catch (error) {
-    console.error("Error in background order details refresh:", error);
-  }
+function mapOrderItems(rows: any[]): OrderItem[] {
+  return rows.map((row) => ({
+    id: row.product_id,
+    name: row.name,
+    price: Number(row.price),
+    quantity: row.quantity,
+    ...(row.image ? { image: row.image } : {}),
+    ...(row.size ? { size: row.size } : {}),
+    ...(row.color ? { color: row.color } : {}),
+    ...(row.sku ? { sku: row.sku } : {}),
+  }));
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {

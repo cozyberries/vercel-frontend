@@ -257,7 +257,7 @@ export default function OrderDetailsPage() {
               <div className="space-y-3 sm:space-y-4">
                 {order.items.map((item, idx) => (
                   <div
-                    key={`${item.id}-${item.product_details?.size ?? ""}-${item.product_details?.color ?? ""}-${idx}`}
+                    key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}-${idx}`}
                     className="flex items-center gap-3 sm:gap-4"
                   >
                     <div className="relative w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
@@ -274,11 +274,11 @@ export default function OrderDetailsPage() {
                       <h3 className="font-medium text-sm sm:text-base truncate">
                         {item.name}
                       </h3>
-                      {(item.product_details?.size || item.product_details?.color) && (
+                      {(item.size || item.color) && (
                         <div className="text-xs text-muted-foreground">
                           {[
-                            item.product_details?.size && `Size: ${item.product_details.size}`,
-                            item.product_details?.color && `Color: ${item.product_details.color}`,
+                            item.size && `Size: ${item.size}`,
+                            item.color && `Color: ${item.color}`,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
