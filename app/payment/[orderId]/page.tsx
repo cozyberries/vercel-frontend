@@ -370,8 +370,8 @@ export default function PaymentPage() {
 
               {/* Items */}
               <div className="space-y-4 mb-6">
-                {order.items.map((item) => (
-                  <div key={item.id} className="flex gap-3">
+                {order.items.map((item, idx) => (
+                  <div key={`${item.id}-${item.product_details?.size ?? ""}-${item.product_details?.color ?? ""}-${idx}`} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
                         <Image
@@ -384,6 +384,16 @@ export default function PaymentPage() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium text-sm">{item.name}</h3>
+                      {(item.product_details?.size || item.product_details?.color) && (
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            item.product_details?.size && `Size: ${item.product_details.size}`,
+                            item.product_details?.color && `Color: ${item.product_details.color}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
                       <p className="text-sm text-muted-foreground">
                         Qty: {item.quantity}
                       </p>

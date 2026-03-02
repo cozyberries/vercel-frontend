@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Product, SizeOption, getProductById, getProducts } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
-import { useCart } from "./cart-context";
+import { useCart, getCartItemKey } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
 import { toast } from "sonner";
 import Reviews from "./reviews";
@@ -88,7 +88,15 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   const { getDetailedProductById, isLoading } = usePreloadedData();
   const router = useRouter();
 
-  const isInCart = cart.some((item) => item.id === product?.id);
+  const isInCart = cart.some(
+    (item) =>
+      getCartItemKey(item) ===
+      getCartItemKey({
+        id: product?.id ?? "",
+        size: selectedSize?.name,
+        color: selectedColor || undefined,
+      })
+  );
   const inWishlist = isInWishlist(product?.id ?? "");
 
 
@@ -639,7 +647,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                   className="w-full z-0"
                   onClick={() => {
                     if (isInCart) {
-                      removeFromCart(product.id);
+                      removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
                       toast.success(`${product.name} removed from cart!`);
                     } else {
                       addToCart({
@@ -875,7 +883,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
             className="w-1/2 h-12 overflow-hidden"
             onClick={() => {
               if (isInCart) {
-                removeFromCart(product.id);
+                removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
               } else {
                 addToCart({
                   id: product.id,

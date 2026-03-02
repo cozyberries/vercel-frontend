@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
         price: item.price,
         quantity: item.quantity,
         image: item.image,
+        ...(item.product_details ? { product_details: item.product_details } : {}),
       })),
       subtotal: orderSummary.subtotal,
       delivery_charge: orderSummary.delivery_charge,

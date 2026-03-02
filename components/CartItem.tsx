@@ -10,12 +10,14 @@ export interface CartLineItem {
   price: number;
   quantity: number;
   image?: string;
+  size?: string;
+  color?: string;
 }
 
 interface CartItemProps {
   item: CartLineItem;
-  onQuantityChange: (id: string, quantity: number) => void;
-  onRemove: (id: string) => void;
+  onQuantityChange: (id: string, quantity: number, size?: string, color?: string) => void;
+  onRemove: (id: string, size?: string, color?: string) => void;
 }
 
 export default function CartItem({
@@ -36,6 +38,13 @@ export default function CartItem({
       </div>
       <div className="flex-1">
         <div className="font-medium line-clamp-2">{item.name}</div>
+        {(item.size || item.color) && (
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {[item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        )}
         <div className="text-sm font-semibold mt-1">
           ₹{item.price.toFixed(2)}
         </div>
@@ -46,7 +55,7 @@ export default function CartItem({
               variant="ghost"
               className="px-3 py-2 hover:bg-accent"
               onClick={() =>
-                onQuantityChange(item.id, Math.max(1, item.quantity - 1))
+                onQuantityChange(item.id, Math.max(1, item.quantity - 1), item.size, item.color)
               }
               aria-label="Decrease quantity"
             >
@@ -59,7 +68,7 @@ export default function CartItem({
               type="button"
               variant="ghost"
               className="px-3 py-2 hover:bg-accent"
-              onClick={() => onQuantityChange(item.id, item.quantity + 1)}
+              onClick={() => onQuantityChange(item.id, item.quantity + 1, item.size, item.color)}
               aria-label="Increase quantity"
             >
               +
@@ -70,7 +79,7 @@ export default function CartItem({
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => onRemove(item.id)}
+        onClick={() => onRemove(item.id, item.size, item.color)}
         className="hover:text-destructive"
       >
         ×

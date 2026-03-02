@@ -31,7 +31,7 @@ export default function MobileBottomHeader() {
   }) => {
     const existing = cart.find((c) => c.id === item.id);
     if (existing) {
-      updateQuantity(item.id, existing.quantity + 1);
+      updateQuantity(item.id, existing.quantity + 1, existing.size, existing.color);
     } else {
       if (
         typeof window !== "undefined" &&

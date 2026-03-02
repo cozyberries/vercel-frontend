@@ -129,7 +129,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
               e.preventDefault();
               e.stopPropagation();
               if (inCart && cartItem) {
-                updateQuantity(product.id, cartItem.quantity + 1);
+                updateQuantity(product.id, cartItem.quantity + 1, cartItem.size, cartItem.color);
                 toast.success(`${product.name} quantity updated in cart`);
               } else {
                 addToCart({

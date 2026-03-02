@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import type { CartItem } from "@/components/cart-context";
+import { getCartItemKey } from "@/components/cart-context";
 
 export interface UserCart {
   id: string;
@@ -120,14 +121,15 @@ class CartService {
   mergeCartItems(localItems: CartItem[], remoteItems: CartItem[]): CartItem[] {
     const mergedItems = new Map<string, CartItem>();
 
-    // Add remote items first
+    // Add remote items first (keyed by id+size+color)
     remoteItems.forEach((item) => {
-      mergedItems.set(item.id, item);
+      mergedItems.set(getCartItemKey(item), item);
     });
 
     // Add or merge local items
     localItems.forEach((localItem) => {
-      const existingItem = mergedItems.get(localItem.id);
+      const key = getCartItemKey(localItem);
+      const existingItem = mergedItems.get(key);
       if (existingItem) {
         // Check if this looks like a refresh scenario (same items with same quantities)
         // If so, prefer remote data to avoid doubling
@@ -138,14 +140,14 @@ class CartService {
           // mergedItems already has the remote item, so do nothing
         } else {
           // True merge scenario - add quantities
-          mergedItems.set(localItem.id, {
+          mergedItems.set(key, {
             ...existingItem,
             quantity: existingItem.quantity + localItem.quantity,
           });
         }
       } else {
         // Add new local items that don't exist remotely
-        mergedItems.set(localItem.id, localItem);
+        mergedItems.set(key, localItem);
       }
     });
 
@@ -167,14 +169,14 @@ class CartService {
     // If both carts have the same items with the same quantities,
     // it's likely a refresh scenario where data was just synced
     const localMap = new Map(
-      localItems.map((item) => [item.id, item.quantity])
+      localItems.map((item) => [getCartItemKey(item), item.quantity])
     );
     const remoteMap = new Map(
-      remoteItems.map((item) => [item.id, item.quantity])
+      remoteItems.map((item) => [getCartItemKey(item), item.quantity])
     );
 
-    for (const [id, quantity] of localMap) {
-      if (remoteMap.get(id) !== quantity) {
+    for (const [key, quantity] of localMap) {
+      if (remoteMap.get(key) !== quantity) {
         return false;
       }
     }
