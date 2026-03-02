@@ -1,27 +1,33 @@
 "use client";
 
+import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { images } from "@/app/assets/images";
 import { HiOutlineTrash } from "react-icons/hi";
+import { ShoppingCart } from "lucide-react";
 
 export interface WishlistLineItem {
   id: string;
   name: string;
   price: number;
   image?: string;
+  size?: string;
+  color?: string;
 }
 
-interface WishlistItemProps {
+export interface WishlistItemProps {
   item: WishlistLineItem;
   onRemove: (id: string) => void;
+  onAddToCart?: (item: WishlistLineItem) => void;
 }
 
-export default function WishlistItem({
+const WishlistItem: React.FC<WishlistItemProps> = ({
   item,
   onRemove,
-}: WishlistItemProps) {
+  onAddToCart,
+}) => {
   return (
     <div className="flex items-center gap-4 border-b pb-4">
       <div className="relative w-16 h-16 flex-shrink-0">
@@ -41,9 +47,23 @@ export default function WishlistItem({
           ₹{item.price.toFixed(2)}
         </div>
       </div>
-      <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)}>
+      <div className="flex items-center gap-1">
+        {onAddToCart && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onAddToCart(item)}
+            aria-label="Add to cart"
+          >
+            <ShoppingCart className="h-4 w-4" />
+          </Button>
+        )}
+        <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)} aria-label="Remove from wishlist">
         <HiOutlineTrash />
       </Button>
+      </div>
     </div>
   );
-}
+};
+
+export default WishlistItem;

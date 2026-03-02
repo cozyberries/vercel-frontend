@@ -8,14 +8,20 @@ export interface CartItem {
   price: number;
   image?: string;
   quantity: number;
-  // Add more fields as needed (e.g., size, color)
+  size?: string;
+  color?: string;
+}
+
+/** Unique key for a cart line item (same product in different sizes = different keys) */
+export function getCartItemKey(item: Pick<CartItem, "id" | "size" | "color">): string {
+  return `${item.id}|${item.size ?? ""}|${item.color ?? ""}`;
 }
 
 interface CartContextType {
   cart: CartItem[];
   addToCart: (item: CartItem) => void;
-  removeFromCart: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
+  removeFromCart: (id: string, size?: string, color?: string) => void;
+  updateQuantity: (id: string, quantity: number, size?: string, color?: string) => void;
   clearCart: () => void;
   addToCartTemporary: (item: CartItem) => void;
   isLoading: boolean;
@@ -47,23 +53,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addToCart = (item: CartItem) => {
     setIsTemporaryCart(false); // Reset temporary cart flag
     setTemporaryCartItem(null); // Clear temporary cart item
+    const itemKey = getCartItemKey(item);
     setCart((prev) => {
-      const existing = prev.find((i) => i.id === item.id);
+      const existing = prev.find((i) => getCartItemKey(i) === itemKey);
       if (existing) {
         return prev.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+          getCartItemKey(i) === itemKey
+            ? { ...i, quantity: i.quantity + item.quantity }
+            : i
         );
       }
       return [...prev, item];
     });
   };
 
-  const removeFromCart = (id: string) => {
-    setCart((prev) => prev.filter((i) => i.id !== id));
+  const removeFromCart = (id: string, size?: string, color?: string) => {
+    const key = getCartItemKey({ id, size, color });
+    setCart((prev) => prev.filter((i) => getCartItemKey(i) !== key));
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
-    setCart((prev) => prev.map((i) => (i.id === id ? { ...i, quantity } : i)));
+  const updateQuantity = (id: string, quantity: number, size?: string, color?: string) => {
+    const key = getCartItemKey({ id, size, color });
+    setCart((prev) =>
+      prev.map((i) => (getCartItemKey(i) === key ? { ...i, quantity } : i))
+    );
   };
 
   const clearCart = async () => {

@@ -10,9 +10,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useCart } from "@/components/cart-context";
+import { useCart, getCartItemKey } from "@/components/cart-context";
 import { images } from "@/app/assets/images";
-import CartItem from "@/components/CartItem";
+import CartItemRow from "@/components/CartItem";
 import Link from "next/link";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
 
@@ -81,8 +81,8 @@ export default function CartSheet() {
             ) : (
               <div className="flex flex-col gap-4">
                 {cart.map((item) => (
-                  <CartItem
-                    key={item.id}
+                  <CartItemRow
+                    key={getCartItemKey(item)}
                     item={item}
                     onQuantityChange={updateQuantity}
                     onRemove={removeFromCart}

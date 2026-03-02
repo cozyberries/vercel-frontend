@@ -12,7 +12,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useWishlist } from "@/components/wishlist-context";
-import { useCart } from "@/components/cart-context";
+import { useCart, getCartItemKey } from "@/components/cart-context";
 import { useAuth } from "@/components/supabase-auth-provider";
 import WishlistItem from "@/components/WishlistItem";
 
@@ -20,7 +20,7 @@ export default function MobileBottomHeader() {
   const pathname = usePathname();
   const { wishlist, removeFromWishlist, clearWishlist, isLoading } =
     useWishlist();
-  const { cart, updateQuantity } = useCart();
+  const { cart, updateQuantity, addToCart } = useCart();
   const { user } = useAuth();
 
   const handleAddToCart = (item: {
@@ -28,19 +28,24 @@ export default function MobileBottomHeader() {
     name: string;
     price: number;
     image?: string;
+    size?: string;
+    color?: string;
   }) => {
-    const existing = cart.find((c) => c.id === item.id);
+    const itemKey = getCartItemKey({
+      id: item.id,
+      size: item.size,
+      color: item.color,
+    });
+    const existing = cart.find((c) => getCartItemKey(c) === itemKey);
     if (existing) {
-      updateQuantity(item.id, existing.quantity + 1);
+      updateQuantity(
+        item.id,
+        existing.quantity + 1,
+        existing.size,
+        existing.color
+      );
     } else {
-      if (
-        typeof window !== "undefined" &&
-        typeof window.dispatchEvent === "function"
-      ) {
-        window.dispatchEvent(
-          new CustomEvent("cart:add", { detail: { ...item, quantity: 1 } })
-        );
-      }
+      addToCart({ ...item, quantity: 1 });
     }
   };
 

@@ -371,7 +371,7 @@ export default function PaymentPage() {
               {/* Items */}
               <div className="space-y-4 mb-6">
                 {order.items.map((item) => (
-                  <div key={item.id} className="flex gap-3">
+                  <div key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}`} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
                         <Image
@@ -384,6 +384,16 @@ export default function PaymentPage() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium text-sm">{item.name}</h3>
+                      {(item.size || item.color) && (
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            item.size && `Size: ${item.size}`,
+                            item.color && `Color: ${item.color}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
                       <p className="text-sm text-muted-foreground">
                         Qty: {item.quantity}
                       </p>

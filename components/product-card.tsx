@@ -4,11 +4,16 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, ShoppingCart } from "lucide-react";
+import { Heart, Minus, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Product, SizeOption } from "@/lib/services/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Product, SizeOption, ProductVariant } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
-import { useCart } from "./cart-context";
+import { useCart, getCartItemKey } from "./cart-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice } from "@/lib/utils";
@@ -25,11 +30,90 @@ interface ProductCardProps {
 export default function ProductCard({ product, index, locale = "en-IN", currency = "INR" }: ProductCardProps) {
   const router = useRouter();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToCart, updateQuantity, cart } = useCart();
+  const { addToCart, updateQuantity, removeFromCart, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
-  const cartItem = cart.find((item) => item.id === product.id);
-  const inCart = !!cartItem;
   const [showHoverImage, setShowHoverImage] = useState(false);
+
+  const hasVariants =
+    (product.variants?.length ?? 0) > 0 || (product.sizes?.length ?? 0) > 0;
+
+  const addOptions: { size?: string; color?: string; price: number; label: string }[] =
+    hasVariants
+      ? (product.variants?.length ?? 0) > 0
+        ? (product.variants as ProductVariant[])
+            .filter((v) => (v.stock_quantity ?? 0) > 0)
+            .map((v) => ({
+              size: v.size,
+              color: v.color,
+              price: v.price,
+              label:
+                [v.size, v.color].filter(Boolean).join(" / ") || v.size || "—",
+            }))
+        : (product.sizes ?? [])
+            .filter((s) => (s.stock_quantity ?? 0) > 0)
+            .map((s) => ({
+              size: s.name,
+              price: s.price,
+              label: s.name,
+            }))
+      : [{ price: product.price, label: "Add" }];
+
+  const getCartItemForVariant = (size?: string, color?: string) =>
+    cart.find(
+      (item) =>
+        getCartItemKey(item) ===
+        getCartItemKey({ id: product.id, size, color })
+    );
+
+  const handleAddVariant = (
+    size?: string,
+    color?: string,
+    price?: number
+  ) => {
+    const itemPrice = price ?? product.price;
+    const existing = getCartItemForVariant(size, color);
+    if (existing) {
+      updateQuantity(
+        product.id,
+        existing.quantity + 1,
+        existing.size,
+        existing.color
+      );
+      toast.success(`${product.name} quantity updated in cart`);
+    } else {
+      addToCart({
+        id: product.id,
+        name: product.name,
+        price: itemPrice,
+        image: product.images?.[0],
+        quantity: 1,
+        ...(size ? { size } : {}),
+        ...(color ? { color } : {}),
+      });
+      toast.success(`${product.name} added to cart!`);
+    }
+  };
+
+  const handleRemoveVariant = (size?: string, color?: string) => {
+    const existing = getCartItemForVariant(size, color);
+    if (!existing) return;
+    if (existing.quantity <= 1) {
+      removeFromCart(product.id, size, color);
+      toast.success(`${product.name} removed from cart`);
+    } else {
+      updateQuantity(
+        product.id,
+        existing.quantity - 1,
+        existing.size,
+        existing.color
+      );
+      toast.success(`${product.name} quantity updated in cart`);
+    }
+  };
+
+  const anyVariantInCart = addOptions.some((opt) =>
+    getCartItemForVariant(opt.size, opt.color)
+  );
 
   const handleCardClick = () => {
     router.push(`/products/${product.id}`);
@@ -117,41 +201,143 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
               }`}
             />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
-              inCart
-                ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
-                : "bg-white/90 hover:bg-white"
-            }`}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (inCart && cartItem) {
-                updateQuantity(product.id, cartItem.quantity + 1);
-                toast.success(`${product.name} quantity updated in cart`);
-              } else {
-                addToCart({
-                  id: product.id,
-                  name: product.name,
-                  price: product.price,
-                  image: product.images?.[0],
-                  quantity: 1,
-                });
-                toast.success(`${product.name} added to cart!`);
-              }
-            }}
-            aria-label={inCart ? "Add another (quantity updated)" : "Add to cart"}
-          >
-            <ShoppingCart
-              className={`h-4 w-4 sm:h-5 sm:w-5 transition-colors duration-200 ${
-                inCart
-                  ? "fill-primary text-primary"
-                  : "text-gray-700 hover:text-primary"
+          {hasVariants ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
+                    anyVariantInCart
+                      ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
+                      : "bg-white/90 hover:bg-white"
+                  }`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  aria-label="Add to cart"
+                >
+                  <ShoppingCart
+                    className={`h-4 w-4 sm:h-5 sm:w-5 transition-colors duration-200 ${
+                      anyVariantInCart
+                        ? "fill-primary text-primary"
+                        : "text-gray-700 hover:text-primary"
+                    }`}
+                  />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                side="top"
+                collisionPadding={{ bottom: 72 }}
+                className="min-w-[150px] max-h-[min(50vh,260px)] overflow-y-auto pl-2 pr-0 py-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {addOptions.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    Out of stock
+                  </div>
+                ) : (
+                  addOptions.map((opt) => {
+                    const existing = getCartItemForVariant(opt.size, opt.color);
+                    const inCart = !!existing;
+                    return (
+                      <div
+                        key={opt.label + (opt.size ?? "") + (opt.color ?? "")}
+                        className="flex items-center justify-between gap-1 rounded-sm py-1.5 text-sm hover:bg-accent/50"
+                      >
+                        <div className="flex min-w-0 shrink flex-col">
+                          <span className="truncate font-medium">{opt.label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatPrice(opt.price, locale, currency)}
+                          </span>
+                        </div>
+                        <div className="shrink-0 pl-1">
+                        {inCart && existing ? (
+                          <div
+                            className="flex items-center gap-0.5 border rounded-md overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-none hover:bg-accent"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleRemoveVariant(opt.size, opt.color);
+                              }}
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="min-w-[1.25rem] text-center text-xs">
+                              {existing.quantity}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-none hover:bg-accent"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleAddVariant(opt.size, opt.color, opt.price);
+                              }}
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 shrink-0 text-xs"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleAddVariant(opt.size, opt.color, opt.price);
+                            }}
+                          >
+                            Add
+                          </Button>
+                        )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
+                anyVariantInCart
+                  ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
+                  : "bg-white/90 hover:bg-white"
               }`}
-            />
-          </Button>
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAddVariant();
+              }}
+              aria-label={anyVariantInCart ? "Add another" : "Add to cart"}
+            >
+              <ShoppingCart
+                className={`h-4 w-4 sm:h-5 sm:w-5 transition-colors duration-200 ${
+                  anyVariantInCart
+                    ? "fill-primary text-primary"
+                    : "text-gray-700 hover:text-primary"
+                }`}
+              />
+            </Button>
+          )}
         </div>
 
         {/* Quick view overlay

@@ -49,20 +49,23 @@ export interface ShippingAddress {
   label?: string;
 }
 
+/** A single line-item as returned by the API (joined from the order_items table). */
 export interface OrderItem {
+  /** product_id / product slug — used for ratings and UI keys */
   id: string;
   name: string;
   price: number;
   quantity: number;
   image?: string;
-  // Additional product details can be stored here
-  product_details?: {
-    sku?: string;
-    size?: string;
-    color?: string;
-    category?: string;
-  };
+  /** Normalised columns — previously nested under product_details */
+  size?: string;
+  color?: string;
+  sku?: string;
 }
+
+/** Shape of a line-item as submitted by the client at checkout.
+ *  Structurally identical to OrderItem — aliased to avoid duplication. */
+export type OrderItemInput = OrderItem;
 
 export interface OrderBase {
   user_id: string;
@@ -70,7 +73,6 @@ export interface OrderBase {
   customer_phone?: string;
   shipping_address: ShippingAddress;
   billing_address?: ShippingAddress;
-  items: OrderItem[];
   subtotal: number;
   delivery_charge: number;
   tax_amount: number;
@@ -79,12 +81,15 @@ export interface OrderBase {
   notes?: string;
 }
 
+/** Shape inserted into the orders table (no items — stored separately). */
 export interface OrderCreate extends OrderBase {}
 
 export interface Order extends OrderBase {
   id: string;
   order_number: string;
   status: OrderStatus;
+  /** Populated via join from order_items table. */
+  items: OrderItem[];
   estimated_delivery_date?: string;
   actual_delivery_date?: string;
   tracking_number?: string;
@@ -133,7 +138,7 @@ export interface Payment extends PaymentBase {
 }
 
 export interface CreateOrderRequest {
-  items: OrderItem[];
+  items: OrderItemInput[];
   shipping_address_id: string;
   billing_address_id?: string;
   notes?: string;
