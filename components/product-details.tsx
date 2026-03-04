@@ -903,8 +903,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
             </div>
 
             {/* Bottom row: image dots + position indicator */}
-            <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2">
-              {product.images && product.images.length > 1 && (
+            {product.images && product.images.length > 1 && (
+              <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2">
                 <div className="flex gap-2">
                   {product.images.map((_, index) => (
                     <button
@@ -915,13 +915,11 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                     />
                   ))}
                 </div>
-              )}
-              {product.images && product.images.length > 1 && (
                 <span className="bg-white/25 backdrop-blur-sm text-white text-xs font-medium px-3 py-1 rounded-full">
                   {selectedImage + 1} / {product.images.length}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

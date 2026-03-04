@@ -333,17 +333,13 @@ export default function ProductsClient() {
 
   // Hide footer while more products can be loaded (visibility preserves layout)
   useEffect(() => {
-    const footer = document.querySelector("footer");
     if (hasMoreProducts && !isLoading) {
       document.body.classList.add("hide-footer");
-      footer?.setAttribute("aria-hidden", "true");
     } else {
       document.body.classList.remove("hide-footer");
-      footer?.removeAttribute("aria-hidden");
     }
     return () => {
       document.body.classList.remove("hide-footer");
-      footer?.removeAttribute("aria-hidden");
     };
   }, [hasMoreProducts, isLoading]);
 
