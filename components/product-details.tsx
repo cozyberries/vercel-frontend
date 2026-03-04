@@ -25,6 +25,7 @@ import { useAuth } from "./supabase-auth-provider";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 interface ReviewItem {
   userName: string;
@@ -716,7 +717,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
             <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
-                <span>Free shipping over ₹1000</span>
+                <span>Free shipping over ₹{FREE_DELIVERY_THRESHOLD.toLocaleString("en-IN")}</span>
               </div>
               <Button
                 variant="ghost"

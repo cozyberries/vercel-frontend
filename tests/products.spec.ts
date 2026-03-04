@@ -363,7 +363,7 @@ test.describe("Product Detail Page", () => {
     await expect(page.getByText("Share")).toBeVisible();
 
     // ── Assert: Free shipping info ─────────────────────────────────────
-    await expect(page.getByText(/Free shipping over ₹1000/i)).toBeVisible();
+    await expect(page.getByText(/Free shipping over ₹2,999/i)).toBeVisible();
 
     // ── Assert: Ratings section ────────────────────────────────────────
     await expect(page.getByText(/Ratings/i).first()).toBeVisible();
