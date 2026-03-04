@@ -36,6 +36,62 @@ function parseApiError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+/* ─── Extracted search input ─── */
+interface ProductSearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onClear: () => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  disabled?: boolean;
+  className?: string;
+}
+
+function ProductSearchInput({
+  value,
+  onChange,
+  onSubmit,
+  onClear,
+  inputRef,
+  disabled = false,
+  className,
+}: ProductSearchInputProps) {
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disabled) onSubmit(e);
+      }}
+      className={className}
+    >
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          ref={inputRef}
+          type="text"
+          placeholder="Search products..."
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className="pl-9 pr-8 h-10"
+        />
+        {value && !disabled && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        {disabled && (
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+        )}
+      </div>
+    </form>
+  );
+}
+
 export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -263,14 +319,32 @@ export default function ProductsClient() {
     pageSize,
   ]);
 
-  // Hide footer while more products can be loaded
+  // Persist product slugs so the product detail page can show prev/next navigation
   useEffect(() => {
+    if (allProducts.length > 0) {
+      try {
+        const slugs = allProducts.map((p) => p.slug).filter(Boolean);
+        sessionStorage.setItem("productListSlugs", JSON.stringify(slugs));
+      } catch {
+        // sessionStorage may be unavailable (private browsing, quota, etc.)
+      }
+    }
+  }, [allProducts]);
+
+  // Hide footer while more products can be loaded (visibility preserves layout)
+  useEffect(() => {
+    const footer = document.querySelector("footer");
     if (hasMoreProducts && !isLoading) {
       document.body.classList.add("hide-footer");
+      footer?.setAttribute("aria-hidden", "true");
     } else {
       document.body.classList.remove("hide-footer");
+      footer?.removeAttribute("aria-hidden");
     }
-    return () => document.body.classList.remove("hide-footer");
+    return () => {
+      document.body.classList.remove("hide-footer");
+      footer?.removeAttribute("aria-hidden");
+    };
   }, [hasMoreProducts, isLoading]);
 
   // Infinite scroll using IntersectionObserver
@@ -294,6 +368,7 @@ export default function ProductsClient() {
   // Submit search — updates URL param which triggers server-side fetch
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) return;
     const params = new URLSearchParams(searchParams.toString());
     const trimmed = searchInput.trim();
     if (trimmed) {
@@ -305,6 +380,7 @@ export default function ProductsClient() {
   };
 
   const handleClearSearch = () => {
+    if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) return;
     setSearchInput("");
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
@@ -371,6 +447,32 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
+  const handleApplyFilters = useCallback(
+    (filters: { category: string; size: string; gender: string; sort: string }) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (filters.category === "all") params.delete("category");
+      else params.set("category", filters.category);
+
+      if (filters.size === "all") params.delete("size");
+      else params.set("size", filters.size);
+
+      if (filters.gender === "all") params.delete("gender");
+      else params.set("gender", filters.gender);
+
+      if (filters.sort === "default") {
+        params.delete("sortBy");
+        params.delete("sortOrder");
+      } else {
+        params.set("sortBy", "price");
+        params.set("sortOrder", filters.sort);
+      }
+
+      router.push(`/products?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
   // Check if any filters are applied
   const hasActiveFilters = useMemo(() => {
     return (
@@ -384,49 +486,53 @@ export default function ProductsClient() {
     );
   }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
 
-  if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) {
+  // Derived: is the page in its initial loading state?
+  const isInitialLoading = isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading;
+
+  /* ─── Shared mobile filter row (search + FilterSheet + reset) ─── */
+  const mobileFilterRow = (
+    <div className="flex items-center gap-2 lg:hidden">
+      <ProductSearchInput
+        value={searchInput}
+        onChange={setSearchInput}
+        onSubmit={handleSearchSubmit}
+        onClear={handleClearSearch}
+        inputRef={searchInputRef}
+        disabled={isInitialLoading}
+        className="flex-1"
+      />
+      <FilterSheet
+        categories={categories}
+        sizeOptions={sizeOptions}
+        genderOptions={genderOptions}
+        currentCategory={currentCategory}
+        currentSize={currentSize}
+        currentGender={currentGender}
+        currentSort={currentSort}
+        currentSortOrder={currentSortOrder}
+        onApplyFilters={handleApplyFilters}
+        onClearFilters={handleClearFilters}
+        disabled={isInitialLoading}
+      />
+      {hasActiveFilters && !isInitialLoading && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleClearFilters}
+          className="h-10 w-10 shrink-0 text-muted-foreground"
+          aria-label="Clear all filters"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+
+  if (isInitialLoading) {
     const skeletonCount = isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
     return (
       <>
-        {/* Show search bar even while loading */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 lg:hidden">
-            <form onSubmit={handleSearchSubmit} className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="pl-9 pr-8 h-10"
-                />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </form>
-            <FilterSheet
-              categories={[]}
-              sizeOptions={[]}
-              genderOptions={[]}
-              currentCategory="all"
-              currentSize="all"
-              currentGender="all"
-              currentSort="default"
-              currentSortOrder="desc"
-              onApplyFilters={() => {}}
-              onClearFilters={() => {}}
-            />
-          </div>
-        </div>
+        <div className="mb-6">{mobileFilterRow}</div>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <ProductCardSkeleton key={i} />
@@ -488,72 +594,7 @@ export default function ProductsClient() {
   if (!allProducts || allProducts.length === 0) {
     return (
       <>
-        {/* Search + Filters row even on empty */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 lg:hidden">
-            <form onSubmit={handleSearchSubmit} className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="pl-9 pr-8 h-10"
-                />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </form>
-            <FilterSheet
-              categories={categories}
-              sizeOptions={sizeOptions}
-              genderOptions={genderOptions}
-              currentCategory={currentCategory}
-              currentSize={currentSize}
-              currentGender={currentGender}
-              currentSort={currentSort}
-              currentSortOrder={currentSortOrder}
-              onApplyFilters={(filters) => {
-                const params = new URLSearchParams(searchParams.toString());
-                if (filters.category === "all") params.delete("category");
-                else params.set("category", filters.category);
-                if (filters.size === "all") params.delete("size");
-                else params.set("size", filters.size);
-                if (filters.gender === "all") params.delete("gender");
-                else params.set("gender", filters.gender);
-                if (filters.sort === "default") {
-                  params.delete("sortBy");
-                  params.delete("sortOrder");
-                } else {
-                  params.set("sortBy", "price");
-                  params.set("sortOrder", filters.sort);
-                }
-                router.push(`/products?${params.toString()}`);
-              }}
-              onClearFilters={handleClearFilters}
-            />
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleClearFilters}
-                className="h-10 w-10 shrink-0 text-muted-foreground"
-                aria-label="Clear all filters"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
+        <div className="mb-6">{mobileFilterRow}</div>
 
         <div className="text-center py-16">
           <div className="max-w-md mx-auto">
@@ -605,78 +646,7 @@ export default function ProductsClient() {
       {/* Search + Filters */}
       <div className="mb-6 space-y-4">
         {/* Mobile: Search bar + Filter button + Reset in same row */}
-        <div className="flex items-center gap-2 lg:hidden">
-          <form onSubmit={handleSearchSubmit} className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search products..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-9 pr-8 h-10"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </form>
-          <FilterSheet
-            categories={categories}
-            sizeOptions={sizeOptions}
-            genderOptions={genderOptions}
-            currentCategory={currentCategory}
-            currentSize={currentSize}
-            currentGender={currentGender}
-            currentSort={currentSort}
-            currentSortOrder={currentSortOrder}
-            onApplyFilters={(filters) => {
-              const params = new URLSearchParams(searchParams.toString());
-
-              // Category
-              if (filters.category === "all") params.delete("category");
-              else params.set("category", filters.category);
-
-              // Size
-              if (filters.size === "all") params.delete("size");
-              else params.set("size", filters.size);
-
-              // Gender
-              if (filters.gender === "all") params.delete("gender");
-              else params.set("gender", filters.gender);
-
-              // Sort
-              if (filters.sort === "default") {
-                params.delete("sortBy");
-                params.delete("sortOrder");
-              } else {
-                params.set("sortBy", "price");
-                params.set("sortOrder", filters.sort);
-              }
-
-              router.push(`/products?${params.toString()}`);
-            }}
-            onClearFilters={handleClearFilters}
-          />
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleClearFilters}
-              className="h-10 w-10 shrink-0 text-muted-foreground"
-              aria-label="Clear all filters"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        {mobileFilterRow}
 
         {/* Desktop Filters */}
         <div
@@ -684,27 +654,13 @@ export default function ProductsClient() {
           data-testid="desktop-filters"
         >
           {/* Desktop Search */}
-          <form onSubmit={handleSearchSubmit} className="flex-1 max-w-sm">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search products..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-9 pr-8"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </form>
+          <ProductSearchInput
+            value={searchInput}
+            onChange={setSearchInput}
+            onSubmit={handleSearchSubmit}
+            onClear={handleClearSearch}
+            className="flex-1 max-w-sm"
+          />
 
           {/* Category Filter */}
           <Select value={currentCategory} onValueChange={handleCategoryChange}>

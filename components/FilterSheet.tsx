@@ -55,6 +55,7 @@ interface FilterSheetProps {
   currentSortOrder: string;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
+  disabled?: boolean;
 }
 
 export default function FilterSheet({
@@ -68,6 +69,7 @@ export default function FilterSheet({
   currentSortOrder,
   onApplyFilters,
   onClearFilters,
+  disabled = false,
 }: FilterSheetProps) {
   const [open, setOpen] = useState(false);
 
@@ -108,7 +110,7 @@ export default function FilterSheet({
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2 md:hidden">
+        <Button variant="outline" className="flex items-center gap-2 md:hidden" disabled={disabled}>
           <Filter className="h-4 w-4" />
           Filters
         </Button>

@@ -83,7 +83,7 @@ export default function Hero() {
       </div>
 
       {/* CTA Button */}
-      <div className="absolute inset-x-0 bottom-12 flex justify-center z-10">
+      <div className="absolute inset-x-0 bottom-16 flex justify-center z-10">
         <Button
           asChild
           size="lg"
@@ -94,7 +94,7 @@ export default function Hero() {
       </div>
 
       {/* Modern Small Rounded Navigation Buttons */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
         {HERO_IMAGES.map((src, index) => (
           <button
             key={index}

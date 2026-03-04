@@ -6,13 +6,22 @@ import { ShoppingBag, Heart, Package, Home, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { useWishlist } from "@/components/wishlist-context";
 import { useAuth } from "@/components/supabase-auth-provider";
+import type { LucideIcon } from "lucide-react";
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  isActive: boolean;
+  badge?: number | null;
+}
 
 export default function MobileBottomHeader() {
   const pathname = usePathname();
   const { wishlist } = useWishlist();
   const { user } = useAuth();
 
-  const navItems = [
+  const navItems: NavItem[] = [
     {
       name: "Home",
       href: "/",
@@ -91,7 +100,7 @@ export default function MobileBottomHeader() {
                         item.isActive ? "text-primary" : "text-gray-400"
                       }`}
                     />
-                    {"badge" in item && item.badge && (
+                    {item.badge && (
                       <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center font-medium">
                         {item.badge}
                       </span>

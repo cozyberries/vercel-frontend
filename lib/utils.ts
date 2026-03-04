@@ -34,7 +34,7 @@ export function getMinPrice(product: Pick<Product, "price" | "sizes" | "variants
   if (product.variants?.length) {
     product.variants.filter(v => (v.stock_quantity ?? 0) > 0).forEach(v => prices.push(v.price));
   } else if (product.sizes?.length) {
-    product.sizes.forEach(s => prices.push(s.price));
+    product.sizes.filter(s => (s.stock_quantity ?? 0) > 0).forEach(s => prices.push(s.price));
   }
   if (!prices.length) prices.push(product.price);
   const min = Math.min(...prices);

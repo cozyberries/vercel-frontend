@@ -57,6 +57,9 @@
     @apply bg-background text-foreground;
   }
   body.hide-footer footer {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+    height: 0;
+    overflow: hidden;
   }
 }
