@@ -60,6 +60,8 @@ const ContactSidebar = dynamic(() => import("./ContactSidebar"), {
   loading: () => <ContactSidebarSkeleton />,
 });
 
+const ScrollReveal = dynamic(() => import("./ScrollReveal"));
+
 // SSR kept for content sections — they render static HTML and benefit from SEO/initial paint
 const NewbornGiftingSection = dynamic(() => import("./newborn-gifting-section"));
 const SustainabilitySection = dynamic(() => import("./sustainability-section"));
@@ -71,4 +73,5 @@ export {
   ContactSidebar,
   NewbornGiftingSection,
   SustainabilitySection,
+  ScrollReveal,
 };

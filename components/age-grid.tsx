@@ -67,14 +67,14 @@ export default function AgeGrid() {
           <Link
             key={age.id}
             href={`/products?age=${encodeURIComponent(age.slug)}`}
-            className="group relative overflow-hidden rounded-full aspect-square transition-transform duration-300 hover:scale-105"
+            className="group relative overflow-hidden rounded-full aspect-square transition-transform duration-150 active:scale-95 lg:hover:scale-105"
           >
             <div className="relative w-full h-full">
               <Image
                 src={image}
                 alt={age.name}
                 fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                sizes="(max-width: 768px) 30vw, (max-width: 1024px) 33vw, 16vw"
                 className="object-cover transition-transform duration-500 ease-out scale-125 group-hover:scale-110 group-hover:rotate-12"
               />
               <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-[background-color] duration-300 rounded-full" />

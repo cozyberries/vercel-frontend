@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Minus, Plus, Share2, Truck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -57,7 +57,34 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const { user } = useAuth();
-  
+
+  // Prev/next product navigation from filtered list stored in sessionStorage
+  const [prevSlug, setPrevSlug] = useState<string | null>(null);
+  const [nextSlug, setNextSlug] = useState<string | null>(null);
+  const [navPosition, setNavPosition] = useState("");
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("productListSlugs");
+      if (!raw) return;
+      const slugs: string[] = JSON.parse(raw);
+      const idx = slugs.indexOf(productSlug);
+      if (idx === -1) return;
+      setNavPosition(`${idx + 1} / ${slugs.length}`);
+      setPrevSlug(idx > 0 ? slugs[idx - 1] : null);
+      setNextSlug(idx < slugs.length - 1 ? slugs[idx + 1] : null);
+    } catch { /* sessionStorage unavailable */ }
+  }, [productSlug]);
+
+  const goToPrevProduct = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (prevSlug) router.push(`/products/${prevSlug}`);
+  };
+  const goToNextProduct = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (nextSlug) router.push(`/products/${nextSlug}`);
+  };
+
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -343,7 +370,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 pb-40 md:pb-8">
+    <div className="container mx-auto px-4 py-4 md:py-8 pb-40 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
         <div className="space-y-4 lg:space-y-0 lg:flex lg:gap-4">
@@ -393,6 +420,16 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 className="w-full h-full object-cover transition-transform duration-300 ease-out"
                 priority
               />
+
+              {/* Mobile: Back button overlay — top-left */}
+              <button
+                onClick={(e) => { e.stopPropagation(); router.back(); }}
+                className="absolute top-3 left-3 h-8 w-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform md:hidden z-20"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
 
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
@@ -804,9 +841,10 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
       {showMobileImageModal && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 md:hidden">
           <div className="relative w-full h-full flex items-center justify-center">
+            {/* Close button — top-right */}
             <button
               onClick={() => setShowMobileImageModal(false)}
-              className="absolute top-4 right-4 text-white z-10 bg-black/50 rounded-full p-2"
+              className="absolute top-4 right-4 text-white z-10 bg-white/25 backdrop-blur-sm rounded-full p-2"
             >
               <svg
                 className="w-6 h-6"
@@ -823,6 +861,36 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               </svg>
             </button>
 
+            {/* Prev product — left edge */}
+            {prevSlug && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMobileImageModal(false);
+                  router.push(`/products/${prevSlug}`);
+                }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform z-10"
+                aria-label="Previous product"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
+
+            {/* Next product — right edge */}
+            {nextSlug && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMobileImageModal(false);
+                  router.push(`/products/${nextSlug}`);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform z-10"
+                aria-label="Next product"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            )}
+
             <div className="relative w-full max-w-sm">
               <Image
                 src={toImageSrc(product.images?.[selectedImage])}
@@ -834,17 +902,22 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               />
             </div>
 
-            {/* Image navigation dots */}
+            {/* Bottom row: image dots + position indicator */}
             {product.images && product.images.length > 1 && (
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-                {product.images.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`w-2 h-2 rounded-full transition-colors ${index === selectedImage ? "bg-white" : "bg-white/50"
-                      }`}
-                  />
-                ))}
+              <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2">
+                <div className="flex gap-2">
+                  {product.images.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImage(index)}
+                      className={`w-2 h-2 rounded-full transition-colors ${index === selectedImage ? "bg-white" : "bg-white/50"
+                        }`}
+                    />
+                  ))}
+                </div>
+                <span className="bg-white/25 backdrop-blur-sm text-white text-xs font-medium px-3 py-1 rounded-full">
+                  {selectedImage + 1} / {product.images.length}
+                </span>
               </div>
             )}
           </div>

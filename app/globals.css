@@ -56,4 +56,10 @@
   body {
     @apply bg-background text-foreground;
   }
+  body.hide-footer footer {
+    visibility: hidden;
+    pointer-events: none;
+    height: 0;
+    overflow: hidden;
+  }
 }

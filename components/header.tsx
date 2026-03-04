@@ -1,31 +1,30 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { Search, User } from "lucide-react";
+import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CartSheet from "@/components/CartSheet";
 import WishlistSheet from "@/components/WishlistSheet";
-import SearchResultsSheet from "@/components/SearchResultsSheet";
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { HamburgerSheet } from "./HamburgerSheet";
 import HeaderLinks from "./HeaderLinks";
 
 export default function Header() {
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const pathname = usePathname();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
       <div className="container mx-auto px-4">
-        <div className="relative flex items-center justify-between h-20">
-          {/* Mobile menu */}
-          <HamburgerSheet />
+        <div className="relative flex items-center justify-between h-14 lg:h-20">
+          {/* Desktop hamburger (kept for desktop sidebar if needed in future) */}
+          <div className="hidden lg:block">
+            <HamburgerSheet />
+          </div>
 
           {/* Logo — centred on mobile via absolute positioning inside the header row */}
           <div className="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 lg:flex-1 flex items-center h-full">
@@ -69,19 +68,7 @@ export default function Header() {
 
           {/* Icons + Auth */}
           <div className="flex items-center justify-end flex-1 space-x-1">
-            {/* Search toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSearchOpen(true)}
-              className="z-10"
-              data-search-trigger
-            >
-              <Search />
-              <span className="sr-only">Search</span>
-            </Button>
-
-            {/* User Icon */}
+            {/* User Icon — desktop only */}
             <div className="hidden lg:block">
               <Link href={user ? "/profile" : "/login"}>
                 <Button
@@ -94,17 +81,14 @@ export default function Header() {
                 </Button>
               </Link>
             </div>
-            <WishlistSheet />
+            {/* Wishlist — desktop only (mobile uses bottom nav) */}
+            <div className="hidden lg:block">
+              <WishlistSheet />
+            </div>
             <CartSheet />
           </div>
         </div>
       </div>
-
-      {/* Search Results Sheet */}
-      <SearchResultsSheet
-        isOpen={isSearchOpen}
-        onOpenChange={setIsSearchOpen}
-      />
     </header>
   );
 }

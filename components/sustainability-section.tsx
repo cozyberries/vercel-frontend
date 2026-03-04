@@ -21,7 +21,7 @@ export default function SustainabilitySection() {
   ];
 
   return (
-    <section className="lg:py-28 py-20 bg-background relative overflow-hidden">
+    <section className="lg:py-28 py-10 bg-background relative overflow-hidden">
       <SnowflakeDecoration
         position="top-right"
         size="lg"
@@ -45,11 +45,12 @@ export default function SustainabilitySection() {
           <div className="grid lg:grid-cols-10 gap-8 lg:gap-12 items-stretch">
             {/* Image Section - 40% width */}
             <div className="lg:col-span-4 flex">
-              <div className="relative w-full overflow-hidden rounded-lg">
+              <div className="relative w-full min-h-[240px] lg:min-h-0 overflow-hidden rounded-lg">
                 <Image
                   src={images.heroImages[1]}
                   alt="Sustainable baby clothing and eco-friendly practices"
                   fill
+                  sizes="(max-width: 1024px) 100vw, 40vw"
                   className="object-cover"
                   onError={(e) => {
                     e.currentTarget.src = "/placeholder.jpg";

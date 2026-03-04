@@ -10,6 +10,7 @@ import {
   ContactSidebar,
   NewbornGiftingSection,
   SustainabilitySection,
+  ScrollReveal,
 } from "@/components/HomeClientSections";
 
 export default function Home() {
@@ -18,7 +19,7 @@ export default function Home() {
       <Hero />
 
       {/* Shop by Age */}
-      <section className="lg:pt-16 lg:pb-28 pt-12 pb-20 bg-[#f9f7f4] relative overflow-hidden">
+      <section className="lg:pt-16 lg:pb-28 pt-8 pb-10 bg-[#f9f7f4] relative overflow-hidden">
         <SnowflakeDecoration
           position="top-left"
           size="lg"
@@ -43,29 +44,29 @@ export default function Home() {
           animationType="diagonal"
           delay={2}
         />
-        <div className="container mx-auto px-4 relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-16">
+        <ScrollReveal className="container mx-auto px-4 relative z-10">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-16">
             Shop by Age
           </h2>
           <AgeGrid />
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* Category Grid */}
-      <section className="lg:pt-16 lg:pb-28 pt-12 pb-20 bg-background">
-        <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-16">
+      <section className="lg:pt-16 lg:pb-28 pt-8 pb-10 bg-background">
+        <ScrollReveal className="container mx-auto px-4">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-16">
             Shop by Category
           </h2>
           <CategoryGrid />
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* New Born Gifting */}
       <NewbornGiftingSection />
 
       {/* Featured Products */}
-      <section className="pt-12 lg:pt-16 pb-28 bg-background relative overflow-hidden">
+      <section className="pt-8 lg:pt-16 pb-10 lg:pb-28 bg-background relative overflow-hidden">
         <SnowflakeDecoration
           position="top-right"
           size="lg"
@@ -90,16 +91,16 @@ export default function Home() {
           animationType="gentle-sway"
           delay={3}
         />
-        <div className="container mx-auto px-4 relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-16">
+        <ScrollReveal className="container mx-auto px-4 relative z-10">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-16">
             Our Featured Products
           </h2>
           <FeaturedProducts />
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* Story Section */}
-      <section className="lg:py-28 py-20 bg-[#f9f7f4] relative overflow-hidden">
+      <section className="lg:py-28 py-10 bg-[#f9f7f4] relative overflow-hidden">
         <SnowflakeDecoration
           position="top-left"
           size="md"
@@ -132,7 +133,7 @@ export default function Home() {
           animationType="vertical-float"
           delay={3.1}
         />
-        <div className="container mx-auto px-4 max-w-4xl text-center relative z-10">
+        <ScrollReveal className="container mx-auto px-4 max-w-4xl text-center relative z-10">
           <h2 className="text-2xl md:text-3xl font-light mb-6">Our Story</h2>
           <p className="text-lg text-muted-foreground mb-8">
             At Cozyberries, we believe that every baby deserves to be wrapped in
@@ -143,7 +144,7 @@ export default function Home() {
           <Button variant="outline" asChild>
             <Link href="/about">Learn More</Link>
           </Button>
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* Sustainability */}

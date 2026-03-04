@@ -117,15 +117,15 @@ function CategoryCard({
   return (
     <Link
       href={`/products?category=${category.slug}`}
-      className="group flex flex-col"
+      className="group flex flex-col active:scale-[0.97] transition-transform duration-150"
     >
       <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
         <Image
           src={src}
           alt={category.name}
-          width={200}
-          height={200}
-          sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 200px"
+          width={400}
+          height={400}
+          sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 250px"
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           onError={() => {
             if (!isPlaceholder) {
