@@ -56,4 +56,7 @@
   body {
     @apply bg-background text-foreground;
   }
+  body.hide-footer footer {
+    display: none;
+  }
 }

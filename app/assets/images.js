@@ -7,20 +7,20 @@ export const images = {
         "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1772275805/3_mbog2e_b4c119.png",
         "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1772275616/2_nfftaj_5d28c0.png"
     ],
-    // Mobile heroes use Cloudinary transforms (w_828, q_auto, f_auto) for smaller, optimized assets.
+    // Mobile heroes - dedicated 9:16 portrait images (no transforms, use as-is)
     mobileHeroImages: [
-        "https://res.cloudinary.com/dxokykvty/image/upload/w_828,q_auto,f_auto/v1772276506/gifting-3_rnup8u_1dd134.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/w_828,q_auto,f_auto/v1772275805/3_mbog2e_b4c119.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/w_828,q_auto,f_auto/v1772275616/2_nfftaj_5d28c0.png"
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772616749/mobile-1_o6pocr.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772616859/mobile-1_xlypky.png",
+        "https://res.cloudinary.com/dxokykvty/image/upload/v1772616913/mobile-1_bcziev.png"
     ],
 
     age: {
-        age_zero_three_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_256,q_auto,f_auto/v1759568113/age_zero_three_m_jip58e.png",
-        age_three_six_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_256,q_auto,f_auto/v1759568112/age_three_six_m_mfos9j.png",
-        age_six_twelve_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_256,q_auto,f_auto/v1759568112/age_six_twelve_m_bri2h0.png",
-        age_one_two_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_256,q_auto,f_auto/v1759568110/age_one_two_y_pyodke.png",
-        age_two_three_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_256,q_auto,f_auto/v1759568111/age_two_three_y_gevb3b.png",
-        age_three_six_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_256,q_auto,f_auto/v1759568112/age_three_six_y_x0r8cg.png"
+        age_zero_three_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568113/age_zero_three_m_jip58e.png",
+        age_three_six_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568112/age_three_six_m_mfos9j.png",
+        age_six_twelve_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568112/age_six_twelve_m_bri2h0.png",
+        age_one_two_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568110/age_one_two_y_pyodke.png",
+        age_two_three_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568111/age_two_three_y_gevb3b.png",
+        age_three_six_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568112/age_three_six_y_x0r8cg.png"
     },
     svgs: {
         gingerbread_santa: "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1759570253/gingerbread-santa_kh2dlc.svg",

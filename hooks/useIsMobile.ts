@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 
-const MOBILE_BREAKPOINT = 768; // Matches Tailwind's `md` breakpoint
+const MOBILE_BREAKPOINT = 1024; // Matches Tailwind's `lg` breakpoint for single-col layout
 
 /**
- * Returns `true` when the viewport is below the mobile breakpoint (< 768px),
+ * Returns `true` when the viewport is below the `lg` breakpoint (< 1024px),
  * `false` when at or above, and `null` during SSR / before the first
  * client-side measurement.
  *

@@ -43,7 +43,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative h-[600px] md:h-[700px] bg-[#f5eee0] overflow-hidden group">
+    <section className="relative h-[70vh] md:h-[700px] bg-[#f5eee0] overflow-hidden group">
       {/* Image Carousel - Full Width Background */}
       <div className="absolute inset-0 w-full h-full overflow-hidden">
         <div
@@ -79,28 +79,18 @@ export default function Hero() {
             </div>
           ))}
         </div>
-        <div className="absolute inset-0 lg:bg-black/15 bg-black/30" />
+        <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/30 to-transparent lg:from-black/20" />
       </div>
 
-      {/* Content Overlay */}
-      <div className="container mx-auto px-4 h-full flex items-center relative z-10">
-        <div className="max-w-xl">
-          <h1 className="text-3xl md:text-5xl font-light mb-4 text-white drop-shadow-lg">
-            Adorable Clothing for Your Little Treasures
-          </h1>
-          <p className="text-lg mb-8 text-white/90 drop-shadow-md">
-            Crafted with love, designed for comfort, and made to last
-          </p>
-          <div>
-            <Button
-              asChild
-              size="lg"
-              className="bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl hover:scale-105 transition-[transform,box-shadow] duration-300"
-            >
-              <Link href="/products">Shop Now</Link>
-            </Button>
-          </div>
-        </div>
+      {/* CTA Button */}
+      <div className="absolute inset-x-0 bottom-12 flex justify-center z-10">
+        <Button
+          asChild
+          size="lg"
+          className="bg-white/70 text-gray-900 border-0 shadow-lg hover:shadow-xl hover:bg-white/90 hover:scale-105 transition-[transform,box-shadow,background-color] duration-300 rounded-full px-8 h-11 text-sm font-medium backdrop-blur-sm"
+        >
+          <Link href="/products">Shop Now</Link>
+        </Button>
       </div>
 
       {/* Modern Small Rounded Navigation Buttons */}

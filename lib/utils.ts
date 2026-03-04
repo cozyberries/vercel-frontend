@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import type { Product } from "@/lib/services/api"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -22,4 +23,21 @@ export function formatPrice(
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount)
+}
+
+/**
+ * Compute the lowest in-stock price across sizes/variants.
+ * Returns the minimum price and whether a price range exists.
+ */
+export function getMinPrice(product: Pick<Product, "price" | "sizes" | "variants">): { min: number; hasRange: boolean } {
+  const prices: number[] = [];
+  if (product.variants?.length) {
+    product.variants.filter(v => (v.stock_quantity ?? 0) > 0).forEach(v => prices.push(v.price));
+  } else if (product.sizes?.length) {
+    product.sizes.forEach(s => prices.push(s.price));
+  }
+  if (!prices.length) prices.push(product.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return { min, hasRange: min !== max };
 }
