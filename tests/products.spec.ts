@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 /**
  * Products Page E2E Tests
@@ -363,7 +364,8 @@ test.describe("Product Detail Page", () => {
     await expect(page.getByText("Share")).toBeVisible();
 
     // ── Assert: Free shipping info ─────────────────────────────────────
-    await expect(page.getByText(/Free shipping over ₹2,999/i)).toBeVisible();
+    const freeShippingText = `Free shipping over ₹${FREE_DELIVERY_THRESHOLD.toLocaleString("en-IN")}`;
+    await expect(page.getByText(freeShippingText)).toBeVisible();
 
     // ── Assert: Ratings section ────────────────────────────────────────
     await expect(page.getByText(/Ratings/i).first()).toBeVisible();
