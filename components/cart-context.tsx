@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { useCartPersistence } from "@/hooks/useCartPersistence";
+import { logEvent } from "@/lib/services/event-logger";
 
 export interface CartItem {
   id: string;
@@ -51,8 +52,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   });
 
   const addToCart = (item: CartItem) => {
-    setIsTemporaryCart(false); // Reset temporary cart flag
-    setTemporaryCartItem(null); // Clear temporary cart item
+    setIsTemporaryCart(false);
+    setTemporaryCartItem(null);
     const itemKey = getCartItemKey(item);
     setCart((prev) => {
       const existing = prev.find((i) => getCartItemKey(i) === itemKey);
@@ -65,11 +66,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, item];
     });
+    logEvent("cart_add", { product_id: item.id, quantity: item.quantity, size: item.size, color: item.color });
   };
 
   const removeFromCart = (id: string, size?: string, color?: string) => {
     const key = getCartItemKey({ id, size, color });
     setCart((prev) => prev.filter((i) => getCartItemKey(i) !== key));
+    logEvent("cart_remove", { product_id: id, size, color });
   };
 
   const updateQuantity = (id: string, quantity: number, size?: string, color?: string) => {
@@ -84,6 +87,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setTemporaryCartItem(null);
     setCart([]);
     await clearAllCart();
+    logEvent("cart_clear");
   };
 
   const addToCartTemporary = (item: CartItem) => {

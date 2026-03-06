@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import QRCode from "qrcode";
 
 export async function GET(request: NextRequest) {
@@ -11,24 +12,51 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const sessionId = request.nextUrl.searchParams.get("sessionId");
         const orderId = request.nextUrl.searchParams.get("orderId");
-        if (!orderId) {
-            return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
+
+        if (!sessionId && !orderId) {
+            return NextResponse.json({ error: "sessionId or orderId is required" }, { status: 400 });
         }
 
-        const { data: order, error: orderError } = await supabase
-            .from("orders")
-            .select("id, total_amount, order_number, user_id, status")
-            .eq("id", orderId)
-            .eq("user_id", user.id)
-            .single();
+        let totalAmount: number;
 
-        if (orderError || !order) {
-            return NextResponse.json({ error: "Order not found" }, { status: 404 });
-        }
+        if (sessionId) {
+            // New flow: checkout session
+            const { data: session, error: sessionError } = await supabase
+                .from("checkout_sessions")
+                .select("id, total_amount, user_id, status, created_at")
+                .eq("id", sessionId)
+                .eq("user_id", user.id)
+                .single();
 
-        if (order.status !== "payment_pending") {
-            return NextResponse.json({ error: "Order is not eligible for payment" }, { status: 409 });
+            if (sessionError || !session) {
+                return NextResponse.json({ error: "Session not found" }, { status: 404 });
+            }
+
+            if (session.status !== "pending" || isSessionExpired(session.created_at)) {
+                return NextResponse.json({ error: "Session has expired" }, { status: 410 });
+            }
+
+            totalAmount = session.total_amount;
+        } else {
+            // Legacy flow: order-based
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .select("id, total_amount, order_number, user_id, status")
+                .eq("id", orderId!)
+                .eq("user_id", user.id)
+                .single();
+
+            if (orderError || !order) {
+                return NextResponse.json({ error: "Order not found" }, { status: 404 });
+            }
+
+            if (order.status !== "payment_pending") {
+                return NextResponse.json({ error: "Order is not eligible for payment" }, { status: 409 });
+            }
+
+            totalAmount = order.total_amount;
         }
 
         const upiId = process.env.UPI_ID;
@@ -39,7 +67,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "UPI payments not configured" }, { status: 503 });
         }
 
-        const amount = order.total_amount.toFixed(2);
+        const amount = totalAmount.toFixed(2);
         const payeeName = encodeURIComponent(upiPayeeName);
         const transactionNote = encodeURIComponent("Cozyberries Purchase");
 

@@ -1,5 +1,6 @@
-export type OrderStatus = 
+export type OrderStatus =
   | 'payment_pending'
+  | 'verifying_payment'
   | 'payment_confirmed'
   | 'processing'
   | 'shipped'
@@ -155,4 +156,28 @@ export interface OrderSummary {
   tax_amount: number;
   total_amount: number;
   currency: string;
+}
+
+// ─── Checkout Sessions ────────────────────────────────────────────────────────
+
+export type CheckoutSessionStatus = 'pending' | 'completed' | 'expired';
+
+export interface CheckoutSession {
+  id: string;
+  user_id: string;
+  customer_email: string;
+  customer_phone?: string;
+  shipping_address: ShippingAddress;
+  billing_address?: ShippingAddress;
+  items: OrderItem[];
+  subtotal: number;
+  delivery_charge: number;
+  tax_amount: number;
+  total_amount: number;
+  currency: string;
+  notes?: string;
+  status: CheckoutSessionStatus;
+  order_id?: string;
+  created_at: string;
+  updated_at: string;
 }
