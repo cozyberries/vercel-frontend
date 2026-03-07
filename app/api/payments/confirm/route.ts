@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+
+// Schema for validating cart items
+const OrderItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  price: z.number().positive(),
+  quantity: z.number().int().positive(),
+  image: z.string().url().optional().nullable(),
+  size: z.string().optional().nullable(),
+  color: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
+});
+
+const OrderItemsSchema = z.array(OrderItemSchema);
 
 export async function POST(request: NextRequest) {
     try {
@@ -99,17 +114,17 @@ async function handleSessionConfirm(
         );
     }
 
-    // 3. Create order_items from session items
-    const items = session.items as Array<{
-        id: string;
-        name: string;
-        price: number;
-        quantity: number;
-        image?: string;
-        size?: string;
-        color?: string;
-        sku?: string;
-    }>;
+    // 3. Validate and create order_items from session items
+    const itemsValidation = OrderItemsSchema.safeParse(session.items);
+    if (!itemsValidation.success) {
+        console.error("Invalid session items format:", itemsValidation.error);
+        return NextResponse.json(
+            { error: "Invalid order items in session" },
+            { status: 400 }
+        );
+    }
+
+    const items = itemsValidation.data;
 
     const itemRows = items.map((item) => ({
         order_id: order.id,
@@ -181,8 +196,26 @@ async function handleSessionConfirm(
 
     if (paymentInsertError || !insertedPayment) {
         // Compensate: delete order items and order
-        await supabase.from("order_items").delete().eq("order_id", order.id);
-        await supabase.from("orders").delete().eq("id", order.id);
+        const { error: itemsDeleteError } = await supabase
+            .from("order_items")
+            .delete()
+            .eq("order_id", order.id);
+        if (itemsDeleteError) {
+            console.error("Compensating order_items delete failed — orphaned items may require manual cleanup:", {
+                itemsDeleteError,
+                orderId: order.id,
+            });
+        }
+        const { error: orderDeleteError } = await supabase
+            .from("orders")
+            .delete()
+            .eq("id", order.id);
+        if (orderDeleteError) {
+            console.error("Compensating order delete failed — orphaned order may require manual cleanup:", {
+                orderDeleteError,
+                orderId: order.id,
+            });
+        }
         console.error("Payment insert error:", paymentInsertError);
         return NextResponse.json(
             { error: "Failed to record payment" },
@@ -204,9 +237,36 @@ async function handleSessionConfirm(
 
     if (sessionUpdateError || !updatedSessionRows?.length) {
         // Roll back: order_items, order, and payment so session can be retried
-        await supabase.from("order_items").delete().eq("order_id", order.id);
-        await supabase.from("orders").delete().eq("id", order.id);
-        await supabase.from("payments").delete().eq("id", insertedPayment.id);
+        const { error: itemsDeleteError } = await supabase
+            .from("order_items")
+            .delete()
+            .eq("order_id", order.id);
+        if (itemsDeleteError) {
+            console.error("Rollback: Failed to delete order_items:", {
+                itemsDeleteError,
+                orderId: order.id,
+            });
+        }
+        const { error: orderDeleteError } = await supabase
+            .from("orders")
+            .delete()
+            .eq("id", order.id);
+        if (orderDeleteError) {
+            console.error("Rollback: Failed to delete order:", {
+                orderDeleteError,
+                orderId: order.id,
+            });
+        }
+        const { error: paymentDeleteError } = await supabase
+            .from("payments")
+            .delete()
+            .eq("id", insertedPayment.id);
+        if (paymentDeleteError) {
+            console.error("Rollback: Failed to delete payment — orphaned payment may require manual cleanup:", {
+                paymentDeleteError,
+                paymentId: insertedPayment.id,
+            });
+        }
         console.error("Session update failed — rolled back order:", sessionUpdateError ?? "no rows updated");
         return NextResponse.json(
             { error: "Failed to complete checkout. Please try again." },

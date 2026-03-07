@@ -8,7 +8,7 @@
 -- Table A: checkout_sessions
 CREATE TABLE checkout_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   customer_email TEXT NOT NULL,
   customer_phone TEXT,
   shipping_address JSONB NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE checkout_sessions (
   currency TEXT DEFAULT 'INR',
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'pending',  -- pending | completed | expired
-  order_id UUID REFERENCES orders(id),
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -37,7 +37,7 @@ CREATE INDEX idx_checkout_sessions_user_status
 -- Table B: event_logs
 CREATE TABLE event_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   session_id TEXT,
   event_type TEXT NOT NULL,
   event_data JSONB,

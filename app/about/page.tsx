@@ -10,10 +10,88 @@ import {
   Star,
   Sparkles,
   Droplets,
+  LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import GingerbreadDecoration from "@/components/GingerbreadDecoration";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
+
+// ─── Constants: Brand Values ───────────────────────────────────────
+const BRAND_VALUES = [
+  { icon: Wind, label: "Naturally breathable" },
+  { icon: Shield, label: "Free from harsh chemicals" },
+  { icon: Layers, label: "Minimal, timeless, and functional" },
+  { icon: Leaf, label: "Gentle on the planet" },
+] as const;
+
+const FABRIC_FEATURES = [
+  {
+    icon: Leaf,
+    title: "100% Organic & Skin-Safe",
+    description:
+      "Organically grown cotton yarn, free from harmful pesticides and certified safe for your baby's delicate skin.",
+  },
+  {
+    icon: Droplets,
+    title: "Azo-Free Dyes",
+    description:
+      "Crafted with kid-friendly, azo-free dyes — vibrant colours that are gentle, non-toxic, and safe for everyday wear.",
+  },
+  {
+    icon: Shield,
+    title: "Free from Harsh Chemicals",
+    description:
+      "No formaldehyde, no heavy metals. Every fabric is carefully screened to ensure it's completely chemical-free.",
+  },
+  {
+    icon: Wind,
+    title: "Soft, Breathable & Gentle",
+    description:
+      "Woven into soft, breathable muslin that keeps your baby comfortable — whether it's a warm afternoon or a cosy evening.",
+  },
+] as const;
+
+const DESIGN_FOCUS = [
+  {
+    icon: Heart,
+    title: "Soft seams for sensitive skin",
+    desc: "No scratchy edges — just smooth, gentle seams designed to protect the most delicate skin.",
+  },
+  {
+    icon: Layers,
+    title: "Minimal silhouettes for daily wear",
+    desc: "Clean, functional designs that are easy to dress and undress — because simplicity matters.",
+  },
+  {
+    icon: Recycle,
+    title: "Sustainable details that reduce waste",
+    desc: "Thoughtful choices at every step, from small-batch production to eco-conscious finishing.",
+  },
+] as const;
+
+const COMMITMENT_PILLARS = [
+  {
+    icon: Leaf,
+    title: "Sustainable Practices",
+    desc: "From sourcing to packaging, every step is designed with the environment in mind.",
+  },
+  {
+    icon: Star,
+    title: "Small-Batch Production",
+    desc: "Mindful, intentional production runs that prioritise quality over quantity.",
+  },
+  {
+    icon: Sparkles,
+    title: "True Craftsmanship",
+    desc: "Every detail is lovingly considered — because your baby deserves nothing less.",
+  },
+] as const;
+
+const BRAND_PROMISES = [
+  { icon: Wind, label: "A promise of softness" },
+  { icon: Shield, label: "A promise of safety" },
+  { icon: Heart, label: "A promise of comfort in every thread" },
+] as const;
 
 export default function AboutPage() {
   return (
@@ -105,12 +183,7 @@ export default function AboutPage() {
                   At Cozyberries, we believe baby clothing should be:
                 </p>
                 <div className="space-y-3">
-                  {[
-                    { icon: Wind, label: "Naturally breathable" },
-                    { icon: Shield, label: "Free from harsh chemicals" },
-                    { icon: Layers, label: "Minimal, timeless, and functional" },
-                    { icon: Leaf, label: "Gentle on the planet" },
-                  ].map(({ icon: Icon, label }) => (
+                  {BRAND_VALUES.map(({ icon: Icon, label }) => (
                     <div key={label} className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                         <Icon className="w-4 h-4 text-primary" />
@@ -164,32 +237,7 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="grid sm:grid-cols-2 gap-5">
-              {[
-                {
-                  icon: Leaf,
-                  title: "100% Organic & Skin-Safe",
-                  description:
-                    "Organically grown cotton yarn, free from harmful pesticides and certified safe for your baby's delicate skin.",
-                },
-                {
-                  icon: Droplets,
-                  title: "Azo-Free Dyes",
-                  description:
-                    "Crafted with kid-friendly, azo-free dyes — vibrant colours that are gentle, non-toxic, and safe for everyday wear.",
-                },
-                {
-                  icon: Shield,
-                  title: "Free from Harsh Chemicals",
-                  description:
-                    "No formaldehyde, no heavy metals. Every fabric is carefully screened to ensure it's completely chemical-free.",
-                },
-                {
-                  icon: Wind,
-                  title: "Soft, Breathable & Gentle",
-                  description:
-                    "Woven into soft, breathable muslin that keeps your baby comfortable — whether it's a warm afternoon or a cosy evening.",
-                },
-              ].map(({ icon: Icon, title, description }) => (
+              {FABRIC_FEATURES.map(({ icon: Icon, title, description }) => (
                 <div
                   key={title}
                   className="bg-white rounded-2xl p-6 flex gap-4 items-start shadow-sm"
@@ -254,23 +302,7 @@ export default function AboutPage() {
                   We focus on:
                 </p>
                 <div className="space-y-5">
-                  {[
-                    {
-                      icon: Heart,
-                      title: "Soft seams for sensitive skin",
-                      desc: "No scratchy edges — just smooth, gentle seams designed to protect the most delicate skin.",
-                    },
-                    {
-                      icon: Layers,
-                      title: "Minimal silhouettes for daily wear",
-                      desc: "Clean, functional designs that are easy to dress and undress — because simplicity matters.",
-                    },
-                    {
-                      icon: Recycle,
-                      title: "Sustainable details that reduce waste",
-                      desc: "Thoughtful choices at every step, from small-batch production to eco-conscious finishing.",
-                    },
-                  ].map(({ icon: Icon, title, desc }) => (
+                  {DESIGN_FOCUS.map(({ icon: Icon, title, desc }) => (
                     <div key={title} className="flex items-start gap-3">
                       <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Icon className="w-4 h-4 text-primary" />
@@ -329,23 +361,7 @@ export default function AboutPage() {
 
             {/* Commitment pillars */}
             <div className="grid md:grid-cols-3 gap-5 mb-10">
-              {[
-                {
-                  icon: Leaf,
-                  title: "Sustainable Practices",
-                  desc: "From sourcing to packaging, every step is designed with the environment in mind.",
-                },
-                {
-                  icon: Star,
-                  title: "Small-Batch Production",
-                  desc: "Mindful, intentional production runs that prioritise quality over quantity.",
-                },
-                {
-                  icon: Sparkles,
-                  title: "True Craftsmanship",
-                  desc: "Every detail is lovingly considered — because your baby deserves nothing less.",
-                },
-              ].map(({ icon: Icon, title, desc }) => (
+              {COMMITMENT_PILLARS.map(({ icon: Icon, title, desc }) => (
                 <div
                   key={title}
                   className="bg-white rounded-2xl p-6 text-center shadow-sm"
@@ -371,11 +387,7 @@ export default function AboutPage() {
                 It&apos;s a promise — woven into every thread.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-8">
-                {[
-                  { icon: Wind, label: "A promise of softness" },
-                  { icon: Shield, label: "A promise of safety" },
-                  { icon: Heart, label: "A promise of comfort in every thread" },
-                ].map(({ icon: Icon, label }) => (
+                {BRAND_PROMISES.map(({ icon: Icon, label }) => (
                   <div
                     key={label}
                     className="flex flex-col items-center gap-2"
