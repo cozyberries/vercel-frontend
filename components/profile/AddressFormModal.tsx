@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { X, AlertCircle, Trash2, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,13 @@ export default function AddressFormModal({
   const [pincodeMessage, setPincodeMessage] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Clear any pending debounce timer when the modal unmounts
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const checkPincode = useCallback(
     async (pincode: string) => {
       if (!enablePincodeCheck) return;
@@ -84,7 +91,7 @@ export default function AddressFormModal({
 
       try {
         const res = await fetch(`/api/shipping/pincode-check?pincode=${pincode}`);
-        const data = await res.json();
+        const data: PincodeCheckResult & { error?: string } = await res.json();
 
         if (!res.ok) {
           setPincodeStatus("error");

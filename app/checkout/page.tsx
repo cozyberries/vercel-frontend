@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -52,6 +52,7 @@ export default function CheckoutPage() {
     "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
   >("idle");
   const [pincodeMessage, setPincodeMessage] = useState("");
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Use profile hook for address management
   const {
@@ -94,7 +95,9 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  // Auto-select default address if available and validate its pincode
+  // Auto-select default address if available and validate its pincode.
+  // handleAddressSelect is intentionally excluded from deps — it's recreated
+  // each render but we only want this to run when the addresses list changes.
   useEffect(() => {
     if (addresses.length > 0 && !selectedAddressId) {
       const defaultAddress = addresses.find((addr) => addr.is_default);
@@ -112,12 +115,18 @@ export default function CheckoutPage() {
     const address = addresses.find((a) => a.id === addressId);
     if (!address?.postal_code) return;
 
+    // Cancel any in-flight pincode check for a previously selected address
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setPincodeStatus("checking");
     setPincodeMessage("");
 
     try {
       const res = await fetch(
-        `/api/shipping/pincode-check?pincode=${address.postal_code}`
+        `/api/shipping/pincode-check?pincode=${address.postal_code}`,
+        { signal: controller.signal }
       );
       const data = await res.json();
 
@@ -136,7 +145,8 @@ export default function CheckoutPage() {
           "Sorry, we don't deliver to this pincode yet. Please select a different address."
         );
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setPincodeStatus("error");
       setPincodeMessage("Unable to verify delivery. Please try again.");
     }

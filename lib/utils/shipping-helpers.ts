@@ -5,34 +5,23 @@ import type {
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const DELHIVERY_API_TOKEN = process.env.DELIVERY_API_KEY!;
-const DELHIVERY_CLIENT_NAME = process.env.DELHIVERY_CLIENT_NAME!;
-
 /** Staging: https://staging-express.delhivery.com  Production: https://track.delhivery.com */
 const DELHIVERY_BASE_URL =
   process.env.DELHIVERY_BASE_URL || "https://track.delhivery.com";
-
-// Pickup / return address from env
-export const PICKUP_LOCATION = {
-  name: process.env.DELHIVERY_PICKUP_NAME || "CozyBerries Warehouse",
-  add: process.env.DELHIVERY_PICKUP_ADDRESS || "",
-  city: process.env.DELHIVERY_PICKUP_CITY || "",
-  state: process.env.DELHIVERY_PICKUP_STATE || "",
-  pin_code: process.env.DELHIVERY_PICKUP_PINCODE || "",
-  country: process.env.DELHIVERY_PICKUP_COUNTRY || "India",
-  phone: process.env.DELHIVERY_PICKUP_PHONE || "",
-};
 
 // ─── Pincode Serviceability ──────────────────────────────────────────────────
 
 export async function checkPincodeServiceability(
   pincode: string
 ): Promise<PincodeCheckResult> {
+  const apiKey = process.env.DELIVERY_API_KEY;
+  if (!apiKey) throw new Error("DELIVERY_API_KEY is not configured");
+
   const url = `${DELHIVERY_BASE_URL}/c/api/pin-codes/json/?filter_codes=${pincode}`;
 
   const res = await fetch(url, {
     headers: {
-      Authorization: `Token ${DELHIVERY_API_TOKEN}`,
+      Authorization: `Token ${apiKey}`,
       "Content-Type": "application/json",
     },
     next: { revalidate: 86400 }, // cache for 24 hours
