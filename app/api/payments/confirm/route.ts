@@ -128,8 +128,27 @@ async function handleSessionConfirm(
         .insert(itemRows);
 
     if (itemsError) {
-        // Compensate: delete the orphaned order
-        await supabase.from("orders").delete().eq("id", order.id);
+        // Roll back: delete any inserted order_items then the order
+        const { error: itemsDeleteError } = await supabase
+            .from("order_items")
+            .delete()
+            .eq("order_id", order.id);
+        if (itemsDeleteError) {
+            console.error("Compensating order_items delete failed — orphaned items may require manual cleanup:", {
+                itemsDeleteError,
+                orderId: order.id,
+            });
+        }
+        const { error: orderDeleteError } = await supabase
+            .from("orders")
+            .delete()
+            .eq("id", order.id);
+        if (orderDeleteError) {
+            console.error("Compensating order delete failed — orphaned order may require manual cleanup:", {
+                orderDeleteError,
+                orderId: order.id,
+            });
+        }
         console.error("Error inserting order items:", itemsError);
         return NextResponse.json(
             { error: "Failed to save order items" },
@@ -171,15 +190,29 @@ async function handleSessionConfirm(
         );
     }
 
-    // 5. Mark session as completed
-    await supabase
+    // 5. Mark session as completed (with status guard for idempotency)
+    const { data: updatedSessionRows, error: sessionUpdateError } = await supabase
         .from("checkout_sessions")
         .update({
             status: "completed",
             order_id: order.id,
             updated_at: new Date().toISOString(),
         })
-        .eq("id", sessionId);
+        .eq("id", sessionId)
+        .eq("status", "pending")
+        .select("id");
+
+    if (sessionUpdateError || !updatedSessionRows?.length) {
+        // Roll back: order_items, order, and payment so session can be retried
+        await supabase.from("order_items").delete().eq("order_id", order.id);
+        await supabase.from("orders").delete().eq("id", order.id);
+        await supabase.from("payments").delete().eq("id", insertedPayment.id);
+        console.error("Session update failed — rolled back order:", sessionUpdateError ?? "no rows updated");
+        return NextResponse.json(
+            { error: "Failed to complete checkout. Please try again." },
+            { status: 500 }
+        );
+    }
 
     // 6. Log events (fire-and-forget)
     logServerEvent(supabase, user.id, "order_created", {

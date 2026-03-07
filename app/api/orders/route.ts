@@ -24,6 +24,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const email = user.email?.trim();
+    if (!email) {
+      return NextResponse.json(
+        { error: "Account email is required for checkout" },
+        { status: 400 }
+      );
+    }
+
     const body: CreateOrderRequest = await request.json();
     const { items, shipping_address_id, billing_address_id, notes } = body;
 
@@ -70,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     const orderData: OrderCreate = {
       user_id: user.id,
-      customer_email: user.email!,
+      customer_email: email,
       customer_phone: shippingRow.phone,
       shipping_address: shippingAddress,
       billing_address: billingAddress,

@@ -141,19 +141,24 @@ export default function SessionPaymentPage() {
       const data = await res.json();
 
       toast.success("Order Placed Successfully!");
-      await sendNotification(
-        "Order Success",
-        `${user?.email} order confirmed via UPI`,
-        "success"
-      );
-      await sendActivity(
-        "order_submission_success",
-        `Order confirmed via UPI #${data.order_number || data.order_id}`,
-        data.order_id
-      );
       setPaymentConfirmed(true);
       setOrderInfo({ order_id: data.order_id, order_number: data.order_number });
       clearCart();
+
+      try {
+        await sendNotification(
+          "Order Success",
+          `${user?.email} order confirmed via UPI`,
+          "success"
+        );
+        await sendActivity(
+          "order_submission_success",
+          `Order confirmed via UPI #${data.order_number || data.order_id}`,
+          data.order_id
+        );
+      } catch (notifyErr) {
+        console.error("Post-confirmation notification/activity failed (non-fatal):", notifyErr);
+      }
     } catch (err) {
       console.error("Payment confirmation error:", err);
       setError(

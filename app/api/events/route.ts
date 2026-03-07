@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { event_type, event_data, page_path } = body;
+    const { event_type, event_data, page_path, session_id } = body;
 
     if (!event_type || typeof event_type !== "string") {
       return NextResponse.json(
@@ -27,12 +27,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await supabase.from("event_logs").insert({
+    const { error: insertError } = await supabase.from("event_logs").insert({
       user_id: user.id,
       event_type,
       event_data: event_data ?? null,
       page_path: page_path ?? null,
+      session_id: session_id ?? null,
     });
+
+    if (insertError) {
+      console.error("Event log insert failed:", insertError);
+      return NextResponse.json(
+        { error: "Failed to log event" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

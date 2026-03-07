@@ -175,13 +175,28 @@ export default function CheckoutPage() {
       }
 
       const sessionData = await sessionRes.json();
-      logEvent("checkout_session_created", {
+      const paymentUrl =
+        typeof sessionData.payment_url === "string" && sessionData.payment_url.trim()
+          ? sessionData.payment_url.trim()
+          : null;
+
+      if (!paymentUrl) {
+        logEvent("checkout_session_created", {
+          session_id: sessionData.session_id,
+          item_count: cart.length,
+          error: "missing_payment_url",
+        });
+        toast.error("Checkout started but redirect URL was missing. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      await logEvent("checkout_session_created", {
         session_id: sessionData.session_id,
         item_count: cart.length,
       });
-
       // Redirect to session-based payment page (replace so back button skips checkout)
-      router.replace(sessionData.payment_url);
+      router.replace(paymentUrl);
 
     } catch (err) {
       console.error("Checkout session error:", err);

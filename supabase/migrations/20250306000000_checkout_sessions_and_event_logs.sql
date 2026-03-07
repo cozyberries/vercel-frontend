@@ -37,7 +37,7 @@ CREATE INDEX idx_checkout_sessions_user_status
 -- Table B: event_logs
 CREATE TABLE event_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id),
+  user_id UUID NOT NULL REFERENCES auth.users(id),
   session_id TEXT,
   event_type TEXT NOT NULL,
   event_data JSONB,
