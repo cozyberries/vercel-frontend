@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type {
-  CreateOrderRequest,
-  OrderCreate,
-  OrderSummary,
-  OrderItemInput,
-} from "@/lib/types/order";
+import type { CreateOrderRequest, OrderCreate } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE } from "@/lib/constants";
+import {
+  validateAndFetchAddresses,
+  validateItemPrices,
+  calculateOrderSummary,
+} from "@/lib/utils/checkout-helpers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +21,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
+      );
+    }
+
+    const email = user.email?.trim();
+    if (!email) {
+      return NextResponse.json(
+        { error: "Account email is required for checkout" },
+        { status: 400 }
       );
     }
 
@@ -42,131 +49,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: shippingAddress, error: shippingError } = await supabase
-      .from("user_addresses")
-      .select("*")
-      .eq("id", shipping_address_id)
-      .eq("user_id", user.id)
-      .single();
+    // Validate addresses
+    const addressResult = await validateAndFetchAddresses(
+      supabase,
+      user.id,
+      shipping_address_id,
+      billing_address_id
+    );
 
-    if (shippingError || !shippingAddress) {
+    if ("error" in addressResult) {
       return NextResponse.json(
-        { error: "Invalid shipping address" },
+        { error: addressResult.error },
         { status: 400 }
       );
     }
 
-    let billingAddress = shippingAddress;
-    if (billing_address_id && billing_address_id !== shipping_address_id) {
-      const { data: billingAddr, error: billingError } = await supabase
-        .from("user_addresses")
-        .select("*")
-        .eq("id", billing_address_id)
-        .eq("user_id", user.id)
-        .single();
-
-      if (billingError || !billingAddr) {
-        return NextResponse.json(
-          { error: "Invalid billing address" },
-          { status: 400 }
-        );
-      }
-      billingAddress = billingAddr;
-    }
-
-    // ── Server-side price validation ─────────────────────────────────────────
-    // Collect every unique product slug referenced in the cart.
-    const productSlugs = [...new Set(items.map((item) => item.id))];
-
-    // Fetch base prices from the products table (slug is the PK).
-    const { data: products, error: productsError } = await supabase
-      .from("products")
-      .select("slug, price")
-      .in("slug", productSlugs);
-
-    if (productsError) {
-      console.error("Error fetching product prices:", productsError);
+    // Server-side price validation
+    const priceError = await validateItemPrices(supabase, items);
+    if (priceError) {
       return NextResponse.json(
-        { error: "Failed to validate product prices" },
-        { status: 500 }
+        { error: priceError },
+        { status: 400 }
       );
     }
-
-    // Fetch all variant prices for the same products so size-specific prices
-    // (which may differ from the base price) are also accepted.
-    const { data: variants, error: variantsError } = await supabase
-      .from("product_variants")
-      .select("product_slug, price")
-      .in("product_slug", productSlugs);
-
-    if (variantsError) {
-      console.error("Error fetching variant prices:", variantsError);
-      return NextResponse.json(
-        { error: "Failed to validate product prices" },
-        { status: 500 }
-      );
-    }
-
-    // Build a map: product_slug → Set of all valid prices (base + variants).
-    const validPriceMap = new Map<string, Set<number>>();
-
-    for (const product of products ?? []) {
-      validPriceMap.set(product.slug, new Set([Number(product.price)]));
-    }
-    for (const variant of variants ?? []) {
-      const set = validPriceMap.get(variant.product_slug) ?? new Set<number>();
-      set.add(Number(variant.price));
-      validPriceMap.set(variant.product_slug, set);
-    }
-
-    // Reject any item whose price is not in the server-authoritative set.
-    for (const item of items) {
-      const validPrices = validPriceMap.get(item.id);
-      if (!validPrices) {
-        return NextResponse.json(
-          { error: `Product not found: ${item.id}` },
-          { status: 400 }
-        );
-      }
-      if (!validPrices.has(item.price)) {
-        return NextResponse.json(
-          { error: `Invalid price for product ${item.id}` },
-          { status: 400 }
-        );
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────────────
 
     const orderSummary = calculateOrderSummary(items);
+    const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
     const orderData: OrderCreate = {
       user_id: user.id,
-      customer_email: user.email!,
-      customer_phone: shippingAddress.phone,
-      shipping_address: {
-        full_name: shippingAddress.full_name,
-        address_line_1: shippingAddress.address_line_1,
-        address_line_2: shippingAddress.address_line_2,
-        city: shippingAddress.city,
-        state: shippingAddress.state,
-        postal_code: shippingAddress.postal_code,
-        country: shippingAddress.country,
-        phone: shippingAddress.phone,
-        address_type: shippingAddress.address_type,
-        label: shippingAddress.label,
-      },
-      billing_address: {
-        full_name: billingAddress.full_name,
-        address_line_1: billingAddress.address_line_1,
-        address_line_2: billingAddress.address_line_2,
-        city: billingAddress.city,
-        state: billingAddress.state,
-        postal_code: billingAddress.postal_code,
-        country: billingAddress.country,
-        phone: billingAddress.phone,
-        address_type: billingAddress.address_type,
-        label: billingAddress.label,
-      },
+      customer_email: email,
+      customer_phone: shippingRow.phone,
+      shipping_address: shippingAddress,
+      billing_address: billingAddress,
       subtotal: orderSummary.subtotal,
       delivery_charge: orderSummary.delivery_charge,
       tax_amount: orderSummary.tax_amount,
@@ -296,50 +211,3 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Converts rupees to paise (smallest unit) for integer-safe arithmetic. */
-function rupeesToPaise(rupees: number): number {
-  return Math.round(rupees * 100);
-}
-
-/** Rounds to 2 decimal places for final display conversion from paise. */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-const FREE_DELIVERY_THRESHOLD_PAISE = Math.round(FREE_DELIVERY_THRESHOLD * 100);
-const DELIVERY_CHARGE_PAISE = Math.round(DELIVERY_CHARGE_INR * 100);
-const GST_PERCENT = Math.round(GST_RATE * 100); // integer percentage for exact calculation
-
-function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
-  if (items.length === 0) {
-    return {
-      subtotal: 0,
-      delivery_charge: 0,
-      tax_amount: 0,
-      total_amount: 0,
-      currency: "INR",
-    };
-  }
-
-  const subtotal_paise = items.reduce(
-    (sum, item) => sum + rupeesToPaise(item.price) * item.quantity,
-    0
-  );
-
-  const delivery_charge_paise =
-    subtotal_paise < FREE_DELIVERY_THRESHOLD_PAISE ? DELIVERY_CHARGE_PAISE : 0;
-
-  const tax_paise = Math.round((subtotal_paise * GST_PERCENT) / 100);
-
-  const total_paise = subtotal_paise + delivery_charge_paise + tax_paise;
-
-  return {
-    subtotal: round2(subtotal_paise / 100),
-    delivery_charge: round2(delivery_charge_paise / 100),
-    tax_amount: round2(tax_paise / 100),
-    total_amount: round2(total_paise / 100),
-    currency: "INR",
-  };
-}

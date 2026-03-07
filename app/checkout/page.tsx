@@ -24,6 +24,7 @@ import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
+import { logEvent } from "@/lib/services/event-logger";
 import { toImageSrc } from "@/lib/utils/image";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
 
@@ -147,14 +148,11 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      const generatedOrderId = `ORD-${Date.now()}`;
-
-      // 1. Create order on backend
-      const orderRes = await fetch("/api/orders", {
+      // Create checkout session (order is created only after payment)
+      const sessionRes = await fetch("/api/checkout-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          order_id: generatedOrderId,
           items: cart.map((item) => ({
             id: item.id,
             name: item.name,
@@ -169,22 +167,39 @@ export default function CheckoutPage() {
         }),
       });
 
-      if (!orderRes.ok) {
-        toast.error("Failed to save order");
-        await sendNotification("Order Failed", `${user?.email} failed`, "error");
-        await sendActivity("order_submission_failed", `Failed order #${generatedOrderId}`, generatedOrderId);
+      if (!sessionRes.ok) {
+        toast.error("Failed to start checkout");
+        await sendNotification("Checkout Failed", `${user?.email} checkout session failed`, "error");
         setIsProcessing(false);
         return;
       }
 
-      const orderData = await orderRes.json();
-      const createdOrder = orderData.order;
+      const sessionData = await sessionRes.json();
+      const paymentUrl =
+        typeof sessionData.payment_url === "string" && sessionData.payment_url.trim()
+          ? sessionData.payment_url.trim()
+          : null;
 
-      // 2. Redirect to payment page
-      router.push(`/payment/${createdOrder.id}`);
+      if (!paymentUrl) {
+        logEvent("checkout_session_created", {
+          session_id: sessionData.session_id,
+          item_count: cart.length,
+          error: "missing_payment_url",
+        });
+        toast.error("Checkout started but redirect URL was missing. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      await logEvent("checkout_session_created", {
+        session_id: sessionData.session_id,
+        item_count: cart.length,
+      });
+      // Redirect to session-based payment page (replace so back button skips checkout)
+      router.replace(paymentUrl);
 
     } catch (err) {
-      console.error("Order creation error:", err);
+      console.error("Checkout session error:", err);
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setIsProcessing(false);
     }

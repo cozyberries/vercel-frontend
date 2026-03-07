@@ -11,17 +11,19 @@ import {
   Loader2,
   QrCode,
   Smartphone,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
-import { GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
-import type { Order } from "@/lib/types/order";
+import { GST_PERCENT_LABEL } from "@/lib/constants";
+import type { CheckoutSession } from "@/lib/types/order";
 import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
+import { logEvent } from "@/lib/services/event-logger";
 
 interface UpiLinks {
   phonepe: string;
@@ -29,21 +31,23 @@ interface UpiLinks {
   paytm: string;
 }
 
-export default function PaymentPage() {
+export default function SessionPaymentPage() {
   const { user, loading } = useAuth();
   const { clearCart } = useCart();
   const router = useRouter();
   const params = useParams();
-  const orderId = params?.orderId as string;
+  const sessionId = params?.sessionId as string;
 
-  const [order, setOrder] = useState<Order | null>(null);
+  const [session, setSession] = useState<CheckoutSession | null>(null);
   const [upiLinks, setUpiLinks] = useState<UpiLinks | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [orderInfo, setOrderInfo] = useState<{ order_id: string; order_number?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [orderLoading, setOrderLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [showConfirmPrompt, setShowConfirmPrompt] = useState(false);
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -51,31 +55,40 @@ export default function PaymentPage() {
       return;
     }
 
-    if (user && orderId) {
-      fetchOrderAndLinks();
+    if (user && sessionId) {
+      fetchSessionAndLinks();
     }
-  }, [user, loading, orderId]);
+  }, [user, loading, sessionId]);
 
-  const fetchOrderAndLinks = async () => {
+  const fetchSessionAndLinks = async () => {
     try {
-      setOrderLoading(true);
+      setSessionLoading(true);
 
-      const [orderRes, linksRes] = await Promise.all([
-        fetch(`/api/orders/${orderId}`),
-        fetch(`/api/payments/upi-links?orderId=${orderId}`),
+      const [sessionRes, linksRes] = await Promise.all([
+        fetch(`/api/checkout-sessions/${sessionId}`),
+        fetch(`/api/payments/upi-links?sessionId=${sessionId}`),
       ]);
 
-      if (!orderRes.ok) {
-        throw new Error("Failed to fetch order");
+      if (sessionRes.status === 410) {
+        setExpired(true);
+        return;
       }
 
-      const orderData = await orderRes.json();
-      setOrder(orderData.order);
+      if (!sessionRes.ok) {
+        throw new Error("Failed to fetch session");
+      }
 
-      // Check if order is already paid/processing
-      if (orderData.order.status !== "payment_pending") {
+      const sessionData = await sessionRes.json();
+
+      // If session is already completed, show success state
+      if (sessionData.completed) {
         setPaymentConfirmed(true);
+        setOrderInfo({ order_id: sessionData.order_id });
+        clearCart();
+        return;
       }
+
+      setSession(sessionData.session);
 
       if (linksRes.ok) {
         const linksData = await linksRes.json();
@@ -85,10 +98,10 @@ export default function PaymentPage() {
         }
       }
     } catch (err) {
-      console.error("Error fetching order:", err);
-      setError("Failed to load order details");
+      console.error("Error fetching session:", err);
+      setError("Failed to load payment details");
     } finally {
-      setOrderLoading(false);
+      setSessionLoading(false);
     }
   };
 
@@ -97,16 +110,26 @@ export default function PaymentPage() {
     setError(null);
 
     try {
+      logEvent("payment_initiated", { session_id: sessionId });
+
       const res = await fetch("/api/payments/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ sessionId }),
       });
 
       if (res.status === 409) {
+        const data = await res.json();
         setPaymentConfirmed(true);
+        setOrderInfo({ order_id: data.order_id });
         clearCart();
         toast.success("Order already confirmed!");
+        return;
+      }
+
+      if (res.status === 410) {
+        setExpired(true);
+        toast.error("Session expired. Please checkout again.");
         return;
       }
 
@@ -115,19 +138,27 @@ export default function PaymentPage() {
         throw new Error(data.error || "Failed to confirm payment");
       }
 
+      const data = await res.json();
+
       toast.success("Order Placed Successfully!");
-      await sendNotification(
-        "Order Success",
-        `${user?.email} order confirmed via UPI`,
-        "success"
-      );
-      await sendActivity(
-        "order_submission_success",
-        `Order confirmed via UPI #${order?.order_number || orderId}`,
-        orderId
-      );
       setPaymentConfirmed(true);
+      setOrderInfo({ order_id: data.order_id, order_number: data.order_number });
       clearCart();
+
+      try {
+        await sendNotification(
+          "Order Success",
+          `${user?.email} order confirmed via UPI`,
+          "success"
+        );
+        await sendActivity(
+          "order_submission_success",
+          `Order confirmed via UPI #${data.order_number || data.order_id}`,
+          data.order_id
+        );
+      } catch (notifyErr) {
+        console.error("Post-confirmation notification/activity failed (non-fatal):", notifyErr);
+      }
     } catch (err) {
       console.error("Payment confirmation error:", err);
       setError(
@@ -140,7 +171,7 @@ export default function PaymentPage() {
     }
   };
 
-  if (loading || orderLoading) {
+  if (loading || sessionLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -151,7 +182,26 @@ export default function PaymentPage() {
     );
   }
 
-  if (error && !order) {
+  if (expired) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-20">
+          <div className="max-w-md mx-auto text-center">
+            <Clock className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-light mb-4">Session Expired</h1>
+            <p className="text-muted-foreground mb-8">
+              Your checkout session has expired. Please go back and try again.
+            </p>
+            <Button asChild>
+              <Link href="/checkout">Back to Checkout</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !session) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
@@ -178,12 +228,16 @@ export default function PaymentPage() {
             </div>
             <h1 className="text-3xl font-light mb-4">Order Placed!</h1>
             <p className="text-muted-foreground mb-2">
-              Thank you for your order. Your payment is being verified.
+              Thank you for your order. We are verifying your payment.
             </p>
-            {order && (
+            {orderInfo?.order_number && (
+              <p className="text-sm text-muted-foreground mb-2">
+                Order #{orderInfo.order_number}
+              </p>
+            )}
+            {session && (
               <p className="text-sm text-muted-foreground mb-8">
-                Order #{order.order_number} &bull; ₹
-                {order.total_amount.toFixed(2)}
+                Total: ₹{session.total_amount.toFixed(2)}
               </p>
             )}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -200,7 +254,7 @@ export default function PaymentPage() {
     );
   }
 
-  if (!order) {
+  if (!session) {
     return null;
   }
 
@@ -225,7 +279,7 @@ export default function PaymentPage() {
             <div className="text-center lg:text-left">
               <p className="text-sm text-muted-foreground mb-1">Amount to pay</p>
               <p className="text-4xl font-semibold">
-                ₹{order.total_amount.toFixed(2)}
+                ₹{session.total_amount.toFixed(2)}
               </p>
             </div>
 
@@ -250,7 +304,7 @@ export default function PaymentPage() {
               <div className="flex items-center gap-2 mt-4 text-muted-foreground">
                 <QrCode className="w-4 h-4" />
                 <p className="text-sm">
-                  Scan QR code with any UPI app to pay ₹{order.total_amount.toFixed(2)}
+                  Scan QR code with any UPI app to pay ₹{session.total_amount.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -302,7 +356,7 @@ export default function PaymentPage() {
                 <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
                   <p className="text-sm font-medium text-amber-900 mb-3">
                     Have you completed the payment of ₹
-                    {order.total_amount.toFixed(2)}?
+                    {session.total_amount.toFixed(2)}?
                   </p>
                   <div className="flex gap-3">
                     <Button
@@ -359,18 +413,11 @@ export default function PaymentPage() {
             <div className="bg-muted/30 p-6 rounded-lg">
               <h2 className="text-lg font-medium mb-4">Order Summary</h2>
 
-              {/* Order Info */}
-              <div className="mb-4">
-                <p className="text-sm text-muted-foreground">
-                  Order #{order.order_number}
-                </p>
-              </div>
-
               <Separator className="mb-4" />
 
               {/* Items */}
               <div className="space-y-4 mb-6">
-                {order.items.map((item) => (
+                {session.items.map((item) => (
                   <div key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}`} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
@@ -411,20 +458,20 @@ export default function PaymentPage() {
               <div className="space-y-2 mb-6">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span>₹{order.subtotal.toFixed(2)}</span>
+                  <span>₹{session.subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
-                  <span>₹{order.delivery_charge.toFixed(2)}</span>
+                  <span>₹{session.delivery_charge.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>{GST_PERCENT_LABEL}</span>
-                  <span>₹{order.tax_amount.toFixed(2)}</span>
+                  <span>₹{session.tax_amount.toFixed(2)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
-                  <span>₹{order.total_amount.toFixed(2)}</span>
+                  <span>₹{session.total_amount.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -433,20 +480,20 @@ export default function PaymentPage() {
                 <h4 className="font-medium text-sm mb-2">Shipping Address</h4>
                 <div className="text-xs text-muted-foreground">
                   <p className="font-medium">
-                    {order.shipping_address.full_name}
+                    {session.shipping_address.full_name}
                   </p>
-                  <p>{order.shipping_address.address_line_1}</p>
-                  {order.shipping_address.address_line_2 && (
-                    <p>{order.shipping_address.address_line_2}</p>
+                  <p>{session.shipping_address.address_line_1}</p>
+                  {session.shipping_address.address_line_2 && (
+                    <p>{session.shipping_address.address_line_2}</p>
                   )}
                   <p>
-                    {order.shipping_address.city},{" "}
-                    {order.shipping_address.state}{" "}
-                    {order.shipping_address.postal_code}
+                    {session.shipping_address.city},{" "}
+                    {session.shipping_address.state}{" "}
+                    {session.shipping_address.postal_code}
                   </p>
-                  <p>{order.shipping_address.country}</p>
-                  {order.shipping_address.phone && (
-                    <p>Phone: {order.shipping_address.phone}</p>
+                  <p>{session.shipping_address.country}</p>
+                  {session.shipping_address.phone && (
+                    <p>Phone: {session.shipping_address.phone}</p>
                   )}
                 </div>
               </div>

@@ -256,6 +256,7 @@ class OrderService {
   formatOrderStatus(status: string): string {
     const statusMap: Record<string, string> = {
       payment_pending: "Payment Pending",
+      verifying_payment: "Verifying payment",
       payment_confirmed: "Payment Confirmed",
       processing: "Processing",
       shipped: "Shipped",

@@ -36,6 +36,7 @@ import type {
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-5 h-5 text-orange-500" />,
+  verifying_payment: <Clock className="w-5 h-5 text-amber-500" />,
   payment_confirmed: <CreditCard className="w-5 h-5 text-blue-500" />,
   processing: <Package className="w-5 h-5 text-blue-500" />,
   shipped: <Truck className="w-5 h-5 text-purple-500" />,

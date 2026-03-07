@@ -43,6 +43,7 @@ interface RatingFormData {
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-4 h-4 text-orange-500" />,
+  verifying_payment: <Clock className="w-4 h-4 text-amber-500" />,
   payment_confirmed: <CreditCard className="w-4 h-4 text-blue-500" />,
   processing: <Package className="w-4 h-4 text-blue-500" />,
   shipped: <Truck className="w-4 h-4 text-purple-500" />,
@@ -53,6 +54,7 @@ const statusIcons: Record<OrderStatus, React.ReactNode> = {
 
 const statusColors: Record<OrderStatus, string> = {
   payment_pending: "bg-orange-100 text-orange-800",
+  verifying_payment: "bg-amber-100 text-amber-800",
   payment_confirmed: "bg-blue-100 text-blue-800",
   processing: "bg-blue-100 text-blue-800",
   shipped: "bg-purple-100 text-purple-800",
