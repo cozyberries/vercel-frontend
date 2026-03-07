@@ -53,6 +53,34 @@ export async function POST(request: NextRequest) {
     }
 }
 
+// ─── Helper: Restore session status when error occurs ────────────────────────
+
+async function restoreSessionStatus(
+    supabase: ReturnType<typeof createServerSupabaseClient> extends Promise<infer T> ? T : never,
+    sessionId: string,
+    fromStatus: string,
+    toStatus: string
+) {
+    const { error: restoreError, data: updatedRows } = await supabase
+        .from("checkout_sessions")
+        .update({ status: toStatus })
+        .eq("id", sessionId)
+        .eq("status", fromStatus)
+        .select("id");
+
+    if (restoreError || !updatedRows?.length) {
+        console.error("Failed to restore session status:", {
+            restoreError,
+            sessionId,
+            fromStatus,
+            toStatus,
+            affectedRows: updatedRows?.length ?? 0,
+        });
+        return false;
+    }
+    return true;
+}
+
 // ─── Helper: Rollback order and related records ────────────────────────────────
 
 async function rollbackOrder(
@@ -122,6 +150,13 @@ async function handleSessionConfirm(
         }, { status: 409 });
     }
 
+    if (session.status === "processing") {
+        return NextResponse.json(
+            { error: "Session is currently being processed. Please retry shortly." },
+            { status: 409 }
+        );
+    }
+
     if (session.status !== "pending" || isSessionExpired(session.created_at)) {
         return NextResponse.json(
             { error: "Session has expired. Please checkout again." },
@@ -149,11 +184,7 @@ async function handleSessionConfirm(
     if (!itemsValidation.success) {
         console.error("Invalid session items format:", itemsValidation.error);
         // Restore session to pending since validation failed
-        await supabase
-            .from("checkout_sessions")
-            .update({ status: "pending" })
-            .eq("id", sessionId)
-            .eq("status", "processing");
+        await restoreSessionStatus(supabase, sessionId, "processing", "pending");
         return NextResponse.json(
             { error: "Invalid order items in session" },
             { status: 400 }
@@ -184,11 +215,7 @@ async function handleSessionConfirm(
 
     if (orderError || !order) {
         console.error("Error creating order from session:", orderError);
-        await supabase
-            .from("checkout_sessions")
-            .update({ status: "pending" })
-            .eq("id", sessionId)
-            .eq("status", "processing");
+        await restoreSessionStatus(supabase, sessionId, "processing", "pending");
         return NextResponse.json(
             { error: "Failed to create order" },
             { status: 500 }
@@ -215,11 +242,7 @@ async function handleSessionConfirm(
     if (itemsError) {
         console.error("Error inserting order items:", itemsError);
         await rollbackOrder(supabase, order.id);
-        await supabase
-            .from("checkout_sessions")
-            .update({ status: "pending" })
-            .eq("id", sessionId)
-            .eq("status", "processing");
+        await restoreSessionStatus(supabase, sessionId, "processing", "pending");
         return NextResponse.json(
             { error: "Failed to save order items" },
             { status: 500 }
@@ -252,11 +275,7 @@ async function handleSessionConfirm(
     if (paymentInsertError || !insertedPayment) {
         console.error("Payment insert error:", paymentInsertError);
         await rollbackOrder(supabase, order.id);
-        await supabase
-            .from("checkout_sessions")
-            .update({ status: "pending" })
-            .eq("id", sessionId)
-            .eq("status", "processing");
+        await restoreSessionStatus(supabase, sessionId, "processing", "pending");
         return NextResponse.json(
             { error: "Failed to record payment" },
             { status: 500 }
@@ -278,11 +297,7 @@ async function handleSessionConfirm(
     if (sessionUpdateError || !updatedSessionRows?.length) {
         console.error("Session update failed — rolled back order:", sessionUpdateError ?? "no rows updated");
         await rollbackOrder(supabase, order.id, insertedPayment.id);
-        await supabase
-            .from("checkout_sessions")
-            .update({ status: "pending" })
-            .eq("id", sessionId)
-            .eq("status", "processing");
+        await restoreSessionStatus(supabase, sessionId, "processing", "pending");
         return NextResponse.json(
             { error: "Failed to complete checkout. Please try again." },
             { status: 500 }
