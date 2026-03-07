@@ -1,6 +1,7 @@
 "use client";
 
-import { X, AlertCircle, Trash2 } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { X, AlertCircle, Trash2, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,13 @@ interface AddressValidationErrors {
   postal_code: string;
 }
 
+interface PincodeCheckResult {
+  serviceable: boolean;
+  city: string;
+  state: string;
+  country: string;
+}
+
 interface AddressFormModalProps {
   isOpen: boolean;
   isEditing: boolean;
@@ -39,6 +47,8 @@ interface AddressFormModalProps {
   onSave: () => void;
   onInputChange: (field: string, value: string) => void;
   onDelete?: () => void;
+  /** Enable pincode serviceability check. When true, pincode is validated and city/state/country are auto-filled. */
+  enablePincodeCheck?: boolean;
 }
 
 export default function AddressFormModal({
@@ -52,7 +62,66 @@ export default function AddressFormModal({
   onSave,
   onInputChange,
   onDelete,
+  enablePincodeCheck = false,
 }: AddressFormModalProps) {
+  const [pincodeStatus, setPincodeStatus] = useState<
+    "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
+  >("idle");
+  const [pincodeMessage, setPincodeMessage] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const checkPincode = useCallback(
+    async (pincode: string) => {
+      if (!enablePincodeCheck) return;
+      if (!/^\d{6}$/.test(pincode)) {
+        setPincodeStatus("idle");
+        setPincodeMessage("");
+        return;
+      }
+
+      setPincodeStatus("checking");
+      setPincodeMessage("");
+
+      try {
+        const res = await fetch(`/api/shipping/pincode-check?pincode=${pincode}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          setPincodeStatus("error");
+          setPincodeMessage(data.error || "Unable to verify pincode");
+          return;
+        }
+
+        if (data.serviceable) {
+          setPincodeStatus("serviceable");
+          setPincodeMessage(`Delivery available - ${data.city}, ${data.state}`);
+          // Auto-fill city, state, country
+          onInputChange("city", data.city);
+          onInputChange("state", data.state);
+          onInputChange("country", data.country);
+        } else {
+          setPincodeStatus("not_serviceable");
+          setPincodeMessage("Sorry, delivery is not available in this area");
+        }
+      } catch {
+        setPincodeStatus("error");
+        setPincodeMessage("Unable to verify pincode. Please try again.");
+      }
+    },
+    [enablePincodeCheck, onInputChange]
+  );
+
+  const handlePincodeChange = useCallback(
+    (value: string) => {
+      onInputChange("postal_code", value);
+      if (enablePincodeCheck) {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => checkPincode(value), 500);
+      }
+    },
+    [enablePincodeCheck, onInputChange, checkPincode]
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -174,6 +243,70 @@ export default function AddressFormModal({
               />
             </div>
 
+            {/* PIN Code first when pincode check is enabled */}
+            {enablePincodeCheck && (
+              <div>
+                <Label htmlFor="postal_code">PIN Code *</Label>
+                <div className="relative">
+                  <Input
+                    id="postal_code"
+                    value={addressData.postal_code}
+                    onChange={(e) => handlePincodeChange(e.target.value)}
+                    placeholder="Enter 6-digit PIN code"
+                    required
+                    maxLength={6}
+                    inputMode="numeric"
+                    className={
+                      validationErrors.postal_code
+                        ? "border-red-500"
+                        : pincodeStatus === "serviceable"
+                        ? "border-green-500"
+                        : pincodeStatus === "not_serviceable"
+                        ? "border-red-500"
+                        : ""
+                    }
+                  />
+                  {pincodeStatus === "checking" && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  {pincodeStatus === "serviceable" && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    </div>
+                  )}
+                  {pincodeStatus === "not_serviceable" && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <XCircle className="w-4 h-4 text-red-500" />
+                    </div>
+                  )}
+                </div>
+                {validationErrors.postal_code && (
+                  <div className="flex items-center mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                    {validationErrors.postal_code}
+                  </div>
+                )}
+                {pincodeMessage && (
+                  <div
+                    className={`flex items-center mt-1 text-sm ${
+                      pincodeStatus === "serviceable"
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {pincodeStatus === "serviceable" ? (
+                      <CheckCircle className="w-4 h-4 mr-1 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                    )}
+                    {pincodeMessage}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="city">City *</Label>
@@ -183,7 +316,10 @@ export default function AddressFormModal({
                   onChange={(e) => onInputChange("city", e.target.value)}
                   placeholder="City"
                   required
-                  className={validationErrors.city ? "border-red-500" : ""}
+                  readOnly={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  className={`${validationErrors.city ? "border-red-500" : ""} ${
+                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50" : ""
+                  }`}
                 />
                 {validationErrors.city && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
@@ -200,7 +336,10 @@ export default function AddressFormModal({
                   onChange={(e) => onInputChange("state", e.target.value)}
                   placeholder="State"
                   required
-                  className={validationErrors.state ? "border-red-500" : ""}
+                  readOnly={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  className={`${validationErrors.state ? "border-red-500" : ""} ${
+                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50" : ""
+                  }`}
                 />
                 {validationErrors.state && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
@@ -209,25 +348,28 @@ export default function AddressFormModal({
                   </div>
                 )}
               </div>
-              <div className="col-span-2 md:col-span-1">
-                <Label htmlFor="postal_code">PIN Code *</Label>
-                <Input
-                  id="postal_code"
-                  value={addressData.postal_code}
-                  onChange={(e) => onInputChange("postal_code", e.target.value)}
-                  placeholder="PIN Code (6 digits)"
-                  required
-                  className={
-                    validationErrors.postal_code ? "border-red-500" : ""
-                  }
-                />
-                {validationErrors.postal_code && (
-                  <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
-                    {validationErrors.postal_code}
-                  </div>
-                )}
-              </div>
+              {/* PIN Code inline only when pincode check is NOT enabled */}
+              {!enablePincodeCheck && (
+                <div className="col-span-2 md:col-span-1">
+                  <Label htmlFor="postal_code">PIN Code *</Label>
+                  <Input
+                    id="postal_code"
+                    value={addressData.postal_code}
+                    onChange={(e) => onInputChange("postal_code", e.target.value)}
+                    placeholder="PIN Code (6 digits)"
+                    required
+                    className={
+                      validationErrors.postal_code ? "border-red-500" : ""
+                    }
+                  />
+                  {validationErrors.postal_code && (
+                    <div className="flex items-center mt-1 text-sm text-red-600">
+                      <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                      {validationErrors.postal_code}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -298,7 +440,8 @@ export default function AddressFormModal({
                   !!validationErrors.address_line_1 ||
                   !!validationErrors.city ||
                   !!validationErrors.state ||
-                  !!validationErrors.postal_code
+                  !!validationErrors.postal_code ||
+                  (enablePincodeCheck && pincodeStatus !== "serviceable")
                 }
                 className="w-full md:w-auto"
               >

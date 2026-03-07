@@ -12,6 +12,9 @@ import {
   MapPin,
   Plus,
   Star,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +48,10 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: "",
   });
+  const [pincodeStatus, setPincodeStatus] = useState<
+    "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
+  >("idle");
+  const [pincodeMessage, setPincodeMessage] = useState("");
 
   // Use profile hook for address management
   const {
@@ -87,19 +94,52 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  // Auto-select default address if available
+  // Auto-select default address if available and validate its pincode
   useEffect(() => {
     if (addresses.length > 0 && !selectedAddressId) {
       const defaultAddress = addresses.find((addr) => addr.is_default);
       if (defaultAddress) {
-        setSelectedAddressId(defaultAddress.id);
+        handleAddressSelect(defaultAddress.id);
       }
     }
-  }, [addresses, selectedAddressId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses]);
 
-  // Handle address selection
-  const handleAddressSelect = (addressId: string) => {
+  // Handle address selection with pincode validation
+  const handleAddressSelect = async (addressId: string) => {
     setSelectedAddressId(addressId);
+
+    const address = addresses.find((a) => a.id === addressId);
+    if (!address?.postal_code) return;
+
+    setPincodeStatus("checking");
+    setPincodeMessage("");
+
+    try {
+      const res = await fetch(
+        `/api/shipping/pincode-check?pincode=${address.postal_code}`
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPincodeStatus("error");
+        setPincodeMessage(data.error || "Unable to verify delivery availability");
+        return;
+      }
+
+      if (data.serviceable) {
+        setPincodeStatus("serviceable");
+        setPincodeMessage(`Delivery available to ${data.city}, ${data.state}`);
+      } else {
+        setPincodeStatus("not_serviceable");
+        setPincodeMessage(
+          "Sorry, we don't deliver to this pincode yet. Please select a different address."
+        );
+      }
+    } catch {
+      setPincodeStatus("error");
+      setPincodeMessage("Unable to verify delivery. Please try again.");
+    }
   };
 
   // Handle adding new address
@@ -142,6 +182,11 @@ export default function CheckoutPage() {
 
     if (!selectedAddressId) {
       alert("Please select a shipping address");
+      return;
+    }
+
+    if (pincodeStatus !== "serviceable") {
+      toast.error("Please select an address with a serviceable pincode");
       return;
     }
 
@@ -352,6 +397,39 @@ export default function CheckoutPage() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Pincode serviceability status */}
+                    {selectedAddressId && pincodeStatus !== "idle" && (
+                      <div
+                        className={`mt-3 flex items-center gap-2 text-sm rounded-lg p-3 ${
+                          pincodeStatus === "checking"
+                            ? "bg-muted/50 text-muted-foreground"
+                            : pincodeStatus === "serviceable"
+                            ? "bg-green-50 text-green-700 border border-green-200"
+                            : pincodeStatus === "not_serviceable"
+                            ? "bg-red-50 text-red-700 border border-red-200"
+                            : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                        }`}
+                      >
+                        {pincodeStatus === "checking" && (
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        )}
+                        {pincodeStatus === "serviceable" && (
+                          <CheckCircle className="w-4 h-4 shrink-0" />
+                        )}
+                        {pincodeStatus === "not_serviceable" && (
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                        )}
+                        {pincodeStatus === "error" && (
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                        )}
+                        <span>
+                          {pincodeStatus === "checking"
+                            ? "Checking delivery availability..."
+                            : pincodeMessage}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -397,12 +475,21 @@ export default function CheckoutPage() {
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={isProcessing || !selectedAddressId}
+                disabled={
+                  isProcessing ||
+                  !selectedAddressId ||
+                  pincodeStatus !== "serviceable"
+                }
               >
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     Processing...
+                  </div>
+                ) : pincodeStatus === "not_serviceable" ? (
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Delivery Not Available
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -509,6 +596,7 @@ export default function CheckoutPage() {
         addressData={addressData}
         validationErrors={addressValidationErrors}
         addresses={addresses}
+        enablePincodeCheck
         onClose={() => {
           setShowAddressModal(false);
           handleCloseAddressModal();

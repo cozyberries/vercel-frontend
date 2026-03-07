@@ -95,6 +95,13 @@ export interface Order extends OrderBase {
   actual_delivery_date?: string;
   tracking_number?: string;
   delivery_notes?: string;
+  /** Delhivery shipping fields */
+  delhivery_waybill?: string | null;
+  delhivery_order_id?: string | null;
+  delhivery_estimated_delivery?: string | null;
+  shipment_created_at?: string | null;
+  shipment_creation_error?: string | null;
+  shipment_creation_attempts?: number;
   created_at: string;
   updated_at: string;
 }
