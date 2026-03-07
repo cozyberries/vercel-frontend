@@ -33,7 +33,6 @@ import type {
   OrderStatus,
   PaymentStatus,
 } from "@/lib/types/order";
-import OrderTracking from "@/components/OrderTracking";
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   payment_pending: <Clock className="w-5 h-5 text-orange-500" />,
@@ -231,7 +230,7 @@ export default function OrderDetailsPage() {
                 </div>
               )}
 
-              {order.estimated_delivery_date && !order.delhivery_waybill && (
+              {order.estimated_delivery_date && (
                 <div className="mt-4">
                   <div className="text-xs sm:text-sm text-muted-foreground">
                     Estimated Delivery
@@ -250,34 +249,6 @@ export default function OrderDetailsPage() {
                 </div>
               )}
             </div>
-
-            {/* Shipment Tracking */}
-            {order.delhivery_waybill && (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
-                <h2 className="text-base sm:text-lg font-semibold mb-4">
-                  Shipment Tracking
-                </h2>
-                <OrderTracking waybill={order.delhivery_waybill} />
-              </div>
-            )}
-
-            {/* Shipment not created yet */}
-            {!order.delhivery_waybill &&
-              ["payment_confirmed", "processing"].includes(order.status) && (
-                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <Package className="w-5 h-5" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Preparing your order
-                      </p>
-                      <p className="text-xs">
-                        Tracking will be available once your order is shipped.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
             {/* Order Items */}
             <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
