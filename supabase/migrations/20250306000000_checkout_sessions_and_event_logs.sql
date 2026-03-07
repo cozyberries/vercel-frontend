@@ -14,16 +14,17 @@ CREATE TABLE checkout_sessions (
   shipping_address JSONB NOT NULL,
   billing_address JSONB,
   items JSONB NOT NULL,  -- [{id, name, price, quantity, image?, size?, color?, sku?}]
-  subtotal NUMERIC NOT NULL,
-  delivery_charge NUMERIC NOT NULL,
-  tax_amount NUMERIC NOT NULL,
-  total_amount NUMERIC NOT NULL,
+  subtotal NUMERIC(12, 2) NOT NULL,
+  delivery_charge NUMERIC(12, 2) NOT NULL,
+  tax_amount NUMERIC(12, 2) NOT NULL,
+  total_amount NUMERIC(12, 2) NOT NULL,
   currency TEXT DEFAULT 'INR',
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'pending',  -- pending | completed | expired
   order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT checkout_sessions_status_check CHECK (status IN ('pending', 'completed', 'expired'))
 );
 
 ALTER TABLE checkout_sessions ENABLE ROW LEVEL SECURITY;
@@ -33,6 +34,20 @@ CREATE POLICY "Users can manage own sessions" ON checkout_sessions
 
 CREATE INDEX idx_checkout_sessions_user_status
   ON checkout_sessions(user_id, status);
+
+-- Auto-update the updated_at column on row modifications
+CREATE OR REPLACE FUNCTION update_checkout_sessions_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER checkout_sessions_updated_at
+BEFORE UPDATE ON checkout_sessions
+FOR EACH ROW
+EXECUTE FUNCTION update_checkout_sessions_updated_at();
 
 -- Table B: event_logs
 CREATE TABLE event_logs (

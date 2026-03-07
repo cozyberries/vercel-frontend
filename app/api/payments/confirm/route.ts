@@ -53,6 +53,49 @@ export async function POST(request: NextRequest) {
     }
 }
 
+// ─── Helper: Rollback order and related records ────────────────────────────────
+
+async function rollbackOrder(
+    supabase: ReturnType<typeof createServerSupabaseClient> extends Promise<infer T> ? T : never,
+    orderId: string,
+    paymentId?: string
+) {
+    const { error: itemsDeleteError } = await supabase
+        .from("order_items")
+        .delete()
+        .eq("order_id", orderId);
+    if (itemsDeleteError) {
+        console.error("Rollback: Failed to delete order_items:", {
+            itemsDeleteError,
+            orderId,
+        });
+    }
+
+    const { error: orderDeleteError } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", orderId);
+    if (orderDeleteError) {
+        console.error("Rollback: Failed to delete order:", {
+            orderDeleteError,
+            orderId,
+        });
+    }
+
+    if (paymentId) {
+        const { error: paymentDeleteError } = await supabase
+            .from("payments")
+            .delete()
+            .eq("id", paymentId);
+        if (paymentDeleteError) {
+            console.error("Rollback: Failed to delete payment — orphaned payment may require manual cleanup:", {
+                paymentDeleteError,
+                paymentId,
+            });
+        }
+    }
+}
+
 // ─── New flow: session-based confirmation ─────────────────────────────────────
 
 async function handleSessionConfirm(
@@ -86,7 +129,19 @@ async function handleSessionConfirm(
         );
     }
 
-    // 2. Create order from session data
+    // 2. Validate session items BEFORE creating order (prevent orphaned orders)
+    const itemsValidation = OrderItemsSchema.safeParse(session.items);
+    if (!itemsValidation.success) {
+        console.error("Invalid session items format:", itemsValidation.error);
+        return NextResponse.json(
+            { error: "Invalid order items in session" },
+            { status: 400 }
+        );
+    }
+
+    const items = itemsValidation.data;
+
+    // 3. Create order from session data
     const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -114,17 +169,7 @@ async function handleSessionConfirm(
         );
     }
 
-    // 3. Validate and create order_items from session items
-    const itemsValidation = OrderItemsSchema.safeParse(session.items);
-    if (!itemsValidation.success) {
-        console.error("Invalid session items format:", itemsValidation.error);
-        return NextResponse.json(
-            { error: "Invalid order items in session" },
-            { status: 400 }
-        );
-    }
-
-    const items = itemsValidation.data;
+    // 4. Create order items from session items
 
     const itemRows = items.map((item) => ({
         order_id: order.id,
@@ -143,35 +188,15 @@ async function handleSessionConfirm(
         .insert(itemRows);
 
     if (itemsError) {
-        // Roll back: delete any inserted order_items then the order
-        const { error: itemsDeleteError } = await supabase
-            .from("order_items")
-            .delete()
-            .eq("order_id", order.id);
-        if (itemsDeleteError) {
-            console.error("Compensating order_items delete failed — orphaned items may require manual cleanup:", {
-                itemsDeleteError,
-                orderId: order.id,
-            });
-        }
-        const { error: orderDeleteError } = await supabase
-            .from("orders")
-            .delete()
-            .eq("id", order.id);
-        if (orderDeleteError) {
-            console.error("Compensating order delete failed — orphaned order may require manual cleanup:", {
-                orderDeleteError,
-                orderId: order.id,
-            });
-        }
         console.error("Error inserting order items:", itemsError);
+        await rollbackOrder(supabase, order.id);
         return NextResponse.json(
             { error: "Failed to save order items" },
             { status: 500 }
         );
     }
 
-    // 4. Create payment record
+    // 5. Create payment record
     const paymentReference = `upi_manual_${crypto.randomUUID()}`;
     const { data: insertedPayment, error: paymentInsertError } = await supabase
         .from("payments")
@@ -195,35 +220,15 @@ async function handleSessionConfirm(
         .single();
 
     if (paymentInsertError || !insertedPayment) {
-        // Compensate: delete order items and order
-        const { error: itemsDeleteError } = await supabase
-            .from("order_items")
-            .delete()
-            .eq("order_id", order.id);
-        if (itemsDeleteError) {
-            console.error("Compensating order_items delete failed — orphaned items may require manual cleanup:", {
-                itemsDeleteError,
-                orderId: order.id,
-            });
-        }
-        const { error: orderDeleteError } = await supabase
-            .from("orders")
-            .delete()
-            .eq("id", order.id);
-        if (orderDeleteError) {
-            console.error("Compensating order delete failed — orphaned order may require manual cleanup:", {
-                orderDeleteError,
-                orderId: order.id,
-            });
-        }
         console.error("Payment insert error:", paymentInsertError);
+        await rollbackOrder(supabase, order.id);
         return NextResponse.json(
             { error: "Failed to record payment" },
             { status: 500 }
         );
     }
 
-    // 5. Mark session as completed (with status guard for idempotency)
+    // 6. Mark session as completed (with status guard for idempotency)
     const { data: updatedSessionRows, error: sessionUpdateError } = await supabase
         .from("checkout_sessions")
         .update({
@@ -236,45 +241,15 @@ async function handleSessionConfirm(
         .select("id");
 
     if (sessionUpdateError || !updatedSessionRows?.length) {
-        // Roll back: order_items, order, and payment so session can be retried
-        const { error: itemsDeleteError } = await supabase
-            .from("order_items")
-            .delete()
-            .eq("order_id", order.id);
-        if (itemsDeleteError) {
-            console.error("Rollback: Failed to delete order_items:", {
-                itemsDeleteError,
-                orderId: order.id,
-            });
-        }
-        const { error: orderDeleteError } = await supabase
-            .from("orders")
-            .delete()
-            .eq("id", order.id);
-        if (orderDeleteError) {
-            console.error("Rollback: Failed to delete order:", {
-                orderDeleteError,
-                orderId: order.id,
-            });
-        }
-        const { error: paymentDeleteError } = await supabase
-            .from("payments")
-            .delete()
-            .eq("id", insertedPayment.id);
-        if (paymentDeleteError) {
-            console.error("Rollback: Failed to delete payment — orphaned payment may require manual cleanup:", {
-                paymentDeleteError,
-                paymentId: insertedPayment.id,
-            });
-        }
         console.error("Session update failed — rolled back order:", sessionUpdateError ?? "no rows updated");
+        await rollbackOrder(supabase, order.id, insertedPayment.id);
         return NextResponse.json(
             { error: "Failed to complete checkout. Please try again." },
             { status: 500 }
         );
     }
 
-    // 6. Log events (fire-and-forget)
+    // 7. Log events (fire-and-forget)
     logServerEvent(supabase, user.id, "order_created", {
         order_id: order.id,
         order_number: order.order_number,

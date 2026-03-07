@@ -10,7 +10,6 @@ import {
   Star,
   Sparkles,
   Droplets,
-  LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import GingerbreadDecoration from "@/components/GingerbreadDecoration";
@@ -55,17 +54,17 @@ const DESIGN_FOCUS = [
   {
     icon: Heart,
     title: "Soft seams for sensitive skin",
-    desc: "No scratchy edges — just smooth, gentle seams designed to protect the most delicate skin.",
+    description: "No scratchy edges — just smooth, gentle seams designed to protect the most delicate skin.",
   },
   {
     icon: Layers,
     title: "Minimal silhouettes for daily wear",
-    desc: "Clean, functional designs that are easy to dress and undress — because simplicity matters.",
+    description: "Clean, functional designs that are easy to dress and undress — because simplicity matters.",
   },
   {
     icon: Recycle,
     title: "Sustainable details that reduce waste",
-    desc: "Thoughtful choices at every step, from small-batch production to eco-conscious finishing.",
+    description: "Thoughtful choices at every step, from small-batch production to eco-conscious finishing.",
   },
 ] as const;
 
@@ -73,17 +72,17 @@ const COMMITMENT_PILLARS = [
   {
     icon: Leaf,
     title: "Sustainable Practices",
-    desc: "From sourcing to packaging, every step is designed with the environment in mind.",
+    description: "From sourcing to packaging, every step is designed with the environment in mind.",
   },
   {
     icon: Star,
     title: "Small-Batch Production",
-    desc: "Mindful, intentional production runs that prioritise quality over quantity.",
+    description: "Mindful, intentional production runs that prioritise quality over quantity.",
   },
   {
     icon: Sparkles,
     title: "True Craftsmanship",
-    desc: "Every detail is lovingly considered — because your baby deserves nothing less.",
+    description: "Every detail is lovingly considered — because your baby deserves nothing less.",
   },
 ] as const;
 
@@ -302,7 +301,7 @@ export default function AboutPage() {
                   We focus on:
                 </p>
                 <div className="space-y-5">
-                  {DESIGN_FOCUS.map(({ icon: Icon, title, desc }) => (
+                  {DESIGN_FOCUS.map(({ icon: Icon, title, description }) => (
                     <div key={title} className="flex items-start gap-3">
                       <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Icon className="w-4 h-4 text-primary" />
@@ -310,7 +309,7 @@ export default function AboutPage() {
                       <div>
                         <p className="text-sm font-medium mb-0.5">{title}</p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          {desc}
+                          {description}
                         </p>
                       </div>
                     </div>
@@ -361,7 +360,7 @@ export default function AboutPage() {
 
             {/* Commitment pillars */}
             <div className="grid md:grid-cols-3 gap-5 mb-10">
-              {COMMITMENT_PILLARS.map(({ icon: Icon, title, desc }) => (
+              {COMMITMENT_PILLARS.map(({ icon: Icon, title, description }) => (
                 <div
                   key={title}
                   className="bg-white rounded-2xl p-6 text-center shadow-sm"
@@ -370,7 +369,7 @@ export default function AboutPage() {
                     <Icon className="w-6 h-6 text-primary" />
                   </div>
                   <h3 className="font-medium mb-2 text-sm">{title}</h3>
-                  <p className="text-sm text-muted-foreground">{desc}</p>
+                  <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
               ))}
             </div>
