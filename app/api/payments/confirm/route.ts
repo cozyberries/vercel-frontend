@@ -34,14 +34,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
         }
 
-        const sessionId = body.sessionId?.trim();
-        const orderId = body.orderId?.trim();
+        const sessionId = body.sessionId?.trim() ?? "";
+        const orderId = body.orderId?.trim() ?? "";
 
-        if (sessionId) {
+        if (sessionId.length > 0) {
             return handleSessionConfirm(supabase, user, sessionId);
         }
 
-        if (orderId) {
+        if (orderId.length > 0) {
             return handleOrderConfirm(supabase, user, orderId);
         }
 
@@ -229,12 +229,12 @@ async function handleSessionConfirm(
     }
 
     // 6. Mark session as completed (with status guard for idempotency)
+    // Note: updated_at is auto-set by the DB trigger on UPDATE
     const { data: updatedSessionRows, error: sessionUpdateError } = await supabase
         .from("checkout_sessions")
         .update({
             status: "completed",
             order_id: order.id,
-            updated_at: new Date().toISOString(),
         })
         .eq("id", sessionId)
         .eq("status", "pending")
