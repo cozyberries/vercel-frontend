@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
 import { images } from "@/app/assets/images";
@@ -12,6 +13,7 @@ const features = [
 ];
 
 export default function WhyMuslinSection() {
+  const [imageSrc, setImageSrc] = useState(images.heroImages[2]);
   return (
     <section className="lg:py-14 py-8 bg-[#f9f7f4] relative overflow-hidden">
       <SnowflakeDecoration
@@ -61,14 +63,12 @@ export default function WhyMuslinSection() {
             <div className="lg:col-span-4 flex lg:order-last order-first">
               <div className="relative w-full min-h-[240px] lg:min-h-0 overflow-hidden rounded-lg">
                 <Image
-                  src={images.heroImages[2]}
+                  src={imageSrc}
                   alt="Soft muslin baby clothing"
                   fill
                   sizes="(max-width: 1024px) 100vw, 40vw"
                   className="object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = "/placeholder.jpg";
-                  }}
+                  onError={() => setImageSrc("/placeholder.jpg")}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
               </div>
