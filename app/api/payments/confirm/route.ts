@@ -129,10 +129,30 @@ async function handleSessionConfirm(
         );
     }
 
-    // 2. Validate session items BEFORE creating order (prevent orphaned orders)
+    // 2. Atomically reserve session by transitioning pending → processing (prevents TOCTOU race)
+    const { data: reservedSessionRows, error: reserveError } = await supabase
+        .from("checkout_sessions")
+        .update({ status: "processing" })
+        .eq("id", sessionId)
+        .eq("status", "pending")
+        .select("id");
+
+    if (reserveError || !reservedSessionRows?.length) {
+        return NextResponse.json(
+            { error: "Session is being processed by another request. Please try again." },
+            { status: 409 }
+        );
+    }
+
+    // 3. Validate session items BEFORE creating order (prevent orphaned orders)
     const itemsValidation = OrderItemsSchema.safeParse(session.items);
     if (!itemsValidation.success) {
         console.error("Invalid session items format:", itemsValidation.error);
+        // Restore session to pending since validation failed
+        await supabase
+            .from("checkout_sessions")
+            .update({ status: "pending" })
+            .eq("id", sessionId);
         return NextResponse.json(
             { error: "Invalid order items in session" },
             { status: 400 }
@@ -141,7 +161,7 @@ async function handleSessionConfirm(
 
     const items = itemsValidation.data;
 
-    // 3. Create order from session data
+    // 4. Create order from session data
     const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -169,8 +189,7 @@ async function handleSessionConfirm(
         );
     }
 
-    // 4. Create order items from session items
-
+    // 5. Create order items from session items
     const itemRows = items.map((item) => ({
         order_id: order.id,
         product_id: item.id,
@@ -196,7 +215,7 @@ async function handleSessionConfirm(
         );
     }
 
-    // 5. Create payment record
+    // 6. Create payment record
     const paymentReference = `upi_manual_${crypto.randomUUID()}`;
     const { data: insertedPayment, error: paymentInsertError } = await supabase
         .from("payments")
@@ -207,7 +226,7 @@ async function handleSessionConfirm(
             payment_method: "upi",
             gateway_provider: "manual",
             amount: session.total_amount,
-            currency: "INR",
+            currency: session.currency ?? "INR",
             gateway_response: {
                 method: "upi_qr_or_link",
                 confirmed_by_user: true,
@@ -228,7 +247,7 @@ async function handleSessionConfirm(
         );
     }
 
-    // 6. Mark session as completed (with status guard for idempotency)
+    // 7. Mark session as completed (transition processing → completed)
     // Note: updated_at is auto-set by the DB trigger on UPDATE
     const { data: updatedSessionRows, error: sessionUpdateError } = await supabase
         .from("checkout_sessions")
@@ -237,7 +256,7 @@ async function handleSessionConfirm(
             order_id: order.id,
         })
         .eq("id", sessionId)
-        .eq("status", "pending")
+        .eq("status", "processing")
         .select("id");
 
     if (sessionUpdateError || !updatedSessionRows?.length) {
@@ -249,7 +268,7 @@ async function handleSessionConfirm(
         );
     }
 
-    // 7. Log events (fire-and-forget)
+    // 8. Log events (fire-and-forget)
     logServerEvent(supabase, user.id, "order_created", {
         order_id: order.id,
         order_number: order.order_number,
@@ -303,7 +322,7 @@ async function handleOrderConfirm(
         payment_method: "upi",
         gateway_provider: "manual",
         amount: order.total_amount,
-        currency: "INR",
+        currency: order.currency ?? "INR",
         gateway_response: {
             method: "upi_qr_or_link",
             confirmed_by_user: true,
