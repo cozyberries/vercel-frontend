@@ -323,14 +323,16 @@ export const HamburgerSheet = () => {
                     {SOCIAL_CONTACTS.WHATSAPP_NUMBER}
                   </motion.a>
 
-                  <motion.div
-                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] underline"
+                  <motion.a
+                    href={`mailto:${SOCIAL_CONTACTS.EMAIL}`}
+                    className="flex items-center px-3 py-2 text-sm text-[#7a7b5f] hover:text-primary transition-colors underline"
                     variants={itemVariants}
-                    whileHover={{ x: 4 }}
+                    whileHover={{ x: 4, scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
                     <Mail className="h-4 w-4 mr-2" />
                     {SOCIAL_CONTACTS.EMAIL}
-                  </motion.div>
+                  </motion.a>
 
                   <motion.a
                     href={`https://instagram.com/${SOCIAL_CONTACTS.INSTAGRAM_HANDLE_CLEAN}`}
