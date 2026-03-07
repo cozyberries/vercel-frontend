@@ -27,7 +27,7 @@ export default function NewbornGiftingSection() {
   const essentialKitsUrl = getImageUrl(newbornEssentials, 0);
 
   return (
-    <section className="lg:pt-28 pt-8 lg:pb-16 pb-10 bg-[#f9f7f4] relative overflow-hidden">
+    <section className="lg:py-14 py-8 bg-[#f9f7f4] relative overflow-hidden">
       <SnowflakeDecoration
         position="top-left"
         size="md"

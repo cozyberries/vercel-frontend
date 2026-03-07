@@ -1,15 +1,13 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import Hero from "@/components/hero";
 import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
 import {
   FeaturedProducts,
   SnowflakeDecoration,
-  GingerbreadDecoration,
   ContactSidebar,
   NewbornGiftingSection,
   SustainabilitySection,
+  WhyMuslinSection,
   ScrollReveal,
 } from "@/components/HomeClientSections";
 
@@ -19,7 +17,7 @@ export default function Home() {
       <Hero />
 
       {/* Shop by Age */}
-      <section className="lg:pt-16 lg:pb-28 pt-8 pb-10 bg-[#f9f7f4] relative overflow-hidden">
+      <section className="lg:py-14 py-8 bg-[#f9f7f4] relative overflow-hidden">
         <SnowflakeDecoration
           position="top-left"
           size="lg"
@@ -45,7 +43,7 @@ export default function Home() {
           delay={2}
         />
         <ScrollReveal className="container mx-auto px-4 relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-16">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-10">
             Shop by Age
           </h2>
           <AgeGrid />
@@ -53,9 +51,9 @@ export default function Home() {
       </section>
 
       {/* Category Grid */}
-      <section className="lg:pt-16 lg:pb-28 pt-8 pb-10 bg-background">
+      <section className="lg:py-14 py-8 bg-background">
         <ScrollReveal className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-16">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-10">
             Shop by Category
           </h2>
           <CategoryGrid />
@@ -66,7 +64,7 @@ export default function Home() {
       <NewbornGiftingSection />
 
       {/* Featured Products */}
-      <section className="pt-8 lg:pt-16 pb-10 lg:pb-28 bg-background relative overflow-hidden">
+      <section className="lg:py-14 py-8 bg-background relative overflow-hidden">
         <SnowflakeDecoration
           position="top-right"
           size="lg"
@@ -92,63 +90,18 @@ export default function Home() {
           delay={3}
         />
         <ScrollReveal className="container mx-auto px-4 relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-16">
+          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-10">
             Our Featured Products
           </h2>
           <FeaturedProducts />
         </ScrollReveal>
       </section>
 
-      {/* Story Section */}
-      <section className="lg:py-28 py-10 bg-[#f9f7f4] relative overflow-hidden">
-        <SnowflakeDecoration
-          position="top-left"
-          size="md"
-          opacity={0.13}
-          rotation={20}
-          animationType="up-down"
-          delay={0.8}
-        />
-        <GingerbreadDecoration
-          position="top-right"
-          size="sm"
-          opacity={0.12}
-          rotation={-35}
-          animationType="gentle-sway"
-          delay={1.5}
-        />
-        <SnowflakeDecoration
-          position="bottom-right"
-          size="lg"
-          opacity={0.1}
-          rotation={-25}
-          animationType="diagonal"
-          delay={2.2}
-        />
-        <GingerbreadDecoration
-          position="bottom-left"
-          size="md"
-          opacity={0.11}
-          rotation={40}
-          animationType="vertical-float"
-          delay={3.1}
-        />
-        <ScrollReveal className="container mx-auto px-4 max-w-4xl text-center relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light mb-6">Our Story</h2>
-          <p className="text-lg text-muted-foreground mb-8">
-            At Cozyberries, we believe that every baby deserves to be wrapped in
-            comfort and style. Our clothing is crafted from premium organic
-            materials, ensuring that your little one experiences nothing but the
-            softest touch against their delicate skin.
-          </p>
-          <Button variant="outline" asChild>
-            <Link href="/about">Learn More</Link>
-          </Button>
-        </ScrollReveal>
-      </section>
-
       {/* Sustainability */}
       <SustainabilitySection />
+
+      {/* Why Muslin */}
+      <WhyMuslinSection />
 
       {/* Contact Sidebar */}
       <ContactSidebar />

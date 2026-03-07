@@ -65,6 +65,7 @@ const ScrollReveal = dynamic(() => import("./ScrollReveal"));
 // SSR kept for content sections — they render static HTML and benefit from SEO/initial paint
 const NewbornGiftingSection = dynamic(() => import("./newborn-gifting-section"));
 const SustainabilitySection = dynamic(() => import("./sustainability-section"));
+const WhyMuslinSection = dynamic(() => import("./why-muslin-section"));
 
 export {
   FeaturedProducts,
@@ -73,5 +74,6 @@ export {
   ContactSidebar,
   NewbornGiftingSection,
   SustainabilitySection,
+  WhyMuslinSection,
   ScrollReveal,
 };
