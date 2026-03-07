@@ -25,6 +25,12 @@ const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
   ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map((s) => s.trim())
   : DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS;
 
+// Category image overrides - use specific Cloudinary URLs for certain categories
+const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
+  "sleeveless-jablas":
+    "https://res.cloudinary.com/dxokykvty/image/upload/v1772863832/cozyberries/categories/sleeveless-jablas/2_35c53a.png",
+};
+
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
 
@@ -79,6 +85,10 @@ export default function CategoryGrid() {
   }
 
   const getCategoryImageSrc = (category: Category): string => {
+    // Check for override first
+    if (category.slug && CATEGORY_IMAGE_OVERRIDES[category.slug]) {
+      return CATEGORY_IMAGE_OVERRIDES[category.slug];
+    }
     const fromRaw = toImageSrc(category.image);
     if (fromRaw !== PLACEHOLDER_DATA_URL) return fromRaw;
     const first = category.images?.[0];

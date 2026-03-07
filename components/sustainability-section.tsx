@@ -8,11 +8,11 @@ export default function SustainabilitySection() {
   const sustainabilityCards = [
     {
       icon: images.svgs.eco_friendly,
-      title: "Eco-Friendly",
+      title: "100% Organic Cotton",
     },
     {
       icon: images.svgs.garden_green_house,
-      title: "Circular Fashion",
+      title: "Made in India with Love",
     },
     {
       icon: images.svgs.sprout_tree,
@@ -21,7 +21,7 @@ export default function SustainabilitySection() {
   ];
 
   return (
-    <section className="lg:py-28 py-10 bg-background relative overflow-hidden">
+    <section className="lg:py-14 py-8 bg-background relative overflow-hidden">
       <SnowflakeDecoration
         position="top-right"
         size="lg"
@@ -67,11 +67,18 @@ export default function SustainabilitySection() {
                   <h3 className="text-2xl md:text-3xl font-light mb-4">
                     Our Commitment to Sustainability
                   </h3>
-                  <p className="text-lg text-muted-foreground mb-6">
-                    Every choice we make reflects our dedication to creating a
-                    better world for future generations. From sourcing to
-                    shipping, we prioritize environmental responsibility and
-                    ethical practices.
+                  <p className="text-lg text-muted-foreground mb-3">
+                    We believe thoughtful design begins with responsible choices.
+                    From materials to production, we aim to create pieces that
+                    are kinder to both little ones and the environment.
+                  </p>
+                  <ul className="text-muted-foreground space-y-1 mb-4 list-none">
+                    <li>— Conscious material choices</li>
+                    <li>— Responsible production practices</li>
+                    <li>— Mindfully produced in small batches</li>
+                  </ul>
+                  <p className="text-muted-foreground italic mb-6">
+                    Designed with longevity in mind.
                   </p>
                 </div>
 
