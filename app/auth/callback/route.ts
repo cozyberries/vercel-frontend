@@ -5,11 +5,13 @@ import { NextRequest, NextResponse } from "next/server";
 function getBaseUrl(request: NextRequest): string {
   const requestUrl = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || requestUrl.host;
-  const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || requestUrl.protocol;
+  const protocolRaw =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || requestUrl.protocol;
+  const protocol = protocolRaw.replace(/:$/, "");
   if (host && (host.startsWith("localhost") || host.includes("127.0.0.1"))) {
     return "http://localhost:3000";
   }
-  return `${protocol}//${host}`;
+  return `${protocol}://${host}`;
 }
 
 export async function GET(request: NextRequest) {
