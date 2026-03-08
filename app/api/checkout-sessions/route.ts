@@ -35,6 +35,14 @@ export async function POST(request: NextRequest) {
     const body: CreateOrderRequest = await request.json();
     const { items, shipping_address_id, billing_address_id, notes } = body;
 
+    console.log("Checkout request received", {
+      userId: user.id,
+      email: email,
+      itemsCount: items?.length,
+      shipping_address_id,
+      billing_address_id,
+    });
+
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: "Items are required" },
@@ -58,8 +66,16 @@ export async function POST(request: NextRequest) {
     );
 
     if ("error" in addressResult) {
+      console.error("Address validation error:", addressResult.error, { addressId: shipping_address_id, userId: user.id });
       return NextResponse.json(
-        { error: addressResult.error },
+        {
+          error: addressResult.error,
+          debug: {
+            addressId: shipping_address_id,
+            userId: user.id,
+            validationErrorMsg: addressResult.error
+          }
+        },
         { status: 400 }
       );
     }
