@@ -83,23 +83,39 @@ export async function validateAndFetchAddresses(
  * from the DB, then rejects any item whose submitted price is not in the
  * authoritative set.
  *
+ * Cart items use product IDs (UUIDs), so we query products by ID first,
+ * then use their slugs to fetch variant prices.
+ *
  * Returns `null` on success or an error string describing the issue.
  */
 export async function validateItemPrices(
   supabase: SupabaseClient,
   items: OrderItemInput[]
 ): Promise<string | null> {
-  const productSlugs = [...new Set(items.map((item) => item.id))];
+  const productIds = [...new Set(items.map((item) => item.id))];
 
   const { data: products, error: productsError } = await supabase
     .from("products")
-    .select("slug, price")
-    .in("slug", productSlugs);
+    .select("id, slug, price")
+    .in("id", productIds);
 
   if (productsError) {
     console.error("Error fetching product prices:", productsError);
     return "Failed to validate product prices";
   }
+
+  if (!products || products.length === 0) {
+    return "Products not found";
+  }
+
+  // Build map from product ID to slug and base price
+  const productMap = new Map<string, { slug: string; price: number }>();
+  for (const product of products) {
+    productMap.set(product.id, { slug: product.slug, price: product.price });
+  }
+
+  // Get all product slugs to query variants
+  const productSlugs = Array.from(productMap.values()).map(p => p.slug);
 
   const { data: variants, error: variantsError } = await supabase
     .from("product_variants")
@@ -111,15 +127,22 @@ export async function validateItemPrices(
     return "Failed to validate product prices";
   }
 
+  // Build map from product ID to set of valid prices
   const validPriceMap = new Map<string, Set<number>>();
 
-  for (const product of products ?? []) {
-    validPriceMap.set(product.slug, new Set([Number(product.price)]));
+  for (const [productId, { slug, price }] of productMap) {
+    validPriceMap.set(productId, new Set([Number(price)]));
   }
+
   for (const variant of variants ?? []) {
-    const set = validPriceMap.get(variant.product_slug) ?? new Set<number>();
-    set.add(Number(variant.price));
-    validPriceMap.set(variant.product_slug, set);
+    // Find product ID by matching product slug
+    for (const [productId, { slug }] of productMap) {
+      if (slug === variant.product_slug) {
+        const set = validPriceMap.get(productId) ?? new Set<number>();
+        set.add(Number(variant.price));
+        validPriceMap.set(productId, set);
+      }
+    }
   }
 
   for (const item of items) {
