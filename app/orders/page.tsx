@@ -366,7 +366,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <div className="font-semibold text-sm sm:text-base">
-                        ₹{order.total_amount.toFixed(2)}
+                        ₹{order.total_amount.toFixed(0)}
                       </div>
                       <div className="text-xs sm:text-sm text-muted-foreground">
                         {order.items.length} item
@@ -419,11 +419,11 @@ export default function OrdersPage() {
                           </p>
                         )}
                         <p className="text-xs sm:text-sm text-muted-foreground">
-                          Qty: {item.quantity} × ₹{item.price.toFixed(2)}
+                          Qty: {item.quantity} × ₹{item.price.toFixed(0)}
                         </p>
                       </div>
                       <div className="text-xs sm:text-sm font-medium flex-shrink-0">
-                        ₹{(item.price * item.quantity).toFixed(2)}
+                        ₹{(item.price * item.quantity).toFixed(0)}
                       </div>
                       {order.status === "delivered" && (
                         <Button

@@ -291,10 +291,10 @@ export default function OrderDetailsPage() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="font-medium text-sm sm:text-base">
-                        ₹{(item.price * item.quantity).toFixed(2)}
+                        ₹{(item.price * item.quantity).toFixed(0)}
                       </div>
                       <div className="text-xs sm:text-sm text-muted-foreground">
-                        ₹{item.price.toFixed(2)} each
+                        ₹{item.price.toFixed(0)} each
                       </div>
                     </div>
                   </div>
@@ -330,7 +330,7 @@ export default function OrderDetailsPage() {
                           </span>
                         </div>
                         <div className="text-base sm:text-lg font-semibold">
-                          ₹{payment.amount.toFixed(2)}
+                          ₹{payment.amount.toFixed(0)}
                         </div>
                       </div>
 
@@ -401,24 +401,16 @@ export default function OrderDetailsPage() {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-xs sm:text-sm">
                   <span>Subtotal</span>
-                  <span>₹{order.subtotal.toFixed(2)}</span>
+                  <span>₹{order.subtotal.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between text-xs sm:text-sm">
                   <span>Delivery</span>
-                  <span>₹{order.delivery_charge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span>
-                    {order.subtotal > 0 && order.tax_amount != null
-                      ? `GST (${((order.tax_amount / order.subtotal) * 100).toFixed(0)}%)`
-                      : "GST"}
-                  </span>
-                  <span>₹{order.tax_amount.toFixed(2)}</span>
+                  <span>₹{order.delivery_charge.toFixed(0)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-semibold text-sm sm:text-base">
                   <span>Total</span>
-                  <span>₹{order.total_amount.toFixed(2)}</span>
+                  <span>₹{order.total_amount.toFixed(0)}</span>
                 </div>
               </div>
 

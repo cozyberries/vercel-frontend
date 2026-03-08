@@ -14,7 +14,7 @@ import { useCart, getCartItemKey } from "@/components/cart-context";
 import { images } from "@/app/assets/images";
 import CartItemRow from "@/components/CartItem";
 import Link from "next/link";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 export default function CartSheet() {
   const { cart, updateQuantity, removeFromCart, clearCart, isLoading } =
@@ -25,8 +25,7 @@ export default function CartSheet() {
     0
   );
   const deliveryCharge = cart.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
-  const gst = cart.length > 0 ? subtotal * GST_RATE : 0;
-  const grandTotal = subtotal + deliveryCharge + gst;
+  const grandTotal = subtotal + deliveryCharge;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -96,23 +95,19 @@ export default function CartSheet() {
             <div className="border-t p-4 space-y-3">
               <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Subtotal</span>
-                <span className="font-semibold">₹{subtotal.toFixed(2)}</span>
+                <span className="font-semibold">₹{subtotal.toFixed(0)}</span>
               </div>
               <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Delivery Charge</span>
                 {deliveryCharge === 0 && cart.length > 0 ? (
                   <span className="font-semibold text-green-600">FREE</span>
                 ) : (
-                  <span className="font-semibold">₹{deliveryCharge.toFixed(2)}</span>
+                  <span className="font-semibold">₹{deliveryCharge.toFixed(0)}</span>
                 )}
               </div>
               <div className="flex justify-between items-center text-base">
-                <span className="font-medium">{GST_PERCENT_LABEL}</span>
-                <span className="font-semibold">₹{gst.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Total</span>
-                <span className="font-bold">₹{grandTotal.toFixed(2)}</span>
+                <span className="font-bold">₹{grandTotal.toFixed(0)}</span>
               </div>
               <div className="flex gap-2">
                 <Button

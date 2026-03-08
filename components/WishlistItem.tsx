@@ -44,7 +44,7 @@ const WishlistItem: React.FC<WishlistItemProps> = ({
           <Link href={`/products/${item.id}`}>{item.name}</Link>
         </div>
         <div className="text-sm font-semibold mt-1">
-          ₹{item.price.toFixed(2)}
+          ₹{item.price.toFixed(0)}
         </div>
       </div>
       <div className="flex items-center gap-1">

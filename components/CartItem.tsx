@@ -37,7 +37,7 @@ export default function CartItemRow({
           </div>
         )}
         <div className="text-sm font-semibold mt-1">
-          ₹{item.price.toFixed(2)}
+          ₹{item.price.toFixed(0)}
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
           <div className="inline-flex items-center border h-7 rounded-md overflow-hidden">

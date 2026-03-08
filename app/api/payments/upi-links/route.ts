@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "UPI payments not configured" }, { status: 503 });
         }
 
-        const amount = totalAmount.toFixed(2);
+        const amount = Math.round(totalAmount).toFixed(0);
         const payeeName = encodeURIComponent(upiPayeeName);
         const transactionNote = encodeURIComponent("Cozyberries Purchase");
 
