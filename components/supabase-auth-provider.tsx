@@ -79,7 +79,7 @@ export function SupabaseAuthProvider({
   }, []);
 
   // Helper function to create user profile if it doesn't exist (deduplicated)
-  const ensureUserProfile = useCallback(async (userId: string, userEmail?: string) => {
+  const ensureUserProfile = useCallback(async (userId: string) => {
     const key = `profile:${userId}`;
     const existing = inflightRef.current.get(key);
     if (existing) return existing;
@@ -112,7 +112,7 @@ export function SupabaseAuthProvider({
     if (currentSession?.user) {
       try {
         // First, ensure profile exists (create if it doesn't)
-        await ensureUserProfile(currentSession.user.id, currentSession.user.email);
+        await ensureUserProfile(currentSession.user.id);
 
         // Get user profile with role (deduplicated — prevents double query from
         // concurrent getInitialSession + onAuthStateChange INITIAL_SESSION calls)

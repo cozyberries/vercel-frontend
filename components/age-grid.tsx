@@ -44,6 +44,15 @@ export default function AgeGrid() {
     );
   }
 
+  if (error) {
+    console.error("Error loading age options:", error);
+    return (
+      <div className="text-center py-8">
+        <p className="text-neutral-500">Unable to load age options. Please try refreshing the page.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-3 gap-4 md:gap-6 lg:gap-8">
       {ageOptions.map((age) => {

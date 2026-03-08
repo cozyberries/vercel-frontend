@@ -568,7 +568,10 @@ export const createProduct = async (
   product: ProductCreateRequest
 ): Promise<Product | null> => {
   try {
-    const { data } = await dedupePost("/api/products", product);
+    // Use api.post() instead of dedupePost() for CREATE operations
+    // POST deduplication should not apply to create operations as each request
+    // should result in a new resource, not a shared response
+    const { data } = await api.post("/api/products", product);
     return data;
   } catch (error) {
     console.error("Error creating product:", error);

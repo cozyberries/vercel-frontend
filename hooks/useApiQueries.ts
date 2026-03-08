@@ -6,8 +6,6 @@ import {
   getCategories,
   getFeaturedProducts,
   type AgeOptionFilter,
-  type CategoryOption,
-  type Product,
 } from "@/lib/services/api";
 
 /**
