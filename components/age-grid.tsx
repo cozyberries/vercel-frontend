@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { images } from "@/app/assets/images";
-import { getAgeOptions, type AgeOptionFilter } from "@/lib/services/api";
+import { useAgeOptions } from "@/hooks/useApiQueries";
 
 // Slug → image for known ages (DB-driven list; images are static assets)
 // 3-4y, 4-5y, 5-6y combined into 3-6 in UI; one image for 3-6
@@ -29,21 +28,7 @@ const SLUG_TO_IMAGE: Record<string, string> = {
 const FALLBACK_IMAGE = images.age.age_zero_three_m;
 
 export default function AgeGrid() {
-  const [ageOptions, setAgeOptions] = useState<AgeOptionFilter[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setIsLoading(true);
-    getAgeOptions()
-      .then((opts) => {
-        setAgeOptions(opts);
-      })
-      .catch((err) => {
-        console.error("[AgeGrid] Failed to load age options:", err);
-        setAgeOptions([]);
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
+  const { data: ageOptions = [], isLoading, error } = useAgeOptions();
 
   if (isLoading) {
     return (
@@ -55,6 +40,15 @@ export default function AgeGrid() {
             aria-hidden
           />
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    console.error("Error loading age options:", error);
+    return (
+      <div className="text-center py-8">
+        <p className="text-neutral-500">Unable to load age options. Please try refreshing the page.</p>
       </div>
     );
   }

@@ -3,39 +3,14 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import ProductCard from "./product-card";
-import { getFeaturedProducts, Product } from "@/lib/services/api";
 import { useEffect, useState, useRef } from "react";
+import { useFeaturedProducts } from "@/hooks/useApiQueries";
 
 export default function FeaturedProducts() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: products = [], isLoading, error } = useFeaturedProducts(6);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const loadFeaturedProducts = async () => {
-      try {
-        setIsLoading(true);
-        const featuredProducts = await getFeaturedProducts(6);
-        setProducts(featuredProducts);
-        setError(null);
-      } catch (err) {
-        console.error("Error loading featured products:", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load featured products"
-        );
-        setProducts([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadFeaturedProducts();
-  }, []);
 
   // Track screen size for responsive behavior
   useEffect(() => {
@@ -98,7 +73,7 @@ export default function FeaturedProducts() {
           <h3 className="text-lg font-medium text-red-800 mb-2">
             Error Loading Featured Products
           </h3>
-          <p className="text-red-700 mb-4">{error}</p>
+          <p className="text-red-700 mb-4">{error instanceof Error ? error.message : "Failed to load featured products"}</p>
           <Button onClick={() => window.location.reload()} variant="outline">
             Try Again
           </Button>
