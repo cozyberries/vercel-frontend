@@ -2,6 +2,18 @@ import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/sup
 import { generateNameFromEmail } from "@/lib/utils/validation";
 import { NextRequest, NextResponse } from "next/server";
 
+function getBaseUrl(request: NextRequest): string {
+  const requestUrl = new URL(request.url);
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || requestUrl.host;
+  const protocolRaw =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || requestUrl.protocol;
+  const protocol = protocolRaw.replace(/:$/, "");
+  if (host && (host.startsWith("localhost") || host.includes("127.0.0.1"))) {
+    return "http://localhost:3000";
+  }
+  return `${protocol}://${host}`;
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -12,17 +24,9 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error("Error exchanging code for session:", error);
-      // Redirect to login with error
-      return NextResponse.redirect(
-        new URL("/login?error=auth_callback_error", request.url)
-      );
+      const base = getBaseUrl(request);
+      return NextResponse.redirect(new URL("/login?error=auth_callback_error", base));
     }
-
-    // Get the correct base URL for redirect
-    const getBaseUrl = () => {
-      const { protocol, host } = requestUrl;
-      return `${protocol}//${host}`;
-    };
 
     // If this is a new OAuth user, create their profile
     if (data?.user && data?.user.email) {
@@ -80,7 +84,7 @@ export async function GET(request: NextRequest) {
             );
 
           // New user — redirect to complete profile (phone required)
-          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
+          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
         }
 
         // Existing user — check if phone is missing
@@ -93,25 +97,24 @@ export async function GET(request: NextRequest) {
         if (phoneCheckError) {
           console.error("Error checking phone:", phoneCheckError);
           // Safe fallback: prompt user to complete profile if check fails
-          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
+          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
         }
 
         if (!profileWithPhone?.phone) {
-          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
+          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
         }
       } catch (profileError) {
         // Don't fail the OAuth flow if profile creation fails
         console.error("Error creating OAuth user profile:", profileError);
         // Safe fallback: redirect to complete-profile so user can retry
-        return NextResponse.redirect(new URL("/complete-profile", getBaseUrl()));
+        return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
       }
     }
 
     // Existing user with phone — redirect to home
-    return NextResponse.redirect(new URL("/", getBaseUrl()));
+    return NextResponse.redirect(new URL("/", getBaseUrl(request)));
   }
 
   // No code — redirect to home
-  const { protocol, host } = requestUrl;
-  return NextResponse.redirect(new URL("/", `${protocol}//${host}`));
+  return NextResponse.redirect(new URL("/", getBaseUrl(request)));
 }

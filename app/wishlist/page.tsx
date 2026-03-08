@@ -131,7 +131,7 @@ export default function WishlistPage() {
                 </Link>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-gray-900">
-                    {"\u20B9"}{item.price.toFixed(2)}
+                    {"\u20B9"}{item.price.toFixed(0)}
                   </span>
                   <Button
                     variant="ghost"

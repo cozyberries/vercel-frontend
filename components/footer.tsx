@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Mail, Instagram, MapPin, Clock } from "lucide-react";
 import { images } from "@/app/assets/images";
+import { SOCIAL_CONTACTS } from "@/lib/constants/social";
 
 const footerLinks = [
   {
@@ -46,33 +47,33 @@ export default function Footer() {
             <ul className="space-y-3">
               <li>
                 <a
-                  href="mailto:cozyberriesofficial@gmail.com"
+                  href={`mailto:${SOCIAL_CONTACTS.EMAIL}`}
                   className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
                 >
                   <Mail className="h-4 w-4 shrink-0" />
-                  <span>cozyberriesofficial@gmail.com</span>
+                  <span>{SOCIAL_CONTACTS.EMAIL}</span>
                 </a>
               </li>
               <li>
                 <a
-                  href="https://wa.me/917411431101"
+                  href={`https://wa.me/${SOCIAL_CONTACTS.WHATSAPP_NUMBER_CLEAN}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
                 >
                   <WhatsAppIcon />
-                  <span>+91 74114 31101</span>
+                  <span>{SOCIAL_CONTACTS.WHATSAPP_NUMBER}</span>
                 </a>
               </li>
               <li>
                 <a
-                  href="https://instagram.com/cozy_berries"
+                  href={`https://instagram.com/${SOCIAL_CONTACTS.INSTAGRAM_HANDLE_CLEAN}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
                 >
                   <Instagram className="h-4 w-4 shrink-0" />
-                  <span>@cozy_berries</span>
+                  <span>{SOCIAL_CONTACTS.INSTAGRAM_HANDLE}</span>
                 </a>
               </li>
               <li className="flex items-start gap-2 text-muted-foreground">

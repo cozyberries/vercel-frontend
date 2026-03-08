@@ -4,6 +4,7 @@ import { Mail, Instagram } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { SOCIAL_CONTACTS, WHATSAPP_MESSAGE } from "@/lib/constants/social";
 
 interface ContactSidebarProps {
   email?: string;
@@ -12,9 +13,9 @@ interface ContactSidebarProps {
 }
 
 export default function ContactSidebar({
-  email = "cozyberriesofficial@gmail.com",
-  whatsappNumber = "+1234567890",
-  instagramHandle = "@cozyberries",
+  email = SOCIAL_CONTACTS.EMAIL,
+  whatsappNumber = SOCIAL_CONTACTS.WHATSAPP_NUMBER,
+  instagramHandle = SOCIAL_CONTACTS.INSTAGRAM_HANDLE,
 }: ContactSidebarProps) {
   const [showPopups, setShowPopups] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,9 +46,7 @@ export default function ContactSidebar({
   };
 
   const handleWhatsAppClick = () => {
-    const message = encodeURIComponent(
-      "Hello! I'd like to get in touch about your products."
-    );
+    const message = encodeURIComponent(WHATSAPP_MESSAGE);
     window.open(
       `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, "")}?text=${message}`,
       "_blank"

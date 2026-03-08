@@ -29,7 +29,7 @@ import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { logEvent } from "@/lib/services/event-logger";
 import { toImageSrc } from "@/lib/utils/image";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD, GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 interface CheckoutFormData {
   email: string;
@@ -75,8 +75,7 @@ export default function CheckoutPage() {
     0
   );
   const deliveryCharge = cart.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
-  const gst = cart.length > 0 ? subtotal * GST_RATE : 0;
-  const total = subtotal + deliveryCharge + gst;
+  const total = subtotal + deliveryCharge;
 
   // Redirect if user is not authenticated
   useEffect(() => {
@@ -505,7 +504,7 @@ export default function CheckoutPage() {
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4" />
                     {selectedAddressId
-                      ? `Pay ₹${total.toFixed(2)}`
+                      ? `Pay ₹${total.toFixed(0)}`
                       : "Select Address to Continue"}
                   </div>
                 )}
@@ -546,7 +545,7 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                     <div className="text-sm font-medium">
-                      ₹{(item.price * item.quantity).toFixed(2)}
+                      ₹{(item.price * item.quantity).toFixed(0)}
                     </div>
                   </div>
                 ))}
@@ -558,24 +557,20 @@ export default function CheckoutPage() {
               <div className="space-y-2 mb-6">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span>₹{subtotal.toFixed(2)}</span>
+                  <span>₹{subtotal.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
                   {deliveryCharge === 0 ? (
                     <span className="text-green-600 font-medium">FREE</span>
                   ) : (
-                    <span>₹{deliveryCharge.toFixed(2)}</span>
+                    <span>₹{deliveryCharge.toFixed(0)}</span>
                   )}
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>{GST_PERCENT_LABEL}</span>
-                  <span>₹{gst.toFixed(2)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
-                  <span>₹{total.toFixed(2)}</span>
+                  <span>₹{total.toFixed(0)}</span>
                 </div>
               </div>
 

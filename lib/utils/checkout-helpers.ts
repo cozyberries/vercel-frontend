@@ -7,7 +7,6 @@ import type {
 import {
   DELIVERY_CHARGE_INR,
   FREE_DELIVERY_THRESHOLD,
-  GST_RATE,
 } from "@/lib/constants";
 
 // ─── Address Helpers ──────────────────────────────────────────────────────────
@@ -148,7 +147,6 @@ function round2(n: number): number {
 
 const FREE_DELIVERY_THRESHOLD_PAISE = Math.round(FREE_DELIVERY_THRESHOLD * 100);
 const DELIVERY_CHARGE_PAISE = Math.round(DELIVERY_CHARGE_INR * 100);
-const GST_PERCENT = Math.round(GST_RATE * 100);
 
 export function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
   if (items.length === 0) {
@@ -169,14 +167,12 @@ export function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
   const delivery_charge_paise =
     subtotal_paise < FREE_DELIVERY_THRESHOLD_PAISE ? DELIVERY_CHARGE_PAISE : 0;
 
-  const tax_paise = Math.round((subtotal_paise * GST_PERCENT) / 100);
-
-  const total_paise = subtotal_paise + delivery_charge_paise + tax_paise;
+  const total_paise = subtotal_paise + delivery_charge_paise;
 
   return {
     subtotal: round2(subtotal_paise / 100),
     delivery_charge: round2(delivery_charge_paise / 100),
-    tax_amount: round2(tax_paise / 100),
+    tax_amount: 0,
     total_amount: round2(total_paise / 100),
     currency: "INR",
   };

@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
-import { GST_RATE, GST_PERCENT_LABEL } from "@/lib/constants";
 import type { Order } from "@/lib/types/order";
 import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
@@ -183,7 +182,7 @@ export default function PaymentPage() {
             {order && (
               <p className="text-sm text-muted-foreground mb-8">
                 Order #{order.order_number} &bull; ₹
-                {order.total_amount.toFixed(2)}
+                {order.total_amount.toFixed(0)}
               </p>
             )}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -225,7 +224,7 @@ export default function PaymentPage() {
             <div className="text-center lg:text-left">
               <p className="text-sm text-muted-foreground mb-1">Amount to pay</p>
               <p className="text-4xl font-semibold">
-                ₹{order.total_amount.toFixed(2)}
+                ₹{order.total_amount.toFixed(0)}
               </p>
             </div>
 
@@ -250,7 +249,7 @@ export default function PaymentPage() {
               <div className="flex items-center gap-2 mt-4 text-muted-foreground">
                 <QrCode className="w-4 h-4" />
                 <p className="text-sm">
-                  Scan QR code with any UPI app to pay ₹{order.total_amount.toFixed(2)}
+                  Scan QR code with any UPI app to pay ₹{order.total_amount.toFixed(0)}
                 </p>
               </div>
             </div>
@@ -302,7 +301,7 @@ export default function PaymentPage() {
                 <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
                   <p className="text-sm font-medium text-amber-900 mb-3">
                     Have you completed the payment of ₹
-                    {order.total_amount.toFixed(2)}?
+                    {order.total_amount.toFixed(0)}?
                   </p>
                   <div className="flex gap-3">
                     <Button
@@ -399,7 +398,7 @@ export default function PaymentPage() {
                       </p>
                     </div>
                     <div className="text-sm font-medium">
-                      ₹{(item.price * item.quantity).toFixed(2)}
+                      ₹{(item.price * item.quantity).toFixed(0)}
                     </div>
                   </div>
                 ))}
@@ -411,20 +410,16 @@ export default function PaymentPage() {
               <div className="space-y-2 mb-6">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span>₹{order.subtotal.toFixed(2)}</span>
+                  <span>₹{order.subtotal.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
-                  <span>₹{order.delivery_charge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>{GST_PERCENT_LABEL}</span>
-                  <span>₹{order.tax_amount.toFixed(2)}</span>
+                  <span>₹{order.delivery_charge.toFixed(0)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
-                  <span>₹{order.total_amount.toFixed(2)}</span>
+                  <span>₹{order.total_amount.toFixed(0)}</span>
                 </div>
               </div>
 
