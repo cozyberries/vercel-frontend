@@ -323,9 +323,9 @@ export default function AddressFormModal({
                   onChange={(e) => onInputChange("city", e.target.value)}
                   placeholder="City"
                   required
-                  readOnly={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
                   className={`${validationErrors.city ? "border-red-500" : ""} ${
-                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50" : ""
+                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
                   }`}
                 />
                 {validationErrors.city && (
@@ -343,9 +343,9 @@ export default function AddressFormModal({
                   onChange={(e) => onInputChange("state", e.target.value)}
                   placeholder="State"
                   required
-                  readOnly={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
                   className={`${validationErrors.state ? "border-red-500" : ""} ${
-                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50" : ""
+                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
                   }`}
                 />
                 {validationErrors.state && (
@@ -386,6 +386,10 @@ export default function AddressFormModal({
                 value={addressData.country}
                 onChange={(e) => onInputChange("country", e.target.value)}
                 placeholder="Country"
+                disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
+                className={
+                  enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
+                }
               />
             </div>
 
