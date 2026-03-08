@@ -9,6 +9,21 @@ import type {
 const DELHIVERY_BASE_URL =
   process.env.DELHIVERY_BASE_URL || "https://track.delhivery.com";
 
+// ─── Delivery Time Estimation ─────────────────────────────────────────────────
+
+/**
+ * Estimates delivery days based on ODA status and service type.
+ * ODA (On-Demand Area) areas have longer delivery times.
+ */
+function estimateDeliveryDays(isOda: boolean): { min: number; max: number } {
+  if (isOda) {
+    // On-Demand Areas: 5-7 business days
+    return { min: 5, max: 7 };
+  }
+  // Regular serviceable areas: 2-4 business days
+  return { min: 2, max: 4 };
+}
+
 // ─── Pincode Serviceability ──────────────────────────────────────────────────
 
 export async function checkPincodeServiceability(
@@ -43,10 +58,12 @@ export async function checkPincodeServiceability(
       prepaid: false,
       cod: false,
       is_oda: false,
+      delivery_days: { min: 0, max: 0 },
     };
   }
 
   const pc = data.delivery_codes[0].postal_code;
+  const isOda = pc.is_oda === "Y";
 
   return {
     serviceable: pc.pre_paid === "Y" || pc.cod === "Y",
@@ -56,7 +73,8 @@ export async function checkPincodeServiceability(
     country_code: pc.country_code,
     prepaid: pc.pre_paid === "Y",
     cod: pc.cod === "Y",
-    is_oda: pc.is_oda === "Y",
+    is_oda: isOda,
+    delivery_days: estimateDeliveryDays(isOda),
   };
 }
 

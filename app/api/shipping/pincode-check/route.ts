@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       prepaid: result.prepaid,
       cod: result.cod,
       is_oda: result.is_oda,
+      delivery_days: result.delivery_days,
     });
   } catch (err) {
     console.error("Pincode check error:", err);

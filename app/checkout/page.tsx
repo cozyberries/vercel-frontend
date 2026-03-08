@@ -52,6 +52,7 @@ export default function CheckoutPage() {
     "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
   >("idle");
   const [pincodeMessage, setPincodeMessage] = useState("");
+  const [deliveryDays, setDeliveryDays] = useState<{ min: number; max: number } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Use profile hook for address management
@@ -138,11 +139,13 @@ export default function CheckoutPage() {
       if (data.serviceable) {
         setPincodeStatus("serviceable");
         setPincodeMessage(`Delivery available to ${data.city}, ${data.state}`);
+        setDeliveryDays(data.delivery_days);
       } else {
         setPincodeStatus("not_serviceable");
         setPincodeMessage(
           "Sorry, we don't deliver to this pincode yet. Please select a different address."
         );
+        setDeliveryDays(null);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -585,7 +588,13 @@ export default function CheckoutPage() {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Estimated delivery: 3-5 business days
+                  {deliveryDays ? (
+                    <>
+                      Estimated delivery: <span className="font-medium text-foreground">{deliveryDays.min}-{deliveryDays.max} business days</span>
+                    </>
+                  ) : (
+                    "Select an address to see delivery estimate"
+                  )}
                 </p>
               </div>
             </div>

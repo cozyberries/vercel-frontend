@@ -29,5 +29,9 @@ export interface PincodeCheckResult {
   prepaid: boolean;
   cod: boolean;
   is_oda: boolean;
+  delivery_days: {
+    min: number;
+    max: number;
+  };
 }
 
