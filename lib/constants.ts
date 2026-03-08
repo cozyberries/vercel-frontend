@@ -4,7 +4,7 @@ export const DELIVERY_CHARGE_INR = 90;
 /** Subtotal threshold (INR) above which delivery is free. */
 export const FREE_DELIVERY_THRESHOLD = 1999;
 
-/** GST rate (5%). Used for priceWithGst() in product display pricing. */
+/** GST rate (5%). Database prices now include GST. This constant is kept for reference. */
 export const GST_RATE = 0.05;
 
 /** UPI ID for receiving payments. Set NEXT_PUBLIC_UPI_ID in env; fallback for local/dev (empty string treated as missing). */

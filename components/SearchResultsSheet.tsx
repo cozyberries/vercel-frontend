@@ -15,7 +15,6 @@ import {
 import { Product } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
 import { toImageSrc } from "@/lib/utils/image";
-import { priceWithGst } from "@/lib/utils";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
 
@@ -456,7 +455,7 @@ export default function SearchResultsSheet({
                             </p>
                           )}
                         <p className="font-medium text-sm mt-1">
-                          ₹{priceWithGst(product.price).toFixed(0)}
+                          ₹{product.price.toFixed(0)}
                         </p>
                       </div>
 
@@ -476,7 +475,7 @@ export default function SearchResultsSheet({
                               addToWishlist({
                                 id: product.id,
                                 name: product.name,
-                                price: priceWithGst(product.price),
+                                price: product.price,
                                 image: (product.images?.[0] as any)?.url ?? (product.images?.[0] as any),
                               });
                               toast.success(
@@ -544,7 +543,7 @@ export default function SearchResultsSheet({
                                     {prod.name}
                                   </div>
                                   <div className="text-sm font-medium mt-1">
-                                    ₹{priceWithGst(prod.price ?? 0).toFixed(0)}
+                                    ₹{(prod.price ?? 0).toFixed(0)}
                                   </div>
                                 </div>
                               </Link>
@@ -562,7 +561,7 @@ export default function SearchResultsSheet({
                                       addToWishlist({
                                         id: prod.id,
                                         name: prod.name,
-                                        price: priceWithGst(prod.price ?? 0),
+                                        price: prod.price ?? 0,
                                         image: prodImgSrc,
                                       });
                                       toast.success(`${prod.name} added to wishlist!`);
@@ -632,7 +631,7 @@ export default function SearchResultsSheet({
                                 {p.name}
                               </div>
                               <div className="text-sm font-medium mt-1">
-                                ₹{priceWithGst(p.price ?? 0).toFixed(0)}
+                                ₹{(p.price ?? 0).toFixed(0)}
                               </div>
                             </div>
                           </Link>
@@ -650,7 +649,7 @@ export default function SearchResultsSheet({
                                   addToWishlist({
                                     id: p.id,
                                     name: p.name,
-                                    price: priceWithGst(p.price ?? 0),
+                                    price: p.price ?? 0,
                                     image: productImageSrc,
                                   });
                                   toast.success(`${p.name} added to wishlist!`);
