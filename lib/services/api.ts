@@ -94,15 +94,51 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.code === "ECONNABORTED") {
-      console.error("Request timeout:", error.config.url);
+      console.error("Request timeout:", error.config?.url);
     } else if (error.response?.status >= 500) {
-      console.error("Server error:", error.response.status, error.config.url);
+      console.error("Server error:", error.response.status, error.config?.url);
     } else if (!error.response) {
       console.error("Network error or no response:", error.message);
     }
     return Promise.reject(error);
   }
 );
+
+// ============ REQUEST DEDUPLICATION LAYER ============
+// In-flight request cache: identical concurrent requests share the same promise.
+// Once a request resolves/rejects, its entry is removed so subsequent calls
+// hit the network again (stale data is never served).
+const inflightRequests = new Map<string, Promise<any>>();
+
+function dedupeKey(method: string, url: string, data?: any): string {
+  return `${method}:${url}:${JSON.stringify(data ?? "")}`;
+}
+
+/** Deduplicated GET — concurrent calls to the same URL share one request */
+function dedupeGet<T = any>(url: string, config?: any): Promise<import("axios").AxiosResponse<T>> {
+  const key = dedupeKey("get", url, config?.params);
+  const existing = inflightRequests.get(key);
+  if (existing) return existing;
+
+  const promise = api.get<T>(url, config).finally(() => {
+    inflightRequests.delete(key);
+  });
+  inflightRequests.set(key, promise);
+  return promise;
+}
+
+/** Deduplicated POST — concurrent calls with same URL+body share one request */
+function dedupePost<T = any>(url: string, data?: any, config?: any): Promise<import("axios").AxiosResponse<T>> {
+  const key = dedupeKey("post", url, data);
+  const existing = inflightRequests.get(key);
+  if (existing) return existing;
+
+  const promise = api.post<T>(url, data, config).finally(() => {
+    inflightRequests.delete(key);
+  });
+  inflightRequests.set(key, promise);
+  return promise;
+}
 
 // ---------- API Functions ----------
 export const getCategories = async (cacheBust = false, retries = 3) => {
@@ -113,7 +149,7 @@ export const getCategories = async (cacheBust = false, retries = 3) => {
         config.headers = { "Cache-Control": "no-cache", Pragma: "no-cache" };
         config.params = { _: Date.now() };
       }
-      const { data } = await api.get("/api/categories", config);
+      const { data } = await dedupeGet("/api/categories", config);
       return data || [];
     } catch (error) {
       console.error(
@@ -192,7 +228,7 @@ export const getAgeOptions = async (
 ): Promise<AgeOptionFilter[]> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/ages/options");
+      const { data } = await dedupeGet("/api/ages/options");
       const raw = data || [];
       return normalizeAgeOptions(raw);
     } catch (error) {
@@ -217,7 +253,7 @@ export const getGenderOptions = async (
 ): Promise<GenderOptionFilter[]> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/genders/options");
+      const { data } = await dedupeGet("/api/genders/options");
       return data || [];
     } catch (error) {
       console.error(
@@ -241,7 +277,7 @@ export const getSizeOptions = async (
 ): Promise<SizeOptionFilter[]> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/sizes/options");
+      const { data } = await dedupeGet("/api/sizes/options");
       return data || [];
     } catch (error) {
       console.error(
@@ -265,7 +301,7 @@ export const getCategoryOptions = async (
 ): Promise<CategoryOption[]> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/categories/options");
+      const { data } = await dedupeGet("/api/categories/options");
       return data || [];
     } catch (error) {
       console.error(
@@ -296,7 +332,7 @@ export const getFeaturedProducts = async (
 ): Promise<Product[]> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/products", {
+      const { data } = await dedupeGet("/api/products", {
         params: {
           limit,
           featured: true,
@@ -347,7 +383,7 @@ export const getProducts = async (
 ): Promise<{ products: Product[]; pagination: PaginationInfo }> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/products", {
+      const { data } = await dedupeGet("/api/products", {
         params: {
           limit: params.limit || 12,
           page: params.page || 1,
@@ -408,7 +444,7 @@ export const getAllProductsDetailed = async (
 ): Promise<Product[]> => {
   for (let i = 0; i < retries; i++) {
     try {
-      const { data } = await api.get("/api/products", {
+      const { data } = await dedupeGet("/api/products", {
         params: {
           limit: 100, // Maximum allowed by API
         },
@@ -443,7 +479,7 @@ export const getAllProductsDetailed = async (
 
 export const getProductById = async (id: string): Promise<Product | null> => {
   try {
-    const { data } = await api.get(`/api/products/${id}`);
+    const { data } = await dedupeGet(`/api/products/${id}`);
 
     const images: string[] =
       (data.images || [])
@@ -500,7 +536,7 @@ export const getProductBySlug = async (
   slug: string
 ): Promise<Product | null> => {
   try {
-    const { data } = await api.get("/api/products", { params: { slug } });
+    const { data } = await dedupeGet("/api/products", { params: { slug } });
     if (data?.id && Object.keys(data).length === 1) {
       return getProductById(data.id);
     }
@@ -532,7 +568,7 @@ export const createProduct = async (
   product: ProductCreateRequest
 ): Promise<Product | null> => {
   try {
-    const { data } = await api.post("/api/products", product);
+    const { data } = await dedupePost("/api/products", product);
     return data;
   } catch (error) {
     console.error("Error creating product:", error);

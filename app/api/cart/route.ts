@@ -30,10 +30,10 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({
-      cart: data?.items || [],
-      user_id: user.id,
-    });
+    return NextResponse.json(
+      { cart: data?.items || [], user_id: user.id },
+      { headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=120' } }
+    );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(

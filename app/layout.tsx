@@ -11,6 +11,7 @@ import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import { Toaster } from "sonner";
 import { RatingProvider } from "@/components/rating-context";
+import { QueryProvider } from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -50,28 +51,30 @@ export default function RootLayout({
       </head>
       {/* suppressHydrationWarning on body helps when a browser extension (e.g. Cursor) injects data-cursor-ref into the DOM after server render */}
       <body className={inter.className} suppressHydrationWarning>
-        <SupabaseAuthProvider>
-          <DataPreloader>
-            <WishlistProvider>
-              <CartProvider>
-                <RatingProvider>
-                <ThemeProvider
-                  attribute="class"
-                  defaultTheme="light"
-                  enableSystem={false}
-                  disableTransitionOnChange
-                >
-                  <ConditionalLayout>
-                    {children}
-                  </ConditionalLayout>
-                  <ScrollToTopButton />
-                  <Toaster />
-                </ThemeProvider>
-                </RatingProvider>
-              </CartProvider>
-            </WishlistProvider>
-          </DataPreloader>
-        </SupabaseAuthProvider>
+        <QueryProvider>
+          <SupabaseAuthProvider>
+            <DataPreloader>
+              <WishlistProvider>
+                <CartProvider>
+                  <RatingProvider>
+                  <ThemeProvider
+                    attribute="class"
+                    defaultTheme="light"
+                    enableSystem={false}
+                    disableTransitionOnChange
+                  >
+                    <ConditionalLayout>
+                      {children}
+                    </ConditionalLayout>
+                    <ScrollToTopButton />
+                    <Toaster />
+                  </ThemeProvider>
+                  </RatingProvider>
+                </CartProvider>
+              </WishlistProvider>
+            </DataPreloader>
+          </SupabaseAuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

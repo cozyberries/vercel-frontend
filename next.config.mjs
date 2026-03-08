@@ -1,3 +1,6 @@
+import BundleAnalyzer from '@next/bundle-analyzer';
+const withBundleAnalyzer = BundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
+
 let userConfig = undefined
 try {
   userConfig = await import('./v0-user-next.config')
@@ -35,6 +38,18 @@ const nextConfig = {
   env: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   },
+  async headers() {
+    return [
+      // Reference data — changes rarely, cache 1 hour, serve stale for 24 h while revalidating
+      { source: '/api/categories',         headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },
+      { source: '/api/ages/options',        headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },
+      { source: '/api/sizes/options',       headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },
+      { source: '/api/genders/options',     headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },
+      { source: '/api/categories/options',  headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },
+      // Product listing — shorter TTL since prices/stock can change
+      { source: '/api/products',            headers: [{ key: 'Cache-Control', value: 'public, s-maxage=60, stale-while-revalidate=600' }] },
+    ];
+  },
 }
 
 mergeConfig(nextConfig, userConfig)
@@ -59,4 +74,4 @@ function mergeConfig(nextConfig, userConfig) {
   }
 }
 
-export default nextConfig
+export default withBundleAnalyzer(nextConfig)

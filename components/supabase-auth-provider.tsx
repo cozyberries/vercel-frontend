@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
@@ -47,48 +48,63 @@ export function SupabaseAuthProvider({
   // Create supabase client once and reuse it
   const [supabase] = useState(() => createClient());
 
-  // Helper function to generate JWT token
-  const generateJwtToken = useCallback(async (userId: string, userEmail?: string) => {
-    try {
-      const response = await fetch("/api/auth/generate-token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, userEmail }),
-      });
+  // In-flight request deduplication for fetch-based calls
+  const inflightRef = useRef<Map<string, Promise<any>>>(new Map());
 
-      if (response.ok) {
-        const data = await response.json();
-        return data.token;
+  // Helper function to generate JWT token (deduplicated)
+  const generateJwtToken = useCallback(async (userId: string, userEmail?: string) => {
+    const key = `token:${userId}`;
+    const existing = inflightRef.current.get(key);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      try {
+        const response = await fetch("/api/auth/generate-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, userEmail }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.token;
+        }
+      } catch (error) {
+        console.error("Error generating JWT token:", error);
       }
-    } catch (error) {
-      console.error("Error generating JWT token:", error);
-    }
-    return null;
+      return null;
+    })().finally(() => { inflightRef.current.delete(key); });
+
+    inflightRef.current.set(key, promise);
+    return promise;
   }, []);
 
-  // Helper function to create user profile if it doesn't exist
+  // Helper function to create user profile if it doesn't exist (deduplicated)
   const ensureUserProfile = useCallback(async (userId: string, userEmail?: string) => {
-    try {
-      const response = await fetch("/api/profile/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+    const key = `profile:${userId}`;
+    const existing = inflightRef.current.get(key);
+    if (existing) return existing;
 
-      if (response.ok) {
-        const data = await response.json();
-        return { success: true, profile: data.profile };
-      } else {
-        console.warn("Failed to create user profile:", await response.text());
+    const promise = (async () => {
+      try {
+        const response = await fetch("/api/profile/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return { success: true, profile: data.profile };
+        } else {
+          console.warn("Failed to create user profile:", await response.text());
+          return { success: false };
+        }
+      } catch (error) {
+        console.error("Error ensuring user profile:", error);
         return { success: false };
       }
-    } catch (error) {
-      console.error("Error ensuring user profile:", error);
-      return { success: false };
-    }
+    })().finally(() => { inflightRef.current.delete(key); });
+
+    inflightRef.current.set(key, promise);
+    return promise;
   }, []);
 
   // Helper function to update user profile
@@ -98,12 +114,27 @@ export function SupabaseAuthProvider({
         // First, ensure profile exists (create if it doesn't)
         await ensureUserProfile(currentSession.user.id, currentSession.user.email);
 
-        // Get user profile with role
-        const { data: profile, error } = await supabase
-          .from("user_profiles")
-          .select("role")
-          .eq("id", currentSession.user.id)
-          .single();
+        // Get user profile with role (deduplicated — prevents double query from
+        // concurrent getInitialSession + onAuthStateChange INITIAL_SESSION calls)
+        const roleKey = `role:${currentSession.user.id}`;
+        let rolePromise = inflightRef.current.get(roleKey);
+        if (!rolePromise) {
+          // Use try/finally inside async IIFE — no .finally() method required
+          // (Supabase query builder is a custom thenable without .finally)
+          rolePromise = (async () => {
+            try {
+              return await supabase
+                .from("user_profiles")
+                .select("role")
+                .eq("id", currentSession.user.id)
+                .single();
+            } finally {
+              inflightRef.current.delete(roleKey);
+            }
+          })();
+          inflightRef.current.set(roleKey, rolePromise);
+        }
+        const { data: profile, error } = await rolePromise;
 
         if (!error && profile) {
           const userProfile: UserProfile = {
@@ -221,12 +252,8 @@ export function SupabaseAuthProvider({
         setUser(session?.user ?? null);
         setLoading(false); // Set loading to false immediately
 
-        // For SIGNED_IN and USER_UPDATED events, ensure profile exists
-        if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user) {
-          // Ensure profile exists before updating
-          await ensureUserProfile(session.user.id, session.user.email);
-        }
-
+        // updateUserProfile already calls ensureUserProfile internally,
+        // so we don't need a separate call here.
         // Update profile asynchronously without blocking
         updateUserProfile(session).catch((profileError) => {
           console.error("Error updating user profile in auth state change:", profileError);
