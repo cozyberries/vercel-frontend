@@ -73,8 +73,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
     price?: number,
     basePrice?: number
   ) => {
-    // Cart stores price (GST-inclusive) for display and checkout validation
-    const itemPrice = price ?? product.price;
+    // Cart stores price (GST-inclusive); honor basePrice when price is undefined
+    const itemPrice = price ?? basePrice ?? product.price;
     const existing = getCartItemForVariant(size, color);
     if (existing) {
       updateQuantity(

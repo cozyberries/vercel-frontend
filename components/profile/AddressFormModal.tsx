@@ -82,9 +82,11 @@ export default function AddressFormModal({
     };
   }, []);
 
-  // Reset pincode state when modal opens so stale messages are not shown
+  // Reset pincode state when modal opens; abort any in-flight pincode request
   useEffect(() => {
     if (isOpen && enablePincodeCheck) {
+      pincodeAbortRef.current?.abort();
+      pincodeAbortRef.current = null;
       setPincodeStatus("idle");
       setPincodeMessage("");
       if (debounceRef.current) {
@@ -114,11 +116,12 @@ export default function AddressFormModal({
         const res = await fetch(`/api/shipping/pincode-check?pincode=${pincode}`, {
           signal: controller.signal,
         });
+        const clone = res.clone();
         let data: PincodeCheckApiResponse | null = null;
         try {
           data = await res.json();
         } catch {
-          const text = await res.text();
+          const text = await clone.text();
           throw new Error(`Pincode check failed (${res.status}): ${text || res.statusText}`);
         }
 

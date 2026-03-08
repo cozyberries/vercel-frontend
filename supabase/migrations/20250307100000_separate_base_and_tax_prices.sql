@@ -4,10 +4,12 @@
 -- 1. Add base_price as INTEGER to products
 ALTER TABLE products ADD COLUMN IF NOT EXISTS base_price INTEGER;
 
--- 2. Derive base_price from current price (assume 5% GST), store as whole number
+-- 2. Derive base_price from current price only where price is set; then default remaining NULLs
 UPDATE products
 SET base_price = (ROUND(price / 1.05, 0))::INTEGER
-WHERE base_price IS NULL;
+WHERE base_price IS NULL AND price IS NOT NULL;
+
+UPDATE products SET base_price = 0 WHERE base_price IS NULL;
 
 ALTER TABLE products ALTER COLUMN base_price SET NOT NULL;
 
@@ -20,10 +22,12 @@ ALTER TABLE products ALTER COLUMN price TYPE INTEGER USING (ROUND(price, 0))::IN
 -- 5. Add base_price as INTEGER to product_variants
 ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS base_price INTEGER;
 
--- 6. Derive base_price from current price for variants
+-- 6. Derive base_price from current price only where price is set; then default remaining NULLs
 UPDATE product_variants
 SET base_price = (ROUND(price / 1.05, 0))::INTEGER
-WHERE base_price IS NULL;
+WHERE base_price IS NULL AND price IS NOT NULL;
+
+UPDATE product_variants SET base_price = 0 WHERE base_price IS NULL;
 
 ALTER TABLE product_variants ALTER COLUMN base_price SET NOT NULL;
 

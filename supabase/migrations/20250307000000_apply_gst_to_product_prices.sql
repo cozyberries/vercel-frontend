@@ -1,21 +1,25 @@
 -- Migration: Apply 5% GST to product and variant prices (idempotent).
 -- Only updates rows that have not had GST applied (gst_applied_at IS NULL).
--- Reruns will not compound the 5% increase.
+-- Stores pre-GST price in original_price so revert can restore exactly (no rounding drift).
 
--- 1. Add guard column to products if not present
+-- 1. Add guard and backup columns to products if not present
 ALTER TABLE products ADD COLUMN IF NOT EXISTS gst_applied_at TIMESTAMPTZ;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS original_price DECIMAL(10, 2);
 
--- 2. Apply GST only to products not yet updated
+-- 2. Apply GST only to products not yet updated; backup current price for exact revert
 UPDATE products
-SET price = ROUND(price * 1.05, 2),
+SET original_price = price,
+    price = ROUND(price * 1.05, 2),
     gst_applied_at = now()
 WHERE price IS NOT NULL AND gst_applied_at IS NULL;
 
--- 3. Add guard column to product_variants if not present
+-- 3. Add guard and backup columns to product_variants if not present
 ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS gst_applied_at TIMESTAMPTZ;
+ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS original_price DECIMAL(10, 2);
 
--- 4. Apply GST only to variants not yet updated
+-- 4. Apply GST only to variants not yet updated; backup current price for exact revert
 UPDATE product_variants
-SET price = ROUND(price * 1.05, 2),
+SET original_price = price,
+    price = ROUND(price * 1.05, 2),
     gst_applied_at = now()
 WHERE price IS NOT NULL AND gst_applied_at IS NULL;

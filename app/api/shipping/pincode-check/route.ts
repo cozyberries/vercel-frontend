@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import {
   checkPincodeServiceability,
@@ -11,10 +12,22 @@ function getClientIdentifier(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   const realIp = request.headers.get("x-real-ip");
   if (forwarded) {
-    return forwarded.split(",")[0]?.trim() ?? "unknown";
+    return forwarded.split(",")[0]?.trim() ?? fingerprintFallback(request);
   }
   if (realIp) return realIp.trim();
-  return "unknown";
+  return fingerprintFallback(request);
+}
+
+function fingerprintFallback(request: Request): string {
+  const ua = request.headers.get("user-agent") ?? "";
+  const lang = request.headers.get("accept-language") ?? "";
+  const reqId = request.headers.get("x-request-id") ?? "";
+  const combined = `${ua}:${lang}:${reqId}`.trim();
+  if (!combined) {
+    console.warn("Pincode rate limit: no IP or fingerprint headers, using unknown bucket");
+    return "unknown";
+  }
+  return createHash("sha256").update(combined, "utf8").digest("hex").slice(0, 24);
 }
 
 export async function GET(request: Request) {
@@ -29,21 +42,25 @@ export async function GET(request: Request) {
   }
 
   const clientId = getClientIdentifier(request);
-  const rateLimit = await UpstashService.checkRateLimit(
-    `pincode_check:${clientId}`,
-    PINCODE_RATE_LIMIT_PER_MINUTE,
-    60
-  );
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again in a minute." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": "60",
-        },
-      }
+  try {
+    const rateLimit = await UpstashService.checkRateLimit(
+      `pincode_check:${clientId}`,
+      PINCODE_RATE_LIMIT_PER_MINUTE,
+      60
     );
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again in a minute." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "60",
+          },
+        }
+      );
+    }
+  } catch (rateLimitErr) {
+    console.error("Pincode rate limit check failed, allowing request (fail-open):", rateLimitErr);
   }
 
   try {

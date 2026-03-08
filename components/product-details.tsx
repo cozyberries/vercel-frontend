@@ -297,7 +297,6 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
 
   // Display and cart use same price (GST-inclusive); validation checks against this
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
-  const cartPrice = displayPrice;
 
   const incrementQuantity = () => {
     setQuantity((prev) => prev + 1);
@@ -655,7 +654,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                   addToCartTemporary({
                     id: product.id,
                     name: product.name,
-                    price: cartPrice,
+                    price: displayPrice,
                     image: product.images?.[0],
                     quantity,
                     ...(selectedColor ? { color: selectedColor } : {}),
@@ -692,7 +691,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                       addToCart({
                         id: product.id,
                         name: product.name,
-                        price: cartPrice,
+                        price: displayPrice,
                         image: product.images?.[0],
                         quantity,
                         ...(selectedColor ? { color: selectedColor } : {}),
@@ -937,7 +936,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               addToCartTemporary({
                 id: product.id,
                 name: product.name,
-                price: cartPrice,
+                price: displayPrice,
                 image: product.images?.[0],
                 quantity,
                 ...(selectedColor ? { color: selectedColor } : {}),
@@ -963,7 +962,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 addToCart({
                   id: product.id,
                   name: product.name,
-                  price: cartPrice,
+                  price: displayPrice,
                   image: product.images?.[0],
                   quantity,
                   ...(selectedColor ? { color: selectedColor } : {}),
