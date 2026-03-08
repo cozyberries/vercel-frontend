@@ -295,8 +295,11 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
     }
   }, [product]);
 
-  // Database prices already include 5% GST, use directly
-  const displayPrice = selectedSize?.price ?? product?.price ?? 0;
+  // Display price for customer (with tax/GST) - use price_with_tax if available, fallback to price
+  const displayPrice = selectedSize?.price_with_tax ?? selectedSize?.price ?? product?.price_with_tax ?? product?.price ?? 0;
+
+  // Base price for cart/validation (without tax) - use base_price if available, fallback to price
+  const cartPrice = selectedSize?.base_price ?? selectedSize?.price ?? product?.base_price ?? product?.price ?? 0;
 
   const incrementQuantity = () => {
     setQuantity((prev) => prev + 1);
@@ -691,7 +694,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                       addToCart({
                         id: product.id,
                         name: product.name,
-                        price: displayPrice,
+                        price: cartPrice,
                         image: product.images?.[0],
                         quantity,
                         ...(selectedColor ? { color: selectedColor } : {}),
@@ -936,7 +939,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               addToCartTemporary({
                 id: product.id,
                 name: product.name,
-                price: displayPrice,
+                price: cartPrice,
                 image: product.images?.[0],
                 quantity,
                 ...(selectedColor ? { color: selectedColor } : {}),
@@ -962,7 +965,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 addToCart({
                   id: product.id,
                   name: product.name,
-                  price: displayPrice,
+                  price: cartPrice,
                   image: product.images?.[0],
                   quantity,
                   ...(selectedColor ? { color: selectedColor } : {}),

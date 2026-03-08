@@ -93,7 +93,7 @@ export async function validateItemPrices(
 
   const { data: products, error: productsError } = await supabase
     .from("products")
-    .select("slug, price")
+    .select("slug, base_price")
     .in("slug", productSlugs);
 
   if (productsError) {
@@ -103,7 +103,7 @@ export async function validateItemPrices(
 
   const { data: variants, error: variantsError } = await supabase
     .from("product_variants")
-    .select("product_slug, price")
+    .select("product_slug, base_price")
     .in("product_slug", productSlugs);
 
   if (variantsError) {
@@ -114,11 +114,11 @@ export async function validateItemPrices(
   const validPriceMap = new Map<string, Set<number>>();
 
   for (const product of products ?? []) {
-    validPriceMap.set(product.slug, new Set([Number(product.price)]));
+    validPriceMap.set(product.slug, new Set([Number(product.base_price)]));
   }
   for (const variant of variants ?? []) {
     const set = validPriceMap.get(variant.product_slug) ?? new Set<number>();
-    set.add(Number(variant.price));
+    set.add(Number(variant.base_price));
     validPriceMap.set(variant.product_slug, set);
   }
 

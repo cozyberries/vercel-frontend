@@ -70,9 +70,11 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
   const handleAddVariant = (
     size?: string,
     color?: string,
-    price?: number
+    price?: number,
+    basePrice?: number
   ) => {
-    const itemPrice = price ?? product.price;
+    // Use base_price if available (for validation), otherwise fall back to price
+    const itemPrice = basePrice ?? price ?? (product as any)?.base_price ?? product.price;
     const existing = getCartItemForVariant(size, color);
     if (existing) {
       updateQuantity(
