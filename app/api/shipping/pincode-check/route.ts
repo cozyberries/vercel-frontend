@@ -12,21 +12,27 @@ function getClientIdentifier(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   const realIp = request.headers.get("x-real-ip");
   if (forwarded) {
-    return forwarded.split(",")[0]?.trim() ?? fingerprintFallback(request);
+    const first = forwarded.split(",")[0]?.trim();
+    if (first) return first;
+    return fingerprintFallback(request);
   }
-  if (realIp) return realIp.trim();
+  if (realIp) {
+    const r = realIp.trim();
+    if (r) return r;
+    return fingerprintFallback(request);
+  }
   return fingerprintFallback(request);
 }
 
 function fingerprintFallback(request: Request): string {
-  const ua = request.headers.get("user-agent") ?? "";
-  const lang = request.headers.get("accept-language") ?? "";
-  const reqId = request.headers.get("x-request-id") ?? "";
-  const combined = `${ua}:${lang}:${reqId}`.trim();
-  if (!combined) {
+  const ua = (request.headers.get("user-agent") ?? "").trim();
+  const lang = (request.headers.get("accept-language") ?? "").trim();
+  const reqId = (request.headers.get("x-request-id") ?? "").trim();
+  if (!ua && !lang && !reqId) {
     console.warn("Pincode rate limit: no IP or fingerprint headers, using unknown bucket");
     return "unknown";
   }
+  const combined = `${ua}:${lang}:${reqId}`;
   return createHash("sha256").update(combined, "utf8").digest("hex").slice(0, 24);
 }
 
