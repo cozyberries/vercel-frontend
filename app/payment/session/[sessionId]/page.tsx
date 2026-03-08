@@ -9,27 +9,29 @@ import {
   Check,
   AlertCircle,
   Loader2,
-  QrCode,
-  Smartphone,
   Clock,
+  Copy,
+  Phone,
+  ExternalLink,
+  QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
-import { GST_PERCENT_LABEL } from "@/lib/constants";
+import {
+  GST_PERCENT_LABEL,
+  UPI_ID,
+  UPI_PHONE_NUMBER,
+  STATIC_QR_CODE_URL,
+  UPI_GENERAL_DEEPLINK,
+} from "@/lib/constants";
 import type { CheckoutSession } from "@/lib/types/order";
 import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { logEvent } from "@/lib/services/event-logger";
-
-interface UpiLinks {
-  phonepe: string;
-  gpay: string;
-  paytm: string;
-}
 
 export default function SessionPaymentPage() {
   const { user, loading } = useAuth();
@@ -39,8 +41,6 @@ export default function SessionPaymentPage() {
   const sessionId = params?.sessionId as string;
 
   const [session, setSession] = useState<CheckoutSession | null>(null);
-  const [upiLinks, setUpiLinks] = useState<UpiLinks | null>(null);
-  const [qrCode, setQrCode] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [orderInfo, setOrderInfo] = useState<{ order_id: string; order_number?: string } | null>(null);
@@ -48,6 +48,8 @@ export default function SessionPaymentPage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [showConfirmPrompt, setShowConfirmPrompt] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -56,18 +58,15 @@ export default function SessionPaymentPage() {
     }
 
     if (user && sessionId) {
-      fetchSessionAndLinks();
+      fetchSession();
     }
   }, [user, loading, sessionId]);
 
-  const fetchSessionAndLinks = async () => {
+  const fetchSession = async () => {
     try {
       setSessionLoading(true);
 
-      const [sessionRes, linksRes] = await Promise.all([
-        fetch(`/api/checkout-sessions/${sessionId}`),
-        fetch(`/api/payments/upi-links?sessionId=${sessionId}`),
-      ]);
+      const sessionRes = await fetch(`/api/checkout-sessions/${sessionId}`);
 
       if (sessionRes.status === 410) {
         setExpired(true);
@@ -80,7 +79,6 @@ export default function SessionPaymentPage() {
 
       const sessionData = await sessionRes.json();
 
-      // If session is already completed, show success state
       if (sessionData.completed) {
         setPaymentConfirmed(true);
         setOrderInfo({ order_id: sessionData.order_id });
@@ -89,19 +87,27 @@ export default function SessionPaymentPage() {
       }
 
       setSession(sessionData.session);
-
-      if (linksRes.ok) {
-        const linksData = await linksRes.json();
-        setUpiLinks(linksData.links);
-        if (linksData.qrCode) {
-          setQrCode(linksData.qrCode);
-        }
-      }
     } catch (err) {
       console.error("Error fetching session:", err);
       setError("Failed to load payment details");
     } finally {
       setSessionLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, type: "upi" | "phone") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (type === "upi") {
+        setCopiedUpi(true);
+        setTimeout(() => setCopiedUpi(false), 2000);
+      } else {
+        setCopiedPhone(true);
+        setTimeout(() => setCopiedPhone(false), 2000);
+      }
+      toast.success("Copied to clipboard!");
+    } catch {
+      toast.error("Failed to copy. Please copy manually.");
     }
   };
 
@@ -283,75 +289,150 @@ export default function SessionPaymentPage() {
               </p>
             </div>
 
-            {/* QR Code */}
+            {/* Static QR Code */}
             <div className="flex flex-col items-center">
               <div className="bg-white p-4 rounded-xl shadow-sm border">
-                {qrCode ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={qrCode}
-                    alt="UPI QR Code"
-                    width={280}
-                    height={280}
-                    className="rounded-lg"
-                  />
-                ) : (
-                  <div className="w-[280px] h-[280px] flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                  </div>
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={STATIC_QR_CODE_URL}
+                  alt="UPI Payment QR Code"
+                  width={280}
+                  height={280}
+                  className="rounded-lg"
+                />
               </div>
-              <div className="flex items-center gap-2 mt-4 text-muted-foreground">
+              <div className="flex items-center gap-2 mt-3 text-muted-foreground">
                 <QrCode className="w-4 h-4" />
-                <p className="text-sm">
-                  Scan QR code with any UPI app to pay ₹{session.total_amount.toFixed(2)}
-                </p>
+                <p className="text-sm">Scan with any UPI app to pay</p>
               </div>
             </div>
 
-            {/* UPI App Buttons */}
-            {upiLinks && (
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Smartphone className="w-4 h-4 text-muted-foreground" />
-                  <p className="text-sm font-medium">Or pay using</p>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <a
-                    href={upiLinks.phonepe}
-                    className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors"
-                  >
-                    <Image src="/phonepe.png" alt="PhonePe" width={40} height={40} className="rounded-lg" />
-                    <span className="text-xs font-medium">PhonePe</span>
-                  </a>
-                  <a
-                    href={upiLinks.gpay}
-                    className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                  >
-                    <Image src="/gpay.png" alt="GPay" width={40} height={40} className="rounded-lg" />
-                    <span className="text-xs font-medium">GPay</span>
-                  </a>
-                  <a
-                    href={upiLinks.paytm}
-                    className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-sky-400 hover:bg-sky-50 transition-colors"
-                  >
-                    <Image src="/paytm.png" alt="Paytm" width={40} height={40} className="rounded-lg" />
-                    <span className="text-xs font-medium">Paytm</span>
-                  </a>
-                </div>
+            <div className="flex items-center gap-3">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                or pay manually
+              </span>
+              <Separator className="flex-1" />
+            </div>
+
+            {/* UPI ID */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Pay via UPI ID</p>
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border">
+                <span className="flex-1 font-mono text-sm">{UPI_ID}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 shrink-0"
+                  onClick={() => copyToClipboard(UPI_ID, "upi")}
+                >
+                  {copiedUpi ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                  <span className="ml-1 text-xs">{copiedUpi ? "Copied!" : "Copy"}</span>
+                </Button>
               </div>
-            )}
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Pay via Phone Number</p>
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border">
+                <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="flex-1 font-mono text-sm">{UPI_PHONE_NUMBER}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 shrink-0"
+                  onClick={() => copyToClipboard(UPI_PHONE_NUMBER, "phone")}
+                >
+                  {copiedPhone ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                  <span className="ml-1 text-xs">{copiedPhone ? "Copied!" : "Copy"}</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Step-by-step guide */}
+            <div className="bg-muted/30 rounded-xl p-5 space-y-4 border">
+              <h3 className="text-sm font-semibold">How to complete your payment</h3>
+              <ol className="space-y-4">
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                    1
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Open any UPI payment app</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      PhonePe, Google Pay, Paytm, BHIM, or any other UPI app
+                    </p>
+                    <a
+                      href={UPI_GENERAL_DEEPLINK}
+                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Tap to open a payment app
+                    </a>
+                  </div>
+                </li>
+
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                    2
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Choose payment method</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Select <strong>&quot;Pay by UPI ID&quot;</strong> and enter{" "}
+                      <strong className="font-mono">{UPI_ID}</strong>, or select{" "}
+                      <strong>&quot;Pay by Phone Number&quot;</strong> and enter{" "}
+                      <strong className="font-mono">{UPI_PHONE_NUMBER}</strong>
+                    </p>
+                  </div>
+                </li>
+
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                    3
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      Enter the total amount
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Enter exactly{" "}
+                      <strong>₹{session.total_amount.toFixed(2)}</strong>
+                    </p>
+                  </div>
+                </li>
+
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                    4
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Select your bank and pay</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Choose your bank account and confirm the payment using your UPI PIN
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </div>
 
             <Separator />
 
             {/* Confirm Payment */}
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                After completing the payment via QR code or UPI app, click the
-                button below to confirm your order.
+                After completing the payment, click the button below to confirm your order.
               </p>
 
-              {/* Confirmation Prompt */}
               {showConfirmPrompt && (
                 <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
                   <p className="text-sm font-medium text-amber-900 mb-3">
@@ -395,7 +476,6 @@ export default function SessionPaymentPage() {
                 </Button>
               )}
 
-              {/* Error Display */}
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-red-800">

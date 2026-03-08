@@ -9,3 +9,16 @@ export const GST_RATE = 0.05;
 
 /** Human-readable GST percentage label derived from GST_RATE. */
 export const GST_PERCENT_LABEL = `GST (${(GST_RATE * 100).toFixed(0)}%)`;
+
+/** UPI ID for receiving payments. */
+export const UPI_ID = "aaminarummana-1@okaxis";
+
+/** Phone number registered with UPI for receiving payments. */
+export const UPI_PHONE_NUMBER = "7305500796";
+
+/** Static QR code image URL for UPI payments. */
+export const STATIC_QR_CODE_URL =
+  "https://res.cloudinary.com/dxokykvty/image/upload/v1772334267/1_p7t8a2_1b4b84.jpg";
+
+/** General UPI deep link to open any UPI-compatible payment app (no query params). */
+export const UPI_GENERAL_DEEPLINK = "upi://pay";

@@ -318,17 +318,18 @@ export function SupabaseAuthProvider({
   };
 
   const signInWithGoogle = useCallback(async () => {
-    // Get the current domain dynamically for redirect URL
+    // Always use current origin for redirect so localhost stays localhost when testing locally.
+    // Add http://localhost:3000/auth/callback to Supabase Dashboard → Auth → URL Configuration → Redirect URLs.
     const getRedirectUrl = () => {
       if (typeof window !== "undefined") {
-        // Client-side: use current origin
         return `${window.location.origin}/auth/callback`;
       }
-
-      // Server-side fallback (shouldn't be used for OAuth)
-      return `${
-        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-      }/auth/callback`;
+      // Server-side fallback: use localhost in development so redirects stay local
+      const base =
+        process.env.NODE_ENV === "development"
+          ? "http://localhost:3000"
+          : process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      return `${base.replace(/\/$/, "")}/auth/callback`;
     };
 
     const { error } = await supabase.auth.signInWithOAuth({
