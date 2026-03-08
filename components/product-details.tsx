@@ -295,11 +295,9 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
     }
   }, [product]);
 
-  // Display price for customer (with tax/GST) - use price_with_tax if available, fallback to price
-  const displayPrice = selectedSize?.price_with_tax ?? selectedSize?.price ?? product?.price_with_tax ?? product?.price ?? 0;
-
-  // Base price for cart/validation (without tax) - use base_price if available, fallback to price
-  const cartPrice = selectedSize?.base_price ?? selectedSize?.price ?? product?.base_price ?? product?.price ?? 0;
+  // Display and cart use same price (GST-inclusive); validation checks against this
+  const displayPrice = selectedSize?.price ?? product?.price ?? 0;
+  const cartPrice = displayPrice;
 
   const incrementQuantity = () => {
     setQuantity((prev) => prev + 1);
@@ -657,7 +655,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                   addToCartTemporary({
                     id: product.id,
                     name: product.name,
-                    price: selectedSize?.price ?? product.price,
+                    price: cartPrice,
                     image: product.images?.[0],
                     quantity,
                     ...(selectedColor ? { color: selectedColor } : {}),

@@ -105,14 +105,22 @@ export default function CheckoutPage() {
         handleAddressSelect(defaultAddress.id);
       }
     }
+    return () => {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addresses]);
 
-  // Handle address selection with pincode validation
-  const handleAddressSelect = async (addressId: string) => {
+  // Handle address selection with pincode validation.
+  // addressOverride: use when the address was just added/updated and may not be in state yet.
+  const handleAddressSelect = async (
+    addressId: string,
+    addressOverride?: { id: string; postal_code?: string | null }
+  ) => {
     setSelectedAddressId(addressId);
 
-    const address = addresses.find((a) => a.id === addressId);
+    const address = addressOverride ?? addresses.find((a) => a.id === addressId);
     if (!address?.postal_code) return;
 
     // Cancel any in-flight pincode check for a previously selected address
@@ -160,12 +168,14 @@ export default function CheckoutPage() {
     setShowAddAddress(true);
   };
 
-  // Handle address modal save
+  // Handle address modal save: select and validate the new/updated address, then close
   const handleAddressModalSave = async () => {
-    if (editingAddress) {
-      await handleUpdateAddress(editingAddress);
-    } else {
-      await handleAddAddress();
+    const saved =
+      editingAddress
+        ? await handleUpdateAddress(editingAddress)
+        : await handleAddAddress();
+    if (saved) {
+      await handleAddressSelect(saved.id, saved);
     }
     setShowAddressModal(false);
   };

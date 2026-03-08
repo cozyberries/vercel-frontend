@@ -35,12 +35,10 @@ export async function POST(request: NextRequest) {
     const body: CreateOrderRequest = await request.json();
     const { items, shipping_address_id, billing_address_id, notes } = body;
 
-    console.log("Checkout request received", {
-      userId: user.id,
-      email: email,
-      itemsCount: items?.length,
-      shipping_address_id,
-      billing_address_id,
+    await logServerEvent(supabase, user.id, "checkout_request_received", {
+      items_count: items?.length ?? 0,
+      shipping_address_id: shipping_address_id ?? null,
+      billing_address_id: billing_address_id ?? null,
     });
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -66,16 +64,12 @@ export async function POST(request: NextRequest) {
     );
 
     if ("error" in addressResult) {
-      console.error("Address validation error:", addressResult.error, { addressId: shipping_address_id, userId: user.id });
+      console.error("Address validation error:", addressResult.error, {
+        addressId: shipping_address_id,
+        userId: user.id,
+      });
       return NextResponse.json(
-        {
-          error: addressResult.error,
-          debug: {
-            addressId: shipping_address_id,
-            userId: user.id,
-            validationErrorMsg: addressResult.error
-          }
-        },
+        { error: addressResult.error },
         { status: 400 }
       );
     }

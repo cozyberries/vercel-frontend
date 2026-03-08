@@ -5,6 +5,7 @@ import { X, AlertCircle, Trash2, Loader2, CheckCircle, XCircle } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { PincodeCheckResult } from "@/lib/types/shipping";
 
 interface AddressData {
   address_type: "home" | "work" | "billing" | "shipping" | "other";
@@ -29,12 +30,13 @@ interface AddressValidationErrors {
   postal_code: string;
 }
 
-interface PincodeCheckResult {
-  serviceable: boolean;
+/** API response shape: PincodeCheckResult plus display fields (city, state, country) returned by the route */
+type PincodeCheckApiResponse = PincodeCheckResult & {
   city: string;
   state: string;
   country: string;
-}
+  error?: string;
+};
 
 interface AddressFormModalProps {
   isOpen: boolean;
@@ -69,13 +71,28 @@ export default function AddressFormModal({
   >("idle");
   const [pincodeMessage, setPincodeMessage] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pincodeAbortRef = useRef<AbortController | null>(null);
 
   // Clear any pending debounce timer when the modal unmounts
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      pincodeAbortRef.current?.abort();
+      pincodeAbortRef.current = null;
     };
   }, []);
+
+  // Reset pincode state when modal opens so stale messages are not shown
+  useEffect(() => {
+    if (isOpen && enablePincodeCheck) {
+      setPincodeStatus("idle");
+      setPincodeMessage("");
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = undefined;
+      }
+    }
+  }, [isOpen, enablePincodeCheck]);
 
   const checkPincode = useCallback(
     async (pincode: string) => {
@@ -86,33 +103,49 @@ export default function AddressFormModal({
         return;
       }
 
+      pincodeAbortRef.current?.abort();
+      const controller = new AbortController();
+      pincodeAbortRef.current = controller;
+
       setPincodeStatus("checking");
       setPincodeMessage("");
 
       try {
-        const res = await fetch(`/api/shipping/pincode-check?pincode=${pincode}`);
-        const data: PincodeCheckResult & { error?: string } = await res.json();
+        const res = await fetch(`/api/shipping/pincode-check?pincode=${pincode}`, {
+          signal: controller.signal,
+        });
+        let data: PincodeCheckApiResponse | null = null;
+        try {
+          data = await res.json();
+        } catch {
+          const text = await res.text();
+          throw new Error(`Pincode check failed (${res.status}): ${text || res.statusText}`);
+        }
 
         if (!res.ok) {
           setPincodeStatus("error");
-          setPincodeMessage(data.error || "Unable to verify pincode");
+          setPincodeMessage(data?.error || "Unable to verify pincode");
           return;
         }
 
-        if (data.serviceable) {
+        if (data!.serviceable) {
           setPincodeStatus("serviceable");
-          setPincodeMessage(`Delivery available - ${data.city}, ${data.state}`);
-          // Auto-fill city, state, country
-          onInputChange("city", data.city);
-          onInputChange("state", data.state);
-          onInputChange("country", data.country);
+          setPincodeMessage(`Delivery available - ${data!.city}, ${data!.state}`);
+          onInputChange("city", data!.city);
+          onInputChange("state", data!.state);
+          onInputChange("country", data!.country);
         } else {
           setPincodeStatus("not_serviceable");
           setPincodeMessage("Sorry, delivery is not available in this area");
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setPincodeStatus("error");
         setPincodeMessage("Unable to verify pincode. Please try again.");
+      } finally {
+        if (pincodeAbortRef.current === controller) {
+          pincodeAbortRef.current = null;
+        }
       }
     },
     [enablePincodeCheck, onInputChange]

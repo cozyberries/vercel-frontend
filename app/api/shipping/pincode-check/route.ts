@@ -3,6 +3,19 @@ import {
   checkPincodeServiceability,
   stateCodeToName,
 } from "@/lib/utils/shipping-helpers";
+import { UpstashService } from "@/lib/upstash";
+
+const PINCODE_RATE_LIMIT_PER_MINUTE = 60;
+
+function getClientIdentifier(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() ?? "unknown";
+  }
+  if (realIp) return realIp.trim();
+  return "unknown";
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,6 +25,24 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: "Invalid pincode. Must be 6 digits." },
       { status: 400 }
+    );
+  }
+
+  const clientId = getClientIdentifier(request);
+  const rateLimit = await UpstashService.checkRateLimit(
+    `pincode_check:${clientId}`,
+    PINCODE_RATE_LIMIT_PER_MINUTE,
+    60
+  );
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again in a minute." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": "60",
+        },
+      }
     );
   }
 

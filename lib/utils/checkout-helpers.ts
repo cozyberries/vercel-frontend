@@ -79,9 +79,9 @@ export async function validateAndFetchAddresses(
 // ─── Price Validation ─────────────────────────────────────────────────────────
 
 /**
- * Server-side price validation. Fetches product base prices and variant prices
+ * Server-side price validation. Fetches product and variant prices (GST-inclusive)
  * from the DB, then rejects any item whose submitted price is not in the
- * authoritative set.
+ * authoritative set. Cart stores and validates against price (display amount).
  *
  * Returns `null` on success or an error string describing the issue.
  */
@@ -93,7 +93,7 @@ export async function validateItemPrices(
 
   const { data: products, error: productsError } = await supabase
     .from("products")
-    .select("slug, base_price")
+    .select("slug, price")
     .in("slug", productSlugs);
 
   if (productsError) {
@@ -103,7 +103,7 @@ export async function validateItemPrices(
 
   const { data: variants, error: variantsError } = await supabase
     .from("product_variants")
-    .select("product_slug, base_price")
+    .select("product_slug, price")
     .in("product_slug", productSlugs);
 
   if (variantsError) {
@@ -114,11 +114,11 @@ export async function validateItemPrices(
   const validPriceMap = new Map<string, Set<number>>();
 
   for (const product of products ?? []) {
-    validPriceMap.set(product.slug, new Set([Number(product.base_price)]));
+    validPriceMap.set(product.slug, new Set([Number(product.price)]));
   }
   for (const variant of variants ?? []) {
     const set = validPriceMap.get(variant.product_slug) ?? new Set<number>();
-    set.add(Number(variant.base_price));
+    set.add(Number(variant.price));
     validPriceMap.set(variant.product_slug, set);
   }
 
@@ -127,7 +127,13 @@ export async function validateItemPrices(
     if (!validPrices) {
       return `Product not found: ${item.id}`;
     }
-    if (!validPrices.has(item.price)) {
+    // Normalize to number (JSON may send price as string) and compare as integer
+    const itemPrice = Number(item.price);
+    if (!Number.isFinite(itemPrice)) {
+      return `Invalid price for product ${item.id}`;
+    }
+    const priceKey = Math.round(itemPrice);
+    if (!validPrices.has(priceKey)) {
       return `Invalid price for product ${item.id}`;
     }
   }

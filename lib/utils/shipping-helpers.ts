@@ -30,7 +30,9 @@ export async function checkPincodeServiceability(
   pincode: string
 ): Promise<PincodeCheckResult> {
   const apiKey = process.env.DELIVERY_API_KEY;
-  if (!apiKey) throw new Error("DELIVERY_API_KEY is not configured");
+  if (!apiKey) {
+    throw new Error("Delivery service unavailable");
+  }
 
   const url = `${DELHIVERY_BASE_URL}/c/api/pin-codes/json/?filter_codes=${pincode}`;
 
@@ -46,7 +48,15 @@ export async function checkPincodeServiceability(
     throw new Error(`Delhivery pincode API failed: ${res.status}`);
   }
 
-  const data: DelhiveryPincodeResponse = await res.json();
+  let data: DelhiveryPincodeResponse;
+  try {
+    data = await res.json();
+  } catch {
+    const raw = await res.text();
+    throw new Error(
+      `Delhivery pincode API invalid response (${res.status}): ${raw || res.statusText}`
+    );
+  }
 
   if (!data.delivery_codes || data.delivery_codes.length === 0) {
     return {

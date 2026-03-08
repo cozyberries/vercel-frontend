@@ -73,8 +73,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
     price?: number,
     basePrice?: number
   ) => {
-    // Use base_price if available (for validation), otherwise fall back to price
-    const itemPrice = basePrice ?? price ?? (product as any)?.base_price ?? product.price;
+    // Cart stores price (GST-inclusive) for display and checkout validation
+    const itemPrice = price ?? product.price;
     const existing = getCartItemForVariant(size, color);
     if (existing) {
       updateQuantity(
