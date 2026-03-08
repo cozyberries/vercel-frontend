@@ -527,7 +527,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                     addToWishlist({
                       id: product.id,
                       name: product.name,
-                      price: displayPrice,
+                      price: selectedSize?.price ?? product.price,
                       image: product.images?.[0],
                     });
                     toast.success(`${product.name} added to wishlist!`);
@@ -937,7 +937,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               addToCartTemporary({
                 id: product.id,
                 name: product.name,
-                price: displayPrice,
+                price: selectedSize?.price ?? product.price,
                 image: product.images?.[0],
                 quantity,
                 ...(selectedColor ? { color: selectedColor } : {}),
@@ -963,7 +963,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 addToCart({
                   id: product.id,
                   name: product.name,
-                  price: displayPrice,
+                  price: selectedSize?.price ?? product.price,
                   image: product.images?.[0],
                   quantity,
                   ...(selectedColor ? { color: selectedColor } : {}),
