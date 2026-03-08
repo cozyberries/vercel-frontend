@@ -214,8 +214,8 @@ export function useProfile(user: any) {
     setIsEditing(true);
   };
 
-  const handleAddAddress = async () => {
-    if (isSavingRef.current) return;
+  const handleAddAddress = async (): Promise<UserAddress | null> => {
+    if (isSavingRef.current) return null;
     isSavingRef.current = true;
     setIsSaving(true);
     try {
@@ -228,7 +228,7 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
-        const newAddress = await response.json();
+        const newAddress: UserAddress = await response.json();
         setAddresses((prev) => [...prev, newAddress]);
         setShowAddAddress(false);
         setAddressData({
@@ -252,6 +252,7 @@ export function useProfile(user: any) {
           state: "",
           postal_code: "",
         });
+        return newAddress;
       } else {
         const errorData = await response.json();
         if (errorData.error && errorData.error.includes("does not exist")) {
@@ -261,18 +262,20 @@ export function useProfile(user: any) {
         } else {
           alert(`Failed to add address: ${errorData.error || "Unknown error"}`);
         }
+        return null;
       }
     } catch (error) {
       console.error("Error adding address:", error);
       alert("Failed to add address. Please try again.");
+      return null;
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
     }
   };
 
-  const handleUpdateAddress = async (addressId: string) => {
-    if (isSavingRef.current) return;
+  const handleUpdateAddress = async (addressId: string): Promise<UserAddress | null> => {
+    if (isSavingRef.current) return null;
     isSavingRef.current = true;
     setIsSaving(true);
     try {
@@ -285,7 +288,7 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
-        const updatedAddress = await response.json();
+        const updatedAddress: UserAddress = await response.json();
         setAddresses((prev) =>
           prev.map((addr) => (addr.id === addressId ? updatedAddress : addr))
         );
@@ -311,13 +314,16 @@ export function useProfile(user: any) {
           state: "",
           postal_code: "",
         });
+        return updatedAddress;
       } else {
         const errorData = await response.json();
         alert(`Failed to update address: ${errorData.error}`);
+        return null;
       }
     } catch (error) {
       console.error("Error updating address:", error);
       alert("Failed to update address. Please try again.");
+      return null;
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);

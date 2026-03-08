@@ -79,9 +79,9 @@ export async function validateAndFetchAddresses(
 // ─── Price Validation ─────────────────────────────────────────────────────────
 
 /**
- * Server-side price validation. Fetches product base prices and variant prices
+ * Server-side price validation. Fetches product and variant prices (GST-inclusive)
  * from the DB, then rejects any item whose submitted price is not in the
- * authoritative set.
+ * authoritative set. Cart stores and validates against price (display amount).
  *
  * Returns `null` on success or an error string describing the issue.
  */
@@ -127,7 +127,13 @@ export async function validateItemPrices(
     if (!validPrices) {
       return `Product not found: ${item.id}`;
     }
-    if (!validPrices.has(item.price)) {
+    // Normalize to number (JSON may send price as string) and compare as integer
+    const itemPrice = Number(item.price);
+    if (!Number.isFinite(itemPrice)) {
+      return `Invalid price for product ${item.id}`;
+    }
+    const priceKey = Math.round(itemPrice);
+    if (!validPrices.has(priceKey)) {
       return `Invalid price for product ${item.id}`;
     }
   }

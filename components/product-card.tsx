@@ -16,7 +16,7 @@ import { useWishlist } from "./wishlist-context";
 import { useCart, getCartItemKey } from "./cart-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
-import { formatPrice, getMinPrice, priceWithGst } from "@/lib/utils";
+import { formatPrice, getMinPrice } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -58,8 +58,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             }))
       : [{ price: product.price, label: "Add" }];
 
-  const { min: minPriceBase, hasRange } = getMinPrice(product);
-  const minPrice = priceWithGst(minPriceBase);
+  const { min: minPrice, hasRange } = getMinPrice(product);
 
   const getCartItemForVariant = (size?: string, color?: string) =>
     cart.find(
@@ -71,9 +70,11 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
   const handleAddVariant = (
     size?: string,
     color?: string,
-    price?: number
+    price?: number,
+    basePrice?: number
   ) => {
-    const itemPrice = priceWithGst(price ?? product.price);
+    // Cart stores price (GST-inclusive); honor basePrice when price is undefined
+    const itemPrice = price ?? basePrice ?? product.price;
     const existing = getCartItemForVariant(size, color);
     if (existing) {
       updateQuantity(
@@ -188,7 +189,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                 addToWishlist({
                   id: product.id,
                   name: product.name,
-                  price: priceWithGst(product.price),
+                  price: product.price,
                   image: product.images?.[0],
                 });
                 toast.success(`${product.name} added to wishlist!`);
@@ -253,7 +254,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                         <div className="flex min-w-0 shrink flex-col">
                           <span className="truncate font-medium">{opt.label}</span>
                           <span className="text-xs text-muted-foreground">
-                            {formatPrice(priceWithGst(opt.price), locale, currency)}
+                            {formatPrice(opt.price, locale, currency)}
                           </span>
                         </div>
                         <div className="shrink-0 pl-1">
