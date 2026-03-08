@@ -31,12 +31,28 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 async function main() {
-  const { data: userList, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-  if (listError) {
-    console.error("List users error:", listError.message);
-    process.exit(1);
+  let user = null;
+  let page = 1;
+  const perPage = 1000;
+  while (true) {
+    const { data: userList, error: listError } = await supabase.auth.admin.listUsers({
+      perPage,
+      page,
+    });
+    if (listError) {
+      console.error("List users error:", listError.message);
+      process.exit(1);
+    }
+    const found = userList.users.find((u) => u.email === email);
+    if (found) {
+      user = found;
+      break;
+    }
+    if (userList.users.length < perPage) {
+      break;
+    }
+    page += 1;
   }
-  const user = userList.users.find((u) => u.email === email);
   if (!user) {
     console.log("User not found:", email);
     process.exit(0);
@@ -49,7 +65,14 @@ async function main() {
     if (error) console.warn(`  ${table}: ${error.message}`);
   };
 
-  const { data: orders } = await supabase.from("orders").select("id").eq("user_id", userId);
+  const { data: orders, error: ordersError } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("user_id", userId);
+  if (ordersError) {
+    console.error("Orders query error:", ordersError.message);
+    process.exit(1);
+  }
   const orderIds = (orders || []).map((o) => o.id);
   for (const orderId of orderIds) {
     await del("order_items", "order_id", orderId);
@@ -74,4 +97,7 @@ async function main() {
   console.log("Deleted user:", email);
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
