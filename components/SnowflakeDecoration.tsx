@@ -96,6 +96,7 @@ export default function SnowflakeDecoration({
   const controls = useAnimation();
   const [hasEntered, setHasEntered] = useState(false);
   const isVisible = useRef(false);
+  const isMountedRef = useRef(false);
 
   // Keep latest prop values accessible inside the observer without rebuilding it
   const animationTypeRef = useRef(animationType);
@@ -104,6 +105,29 @@ export default function SnowflakeDecoration({
   animationTypeRef.current = animationType;
   delayRef.current = delay;
   opacityRef.current = opacity;
+
+  // Mark as mounted after first paint so controls.set()/start() are safe (framer-motion requirement)
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const rafIdRef = useRef<number | null>(null);
+
+  const runControls = (visible: boolean) => {
+    if (!isMountedRef.current) return;
+    if (visible) {
+      controls.set(INITIAL_POSE);
+      controls.start(
+        getAnimation(animationTypeRef.current, delayRef.current, opacityRef.current),
+      );
+    } else {
+      controls.stop();
+      controls.set(INITIAL_POSE);
+    }
+  };
 
   // IntersectionObserver: start animation on enter, reset cleanly on exit
   useEffect(() => {
@@ -115,30 +139,37 @@ export default function SnowflakeDecoration({
         if (entry.isIntersecting) {
           isVisible.current = true;
           setHasEntered(true);
-          controls.set(INITIAL_POSE);
-          controls.start(
-            getAnimation(animationTypeRef.current, delayRef.current, opacityRef.current),
-          );
+          rafIdRef.current = requestAnimationFrame(() => runControls(true));
         } else {
           isVisible.current = false;
-          controls.stop();
-          controls.set(INITIAL_POSE);
+          rafIdRef.current = requestAnimationFrame(() => runControls(false));
         }
       },
       { rootMargin: "100px" },
     );
 
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
+    };
     // Intentionally not listing animationType/delay/opacity here — prop changes handled below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controls]);
 
   // Restart animation when props change while the element is visible
+  const propsRafIdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!isVisible.current) return;
-    controls.set(INITIAL_POSE);
-    controls.start(getAnimation(animationType, delay, opacity));
+    if (!isVisible.current || !isMountedRef.current) return;
+    propsRafIdRef.current = requestAnimationFrame(() => {
+      propsRafIdRef.current = null;
+      if (!isMountedRef.current) return;
+      controls.set(INITIAL_POSE);
+      controls.start(getAnimation(animationType, delay, opacity));
+    });
+    return () => {
+      if (propsRafIdRef.current !== null) cancelAnimationFrame(propsRafIdRef.current);
+    };
   }, [animationType, controls, delay, opacity]);
 
   return (
