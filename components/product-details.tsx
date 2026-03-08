@@ -25,6 +25,7 @@ import { useAuth } from "./supabase-auth-provider";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toImageSrc } from "@/lib/utils/image";
+import { priceWithGst } from "@/lib/utils";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 interface ReviewItem {
@@ -295,8 +296,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
     }
   }, [product]);
 
-  // Compute the displayed price based on selected size
-  const displayPrice = selectedSize?.price ?? product?.price ?? 0;
+  // Compute the displayed price (inclusive of 5% GST) based on selected size
+  const displayPrice = priceWithGst(selectedSize?.price ?? product?.price ?? 0);
 
   const incrementQuantity = () => {
     setQuantity((prev) => prev + 1);
@@ -543,10 +544,10 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               </Button>
             </div>
             <p className="text-2xl font-medium mb-6">
-              ₹{displayPrice.toFixed(2)}
+              ₹{displayPrice.toFixed(0)}
               {selectedSize && selectedSize.price < product.price && (
                 <span className="text-sm text-muted-foreground line-through ml-2">
-                  ₹{product.price.toFixed(2)}
+                  ₹{priceWithGst(product.price).toFixed(0)}
                 </span>
               )}
             </p>
@@ -602,7 +603,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                         >
                           <span className="font-medium">{size.name}</span>
                           <span className={`text-xs mt-0.5 ${isSelected ? "text-gray-300" : isOutOfStock ? "text-gray-300" : "text-muted-foreground"}`}>
-                            ₹{size.price.toFixed(0)}
+                            ₹{priceWithGst(size.price).toFixed(0)}
                           </span>
                           {isOutOfStock && (
                             <span className="absolute inset-0 flex items-center justify-center">
@@ -829,7 +830,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                     {relatedProduct.category}
                   </p>
                   <p className="font-medium">
-                    ₹{relatedProduct.price.toFixed(2)}
+                    ₹{priceWithGst(relatedProduct.price).toFixed(0)}
                   </p>
                 </div>
               </div>

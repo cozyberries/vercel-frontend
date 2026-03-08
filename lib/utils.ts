@@ -1,6 +1,14 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Product } from "@/lib/services/api"
+import { GST_RATE } from "@/lib/constants"
+
+/**
+ * Price inclusive of 5% GST for display and cart. Rounded to whole number.
+ */
+export function priceWithGst(price: number): number {
+  return Math.round(price * (1 + GST_RATE))
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -20,8 +28,8 @@ export function formatPrice(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(amount)
 }
 

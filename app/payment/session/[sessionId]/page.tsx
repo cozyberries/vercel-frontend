@@ -20,7 +20,6 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
 import {
-  GST_PERCENT_LABEL,
   UPI_ID,
   UPI_PHONE_NUMBER,
   STATIC_QR_CODE_URL,
@@ -243,7 +242,7 @@ export default function SessionPaymentPage() {
             )}
             {session && (
               <p className="text-sm text-muted-foreground mb-8">
-                Total: ₹{session.total_amount.toFixed(2)}
+                Total: ₹{session.total_amount.toFixed(0)}
               </p>
             )}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -285,7 +284,7 @@ export default function SessionPaymentPage() {
             <div className="text-center lg:text-left">
               <p className="text-sm text-muted-foreground mb-1">Amount to pay</p>
               <p className="text-4xl font-semibold">
-                ₹{session.total_amount.toFixed(2)}
+                ₹{session.total_amount.toFixed(0)}
               </p>
             </div>
 
@@ -406,7 +405,7 @@ export default function SessionPaymentPage() {
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Enter exactly{" "}
-                      <strong>₹{session.total_amount.toFixed(2)}</strong>
+                      <strong>₹{session.total_amount.toFixed(0)}</strong>
                     </p>
                   </div>
                 </li>
@@ -437,7 +436,7 @@ export default function SessionPaymentPage() {
                 <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
                   <p className="text-sm font-medium text-amber-900 mb-3">
                     Have you completed the payment of ₹
-                    {session.total_amount.toFixed(2)}?
+                    {session.total_amount.toFixed(0)}?
                   </p>
                   <div className="flex gap-3">
                     <Button
@@ -526,7 +525,7 @@ export default function SessionPaymentPage() {
                       </p>
                     </div>
                     <div className="text-sm font-medium">
-                      ₹{(item.price * item.quantity).toFixed(2)}
+                      ₹{(item.price * item.quantity).toFixed(0)}
                     </div>
                   </div>
                 ))}
@@ -538,20 +537,16 @@ export default function SessionPaymentPage() {
               <div className="space-y-2 mb-6">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span>₹{session.subtotal.toFixed(2)}</span>
+                  <span>₹{session.subtotal.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
-                  <span>₹{session.delivery_charge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>{GST_PERCENT_LABEL}</span>
-                  <span>₹{session.tax_amount.toFixed(2)}</span>
+                  <span>₹{session.delivery_charge.toFixed(0)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
-                  <span>₹{session.total_amount.toFixed(2)}</span>
+                  <span>₹{session.total_amount.toFixed(0)}</span>
                 </div>
               </div>
 
