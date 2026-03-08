@@ -1,12 +1,12 @@
 "use client";
 
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   // Create QueryClient per provider instance to ensure cache isolation
-  // Using useMemo ensures a new instance only when the component mounts
-  const queryClient = useMemo(
+  // Using useState with initializer guarantees one instance per component lifetime
+  const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
@@ -18,8 +18,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             refetchOnWindowFocus: false, // Don't refetch on window focus in dev/slow networks
           },
         },
-      }),
-    []
+      })
   );
 
   return (
