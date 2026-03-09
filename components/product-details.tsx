@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
+import { ChevronLeft, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +51,10 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   const [isMobile, setIsMobile] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [hasSwiped, setHasSwiped] = useState(false);
+  const swipeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
   const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
   const [users, setUsers] = useState<User[]>([]);
@@ -58,33 +62,6 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const { user } = useAuth();
-
-  // Prev/next product navigation from filtered list stored in sessionStorage
-  const [prevSlug, setPrevSlug] = useState<string | null>(null);
-  const [nextSlug, setNextSlug] = useState<string | null>(null);
-  const [navPosition, setNavPosition] = useState("");
-
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("productListSlugs");
-      if (!raw) return;
-      const slugs: string[] = JSON.parse(raw);
-      const idx = slugs.indexOf(productSlug);
-      if (idx === -1) return;
-      setNavPosition(`${idx + 1} / ${slugs.length}`);
-      setPrevSlug(idx > 0 ? slugs[idx - 1] : null);
-      setNextSlug(idx < slugs.length - 1 ? slugs[idx + 1] : null);
-    } catch { /* sessionStorage unavailable */ }
-  }, [productSlug]);
-
-  const goToPrevProduct = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (prevSlug) router.push(`/products/${prevSlug}`);
-  };
-  const goToNextProduct = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (nextSlug) router.push(`/products/${nextSlug}`);
-  };
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -182,20 +159,20 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
         // Refresh reviews
         await fetchReviews(productSlug);
         await fetchUsers();
-        
+
         // Fire and forget notifications (non-blocking)
         sendNotification(
           "Rating Submitted",
           `User ${user?.id} has submitted a rating for product #${data?.product_slug}`,
           "success"
         ).catch((error) => console.error("Failed to send notification:", error));
-        
+
         sendActivity(
           "rating_submission_success",
           `User ${user?.id} submitted a rating for product #${data?.product_slug}`,
           data?.product_slug
         ).catch((error) => console.error("Failed to log activity:", error));
-        
+
         toast.success("Review submitted successfully!");
       } else {
         toast.error("Failed to submit review");
@@ -334,6 +311,58 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
     setTimeout(() => setIsShaking(false), 600);
   };
 
+  // Swipe handlers for mobile image navigation
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+    setHasSwiped(false);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    if (swipeTimeoutRef.current) {
+      clearTimeout(swipeTimeoutRef.current);
+      swipeTimeoutRef.current = null;
+    }
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && product?.images && selectedImage < product.images.length - 1) {
+      setSelectedImage(selectedImage + 1);
+      setHasSwiped(true);
+    }
+    if (isRightSwipe && selectedImage > 0) {
+      setSelectedImage(selectedImage - 1);
+      setHasSwiped(true);
+    }
+
+    setTouchStart(null);
+    setTouchEnd(null);
+
+    swipeTimeoutRef.current = setTimeout(() => {
+      setHasSwiped(false);
+      swipeTimeoutRef.current = null;
+    }, 300);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (swipeTimeoutRef.current) {
+        clearTimeout(swipeTimeoutRef.current);
+        swipeTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Auto-shake every 3 seconds if not in cart
   useEffect(() => {
     if (!isInCart) {
@@ -347,8 +376,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
 
   if (isLoading || isLoadingProduct) {
     return (
-        <LoadingCard />
-      );
+      <LoadingCard />
+    );
   }
 
   if (!product) {
@@ -396,41 +425,44 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               ))}
             </div>
           )}
-
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
               className={`aspect-square z-10 bg-[#f5f5f5] relative transition-[opacity,transform] duration-300 ease-out ${!isMobile
-                  ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
-                  : "cursor-pointer"
+                ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
+                : "cursor-pointer touch-none"
                 }`}
               onMouseEnter={handleImageMouseEnter}
               onMouseLeave={handleImageMouseLeave}
               onMouseMove={handleImageMouseMove}
+              onTouchStart={isMobile ? onTouchStart : undefined}
+              onTouchMove={isMobile ? onTouchMove : undefined}
+              onTouchEnd={isMobile ? onTouchEnd : undefined}
               onClick={() => {
-                if (isMobile) {
+                if (isMobile && !hasSwiped) {
                   setShowMobileImageModal(true);
                 }
               }}
             >
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); router.back(); }}
+                className="absolute top-2 left-2 rounded w-fit px-2 py-1 bg-black/30 backdrop-blur-sm flex items-center justify-center gap-1 text-white active:scale-90 transition-transform md:hidden z-20"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+                <span>Back</span>
+              </button>
+
               <Image
                 src={toImageSrc(product.images?.[selectedImage])}
                 alt={product.name}
                 width={600}
                 height={600}
-                className="w-full h-full object-cover transition-transform duration-300 ease-out"
+                className="w-full h-full object-cover transition-transform duration-300 ease-out select-none"
                 priority
+                draggable={false}
               />
-
-              {/* Mobile: Back button overlay — top-left */}
-              <button
-                onClick={(e) => { e.stopPropagation(); router.back(); }}
-                className="absolute top-3 left-3 h-8 w-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform md:hidden z-20"
-                aria-label="Go back"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-
 
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
@@ -507,9 +539,11 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 {product.category}
               </Link>
             )}
-             <div className='flex items-center justify-between'>
+            {allReviews?.length > 0 && (
+              <div className='flex items-center justify-between'>
                 <p className='flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]'><FaStar /> {productRating} | {allReviews?.length} Ratings</p>
               </div>
+            )}
             <div className="flex items-center justify-between mt-2 mb-4">
               <h1 className="text-2xl md:text-3xl font-light">
                 {product.name}
@@ -560,8 +594,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                       <button
                         key={color}
                         className={`w-8 h-8 rounded-full border ${color === selectedColor
-                            ? "ring-2 ring-primary ring-offset-2"
-                            : ""
+                          ? "ring-2 ring-primary ring-offset-2"
+                          : ""
                           }`}
                         style={{ backgroundColor: color.toLowerCase() }}
                         aria-label={color}
@@ -795,45 +829,68 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {relatedProducts
               ?.filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
-              ?.map((relatedProduct) => (
-              <div key={relatedProduct?.id} className="group">
-                <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                  <Link href={`/products/${relatedProduct.slug}`}>
-                    <Image
-                      src={toImageSrc(relatedProduct?.images?.[0])}
-                      alt={relatedProduct?.name}
-                      width={400}
-                      height={400}
-                      className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </Link>
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
-                  >
-                    <Heart className="h-4 w-4" />
-                    <span className="sr-only">Add to wishlist</span>
-                  </Button>
-                </div>
-                <div className="text-center">
-                  <h3 className="text-sm font-medium mb-1">
-                    <Link
-                      href={`/products/${relatedProduct.slug}`}
-                      className="hover:text-primary"
-                    >
-                      {relatedProduct.name}
-                    </Link>
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {relatedProduct.category}
-                  </p>
-                  <p className="font-medium">
-                    ₹{relatedProduct.price.toFixed(0)}
-                  </p>
-                </div>
-              </div>
-            ))}
+              ?.map((relatedProduct) => {
+                const isRelatedInWishlist = isInWishlist(relatedProduct.id);
+                return (
+                  <div key={relatedProduct?.id} className="group">
+                    <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
+                      <Link href={`/products/${relatedProduct.slug}`}>
+                        <Image
+                          src={toImageSrc(relatedProduct?.images?.[0])}
+                          alt={relatedProduct?.name}
+                          width={400}
+                          height={400}
+                          className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (isRelatedInWishlist) {
+                            removeFromWishlist(relatedProduct.id);
+                            toast.success(`${relatedProduct.name} removed from wishlist!`);
+                          } else {
+                            addToWishlist({
+                              id: relatedProduct.id,
+                              name: relatedProduct.name,
+                              price: relatedProduct.price,
+                              image: relatedProduct.images?.[0],
+                            });
+                            toast.success(`${relatedProduct.name} added to wishlist!`);
+                          }
+                        }}
+                      >
+                        <Heart
+                          className={`h-4 w-4 ${isRelatedInWishlist ? "fill-red-500 text-red-500" : ""}`}
+                        />
+                        <span className="sr-only">
+                          {isRelatedInWishlist ? "Remove from wishlist" : "Add to wishlist"}
+                        </span>
+                      </Button>
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-sm font-medium mb-1">
+                        <Link
+                          href={`/products/${relatedProduct.slug}`}
+                          className="hover:text-primary"
+                        >
+                          {relatedProduct.name}
+                        </Link>
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {relatedProduct.category}
+                      </p>
+                      <p className="font-medium">
+                        ₹{relatedProduct.price.toFixed(0)}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
           </div>
         </section>
       )}
@@ -861,48 +918,22 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 />
               </svg>
             </button>
-
-            {/* Prev product — left edge */}
-            {prevSlug && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMobileImageModal(false);
-                  router.push(`/products/${prevSlug}`);
-                }}
-                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform z-10"
-                aria-label="Previous product"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-            )}
-
-            {/* Next product — right edge */}
-            {nextSlug && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMobileImageModal(false);
-                  router.push(`/products/${nextSlug}`);
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform z-10"
-                aria-label="Next product"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            )}
-
-            <div className="relative w-full max-w-sm">
+            <div
+              className="relative w-full max-w-sm touch-none"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+            >
               <Image
                 src={toImageSrc(product.images?.[selectedImage])}
                 alt={product.name}
                 width={400}
                 height={400}
-                className="w-full h-auto object-contain"
+                className="w-full h-auto object-contain select-none"
                 priority
+                draggable={false}
               />
             </div>
-
             {/* Bottom row: image dots + position indicator */}
             {product.images && product.images.length > 1 && (
               <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2">
