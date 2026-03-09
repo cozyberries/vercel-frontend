@@ -122,7 +122,8 @@ export default function CheckoutPage() {
     // Trust addresses that were validated when added; no API call on selection.
     setPincodeStatus("serviceable");
     setPincodeMessage("");
-    setDeliveryDays(null);
+    // Set default delivery estimate (5-7 business days)
+    setDeliveryDays({ min: 5, max: 7 });
   };
 
   // Handle adding new address

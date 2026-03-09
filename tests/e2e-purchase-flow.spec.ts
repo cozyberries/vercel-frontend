@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import * as os from "os";
+import * as path from "path";
 
 /**
  * Full purchase flow E2E (no mocks)
@@ -7,25 +9,13 @@ import { test, expect } from "@playwright/test";
  *
  * All steps are mandatory — any failure fails the test.
  * Mobile viewport: set in playwright.config.ts mobile-purchase project.
+ * Auth pre-loaded via storageState from purchase-auth-setup project.
  */
-
-const EMAIL = process.env.TEST_ADMIN_EMAIL ?? "";
-const PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? "";
-
-if (!EMAIL || !PASSWORD) {
-  throw new Error(
-    "TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD must be set in .env.local"
-  );
-}
 
 test.use({ viewport: { width: 375, height: 812 } });
 
 test("full purchase flow", async ({ page }) => {
   test.setTimeout(120_000);
-  // No retries — Supabase rate-limits rapid re-logins causing redirect loops
-  test.info().annotations.push({ type: "retries", description: "0" });
-  // eslint-disable-next-line playwright/no-skipped-test
-  if (test.info().retry > 0) test.skip();
 
   // Collect browser/page errors throughout the test
   const errors: string[] = [];
@@ -53,7 +43,10 @@ test("full purchase flow", async ({ page }) => {
   await page.evaluate(() => localStorage.removeItem("cart"));
   // Also clear server-side cart (Supabase) via API
   await page.evaluate(async () => {
-    await fetch("/api/cart", { method: "DELETE" });
+    const res = await fetch("/api/cart", { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error(`Failed to clear server cart: ${res.status} ${res.statusText}`);
+    }
   });
   console.log("✅ Cart cleared");
 
@@ -245,7 +238,7 @@ test("full purchase flow", async ({ page }) => {
     "Sub-heading 'We are verifying your payment' must be visible"
   ).toBeVisible({ timeout: 5_000 });
 
-  await page.screenshot({ path: "/tmp/order-success.png" });
+  await page.screenshot({ path: path.join(os.tmpdir(), "order-success.png") });
   console.log("🎉 Order Placed confirmed");
 
   // ── 12. Assert no browser errors ─────────────────────────────────────────

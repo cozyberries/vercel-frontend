@@ -70,12 +70,14 @@ export default defineConfig({
     },
     // Mobile purchase flow — Chromium with 375x812 mobile viewport.
     // Depends on purchase-auth-setup so login is pre-authenticated (no repeated
-    // Supabase logins → avoids rate limits on test retries).
+    // Supabase logins). Retries disabled — test is stateful (clears cart, deletes
+    // addresses, creates order) so retries don't add value and complicate debugging.
     // Note: intentionally NOT using devices['iPhone SE'] (WebKit) — the app has
     // separate WebKit CORS issues (406s, JWT failures) unrelated to purchase flow.
     {
       name: 'mobile-purchase',
       testMatch: /e2e-purchase-flow\.spec\.ts/,
+      retries: 0,
       dependencies: ['purchase-auth-setup'],
       use: {
         ...devices['Pixel 5'],
