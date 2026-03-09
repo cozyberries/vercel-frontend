@@ -4,19 +4,14 @@ import Link from "next/link";
 import { ShoppingCart, } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart, getCartItemKey } from "@/components/cart-context";
-import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import CartItemRow from "@/components/CartItem";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { useCartTotals } from "@/hooks/useCartTotals";
 
 export default function CartPage() {
     const { cart, updateQuantity, removeFromCart, clearCart, isLoading } = useCart();
 
-    const subtotal = cart.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-    );
-    const deliveryCharge = cart.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
-    const grandTotal = subtotal + deliveryCharge;
+    const { subtotal, deliveryCharge, grandTotal } = useCartTotals(cart);
 
     if (isLoading) {
         return (
@@ -50,11 +45,7 @@ export default function CartPage() {
                         </div>
                     )}
                     <div className="p-4">
-                        {isLoading ? (
-                            <div className="py-8 text-center text-muted-foreground">
-                                <div className="animate-pulse">Loading cart...</div>
-                            </div>
-                        ) : cart.length === 0 ? (
+                        {cart.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-center">
                                 <div className="mb-6">
                                     <ShoppingCart className="h-16 w-16 text-muted-foreground/40" />
@@ -94,7 +85,7 @@ export default function CartPage() {
                                 <span className="font-semibold">₹{deliveryCharge.toFixed(0)}</span>
                             )}
                         </div>
-                        {subtotal < FREE_DELIVERY_THRESHOLD && cart.length > 0 && (
+                        {subtotal < FREE_DELIVERY_THRESHOLD && (
                             <div className="bg-primary/10 border border-primary/20 rounded-md p-3 text-sm">
                                 <p className="text-primary font-medium">
                                     Add products worth ₹{(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} to get free shipping.

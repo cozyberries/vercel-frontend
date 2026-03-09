@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,8 +34,6 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, updateQuantity, removeFromCart, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
-  // const [showHoverImage, setShowHoverImage] = useState(false);
-
   const hasVariants =
     (product.variants?.length ?? 0) > 0 || (product.sizes?.length ?? 0) > 0;
 
@@ -157,20 +155,6 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             priority={index < 3}
             className="w-full h-full object-cover"
           />
-          {/* Second Image (deferred until hover to avoid loading on paint) */}
-          {/* {showHoverImage &&
-            product.images?.[1] &&
-            typeof product.images[1] === "string" &&
-            product.images[1].trim() !== "" && (
-              <Image
-                src={product.images[1]}
-                alt={product.name}
-                width={600}
-                height={750}
-                sizes="(max-width: 1023px) 100vw, 25vw"
-                className="absolute inset-0 w-full h-full object-cover transition-[transform,opacity] duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-105"
-              />
-            )} */}
         </Link>
 
         {/* Wishlist top-left, Add to cart top-right */}

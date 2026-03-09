@@ -20,6 +20,7 @@ export default function MobileBottomHeader() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { cart } = useCart();
+  const cartTotalQuantity = cart.reduce((s, i) => s + (i.quantity || 0), 0);
   const navItems: NavItem[] = [
     {
       name: "Home",
@@ -38,7 +39,7 @@ export default function MobileBottomHeader() {
       href: "/cart",
       icon: ShoppingCart,
       isActive: pathname.startsWith("/cart"),
-      badge: cart.length > 0 ? cart.length : null,
+      badge: cartTotalQuantity > 0 ? cartTotalQuantity : null,
     },
     ...(user
       ? [
