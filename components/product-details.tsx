@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -54,6 +54,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [hasSwiped, setHasSwiped] = useState(false);
+  const swipeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
   const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
   const [users, setUsers] = useState<User[]>([]);
@@ -326,6 +327,11 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
   const onTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
 
+    if (swipeTimeoutRef.current) {
+      clearTimeout(swipeTimeoutRef.current);
+      swipeTimeoutRef.current = null;
+    }
+
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
@@ -342,9 +348,20 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
     setTouchStart(null);
     setTouchEnd(null);
 
-    // Reset swipe flag after a short delay
-    setTimeout(() => setHasSwiped(false), 300);
+    swipeTimeoutRef.current = setTimeout(() => {
+      setHasSwiped(false);
+      swipeTimeoutRef.current = null;
+    }, 300);
   };
+
+  useEffect(() => {
+    return () => {
+      if (swipeTimeoutRef.current) {
+        clearTimeout(swipeTimeoutRef.current);
+        swipeTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto-shake every 3 seconds if not in cart
   useEffect(() => {
@@ -408,16 +425,6 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
               ))}
             </div>
           )}
-          {/* Mobile: Back button overlay — top-left */}
-          <button
-            onClick={(e) => { e.stopPropagation(); router.back(); }}
-            className="rounded w-fit px-2 py-1 bg-black/30 backdrop-blur-sm flex items-center justify-center gap-1 text-white active:scale-90 transition-transform md:hidden z-20"
-            aria-label="Go back"
-          >
-            <ChevronLeft className="h-5 w-5" />
-            <span>Back</span>
-          </button>
-
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
@@ -437,6 +444,15 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 }
               }}
             >
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); router.back(); }}
+                className="absolute top-2 left-2 rounded w-fit px-2 py-1 bg-black/30 backdrop-blur-sm flex items-center justify-center gap-1 text-white active:scale-90 transition-transform md:hidden z-20"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+                <span>Back</span>
+              </button>
 
               <Image
                 src={toImageSrc(product.images?.[selectedImage])}
