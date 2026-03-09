@@ -25,6 +25,7 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  timeout: 60_000,
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000',
@@ -57,6 +58,29 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'tests/.auth/payment-user.json',
+        video: 'on',
+      },
+    },
+
+    // Auth setup for purchase flow — logs in once and saves session
+    {
+      name: 'purchase-auth-setup',
+      testMatch: /purchase-auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Mobile purchase flow — Chromium with 375x812 mobile viewport.
+    // Depends on purchase-auth-setup so login is pre-authenticated (no repeated
+    // Supabase logins → avoids rate limits on test retries).
+    // Note: intentionally NOT using devices['iPhone SE'] (WebKit) — the app has
+    // separate WebKit CORS issues (406s, JWT failures) unrelated to purchase flow.
+    {
+      name: 'mobile-purchase',
+      testMatch: /e2e-purchase-flow\.spec\.ts/,
+      dependencies: ['purchase-auth-setup'],
+      use: {
+        ...devices['Pixel 5'],
+        viewport: { width: 375, height: 812 },
+        storageState: 'tests/.auth/purchase-user.json',
         video: 'on',
       },
     },
