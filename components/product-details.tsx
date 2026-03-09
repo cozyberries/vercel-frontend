@@ -523,7 +523,7 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 {product.category}
               </Link>
             )}
-            {allReviews && allReviews?.length > 0 && (
+            {allReviews?.length > 0 && (
               <div className='flex items-center justify-between'>
                 <p className='flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]'><FaStar /> {productRating} | {allReviews?.length} Ratings</p>
               </div>
@@ -829,9 +829,29 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                       variant="ghost"
                       size="icon"
                       className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (isInWishlist(relatedProduct.id)) {
+                          removeFromWishlist(relatedProduct.id);
+                          toast.success(`${relatedProduct.name} removed from wishlist!`);
+                        } else {
+                          addToWishlist({
+                            id: relatedProduct.id,
+                            name: relatedProduct.name,
+                            price: relatedProduct.price,
+                            image: relatedProduct.images?.[0],
+                          });
+                          toast.success(`${relatedProduct.name} added to wishlist!`);
+                        }
+                      }}
                     >
-                      <Heart className="h-4 w-4" />
-                      <span className="sr-only">Add to wishlist</span>
+                      <Heart
+                        className={`h-4 w-4 ${isInWishlist(relatedProduct.id) ? "fill-red-500 text-red-500" : ""}`}
+                      />
+                      <span className="sr-only">
+                        {isInWishlist(relatedProduct.id) ? "Remove from wishlist" : "Add to wishlist"}
+                      </span>
                     </Button>
                   </div>
                   <div className="text-center">
