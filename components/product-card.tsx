@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Minus, Plus, ShoppingCart } from "lucide-react";
+import { Heart, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +17,8 @@ import { useCart, getCartItemKey } from "./cart-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
+import { BsCartPlus } from "react-icons/bs";
+import { RiHeartAddLine } from "react-icons/ri";
 
 interface ProductCardProps {
   product: Product;
@@ -32,7 +34,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, updateQuantity, removeFromCart, cart } = useCart();
   const inWishlist = isInWishlist(product.id);
-  const [showHoverImage, setShowHoverImage] = useState(false);
+  // const [showHoverImage, setShowHoverImage] = useState(false);
 
   const hasVariants =
     (product.variants?.length ?? 0) > 0 || (product.sizes?.length ?? 0) > 0;
@@ -125,14 +127,12 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
 
   return (
     <div
-      className="group flex flex-col overflow-hidden bg-white transition-[shadow,transform] duration-300 shadow-sm lg:shadow-sm lg:border lg:border-gray-200/50 lg:hover:shadow-md cursor-pointer rounded-2xl active:scale-[0.98]"
+      className="group flex flex-col overflow-hidden bg-white transition-[shadow,transform] duration-300 shadow-sm lg:shadow-sm lg:border lg:border-gray-200/50 lg:hover:shadow-md cursor-pointer rounded-2xl"
       onClick={handleCardClick}
     >
       {/* Image Section */}
       <div
         className="relative overflow-hidden aspect-[4/5] lg:aspect-auto lg:h-[78%] lg:min-h-[250px]"
-        onMouseEnter={() => setShowHoverImage(true)}
-        onMouseLeave={() => setShowHoverImage(false)}
       >
         {/* Featured Badge */}
         {product.is_featured && (
@@ -155,10 +155,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             height={750}
             sizes="(max-width: 1023px) 100vw, 25vw"
             priority={index < 3}
-            className="w-full h-full object-cover transition-[transform,opacity] duration-500 group-hover:scale-105 group-hover:opacity-0"
+            className="w-full h-full object-cover"
           />
           {/* Second Image (deferred until hover to avoid loading on paint) */}
-          {showHoverImage &&
+          {/* {showHoverImage &&
             product.images?.[1] &&
             typeof product.images[1] === "string" &&
             product.images[1].trim() !== "" && (
@@ -170,7 +170,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                 sizes="(max-width: 1023px) 100vw, 25vw"
                 className="absolute inset-0 w-full h-full object-cover transition-[transform,opacity] duration-500 opacity-0 group-hover:opacity-100 group-hover:scale-105"
               />
-            )}
+            )} */}
         </Link>
 
         {/* Wishlist top-left, Add to cart top-right */}
@@ -197,11 +197,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             }}
             aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
           >
-            <Heart
-              className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${
-                inWishlist
-                  ? "fill-red-500 text-red-500"
-                  : "text-gray-600 hover:text-red-500"
+            <RiHeartAddLine
+              size={20}
+              className={`transition-colors duration-200 ${
+                inWishlist ? "text-red-500" : "text-gray-600 hover:text-red-500"
               }`}
             />
           </Button>
@@ -222,7 +221,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                   }}
                   aria-label="Add to cart"
                 >
-                  <ShoppingCart
+                  <BsCartPlus
                     className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${
                       anyVariantInCart
                         ? "fill-primary text-primary"
@@ -249,7 +248,12 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                     return (
                       <div
                         key={opt.label + (opt.size ?? "") + (opt.color ?? "")}
-                        className="flex items-center justify-between gap-1 rounded-sm py-1.5 text-sm hover:bg-accent/50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAddVariant(opt.size, opt.color, opt.price);
+                        }}
+                        className={`flex items-center justify-between gap-1 rounded-sm py-1.5 text-sm hover:bg-accent/50 ${inCart ? "bg-accent/80" : ""}`}
                       >
                         <div className="flex min-w-0 shrink flex-col">
                           <span className="truncate font-medium">{opt.label}</span>
@@ -333,7 +337,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
               }}
               aria-label={anyVariantInCart ? "Add another" : "Add to cart"}
             >
-              <ShoppingCart
+              <BsCartPlus
                 className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${
                   anyVariantInCart
                     ? "fill-primary text-primary"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingBag, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -35,7 +35,7 @@ export default function CartSheet() {
           size="icon"
           className="relative lg:w-10 lg:h-10 w-12 h-12"
         >
-          <ShoppingBag className="h-6 w-6 lg:h-5 lg:w-5" />
+          <ShoppingCart className="h-6 w-6 lg:h-5 lg:w-5" />
           {cart.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-primary text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
               {cart.reduce((sum, item) => sum + item.quantity, 0)}
@@ -105,6 +105,13 @@ export default function CartSheet() {
                   <span className="font-semibold">₹{deliveryCharge.toFixed(0)}</span>
                 )}
               </div>
+              {subtotal < FREE_DELIVERY_THRESHOLD && cart.length > 0 && (
+                <div className="bg-primary/10 border border-primary/20 rounded-md p-3 text-sm">
+                  <p className="text-primary font-medium">
+                    Add products worth ₹{(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} to get free shipping.
+                  </p>
+                </div>
+              )}
               <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Total</span>
                 <span className="font-bold">₹{grandTotal.toFixed(0)}</span>

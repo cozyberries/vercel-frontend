@@ -30,7 +30,7 @@ export default function CartItemRow({
       <div className="flex-1">
         <div className="font-medium line-clamp-2">{item.name}</div>
         {(item.size || item.color) && (
-          <div className="text-xs text-muted-foreground mt-0.5">
+          <div className="text-xs text-gray-700 mt-0.5">
             {[item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
               .filter(Boolean)
               .join(" · ")}

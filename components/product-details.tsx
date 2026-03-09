@@ -182,20 +182,20 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
         // Refresh reviews
         await fetchReviews(productSlug);
         await fetchUsers();
-        
+
         // Fire and forget notifications (non-blocking)
         sendNotification(
           "Rating Submitted",
           `User ${user?.id} has submitted a rating for product #${data?.product_slug}`,
           "success"
         ).catch((error) => console.error("Failed to send notification:", error));
-        
+
         sendActivity(
           "rating_submission_success",
           `User ${user?.id} submitted a rating for product #${data?.product_slug}`,
           data?.product_slug
         ).catch((error) => console.error("Failed to log activity:", error));
-        
+
         toast.success("Review submitted successfully!");
       } else {
         toast.error("Failed to submit review");
@@ -347,8 +347,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
 
   if (isLoading || isLoadingProduct) {
     return (
-        <LoadingCard />
-      );
+      <LoadingCard />
+    );
   }
 
   if (!product) {
@@ -401,8 +401,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
           <div className="lg:flex-1">
             <div
               className={`aspect-square z-10 bg-[#f5f5f5] relative transition-[opacity,transform] duration-300 ease-out ${!isMobile
-                  ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
-                  : "cursor-pointer"
+                ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
+                : "cursor-pointer"
                 }`}
               onMouseEnter={handleImageMouseEnter}
               onMouseLeave={handleImageMouseLeave}
@@ -507,9 +507,11 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                 {product.category}
               </Link>
             )}
-             <div className='flex items-center justify-between'>
+            {allReviews && allReviews?.length > 0 && (
+              <div className='flex items-center justify-between'>
                 <p className='flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]'><FaStar /> {productRating} | {allReviews?.length} Ratings</p>
               </div>
+            )}
             <div className="flex items-center justify-between mt-2 mb-4">
               <h1 className="text-2xl md:text-3xl font-light">
                 {product.name}
@@ -560,8 +562,8 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
                       <button
                         key={color}
                         className={`w-8 h-8 rounded-full border ${color === selectedColor
-                            ? "ring-2 ring-primary ring-offset-2"
-                            : ""
+                          ? "ring-2 ring-primary ring-offset-2"
+                          : ""
                           }`}
                         style={{ backgroundColor: color.toLowerCase() }}
                         aria-label={color}
@@ -796,44 +798,44 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
             {relatedProducts
               ?.filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
               ?.map((relatedProduct) => (
-              <div key={relatedProduct?.id} className="group">
-                <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                  <Link href={`/products/${relatedProduct.slug}`}>
-                    <Image
-                      src={toImageSrc(relatedProduct?.images?.[0])}
-                      alt={relatedProduct?.name}
-                      width={400}
-                      height={400}
-                      className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </Link>
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
-                  >
-                    <Heart className="h-4 w-4" />
-                    <span className="sr-only">Add to wishlist</span>
-                  </Button>
-                </div>
-                <div className="text-center">
-                  <h3 className="text-sm font-medium mb-1">
-                    <Link
-                      href={`/products/${relatedProduct.slug}`}
-                      className="hover:text-primary"
-                    >
-                      {relatedProduct.name}
+                <div key={relatedProduct?.id} className="group">
+                  <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
+                    <Link href={`/products/${relatedProduct.slug}`}>
+                      <Image
+                        src={toImageSrc(relatedProduct?.images?.[0])}
+                        alt={relatedProduct?.name}
+                        width={400}
+                        height={400}
+                        className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
                     </Link>
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {relatedProduct.category}
-                  </p>
-                  <p className="font-medium">
-                    ₹{relatedProduct.price.toFixed(0)}
-                  </p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+                    >
+                      <Heart className="h-4 w-4" />
+                      <span className="sr-only">Add to wishlist</span>
+                    </Button>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-sm font-medium mb-1">
+                      <Link
+                        href={`/products/${relatedProduct.slug}`}
+                        className="hover:text-primary"
+                      >
+                        {relatedProduct.name}
+                      </Link>
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {relatedProduct.category}
+                    </p>
+                    <p className="font-medium">
+                      ₹{relatedProduct.price.toFixed(0)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         </section>
       )}
