@@ -78,6 +78,8 @@ export function useProfile(user: any) {
 
   // Fetch profile data and addresses using combined endpoint for better performance
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchData = async () => {
       if (!user) {
         setIsLoading(false);
@@ -86,11 +88,11 @@ export function useProfile(user: any) {
 
       try {
         // Use combined endpoint to fetch both profile and addresses in a single request
-        const response = await fetch("/api/profile/combined");
+        const response = await fetch("/api/profile/combined", { signal: controller.signal });
 
         if (response.ok) {
           const data = await response.json();
-          
+
           // Set profile data
           if (data.profile) {
             setProfile(data.profile);
@@ -106,8 +108,8 @@ export function useProfile(user: any) {
           // Fallback to separate endpoints if combined endpoint fails
           console.warn("Combined endpoint failed, falling back to separate endpoints");
           const [profileResponse, addressesResponse] = await Promise.all([
-            fetch("/api/profile"),
-            fetch("/api/profile/addresses"),
+            fetch("/api/profile", { signal: controller.signal }),
+            fetch("/api/profile/addresses", { signal: controller.signal }),
           ]);
 
           if (profileResponse.ok) {
@@ -127,14 +129,17 @@ export function useProfile(user: any) {
           }
         }
       } catch (error) {
+        // DOMException (AbortError) is not instanceof Error in Chromium — check name directly
+        if ((error as { name?: string })?.name === "AbortError") return;
         console.error("Error fetching profile data:", error);
         setAddresses([]);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
 
     fetchData();
+    return () => controller.abort();
   }, [user]);
 
   const validateField = (field: string, value: string) => {
