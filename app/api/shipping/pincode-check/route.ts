@@ -85,10 +85,13 @@ export async function GET(request: Request) {
       delivery_days: result.delivery_days,
     });
   } catch (err) {
-    console.error("Pincode check error:", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("Pincode check error:", message, err);
+    const isConfigError = message.includes("DELIVERY_API_KEY") || message.includes("not set");
+    const status = isConfigError ? 503 : 502;
     return NextResponse.json(
-      { error: "Unable to verify pincode. Please try again." },
-      { status: 502 }
+      { error: isConfigError ? "Pincode check is not configured. Please contact support." : "Unable to verify pincode. Please try again." },
+      { status }
     );
   }
 }

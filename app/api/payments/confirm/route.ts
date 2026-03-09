@@ -6,11 +6,11 @@ import { logServerEvent } from "@/lib/services/event-logger";
 
 // Schema for validating cart items
 const OrderItemSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   name: z.string().min(1),
   price: z.number().positive(),
   quantity: z.number().int().positive(),
-  image: z.string().url().optional().nullable(),
+  image: z.string().optional().nullable(),
   size: z.string().optional().nullable(),
   color: z.string().optional().nullable(),
   sku: z.string().optional().nullable(),

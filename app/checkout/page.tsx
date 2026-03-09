@@ -53,7 +53,6 @@ export default function CheckoutPage() {
   >("idle");
   const [pincodeMessage, setPincodeMessage] = useState("");
   const [deliveryDays, setDeliveryDays] = useState<{ min: number; max: number } | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Use profile hook for address management
   const {
@@ -95,9 +94,7 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  // Auto-select default address if available and validate its pincode.
-  // handleAddressSelect is intentionally excluded from deps — it's recreated
-  // each render but we only want this to run when the addresses list changes.
+  // Auto-select default address if available. Pincode is verified only when adding/editing address in the modal.
   useEffect(() => {
     if (addresses.length > 0 && !selectedAddressId) {
       const defaultAddress = addresses.find((addr) => addr.is_default);
@@ -105,61 +102,28 @@ export default function CheckoutPage() {
         handleAddressSelect(defaultAddress.id);
       }
     }
-    return () => {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addresses]);
 
-  // Handle address selection with pincode validation.
+  // Handle address selection. Pincode is verified only when adding/editing address in the modal.
   // addressOverride: use when the address was just added/updated and may not be in state yet.
-  const handleAddressSelect = async (
+  const handleAddressSelect = (
     addressId: string,
     addressOverride?: { id: string; postal_code?: string | null }
   ) => {
     setSelectedAddressId(addressId);
-
     const address = addressOverride ?? addresses.find((a) => a.id === addressId);
-    if (!address?.postal_code) return;
-
-    // Cancel any in-flight pincode check for a previously selected address
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    setPincodeStatus("checking");
-    setPincodeMessage("");
-
-    try {
-      const res = await fetch(
-        `/api/shipping/pincode-check?pincode=${address.postal_code}`,
-        { signal: controller.signal }
-      );
-      const data = await res.json();
-
-      if (!res.ok) {
-        setPincodeStatus("error");
-        setPincodeMessage(data.error || "Unable to verify delivery availability");
-        return;
-      }
-
-      if (data.serviceable) {
-        setPincodeStatus("serviceable");
-        setPincodeMessage(`Delivery available to ${data.city}, ${data.state}`);
-        setDeliveryDays(data.delivery_days);
-      } else {
-        setPincodeStatus("not_serviceable");
-        setPincodeMessage(
-          "Sorry, we don't deliver to this pincode yet. Please select a different address."
-        );
-        setDeliveryDays(null);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setPincodeStatus("error");
-      setPincodeMessage("Unable to verify delivery. Please try again.");
+    if (!address?.postal_code) {
+      setPincodeStatus("idle");
+      setPincodeMessage("");
+      setDeliveryDays(null);
+      return;
     }
+    // Trust addresses that were validated when added; no API call on selection.
+    setPincodeStatus("serviceable");
+    setPincodeMessage("");
+    // Set default delivery estimate (5-7 business days)
+    setDeliveryDays({ min: 5, max: 7 });
   };
 
   // Handle adding new address

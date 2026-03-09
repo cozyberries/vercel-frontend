@@ -30,8 +30,8 @@ export async function checkPincodeServiceability(
   pincode: string
 ): Promise<PincodeCheckResult> {
   const apiKey = process.env.DELIVERY_API_KEY;
-  if (!apiKey) {
-    throw new Error("Delivery service unavailable");
+  if (!apiKey || apiKey.trim() === "") {
+    throw new Error("DELIVERY_API_KEY is not set. Add it to .env.local to enable pincode check.");
   }
 
   const url = `${DELHIVERY_BASE_URL}/c/api/pin-codes/json/?filter_codes=${pincode}`;
@@ -45,10 +45,13 @@ export async function checkPincodeServiceability(
   });
 
   if (!res.ok) {
-    throw new Error(`Delhivery pincode API failed: ${res.status}`);
+    const body = await res.text();
+    throw new Error(
+      `Delhivery pincode API failed: ${res.status} ${res.statusText}${body ? ` - ${body.slice(0, 200)}` : ""}`
+    );
   }
 
-  let data: DelhiveryPincodeResponse;
+  let data: unknown;
   try {
     data = await res.json();
   } catch {
@@ -58,7 +61,11 @@ export async function checkPincodeServiceability(
     );
   }
 
-  if (!data.delivery_codes || data.delivery_codes.length === 0) {
+  const deliveryCodes = Array.isArray((data as DelhiveryPincodeResponse).delivery_codes)
+    ? (data as DelhiveryPincodeResponse).delivery_codes
+    : null;
+
+  if (!deliveryCodes || deliveryCodes.length === 0) {
     return {
       serviceable: false,
       pincode,
@@ -72,17 +79,27 @@ export async function checkPincodeServiceability(
     };
   }
 
-  const pc = data.delivery_codes[0].postal_code;
-  const isOda = pc.is_oda === "Y";
+  const first = deliveryCodes[0];
+  const pc = first?.postal_code;
+  if (!pc || typeof pc !== "object") {
+    throw new Error(
+      "Delhivery pincode API returned unexpected response shape (missing postal_code)"
+    );
+  }
+
+  const raw = pc as Record<string, unknown>;
+  const isOda = raw.is_oda === "Y";
+  const prePaid = raw.pre_paid === "Y";
+  const cod = raw.cod === "Y";
 
   return {
-    serviceable: pc.pre_paid === "Y" || pc.cod === "Y",
-    pincode: String(pc.pin),
-    district: pc.district,
-    state_code: pc.state_code,
-    country_code: pc.country_code,
-    prepaid: pc.pre_paid === "Y",
-    cod: pc.cod === "Y",
+    serviceable: prePaid || cod,
+    pincode: String(raw.pin ?? pincode),
+    district: String(raw.district ?? ""),
+    state_code: String(raw.state_code ?? ""),
+    country_code: String(raw.country_code ?? ""),
+    prepaid: prePaid,
+    cod,
     is_oda: isOda,
     delivery_days: estimateDeliveryDays(isOda),
   };
