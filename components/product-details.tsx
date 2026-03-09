@@ -797,45 +797,64 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {relatedProducts
               ?.filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
-              ?.map((relatedProduct) => (
-                <div key={relatedProduct?.id} className="group">
-                  <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                    <Link href={`/products/${relatedProduct.slug}`}>
-                      <Image
-                        src={toImageSrc(relatedProduct?.images?.[0])}
-                        alt={relatedProduct?.name}
-                        width={400}
-                        height={400}
-                        className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
-                    >
-                      <Heart className="h-4 w-4" />
-                      <span className="sr-only">Add to wishlist</span>
-                    </Button>
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-sm font-medium mb-1">
-                      <Link
-                        href={`/products/${relatedProduct.slug}`}
-                        className="hover:text-primary"
-                      >
-                        {relatedProduct.name}
+              ?.map((relatedProduct) => {
+                const isRelatedInWishlist = isInWishlist(relatedProduct.id);
+                return (
+                  <div key={relatedProduct?.id} className="group">
+                    <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
+                      <Link href={`/products/${relatedProduct.slug}`}>
+                        <Image
+                          src={toImageSrc(relatedProduct?.images?.[0])}
+                          alt={relatedProduct?.name}
+                          width={400}
+                          height={400}
+                          className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
                       </Link>
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      {relatedProduct.category}
-                    </p>
-                    <p className="font-medium">
-                      ₹{relatedProduct.price.toFixed(0)}
-                    </p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (isRelatedInWishlist) {
+                            removeFromWishlist(relatedProduct.id);
+                            toast.success(`${relatedProduct.name} removed from wishlist!`);
+                          } else {
+                            addToWishlist({
+                              id: relatedProduct.id,
+                              name: relatedProduct.name,
+                              price: relatedProduct.price,
+                              image: relatedProduct.images?.[0],
+                            });
+                            toast.success(`${relatedProduct.name} added to wishlist!`);
+                          }
+                        }}
+                      >
+                        <Heart className={`h-4 w-4 ${isRelatedInWishlist ? "fill-red-500 text-red-500" : ""}`} />
+                        <span className="sr-only">{isRelatedInWishlist ? "Remove from wishlist" : "Add to wishlist"}</span>
+                      </Button>                  
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-sm font-medium mb-1">
+                        <Link
+                          href={`/products/${relatedProduct.slug}`}
+                          className="hover:text-primary"
+                        >
+                          {relatedProduct.name}
+                        </Link>
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {relatedProduct.category}
+                      </p>
+                      <p className="font-medium">
+                        ₹{relatedProduct.price.toFixed(0)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
           </div>
         </section>
       )}
