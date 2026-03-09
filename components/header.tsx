@@ -19,7 +19,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 py-1">
         <div className="relative flex items-center justify-between h-14 lg:h-20">
           {/* Desktop hamburger (kept for desktop sidebar if needed in future) */}
           <div className="hidden lg:block">
@@ -81,11 +81,10 @@ export default function Header() {
                 </Button>
               </Link>
             </div>
-            {/* Wishlist — desktop only (mobile uses bottom nav) */}
+            <WishlistSheet />
             <div className="hidden lg:block">
-              <WishlistSheet />
+              <CartSheet />
             </div>
-            <CartSheet />
           </div>
         </div>
       </div>

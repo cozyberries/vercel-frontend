@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Heart, Package, Home, User } from "lucide-react";
+import { ShoppingBag, Package, Home, User, ShoppingCart } from "lucide-react";
 import { motion } from "framer-motion";
-import { useWishlist } from "@/components/wishlist-context";
 import { useAuth } from "@/components/supabase-auth-provider";
 import type { LucideIcon } from "lucide-react";
+import { useCart } from "@/components/cart-context";
 
 interface NavItem {
   name: string;
@@ -18,9 +18,9 @@ interface NavItem {
 
 export default function MobileBottomHeader() {
   const pathname = usePathname();
-  const { wishlist } = useWishlist();
   const { user } = useAuth();
-
+  const { cart } = useCart();
+  const cartTotalQuantity = cart.reduce((s, i) => s + (i.quantity || 0), 0);
   const navItems: NavItem[] = [
     {
       name: "Home",
@@ -35,11 +35,11 @@ export default function MobileBottomHeader() {
       isActive: pathname.startsWith("/products"),
     },
     {
-      name: "Wishlist",
-      href: "/wishlist",
-      icon: Heart,
-      isActive: pathname.startsWith("/wishlist"),
-      badge: wishlist.length > 0 ? wishlist.length : null,
+      name: "Cart",
+      href: "/cart",
+      icon: ShoppingCart,
+      isActive: pathname.startsWith("/cart"),
+      badge: cartTotalQuantity > 0 ? cartTotalQuantity : null,
     },
     ...(user
       ? [
