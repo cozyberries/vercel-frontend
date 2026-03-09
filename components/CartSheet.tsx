@@ -95,7 +95,7 @@ export default function CartSheet() {
               </div>
               <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Delivery Charge</span>
-                {deliveryCharge === 0 && cart.length > 0 ? (
+                {deliveryCharge === 0 ? (
                   <span className="font-semibold text-green-600">FREE</span>
                 ) : (
                   <span className="font-semibold">₹{deliveryCharge.toFixed(0)}</span>
