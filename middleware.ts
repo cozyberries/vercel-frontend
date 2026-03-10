@@ -94,14 +94,14 @@ export async function middleware(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
+      const noProfileRow = profileError?.code === "PGRST116";
+      if (noProfileRow || !profile?.phone) {
+        return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
+      }
       if (profileError) {
         console.error("Failed to fetch profile in middleware:", profileError);
         return supabaseResponse;
-      }
-      if (!profile?.phone) {
-        return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
-      }
-    }
+      }    }
   }
 
   return supabaseResponse;

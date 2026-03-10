@@ -237,11 +237,13 @@ export async function PUT(request: NextRequest) {
     };
 
     // Clear then set cache so profile page never sees stale "no phone" data
-    await CacheService.clearProfile(user.id);
-    await CacheService.setProfile(user.id, updatedUserData);
-
-    return NextResponse.json(data);
-  } catch (error) {
+    // Non-blocking: DB update succeeded, cache failure should not fail the request
+    CacheService.clearProfile(user.id)
+      .then(() => CacheService.setProfile(user.id, updatedUserData))
+      .catch((error) => {
+        console.error(`Failed to update profile cache for user ${user.id}:`, error);
+      });
+    return NextResponse.json(updatedUserData);  } catch (error) {
     console.error("Error in PUT /api/profile:", error);
     return NextResponse.json(
       { error: "Internal Server Error", details: (error as Error).message },
