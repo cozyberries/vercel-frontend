@@ -190,8 +190,8 @@ export default function ContactSidebar({
             size="icon"
             className="rounded-full w-12 h-12 bg-secondary opacity-85 hover:bg-secondary/90 shadow-lg"
           >
-            <div className="text-secondary-foreground text-lg font-bold">
-              {showPopups ? <X className="w-5 h-5" /> : <MessageSquareMore className="w-5 h-5" />}
+            <div className="text-secondary-foreground">
+              {showPopups ? <X className="w-5 h-5 text-secondary-foreground" /> : <MessageSquareMore className="w-5 h-5 text-secondary-foreground" />}
             </div>
           </Button>
         </motion.div>
