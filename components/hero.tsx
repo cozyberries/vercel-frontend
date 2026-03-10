@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { images } from "@/app/assets/images";
 // Hero images - using desktop images as default for SSR consistency
 const HERO_IMAGES = images.heroImages;
 const FALLBACK_IMAGE = "/placeholder.jpg";
+const SWIPE_THRESHOLD_PX = 50;
 
 // Mobile image sources
 const MOBILE_IMAGES = images.mobileHeroImages;
@@ -21,6 +22,10 @@ export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
 
   useEffect(() => {
     if (!isAutoPlaying) return;
@@ -42,10 +47,36 @@ export default function Hero() {
     setTimeout(() => setIsAutoPlaying(true), 8000);
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - touchStartX.current;
+    const deltaY = touch.clientY - touchStartY.current;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX) return;
+    if (Math.abs(deltaX) < Math.abs(deltaY)) return;
+
+    const len = HERO_IMAGES.length;
+    const idx = currentIndexRef.current;
+    if (deltaX < 0) {
+      goToSlide((idx + 1) % len);
+    } else {
+      goToSlide((idx - 1 + len) % len);
+    }
+  };
+
   return (
     <section className="relative h-[70vh] md:h-[700px] bg-[#f5eee0] overflow-hidden group">
       {/* Image Carousel - Full Width Background */}
-      <div className="absolute inset-0 w-full h-full overflow-hidden">
+      <div
+        className="absolute inset-0 w-full h-full overflow-hidden touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
           className="flex h-full transition-transform duration-700 ease-in-out"
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}

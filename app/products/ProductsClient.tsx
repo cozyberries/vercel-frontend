@@ -16,7 +16,7 @@ import ProductCard from "@/components/product-card";
 import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
 import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, CategoryOption, SizeOptionFilter, GenderOptionFilter, Product } from "@/lib/services/api";
-import { Loader2, Search, X, RotateCcw } from "lucide-react";
+import { Loader, Search, X, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 const PAGE_SIZE_MOBILE = 3;
@@ -85,7 +85,7 @@ function ProductSearchInput({
           </button>
         )}
         {disabled && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-pulse text-muted-foreground" />
         )}
       </div>
     </form>
@@ -575,7 +575,7 @@ export default function ProductsClient() {
           >
             {errorSource === 'categories' && categoriesLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader className="mr-2 h-4 w-4 animate-pulse" />
                 Retrying...
               </>
             ) : (
