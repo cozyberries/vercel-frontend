@@ -61,6 +61,8 @@ export async function middleware(request: NextRequest) {
   // For authenticated users on protected routes (except complete-profile itself),
   // check if they have a phone number on file. Use service role so the check
   // is not blocked by RLS (profile row is written by API with admin client).
+  const profilePhoneJustSaved = request.cookies.get("profile_phone_just_saved")?.value === "1";
+
   if (
     user &&
     (request.nextUrl.pathname.startsWith("/profile") ||
@@ -68,40 +70,76 @@ export async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/complete-profile")
   ) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let profile: { phone?: string | null } | null = null;
+    let profileError: { code?: string } | null = null;
+
     if (serviceRoleKey) {
       const adminSupabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         serviceRoleKey,
         { auth: { autoRefreshToken: false, persistSession: false } }
       );
-      const { data: profile, error: profileError } = await adminSupabase
+      const result = await adminSupabase
         .from("profiles")
         .select("phone")
         .eq("id", user.id)
         .single();
-
-      if (!profileError && !profile?.phone) {
-        return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
-      }
+      profile = result.data;
+      profileError = result.error;
       if (profileError) {
         console.error("Failed to fetch profile in middleware:", profileError);
       }
     } else {
-      // Fallback: use anon client (works only if RLS allows SELECT on own row)
-      const { data: profile, error: profileError } = await supabase
+      const result = await supabase
         .from("profiles")
         .select("phone")
         .eq("id", user.id)
         .single();
-
-      const noProfileRow = profileError?.code === "PGRST116";
-      if (noProfileRow || !profile?.phone) {
-        return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
-      }
+      profile = result.data;
+      profileError = result.error;
       if (profileError) {
         console.error("Failed to fetch profile in middleware:", profileError);
-        return supabaseResponse;
-      }    }
+      }
+    }
+
+    const hasPhone = !profileError && profile?.phone;
+    const noProfileRow = profileError?.code === "PGRST116";
+    const unexpectedError = profileError && !noProfileRow;
+
+    if (hasPhone) {
+      // Phone on file: allow through and clear the "just saved" cookie if set
+      if (profilePhoneJustSaved) {
+        const res = NextResponse.next({ request });
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          res.cookies.set(cookie.name, cookie.value, cookie);
+        });
+        res.cookies.set("profile_phone_just_saved", "", {
+          path: "/",
+          maxAge: 0,
+        });
+        return res;
+      }
+      return supabaseResponse;
+    }
+
+    // On unexpected DB errors, allow through rather than redirect
+    if (unexpectedError) {
+      console.warn("Allowing request through due to unexpected profile fetch error");
+      return supabaseResponse;
+    }
+
+    if (noProfileRow || !profile?.phone) {
+      // No phone: redirect to complete-profile unless they just saved (cookie set)
+      if (profilePhoneJustSaved) {
+        const res = NextResponse.next({ request });
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          res.cookies.set(cookie.name, cookie.value, cookie);
+        });
+        res.cookies.set("profile_phone_just_saved", "", { path: "/", maxAge: 0 });
+        return res;
+      }
+      return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
+    }
   }
 
   return supabaseResponse;
