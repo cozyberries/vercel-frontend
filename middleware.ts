@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
 // Helper: copy Supabase session cookies to a redirect response
 function redirectWithCookies(url: URL, supabaseResponse: NextResponse) {
@@ -58,27 +59,48 @@ export async function middleware(request: NextRequest) {
   }
 
   // For authenticated users on protected routes (except complete-profile itself),
-  // check if they have a phone number on file
+  // check if they have a phone number on file. Use service role so the check
+  // is not blocked by RLS (profile row is written by API with admin client).
   if (
     user &&
     (request.nextUrl.pathname.startsWith("/profile") ||
       request.nextUrl.pathname.startsWith("/checkout")) &&
     !request.nextUrl.pathname.startsWith("/complete-profile")
   ) {
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("phone")
-      .eq("id", user.id)
-      .single();
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceRoleKey) {
+      const adminSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
+      const { data: profile, error: profileError } = await adminSupabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", user.id)
+        .single();
 
-    // Allow access if profile fetch fails (avoid blocking users during outages)
-    if (profileError) {
-      console.error("Failed to fetch profile in middleware:", profileError);
-      return supabaseResponse;
-    }
+      if (!profileError && !profile?.phone) {
+        return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
+      }
+      if (profileError) {
+        console.error("Failed to fetch profile in middleware:", profileError);
+      }
+    } else {
+      // Fallback: use anon client (works only if RLS allows SELECT on own row)
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", user.id)
+        .single();
 
-    if (!profile?.phone) {
-      return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
+      if (profileError) {
+        console.error("Failed to fetch profile in middleware:", profileError);
+        return supabaseResponse;
+      }
+      if (!profile?.phone) {
+        return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
+      }
     }
   }
 
