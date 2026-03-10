@@ -13,7 +13,7 @@ interface AddressData {
   full_name: string;
   phone: string;
   address_line_1: string;
-  address_line_2: string;
+  area: string;
   city: string;
   state: string;
   postal_code: string;
@@ -25,6 +25,7 @@ interface AddressValidationErrors {
   full_name: string;
   phone: string;
   address_line_1: string;
+  area: string;
   city: string;
   state: string;
   postal_code: string;
@@ -32,9 +33,11 @@ interface AddressValidationErrors {
 
 /** API response shape: PincodeCheckResult plus display fields (city, state, country) returned by the route */
 type PincodeCheckApiResponse = PincodeCheckResult & {
+  area: string;
   city: string;
   state: string;
   country: string;
+  address_hint?: string;
   error?: string;
 };
 
@@ -64,12 +67,13 @@ export default function AddressFormModal({
   onSave,
   onInputChange,
   onDelete,
-  enablePincodeCheck = false,
+  enablePincodeCheck,
 }: AddressFormModalProps) {
   const [pincodeStatus, setPincodeStatus] = useState<
     "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
   >("idle");
   const [pincodeMessage, setPincodeMessage] = useState("");
+  const [addressHint, setAddressHint] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pincodeAbortRef = useRef<AbortController | null>(null);
 
@@ -89,6 +93,7 @@ export default function AddressFormModal({
       pincodeAbortRef.current = null;
       setPincodeStatus("idle");
       setPincodeMessage("");
+      setAddressHint("");
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = undefined;
@@ -131,15 +136,30 @@ export default function AddressFormModal({
           return;
         }
 
+        if (data!.address_hint) setAddressHint(data!.address_hint);
         if (data!.serviceable) {
           setPincodeStatus("serviceable");
-          setPincodeMessage(`Delivery available - ${data!.city}, ${data!.state}`);
+          setPincodeMessage(
+            data!.area
+              ? `Delivery available - ${data!.area}, ${data!.city}, ${data!.state}`
+              : `Delivery available - ${data!.city}, ${data!.state}`
+          );
+          if (data!.area != null && data!.area !== "") {
+            onInputChange("area", data!.area);
+          }
           onInputChange("city", data!.city);
           onInputChange("state", data!.state);
           onInputChange("country", data!.country);
         } else {
           setPincodeStatus("not_serviceable");
           setPincodeMessage("Sorry, delivery is not available in this area");
+          // Still set area/location (post office) when API returns it, so user sees the pincode's post office
+          if (data!.area != null && data!.area !== "") {
+            onInputChange("area", data!.area);
+          }
+          if (data!.city) onInputChange("city", data!.city);
+          if (data!.state) onInputChange("state", data!.state);
+          if (data!.country) onInputChange("country", data!.country);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -238,9 +258,8 @@ export default function AddressFormModal({
                     value={addressData.phone}
                     onChange={(e) => onInputChange("phone", e.target.value)}
                     placeholder="98765 43210"
-                    className={`pl-12 ${
-                      validationErrors.phone ? "border-red-500" : ""
-                    }`}
+                    className={`pl-12 ${validationErrors.phone ? "border-red-500" : ""
+                      }`}
                   />
                 </div>
                 {validationErrors.phone && (
@@ -251,16 +270,150 @@ export default function AddressFormModal({
                 )}
               </div>
             </div>
+            {/* PIN Code first when pincode check is enabled */}
+            <div>
+              <Label htmlFor="postal_code">PIN Code *</Label>
+              <div className="relative">
+                <Input
+                  id="postal_code"
+                  value={addressData.postal_code}
+                  onChange={(e) => handlePincodeChange(e.target.value)}
+                  placeholder="Enter 6-digit PIN code"
+                  required
+                  maxLength={6}
+                  inputMode="numeric"
+                  className={
+                    validationErrors.postal_code
+                      ? "border-red-500"
+                      : pincodeStatus === "serviceable"
+                        ? "border-green-500"
+                        : pincodeStatus === "not_serviceable"
+                          ? "border-red-500"
+                          : ""
+                  }
+                />
+                {pincodeStatus === "checking" && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                {pincodeStatus === "serviceable" && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  </div>
+                )}
+                {pincodeStatus === "not_serviceable" && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  </div>
+                )}
+              </div>
+              {validationErrors.postal_code && (
+                <div className="flex items-center mt-1 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                  {validationErrors.postal_code}
+                </div>
+              )}
+              {pincodeMessage && (
+                <div
+                  className={`flex items-center mt-1 text-sm ${pincodeStatus === "serviceable"
+                    ? "text-green-600"
+                    : "text-red-600"
+                    }`}
+                >
+                  {pincodeStatus === "serviceable" ? (
+                    <CheckCircle className="w-4 h-4 mr-1 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                  )}
+                  {pincodeMessage}
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  value={addressData.country}
+                  onChange={(e) => onInputChange("country", e.target.value)}
+                  placeholder="Country"
+                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  className={
+                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="state">State *</Label>
+                <Input
+                  id="state"
+                  value={addressData.state}
+                  onChange={(e) => onInputChange("state", e.target.value)}
+                  placeholder="State"
+                  required
+                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  className={`${validationErrors.state ? "border-red-500" : ""} ${enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
+                    }`}
+                />
+                {validationErrors.state && (
+                  <div className="flex items-center mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                    {validationErrors.state}
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="city">City *</Label>
+                <Input
+                  id="city"
+                  value={addressData.city}
+                  onChange={(e) => onInputChange("city", e.target.value)}
+                  placeholder="City"
+                  required
+                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
+                  className={`${validationErrors.city ? "border-red-500" : ""} ${enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
+                    }`}
+                />
+                {validationErrors.city && (
+                  <div className="flex items-center mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                    {validationErrors.city}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="area">Area / Locality</Label>
+              <Input
+                id="area"
+                value={addressData.area}
+                onChange={(e) => onInputChange("area", e.target.value)}
+                placeholder="Area, locality or post office (auto-filled from PIN)"
+                disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
+                className={
+                  enablePincodeCheck && pincodeStatus === "serviceable"
+                    ? "bg-muted/50 cursor-not-allowed opacity-75"
+                    : ""
+                }
+              />
+            </div>
+
+            {enablePincodeCheck && (pincodeStatus === "serviceable" || pincodeStatus === "not_serviceable") && (
+              <p className="text-sm text-muted-foreground -mt-1">
+                {addressHint || "Include building name, street name, house/flat no., floor and landmark for accurate delivery."}
+              </p>
+            )}
 
             <div>
-              <Label htmlFor="address_line_1">Address Line 1 *</Label>
+              <Label htmlFor="address_line_1">Building / Street address *</Label>
               <Input
                 id="address_line_1"
                 value={addressData.address_line_1}
                 onChange={(e) =>
                   onInputChange("address_line_1", e.target.value)
                 }
-                placeholder="Street address"
+                placeholder="Building name, house/flat no., street name"
                 required
                 className={
                   validationErrors.address_line_1 ? "border-red-500" : ""
@@ -274,161 +427,6 @@ export default function AddressFormModal({
               )}
             </div>
 
-            <div>
-              <Label htmlFor="address_line_2">Address Line 2</Label>
-              <Input
-                id="address_line_2"
-                value={addressData.address_line_2}
-                onChange={(e) =>
-                  onInputChange("address_line_2", e.target.value)
-                }
-                placeholder="Apartment, suite, etc."
-              />
-            </div>
-
-            {/* PIN Code first when pincode check is enabled */}
-            {enablePincodeCheck && (
-              <div>
-                <Label htmlFor="postal_code">PIN Code *</Label>
-                <div className="relative">
-                  <Input
-                    id="postal_code"
-                    value={addressData.postal_code}
-                    onChange={(e) => handlePincodeChange(e.target.value)}
-                    placeholder="Enter 6-digit PIN code"
-                    required
-                    maxLength={6}
-                    inputMode="numeric"
-                    className={
-                      validationErrors.postal_code
-                        ? "border-red-500"
-                        : pincodeStatus === "serviceable"
-                        ? "border-green-500"
-                        : pincodeStatus === "not_serviceable"
-                        ? "border-red-500"
-                        : ""
-                    }
-                  />
-                  {pincodeStatus === "checking" && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                  {pincodeStatus === "serviceable" && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    </div>
-                  )}
-                  {pincodeStatus === "not_serviceable" && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    </div>
-                  )}
-                </div>
-                {validationErrors.postal_code && (
-                  <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
-                    {validationErrors.postal_code}
-                  </div>
-                )}
-                {pincodeMessage && (
-                  <div
-                    className={`flex items-center mt-1 text-sm ${
-                      pincodeStatus === "serviceable"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {pincodeStatus === "serviceable" ? (
-                      <CheckCircle className="w-4 h-4 mr-1 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
-                    )}
-                    {pincodeMessage}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="city">City *</Label>
-                <Input
-                  id="city"
-                  value={addressData.city}
-                  onChange={(e) => onInputChange("city", e.target.value)}
-                  placeholder="City"
-                  required
-                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
-                  className={`${validationErrors.city ? "border-red-500" : ""} ${
-                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
-                  }`}
-                />
-                {validationErrors.city && (
-                  <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
-                    {validationErrors.city}
-                  </div>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="state">State *</Label>
-                <Input
-                  id="state"
-                  value={addressData.state}
-                  onChange={(e) => onInputChange("state", e.target.value)}
-                  placeholder="State"
-                  required
-                  disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
-                  className={`${validationErrors.state ? "border-red-500" : ""} ${
-                    enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
-                  }`}
-                />
-                {validationErrors.state && (
-                  <div className="flex items-center mt-1 text-sm text-red-600">
-                    <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
-                    {validationErrors.state}
-                  </div>
-                )}
-              </div>
-              {/* PIN Code inline only when pincode check is NOT enabled */}
-              {!enablePincodeCheck && (
-                <div className="col-span-2 md:col-span-1">
-                  <Label htmlFor="postal_code">PIN Code *</Label>
-                  <Input
-                    id="postal_code"
-                    value={addressData.postal_code}
-                    onChange={(e) => onInputChange("postal_code", e.target.value)}
-                    placeholder="PIN Code (6 digits)"
-                    required
-                    className={
-                      validationErrors.postal_code ? "border-red-500" : ""
-                    }
-                  />
-                  {validationErrors.postal_code && (
-                    <div className="flex items-center mt-1 text-sm text-red-600">
-                      <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
-                      {validationErrors.postal_code}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="country">Country</Label>
-              <Input
-                id="country"
-                value={addressData.country}
-                onChange={(e) => onInputChange("country", e.target.value)}
-                placeholder="Country"
-                disabled={enablePincodeCheck && pincodeStatus === "serviceable"}
-                className={
-                  enablePincodeCheck && pincodeStatus === "serviceable" ? "bg-muted/50 cursor-not-allowed opacity-75" : ""
-                }
-              />
-            </div>
-
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -438,9 +436,8 @@ export default function AddressFormModal({
                 onChange={(e) =>
                   onInputChange("is_default", e.target.checked.toString())
                 }
-                className={`rounded border-gray-300 ${
-                  addresses.length === 1 ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className={`rounded border-gray-300 ${addresses.length === 1 ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
               />
               <Label
                 htmlFor="is_default"
@@ -495,8 +492,8 @@ export default function AddressFormModal({
                 {isSaving
                   ? "Saving..."
                   : isEditing
-                  ? "Update Address"
-                  : "Add Address"}
+                    ? "Update Address"
+                    : "Add Address"}
               </Button>
               <Button variant="outline" onClick={onClose} className="w-full md:w-auto">
                 Cancel

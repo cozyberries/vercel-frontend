@@ -20,7 +20,7 @@ interface UserAddress {
   full_name: string | null;
   phone: string | null;
   address_line_1: string;
-  address_line_2: string | null;
+  area: string | null;
   city: string;
   state: string;
   postal_code: string;
@@ -56,7 +56,7 @@ export function useProfile(user: any) {
     full_name: "",
     phone: "",
     address_line_1: "",
-    address_line_2: "",
+    area: "",
     city: "",
     state: "",
     postal_code: "",
@@ -68,6 +68,7 @@ export function useProfile(user: any) {
     full_name: "",
     phone: "",
     address_line_1: "",
+    area: "",
     city: "",
     state: "",
     postal_code: "",
@@ -242,7 +243,7 @@ export function useProfile(user: any) {
           full_name: "",
           phone: "",
           address_line_1: "",
-          address_line_2: "",
+          area: "",
           city: "",
           state: "",
           postal_code: "",
@@ -253,6 +254,7 @@ export function useProfile(user: any) {
           full_name: "",
           phone: "",
           address_line_1: "",
+          area: "",
           city: "",
           state: "",
           postal_code: "",
@@ -304,7 +306,7 @@ export function useProfile(user: any) {
           full_name: "",
           phone: "",
           address_line_1: "",
-          address_line_2: "",
+          area: "",
           city: "",
           state: "",
           postal_code: "",
@@ -315,6 +317,7 @@ export function useProfile(user: any) {
           full_name: "",
           phone: "",
           address_line_1: "",
+          area: "",
           city: "",
           state: "",
           postal_code: "",
@@ -377,7 +380,7 @@ export function useProfile(user: any) {
         full_name: addressToUpdate.full_name,
         phone: addressToUpdate.phone,
         address_line_1: addressToUpdate.address_line_1,
-        address_line_2: addressToUpdate.address_line_2,
+        area: addressToUpdate.area,
         city: addressToUpdate.city,
         state: addressToUpdate.state,
         postal_code: addressToUpdate.postal_code,
@@ -421,7 +424,7 @@ export function useProfile(user: any) {
       full_name: address.full_name || "",
       phone: address.phone || "",
       address_line_1: address.address_line_1,
-      address_line_2: address.address_line_2 || "",
+      area: address.area || "",
       city: address.city,
       state: address.state,
       postal_code: address.postal_code,
@@ -439,7 +442,7 @@ export function useProfile(user: any) {
       full_name: "",
       phone: "",
       address_line_1: "",
-      address_line_2: "",
+      area: "",
       city: "",
       state: "",
       postal_code: "",
@@ -450,6 +453,7 @@ export function useProfile(user: any) {
       full_name: "",
       phone: "",
       address_line_1: "",
+      area: "",
       city: "",
       state: "",
       postal_code: "",

@@ -72,9 +72,46 @@ export async function GET(request: Request) {
   try {
     const result = await checkPincodeServiceability(pincode);
 
+    let area: string | undefined = result.area;
+    // Always try to get area (post office) from India Post when missing, regardless of serviceability
+    if (!area || area.trim() === "") {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const areaRes = await fetch(
+          `https://api.postalpincode.in/pincode/${pincode}`,
+          { next: { revalidate: 86400 }, signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
+        if (areaRes.ok) {
+          const areaData = await areaRes.json();
+          // API returns array of one object: [{ Status, Message, PostOffice: [...] }]
+          const first = Array.isArray(areaData) ? areaData[0] : areaData;
+          const postOffices = first?.PostOffice;
+          if (Array.isArray(postOffices) && postOffices.length > 0) {
+            const withName = postOffices.filter(
+              (po: { Name?: string }) => typeof po?.Name === "string" && po.Name.trim() !== ""
+            );
+            if (withName.length > 0) {
+              // Prefer Head Post Office or Delivery post office as the area name
+              const headOrDelivery =
+                withName.find(
+                  (po: { BranchType?: string; DeliveryStatus?: string }) =>
+                    po?.BranchType === "Head Post Office" || po?.DeliveryStatus === "Delivery"
+                ) ?? withName[0];
+              area = String(headOrDelivery.Name).trim();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Pincode area fetch (postalpincode.in) failed:", error);
+      }
+    }
+
     return NextResponse.json({
       serviceable: result.serviceable,
       pincode: result.pincode,
+      area: area ?? undefined,
       city: result.district,
       state: stateCodeToName(result.state_code),
       state_code: result.state_code,
@@ -83,6 +120,8 @@ export async function GET(request: Request) {
       cod: result.cod,
       is_oda: result.is_oda,
       delivery_days: result.delivery_days,
+      address_hint:
+        "Include building name, street name, house/flat no., floor and landmark for accurate delivery.",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

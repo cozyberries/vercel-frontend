@@ -26,6 +26,7 @@ export interface PincodeCheckResult {
   district: string;
   state_code: string;
   country_code: string;
+  area: string;
   prepaid: boolean;
   cod: boolean;
   is_oda: boolean;
