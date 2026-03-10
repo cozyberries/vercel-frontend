@@ -19,7 +19,7 @@ import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, Cate
 import { Loader2, Search, X, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
-const PAGE_SIZE_MOBILE = 3;
+const PAGE_SIZE_MOBILE = 10;
 const PAGE_SIZE_DESKTOP = 12;
 
 function parseApiError(err: unknown, fallback: string): string {
@@ -186,6 +186,9 @@ export default function ProductsClient() {
 
   // Infinite scroll sentinel ref
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Scroll restore when returning from product detail: index to scroll into view
+  const scrollRestoreIndexRef = useRef<number | null>(null);
+  const haveReadScrollRestoreRef = useRef(false);
 
   // Get current URL parameters
   const currentSort = searchParams.get("sortBy") || "default";
@@ -331,6 +334,17 @@ export default function ProductsClient() {
     }
   }, [allProducts]);
 
+  // Lock body scroll while initial products are loading; restore when done
+  useEffect(() => {
+    if (isLoading) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isLoading]);
+
   // Hide footer while more products can be loaded (visibility preserves layout)
   useEffect(() => {
     if (hasMoreProducts && !isLoading) {
@@ -360,6 +374,43 @@ export default function ProductsClient() {
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [hasMoreProducts, isLoadingMore, loadMoreProducts, isLoading]);
+
+  // Restore scroll to the product that was clicked when returning from product detail
+  useEffect(() => {
+    if (isLoading || allProducts.length === 0) return;
+
+    if (!haveReadScrollRestoreRef.current) {
+      haveReadScrollRestoreRef.current = true;
+      try {
+        const s = sessionStorage.getItem("productsPageScrollToIndex");
+        if (s != null) {
+          const n = parseInt(s, 10);
+          if (!isNaN(n) && n >= 0) scrollRestoreIndexRef.current = n;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const idx = scrollRestoreIndexRef.current;
+    if (idx === null) return;
+
+    if (idx < allProducts.length) {
+      const el = document.querySelector(`[data-product-index="${idx}"]`);
+      el?.scrollIntoView({ behavior: "auto", block: "center" });
+      try {
+        sessionStorage.removeItem("productsPageScrollToIndex");
+      } catch {
+        // ignore
+      }
+      scrollRestoreIndexRef.current = null;
+      return;
+    }
+
+    if (hasMoreProducts && !isLoadingMore) {
+      loadMoreProducts();
+    }
+  }, [isLoading, allProducts.length, hasMoreProducts, isLoadingMore, loadMoreProducts]);
 
   // Submit search — updates URL param which triggers server-side fetch
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -482,8 +533,9 @@ export default function ProductsClient() {
     );
   }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
 
-  // Derived: is the page in its initial loading state?
-  const isInitialLoading = isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading;
+  // Show product grid as soon as products API returns; don't block on categories/sizes/genders
+  const isProductsLoading = isLoading;
+  const isFiltersLoading = categoriesLoading || sizeOptionsLoading || genderOptionsLoading;
 
   /* ─── Shared mobile filter row (search + FilterSheet + reset) ─── */
   const mobileFilterRow = (
@@ -494,7 +546,7 @@ export default function ProductsClient() {
         onSubmit={handleSearchSubmit}
         onClear={handleClearSearch}
         inputRef={searchInputRef}
-        disabled={isInitialLoading}
+        disabled={isProductsLoading || isFiltersLoading}
         className="flex-1"
       />
       <FilterSheet
@@ -508,9 +560,9 @@ export default function ProductsClient() {
         currentSortOrder={currentSortOrder}
         onApplyFilters={handleApplyFilters}
         onClearFilters={handleClearFilters}
-        disabled={isInitialLoading}
+        disabled={isProductsLoading || isFiltersLoading}
       />
-      {hasActiveFilters && !isInitialLoading && (
+      {hasActiveFilters && !isProductsLoading && !isFiltersLoading && (
         <Button
           variant="ghost"
           size="icon"
@@ -524,8 +576,8 @@ export default function ProductsClient() {
     </div>
   );
 
-  if (isInitialLoading) {
-    const skeletonCount = isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
+  if (isProductsLoading) {
+    const skeletonCount = isMobile === null ? PAGE_SIZE_DESKTOP : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
     return (
       <>
         <div className="mb-6">{mobileFilterRow}</div>
@@ -749,7 +801,9 @@ export default function ProductsClient() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8 mb-8">
             {allProducts.map((product, index) => (
-              <ProductCard key={product.id} product={product} index={index} />
+              <div key={product.id} data-product-index={index}>
+                <ProductCard product={product} index={index} />
+              </div>
             ))}
           </div>
 

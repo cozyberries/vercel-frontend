@@ -120,6 +120,11 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
   );
 
   const handleCardClick = () => {
+    try {
+      sessionStorage.setItem("productsPageScrollToIndex", String(index));
+    } catch {
+      // sessionStorage may be unavailable
+    }
     router.push(`/products/${product.id}`);
   };
 
@@ -139,7 +144,7 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
           </span>
         )}
         <Link href={`/products/${product.id}`}>
-          {/* First Image */}
+          {/* First Image — text/content renders first; image loads lazily (except first 3) */}
           <Image
             src={
               product.images?.[0] &&
@@ -153,6 +158,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             height={750}
             sizes="(max-width: 1023px) 100vw, 25vw"
             priority={index < 3}
+            loading={index < 3 ? "eager" : "lazy"}
+            decoding="async"
             className="w-full h-full object-cover"
           />
         </Link>
@@ -345,21 +352,27 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
           <div
             className="flex gap-1.5 lg:gap-1 items-center flex-shrink-0 overflow-x-auto overflow-y-hidden scroll-smooth pb-0.5 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             style={{ WebkitOverflowScrolling: "touch" }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              if ((e.target as HTMLElement).closest("a") == null) handleCardClick();
+            }}
             role="region"
             aria-label="Available sizes"
           >
             {product.sizes.map((size: SizeOption) => (
-              <span
+              <Link
                 key={size.name}
-                className={`shrink-0 text-xs lg:text-[10px] px-1.5 lg:px-1 py-0.5 rounded-md lg:rounded border whitespace-nowrap ${
+                href={`/products/${product.id}?size=${encodeURIComponent(size.name)}`}
+                onClick={(e) => e.stopPropagation()}
+                className={`shrink-0 text-xs lg:text-[10px] px-1.5 lg:px-1 py-0.5 rounded-md lg:rounded border whitespace-nowrap inline-block ${
                   (size.stock_quantity ?? 0) > 0
-                    ? "border-gray-300 text-gray-600"
-                    : "border-gray-200 text-gray-300 line-through"
+                    ? "border-gray-300 text-gray-600 hover:border-primary hover:text-primary"
+                    : "border-gray-200 text-gray-300 line-through pointer-events-none"
                 }`}
               >
                 {size.name}
-              </span>
+              </Link>
             ))}
           </div>
         )}

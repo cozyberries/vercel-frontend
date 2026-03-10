@@ -39,7 +39,13 @@ interface User {
   name: string;
 }
 
-export default function ProductDetails({ id: productSlug }: { id: string }) {
+interface ProductDetailsProps {
+  id: string;
+  /** Pre-select this size when present in URL (e.g. from product card quick view). */
+  initialSize?: string;
+}
+
+export default function ProductDetails({ id: productSlug, initialSize }: ProductDetailsProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -262,15 +268,17 @@ export default function ProductDetails({ id: productSlug }: { id: string }) {
     // Set default selections if product is loaded
     if (product) {
       if (product.sizes && product.sizes.length > 0) {
-        // Select the first in-stock size, or the first size if all are out of stock
+        const fromUrl = initialSize
+          ? product.sizes.find((s) => s.name === initialSize)
+          : null;
         const inStockSize = product.sizes.find((s) => (s.stock_quantity ?? 0) > 0);
-        setSelectedSize(inStockSize || product.sizes[0]);
+        setSelectedSize(fromUrl ?? inStockSize ?? product.sizes[0]);
       }
       if (product.colors && product.colors.length > 0) {
         setSelectedColor(product.colors[0]);
       }
     }
-  }, [product]);
+  }, [product, initialSize]);
 
   // Display and cart use same price (GST-inclusive); validation checks against this
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;

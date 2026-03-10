@@ -218,6 +218,60 @@ async function refreshCacheInBackground(
   console.log(`Cache refresh initiated for key: ${cacheKey}`);
 }
 
+const PRODUCTS_ALL_KEY = "products:all";
+const PRODUCTS_ALL_LIMIT = 200;
+
+/** Fetches all products (no filters) from Supabase and caches to Upstash. Fire-and-forget. */
+async function fetchAndCacheAllProducts(): Promise<void> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const query = supabase
+      .from("products")
+      .select(PRODUCTS_LIST_SELECT, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .order("slug", { ascending: true })
+      .range(0, PRODUCTS_ALL_LIMIT - 1);
+
+    const { data, count } = await query;
+
+    if (!data) return;
+
+    const products: Product[] = data.map((product: any) => {
+      const images = extractImages(product.product_images, 3);
+      const sizes = aggregateSizesFromVariants(
+        product.product_variants || [],
+        product.price
+      );
+      return {
+        ...product,
+        id: product.slug,
+        images,
+        sizes,
+        product_images: undefined,
+        product_variants: undefined,
+      };
+    });
+
+    const totalItems = count || 0;
+    const totalPages = Math.ceil(totalItems / PRODUCTS_ALL_LIMIT);
+    const response = {
+      products,
+      pagination: {
+        currentPage: 1,
+        totalPages,
+        totalItems,
+        itemsPerPage: PRODUCTS_ALL_LIMIT,
+        hasNextPage: totalItems > PRODUCTS_ALL_LIMIT,
+        hasPrevPage: false,
+      },
+    };
+
+    await UpstashService.set(PRODUCTS_ALL_KEY, response, 1800);
+  } catch (err) {
+    console.warn("Failed to fetch/cache products:all:", err);
+  }
+}
+
 // ─── GET /api/products ───────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
@@ -410,6 +464,7 @@ export async function GET(request: NextRequest) {
     UpstashService.set(cacheKey, response, 1800).catch((error) => {
       console.error(`Failed to cache products data for key: ${cacheKey}`, error);
     });
+    fetchAndCacheAllProducts().catch(() => {});
 
     return NextResponse.json(response, {
       headers: {
