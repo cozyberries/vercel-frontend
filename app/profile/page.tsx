@@ -119,7 +119,7 @@ export default function ProfilePage() {
 
       {/* Address Form Modal */}
       <AddressFormModal
-        enablePincodeCheck={true}
+        enablePincodeCheck
         isOpen={showAddAddress || !!editingAddress}
         isEditing={!!editingAddress}
         isSaving={isSaving}

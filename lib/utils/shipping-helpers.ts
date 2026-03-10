@@ -92,8 +92,11 @@ export async function checkPincodeServiceability(
   const isOda = raw.is_oda === "Y";
   const prePaid = raw.pre_paid === "Y";
   const cod = raw.cod === "Y";
-  const area = typeof raw.post_office === "string" ? raw.post_office.trim() : typeof raw.area === "string" ? raw.area.trim() : undefined;
-  
+  const area =
+    (typeof raw.post_office === "string" && raw.post_office.trim()) ||
+    (typeof raw.area === "string" && raw.area.trim()) ||
+    "";
+
   return {
     serviceable: prePaid || cod,
     pincode: String(raw.pin ?? pincode),
