@@ -464,7 +464,9 @@ export async function GET(request: NextRequest) {
     UpstashService.set(cacheKey, response, 1800).catch((error) => {
       console.error(`Failed to cache products data for key: ${cacheKey}`, error);
     });
-    fetchAndCacheAllProducts().catch(() => {});
+    fetchAndCacheAllProducts().catch((error) => {
+      console.error(`Failed to cache all products:`, error);
+    });
 
     return NextResponse.json(response, {
       headers: {

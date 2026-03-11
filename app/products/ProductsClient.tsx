@@ -199,8 +199,19 @@ export default function ProductsClient() {
   const currentAge = searchParams.get("age") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
-  // Grid view is default; only "list" is alternate
+  // Grid/list view only on mobile; desktop always uses grid. "view" query is mobile-only.
   const currentView = searchParams.get("view") === "list" ? "list" : "grid";
+  const effectiveView = isMobile === true && currentView === "list" ? "list" : "grid";
+
+  // On desktop, strip view param from URL so we don't show view=list in the query
+  useEffect(() => {
+    if (isMobile === false && searchParams.get("view")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("view");
+      const q = params.toString();
+      router.replace(q ? `/products?${q}` : "/products");
+    }
+  }, [isMobile, searchParams, router]);
 
   // Sync local search input with URL param
   useEffect(() => {
@@ -590,7 +601,11 @@ export default function ProductsClient() {
     return (
       <>
         <div className="mb-6">{mobileFilterRow}</div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
+        <div className={
+          effectiveView === "list"
+            ? "flex flex-col gap-4"
+            : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
+        }>
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <ProductCardSkeleton key={i} />
           ))}
@@ -792,12 +807,12 @@ export default function ProductsClient() {
         </div>
       </div>
 
-      {/* View toggle on mobile — above products when we have results */}
-      {allProducts.length > 0 && (
-        <div className="lg:hidden flex justify-end mb-3">
+      {/* View toggle: mobile only — above products when we have results */}
+      {allProducts.length > 0 && isMobile === true && (
+        <div className="flex justify-end mb-3">
           <div className="flex items-center border rounded-md p-0.5">
             <Button
-              variant={currentView === "grid" ? "secondary" : "ghost"}
+              variant={effectiveView === "grid" ? "secondary" : "ghost"}
               size="icon"
               className="h-8 w-8"
               onClick={() => handleViewChange("grid")}
@@ -806,7 +821,7 @@ export default function ProductsClient() {
               <LayoutGrid className="h-4 w-4" />
             </Button>
             <Button
-              variant={currentView === "list" ? "secondary" : "ghost"}
+              variant={effectiveView === "list" ? "secondary" : "ghost"}
               size="icon"
               className="h-8 w-8"
               onClick={() => handleViewChange("list")}
@@ -836,7 +851,7 @@ export default function ProductsClient() {
         <>
           <div
             className={
-              currentView === "list"
+              effectiveView === "list"
                 ? "flex flex-col gap-4 mb-8"
                 : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 mb-8"
             }
@@ -845,9 +860,9 @@ export default function ProductsClient() {
               <div
                 key={product.id}
                 data-product-index={index}
-                className={currentView === "list" ? "w-full max-w-full" : undefined}
+                className={effectiveView === "list" ? "w-full max-w-full" : undefined}
               >
-                <ProductCard product={product} index={index} currentView={currentView} />
+                <ProductCard product={product} index={index} currentView={effectiveView} />
               </div>
             ))}
           </div>
@@ -857,7 +872,7 @@ export default function ProductsClient() {
             {hasMoreProducts && (
               <div
                 className={
-                  currentView === "list"
+                  effectiveView === "list"
                     ? "flex flex-col gap-4"
                     : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
                 }
