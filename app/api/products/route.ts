@@ -182,7 +182,7 @@ async function refreshCacheInBackground(
   if (!data) return;
 
   const products: Product[] = data.map((product: any) => {
-    const images = extractImages(product.product_images, 3);
+    const images = extractImages(product.product_images, 1);
     const sizes = aggregateSizesFromVariants(
       product.product_variants || [],
       product.price
@@ -237,7 +237,7 @@ async function fetchAndCacheAllProducts(): Promise<void> {
     if (!data) return;
 
     const products: Product[] = data.map((product: any) => {
-      const images = extractImages(product.product_images, 3);
+      const images = extractImages(product.product_images, 1);
       const sizes = aggregateSizesFromVariants(
         product.product_variants || [],
         product.price
@@ -430,7 +430,7 @@ export async function GET(request: NextRequest) {
     }
 
     const products: Product[] = (data || []).map((product: any) => {
-      const images = extractImages(product.product_images, 3);
+      const images = extractImages(product.product_images, 1);
       const sizes = aggregateSizesFromVariants(
         product.product_variants || [],
         product.price
@@ -464,7 +464,9 @@ export async function GET(request: NextRequest) {
     UpstashService.set(cacheKey, response, 1800).catch((error) => {
       console.error(`Failed to cache products data for key: ${cacheKey}`, error);
     });
-    fetchAndCacheAllProducts().catch(() => {});
+    fetchAndCacheAllProducts().catch((error) => {
+      console.error(`Failed to cache all products:`, error);
+    });
 
     return NextResponse.json(response, {
       headers: {
