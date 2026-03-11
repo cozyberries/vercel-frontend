@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
 import CacheService from "@/lib/services/cache";
 
@@ -186,13 +186,15 @@ export async function PUT(request: NextRequest) {
     // Prepare profile data
     const profileData = {
       id: user.id,
-      full_name: full_name || user.user_metadata?.full_name || null,
-      phone: phone || null,
+      full_name: full_name ?? user.user_metadata?.full_name ?? null,
+      phone: phone ?? null,
       updated_at: new Date().toISOString(),
     };
 
-    // Upsert profile data (insert or update)
-    const { data, error } = await supabase
+    // Use admin client so the write always succeeds (avoids RLS blocking new users
+    // whose profile was created in auth callback; middleware/GET use same profiles table)
+    const adminSupabase = createAdminSupabaseClient();
+    const { data, error } = await adminSupabase
       .from("profiles")
       .upsert([profileData])
       .select()
@@ -223,21 +225,25 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update cache with the new profile data
+    // Build response shape for client/cache (Supabase returns snake_case)
     const updatedUserData = {
       id: user.id,
       email: user.email,
-      full_name: data.full_name || user.user_metadata?.full_name || null,
-      avatar_url: user.user_metadata?.avatar_url || data.avatar_url || null,
-      phone: data.phone || null,
+      full_name: data.full_name ?? user.user_metadata?.full_name ?? null,
+      avatar_url: user.user_metadata?.avatar_url ?? data.avatar_url ?? null,
+      phone: data.phone ?? null,
       created_at: user.created_at,
       updated_at: data.updated_at,
     };
-    
-    await CacheService.setProfile(user.id, updatedUserData);
 
-    return NextResponse.json(data);
-  } catch (error) {
+    // Clear then set cache so profile page never sees stale "no phone" data
+    // Non-blocking: DB update succeeded, cache failure should not fail the request
+    CacheService.clearProfile(user.id)
+      .then(() => CacheService.setProfile(user.id, updatedUserData))
+      .catch((error) => {
+        console.error(`Failed to update profile cache for user ${user.id}:`, error);
+      });
+    return NextResponse.json(updatedUserData);  } catch (error) {
     console.error("Error in PUT /api/profile:", error);
     return NextResponse.json(
       { error: "Internal Server Error", details: (error as Error).message },

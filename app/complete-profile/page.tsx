@@ -40,6 +40,10 @@ export default function CompleteProfilePage() {
       });
 
       if (response.ok) {
+        // Signal to middleware that phone was just saved (avoids redirect back to complete-profile
+        // before the DB read sees the update)
+        document.cookie =
+          "profile_phone_just_saved=1; path=/; max-age=300; SameSite=Lax";
         router.push("/");
       } else {
         const data = await response.json();
