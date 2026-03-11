@@ -16,7 +16,7 @@ import ProductCard from "@/components/product-card";
 import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
 import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, CategoryOption, SizeOptionFilter, GenderOptionFilter, Product } from "@/lib/services/api";
-import { Loader, Search, X, RotateCcw } from "lucide-react";
+import { Loader, Search, X, RotateCcw, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 const PAGE_SIZE_MOBILE = 10;
@@ -199,6 +199,8 @@ export default function ProductsClient() {
   const currentAge = searchParams.get("age") || "all";
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
+  // Grid view is default; only "list" is alternate
+  const currentView = searchParams.get("view") === "list" ? "list" : "grid";
 
   // Sync local search input with URL param
   useEffect(() => {
@@ -494,6 +496,13 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
+  const handleViewChange = (view: "grid" | "list") => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (view === "grid") params.delete("view");
+    else params.set("view", view);
+    router.push(`/products?${params.toString()}`);
+  };
+
   const handleApplyFilters = useCallback(
     (filters: { category: string; size: string; gender: string; sort: string }) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -581,7 +590,7 @@ export default function ProductsClient() {
     return (
       <>
         <div className="mb-6">{mobileFilterRow}</div>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <ProductCardSkeleton key={i} />
           ))}
@@ -783,6 +792,32 @@ export default function ProductsClient() {
         </div>
       </div>
 
+      {/* View toggle on mobile — above products when we have results */}
+      {allProducts.length > 0 && (
+        <div className="lg:hidden flex justify-end mb-3">
+          <div className="flex items-center border rounded-md p-0.5">
+            <Button
+              variant={currentView === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handleViewChange("grid")}
+              aria-label="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={currentView === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handleViewChange("list")}
+              aria-label="List view"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Active search chip */}
       {currentSearch && (
         <div className="mb-4 flex items-center gap-2">
@@ -796,13 +831,23 @@ export default function ProductsClient() {
         </div>
       )}
 
-      {/* Products Grid */}
+      {/* Products — grid (default) or list view */}
       {allProducts.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8 mb-8">
+          <div
+            className={
+              currentView === "list"
+                ? "flex flex-col gap-4 mb-8"
+                : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 mb-8"
+            }
+          >
             {allProducts.map((product, index) => (
-              <div key={product.id} data-product-index={index}>
-                <ProductCard product={product} index={index} />
+              <div
+                key={product.id}
+                data-product-index={index}
+                className={currentView === "list" ? "w-full max-w-full" : undefined}
+              >
+                <ProductCard product={product} index={index} currentView={currentView} />
               </div>
             ))}
           </div>
@@ -810,7 +855,13 @@ export default function ProductsClient() {
           {/* Infinite Scroll Sentinel */}
           <div ref={sentinelRef} data-testid="infinite-scroll-sentinel" className="py-4">
             {hasMoreProducts && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
+              <div
+                className={
+                  currentView === "list"
+                    ? "flex flex-col gap-4"
+                    : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
+                }
+              >
                 {Array.from({ length: isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
                   <ProductCardSkeleton key={i} />
                 ))}

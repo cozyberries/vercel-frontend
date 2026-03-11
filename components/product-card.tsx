@@ -23,13 +23,14 @@ import { RiHeartAddLine } from "react-icons/ri";
 interface ProductCardProps {
   product: Product;
   index: number; // Used to set image loading priority (e.g. priority for first N images)
+  currentView: "grid" | "list";
   /** BCP 47 locale for price formatting (default: "en-IN") */
   locale?: string;
   /** ISO 4217 currency code (default: "INR") */
   currency?: string;
 }
 
-export default function ProductCard({ product, index, locale = "en-IN", currency = "INR" }: ProductCardProps) {
+export default function ProductCard({ product, index, currentView, locale = "en-IN", currency = "INR" }: ProductCardProps) {
   const router = useRouter();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, updateQuantity, removeFromCart, cart } = useCart();
@@ -41,21 +42,21 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
     hasVariants
       ? (product.variants?.length ?? 0) > 0
         ? (product.variants as ProductVariant[])
-            .filter((v) => (v.stock_quantity ?? 0) > 0)
-            .map((v) => ({
-              size: v.size,
-              color: v.color,
-              price: v.price,
-              label:
-                [v.size, v.color].filter(Boolean).join(" / ") || v.size || "—",
-            }))
+          .filter((v) => (v.stock_quantity ?? 0) > 0)
+          .map((v) => ({
+            size: v.size,
+            color: v.color,
+            price: v.price,
+            label:
+              [v.size, v.color].filter(Boolean).join(" / ") || v.size || "—",
+          }))
         : (product.sizes ?? [])
-            .filter((s) => (s.stock_quantity ?? 0) > 0)
-            .map((s) => ({
-              size: s.name,
-              price: s.price,
-              label: s.name,
-            }))
+          .filter((s) => (s.stock_quantity ?? 0) > 0)
+          .map((s) => ({
+            size: s.name,
+            price: s.price,
+            label: s.name,
+          }))
       : [{ price: product.price, label: "Add" }];
 
   const { min: minPrice, hasRange } = getMinPrice(product);
@@ -148,8 +149,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
           <Image
             src={
               product.images?.[0] &&
-              typeof product.images[0] === "string" &&
-              product.images[0].trim() !== ""
+                typeof product.images[0] === "string" &&
+                product.images[0].trim() !== ""
                 ? product.images[0]
                 : images.staticProductImage
             }
@@ -190,9 +191,8 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
           >
             <RiHeartAddLine
               size={20}
-              className={`transition-colors duration-200 ${
-                inWishlist ? "text-red-500" : "text-gray-600 hover:text-red-500"
-              }`}
+              className={`transition-colors duration-200 ${inWishlist ? "text-red-500" : "text-gray-600 hover:text-red-500"
+                }`}
             />
           </Button>
           {hasVariants ? (
@@ -201,11 +201,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 lg:h-8 lg:w-8 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
-                    anyVariantInCart
-                      ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
-                      : "bg-white/90 hover:bg-white"
-                  }`}
+                  className={`h-9 w-9 lg:h-8 lg:w-8 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${anyVariantInCart
+                    ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
+                    : "bg-white/90 hover:bg-white"
+                    }`}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -213,11 +212,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                   aria-label="Add to cart"
                 >
                   <BsCartPlus
-                    className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${
-                      anyVariantInCart
-                        ? "fill-primary text-primary"
-                        : "text-gray-700 hover:text-primary"
-                    }`}
+                    className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${anyVariantInCart
+                      ? "fill-primary text-primary"
+                      : "text-gray-700 hover:text-primary"
+                      }`}
                   />
                 </Button>
               </DropdownMenuTrigger>
@@ -253,58 +251,58 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                           </span>
                         </div>
                         <div className="shrink-0 pl-1">
-                        {inCart && existing ? (
-                          <div
-                            className="flex items-center gap-0.5 border rounded-md overflow-hidden"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-none hover:bg-accent"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleRemoveVariant(opt.size, opt.color);
-                              }}
-                              aria-label="Decrease quantity"
+                          {inCart && existing ? (
+                            <div
+                              className="flex items-center gap-0.5 border rounded-md overflow-hidden"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="min-w-[1.25rem] text-center text-xs">
-                              {existing.quantity}
-                            </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 rounded-none hover:bg-accent"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveVariant(opt.size, opt.color);
+                                }}
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="min-w-[1.25rem] text-center text-xs">
+                                {existing.quantity}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 rounded-none hover:bg-accent"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleAddVariant(opt.size, opt.color, opt.price);
+                                }}
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-none hover:bg-accent"
+                              size="sm"
+                              className="h-7 shrink-0 text-xs"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 handleAddVariant(opt.size, opt.color, opt.price);
                               }}
-                              aria-label="Increase quantity"
                             >
-                              <Plus className="h-3 w-3" />
+                              Add
                             </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 shrink-0 text-xs"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleAddVariant(opt.size, opt.color, opt.price);
-                            }}
-                          >
-                            Add
-                          </Button>
-                        )}
+                          )}
                         </div>
                       </div>
                     );
@@ -316,11 +314,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
             <Button
               variant="ghost"
               size="icon"
-              className={`h-9 w-9 lg:h-8 lg:w-8 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${
-                anyVariantInCart
-                  ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
-                  : "bg-white/90 hover:bg-white"
-              }`}
+              className={`h-9 w-9 lg:h-8 lg:w-8 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${anyVariantInCart
+                ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
+                : "bg-white/90 hover:bg-white"
+                }`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -329,11 +326,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
               aria-label={anyVariantInCart ? "Add another" : "Add to cart"}
             >
               <BsCartPlus
-                className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${
-                  anyVariantInCart
-                    ? "fill-primary text-primary"
-                    : "text-gray-700 hover:text-primary"
-                }`}
+                className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${anyVariantInCart
+                  ? "fill-primary text-primary"
+                  : "text-gray-700 hover:text-primary"
+                  }`}
               />
             </Button>
           )}
@@ -343,14 +339,14 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
       {/* Content Section */}
       <div className="flex flex-col min-h-0 px-3 py-2.5 lg:h-[22%] lg:px-3 lg:py-2 justify-between bg-white gap-1 lg:gap-0 lg:border-t lg:border-gray-200/50">
         {/* Product title */}
-        <h3 className="text-sm lg:text-[.85rem] font-semibold text-gray-900 truncate leading-tight group-hover:text-primary transition-colors duration-200">
+        <h3 className={`lg:text-[.85rem] font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200 ${currentView === "list" ? "text-[14px]" : "text-[12px]"}`}>
           <Link href={`/products/${product.id}`}>{product.name}</Link>
         </h3>
 
         {/* Available Sizes */}
         {product.sizes && product.sizes.length > 0 && (
           <div
-            className="flex gap-1.5 lg:gap-1 items-center flex-shrink-0 overflow-x-auto overflow-y-hidden scroll-smooth pb-0.5 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex gap-1.5 lg:gap-1 items-center flex-wrap flex-shrink-0 overflow-x-auto overflow-y-hidden scroll-smooth pb-0.5 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             style={{ WebkitOverflowScrolling: "touch" }}
             onClick={(e) => {
               e.stopPropagation();
@@ -365,11 +361,10 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
                 key={size.name}
                 href={`/products/${product.id}?size=${encodeURIComponent(size.name)}`}
                 onClick={(e) => e.stopPropagation()}
-                className={`shrink-0 text-xs lg:text-[10px] px-1.5 lg:px-1 py-0.5 rounded-md lg:rounded border whitespace-nowrap inline-block ${
-                  (size.stock_quantity ?? 0) > 0
-                    ? "border-gray-300 text-gray-600 hover:border-primary hover:text-primary"
-                    : "border-gray-200 text-gray-300 line-through pointer-events-none"
-                }`}
+                className={`shrink-0 text-xs lg:text-[10px] px-1.5 lg:px-1 py-0.5 rounded-md lg:rounded border whitespace-nowrap inline-block ${(size.stock_quantity ?? 0) > 0
+                  ? "border-gray-300 text-gray-600 hover:border-primary hover:text-primary"
+                  : "border-gray-200 text-gray-300 line-through pointer-events-none"
+                  }`}
               >
                 {size.name}
               </Link>
@@ -378,16 +373,16 @@ export default function ProductCard({ product, index, locale = "en-IN", currency
         )}
 
         {/* Category and Price */}
-        <div className="flex items-center justify-between flex-shrink-0">
+        <div className={`flex sm:flex-row sm:items-center justify-between flex-shrink-0 gap-2 sm:gap-0 ${currentView === "list" ? "flex-row" : "flex-col"}`}>
           {product.categories?.name && (
-            <p className="text-xs lg:text-[10px] text-gray-500 font-medium">
+            <p className="text-xs sm:lg:text-[10px] text-gray-500 font-medium flex-shrink-0">
               {product.categories.name}
             </p>
           )}
-          <p className="text-sm lg:text-sm font-bold lg:font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200">
+          <p className="flex items-center justify-end gap-2 text-sm font-bold text-gray-900 group-hover:text-primary transition-colors duration-200 flex-shrink-0">
             {hasRange ? (
               <>
-                <span className="text-xs lg:text-[10px] font-medium text-gray-500 mr-0.5">Starts at</span>
+                <span className="text-xs lg:text-[10px] font-medium text-gray-500">Starts at</span>
                 {formatPrice(minPrice, locale, currency)}
               </>
             ) : (
