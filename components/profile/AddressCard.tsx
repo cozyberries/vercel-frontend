@@ -11,7 +11,7 @@ interface UserAddress {
   full_name: string | null;
   phone: string | null;
   address_line_1: string;
-  address_line_2: string | null;
+  area: string | null;
   city: string;
   state: string;
   postal_code: string;
@@ -85,7 +85,7 @@ export default function AddressCard({
           )}
           <div className="text-xs text-muted-foreground space-y-1">
             <p>{address.address_line_1}</p>
-            {address.address_line_2 && <p>{address.address_line_2}</p>}
+            {address.area && <p>{address.area}</p>}
             <p className="font-medium">
               {address.city}, {address.state} {address.postal_code}
             </p>

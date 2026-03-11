@@ -57,7 +57,7 @@ export async function validateAndFetchAddresses(
   const toAddress = (row: Record<string, any>): ShippingAddress & { phone?: string } => ({
     full_name: row.full_name,
     address_line_1: row.address_line_1,
-    address_line_2: row.address_line_2,
+    area: row.area,
     city: row.city,
     state: row.state,
     postal_code: row.postal_code,

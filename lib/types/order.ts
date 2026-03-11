@@ -40,7 +40,7 @@ export type PaymentGateway =
 export interface ShippingAddress {
   full_name: string;
   address_line_1: string;
-  address_line_2?: string;
+  area?: string;
   city: string;
   state: string;
   postal_code: string;

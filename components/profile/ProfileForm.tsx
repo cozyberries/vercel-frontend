@@ -35,7 +35,7 @@ interface UserAddress {
   full_name: string | null;
   phone: string | null;
   address_line_1: string;
-  address_line_2: string | null;
+  area: string | null;
   city: string;
   state: string;
   postal_code: string;

@@ -75,6 +75,7 @@ export async function checkPincodeServiceability(
       prepaid: false,
       cod: false,
       is_oda: false,
+      area: "",
       delivery_days: { min: 0, max: 0 },
     };
   }
@@ -91,6 +92,10 @@ export async function checkPincodeServiceability(
   const isOda = raw.is_oda === "Y";
   const prePaid = raw.pre_paid === "Y";
   const cod = raw.cod === "Y";
+  const area =
+    (typeof raw.post_office === "string" && raw.post_office.trim()) ||
+    (typeof raw.area === "string" && raw.area.trim()) ||
+    "";
 
   return {
     serviceable: prePaid || cod,
@@ -101,6 +106,7 @@ export async function checkPincodeServiceability(
     prepaid: prePaid,
     cod,
     is_oda: isOda,
+    area: area || "",
     delivery_days: estimateDeliveryDays(isOda),
   };
 }

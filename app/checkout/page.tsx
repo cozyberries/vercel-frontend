@@ -354,8 +354,8 @@ export default function CheckoutPage() {
                                   </p>
                                 )}
                                 <p>{address.address_line_1}</p>
-                                {address.address_line_2 && (
-                                  <p>{address.address_line_2}</p>
+                                {address.area && (
+                                  <p>{address.area}</p>
                                 )}
                                 <p>
                                   {address.city}, {address.state}{" "}
