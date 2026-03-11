@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, Instagram } from "lucide-react";
+import { Mail, Instagram, X, MessageSquareMore } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -190,9 +190,9 @@ export default function ContactSidebar({
             size="icon"
             className="rounded-full w-12 h-12 bg-secondary opacity-85 hover:bg-secondary/90 shadow-lg"
           >
-            <span className="text-secondary-foreground text-lg font-bold">
-              {showPopups ? "✕" : "?"}
-            </span>
+            <div className="text-secondary-foreground">
+              {showPopups ? <X className="w-5 h-5 text-secondary-foreground" /> : <MessageSquareMore className="w-5 h-5 text-secondary-foreground" />}
+            </div>
           </Button>
         </motion.div>
       </div>
