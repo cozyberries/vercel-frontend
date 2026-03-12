@@ -3,30 +3,34 @@ export const images = {
     staticProductImage: "/placeholder.jpg", // Default fallback image for products
     staticCategoryImage: "/placeholder.jpg", // Default fallback image for categories
     heroImages: [
-        "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1772276506/gifting-3_rnup8u_1dd134.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1772275805/3_mbog2e_b4c119.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1772275616/2_nfftaj_5d28c0.png"
+        "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/gifting/3.webp",
+        "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/gentle-at-home/3.webp",
+        "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/texture/2.webp"
     ],
     // Mobile heroes - dedicated 9:16 portrait images (no transforms, use as-is)
-    mobileHeroImages: [
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1772616749/mobile-1_o6pocr.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1772616859/mobile-1_xlypky.png",
-        "https://res.cloudinary.com/dxokykvty/image/upload/v1772616913/mobile-1_bcziev.png"
+    mobileHeroImages: [ 
+        "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/gentle-at-home/mobile-1.webp",
+        "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/gifting/mobile-1.webp",
+        "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/texture/mobile-1.webp"
     ],
-
+    about: {
+        story: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/about/1.webp",
+        comfort_meets_conscious_living: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/about/2.webp",
+        designed_for_tiny_moments: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/about/3.webp",
+    },
     age: {
-        age_zero_three_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568113/age_zero_three_m_jip58e.png",
-        age_three_six_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568112/age_three_six_m_mfos9j.png",
-        age_six_twelve_m: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568112/age_six_twelve_m_bri2h0.png",
-        age_one_two_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568110/age_one_two_y_pyodke.png",
-        age_two_three_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568111/age_two_three_y_gevb3b.png",
-        age_three_six_y: "https://res.cloudinary.com/dxokykvty/image/upload/w_400,q_auto,f_auto/v1759568112/age_three_six_y_x0r8cg.png"
+        age_zero_three_m: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/age/age_zero_three_m_jip58e.webp",
+        age_three_six_m: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/age/age_three_six_m_mfos9j.webp",
+        age_six_twelve_m: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/age/age_six_twelve_m_bri2h0.webp",
+        age_one_two_y: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/age/age_one_two_y_pyodke.webp",
+        age_two_three_y: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/age/age_two_three_y_gevb3b.webp",
+        age_three_six_y: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/age/age_three_six_y_x0r8cg.webp"
     },
     svgs: {
-        gingerbread_santa: "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1759570253/gingerbread-santa_kh2dlc.svg",
-        snowflake: "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1759570238/christmas_straw_xv0faj.svg",
-        garden_green_house: "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1759570252/garden-green-house-svgrepo-com_x52xv2.svg",
-        sprout_tree: "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1759570240/sprout-tree-svgrepo-com_fsjskf.svg",
-        eco_friendly: "https://res.cloudinary.com/dxokykvty/image/upload/q_auto,f_auto/v1759570238/ecology-nature-svgrepo-com_q6jaxn.svg"
+        gingerbread_santa: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/svgs/gingerbread-santa_kh2dlc.svg",
+        snowflake: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/svgs/christmas_straw_xv0faj.svg",
+        garden_green_house: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/svgs/garden-green-house-svgrepo-com_x52xv2.svg",
+        sprout_tree: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/svgs/sprout-tree-svgrepo-com_fsjskf.svg",
+        eco_friendly: "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/svgs/ecology-nature-svgrepo-com_q6jaxn.svg"
     }
 }
