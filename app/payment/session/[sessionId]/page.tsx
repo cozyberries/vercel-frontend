@@ -370,13 +370,16 @@ export default function SessionPaymentPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       PhonePe, Google Pay, Paytm, BHIM, or any other UPI app
                     </p>
-                    <a
-                      href={UPI_GENERAL_DEEPLINK}
-                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = UPI_GENERAL_DEEPLINK;
+                      }}
+                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline text-left"
                     >
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
                       Tap to open a payment app
-                    </a>
+                    </button>
                   </div>
                 </li>
 
@@ -558,8 +561,8 @@ export default function SessionPaymentPage() {
                     {session.shipping_address.full_name}
                   </p>
                   <p>{session.shipping_address.address_line_1}</p>
-                  {session.shipping_address.address_line_2 && (
-                    <p>{session.shipping_address.address_line_2}</p>
+                  {session.shipping_address.area && (
+                    <p>{session.shipping_address.area}</p>
                   )}
                   <p>
                     {session.shipping_address.city},{" "}

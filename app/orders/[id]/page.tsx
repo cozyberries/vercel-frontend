@@ -432,8 +432,8 @@ export default function OrderDetailsPage() {
                   {order.shipping_address.full_name}
                 </div>
                 <div>{order.shipping_address.address_line_1}</div>
-                {order.shipping_address.address_line_2 && (
-                  <div>{order.shipping_address.address_line_2}</div>
+                {order.shipping_address.area && (
+                  <div>{order.shipping_address.area}</div>
                 )}
                 <div>
                   {order.shipping_address.city}, {order.shipping_address.state}{" "}
@@ -461,8 +461,8 @@ export default function OrderDetailsPage() {
                     {order.billing_address.full_name}
                   </div>
                   <div>{order.billing_address.address_line_1}</div>
-                  {order.billing_address.address_line_2 && (
-                    <div>{order.billing_address.address_line_2}</div>
+                  {order.billing_address.area && (
+                    <div>{order.billing_address.area}</div>
                   )}
                   <div>
                     {order.billing_address.city}, {order.billing_address.state}{" "}
