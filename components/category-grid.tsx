@@ -28,7 +28,7 @@ const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
 // Category image overrides - use specific Cloudinary URLs for certain categories
 const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
   "sleeveless-jablas":
-    "https://res.cloudinary.com/dxokykvty/image/upload/v1772863832/cozyberries/categories/sleeveless-jablas/2_35c53a.png",
+    "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/categories/sleeveless-jablas.webp"
 };
 
 export default function CategoryGrid() {

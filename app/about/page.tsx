@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import GingerbreadDecoration from "@/components/GingerbreadDecoration";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
+import { images } from "@/app/assets/images";
 
 // ─── Constants: Brand Values ───────────────────────────────────────
 const BRAND_VALUES = [
@@ -129,7 +130,7 @@ export default function AboutPage() {
             </p>
             <div className="relative w-full max-w-2xl mx-auto aspect-video rounded-2xl overflow-hidden shadow-sm">
               <Image
-                src="https://res.cloudinary.com/dxokykvty/image/upload/v1772275870/2_fucrsq_4a8852.png"
+                src={images.about.story}
                 alt="CozyBerries Story"
                 fill
                 className="object-cover"
@@ -196,7 +197,7 @@ export default function AboutPage() {
               </div>
               <div className="relative aspect-square rounded-2xl overflow-hidden shadow-sm">
                 <Image
-                  src="https://res.cloudinary.com/dxokykvty/image/upload/v1772276571/gifting-4_k06lhm_48ddf7.png"
+                  src={images.about.comfort_meets_conscious_living}
                   alt="Comfort meets conscious living"
                   fill
                   className="object-cover"
@@ -280,7 +281,7 @@ export default function AboutPage() {
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div className="relative aspect-square rounded-2xl overflow-hidden shadow-sm">
                 <Image
-                  src="https://res.cloudinary.com/dxokykvty/image/upload/v1772275555/1_jlh5gt_ad7f10.png"
+                  src={images.about.designed_for_tiny_moments}
                   alt="Designed for tiny moments"
                   fill
                   className="object-cover"
