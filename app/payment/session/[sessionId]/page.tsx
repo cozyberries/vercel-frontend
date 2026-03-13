@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,13 +50,16 @@ export default function SessionPaymentPage() {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
 
+  const fetchedSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
       return;
     }
 
-    if (user && sessionId) {
+    if (user && sessionId && fetchedSessionIdRef.current !== sessionId) {
+      fetchedSessionIdRef.current = sessionId;
       fetchSession();
     }
   }, [user, loading, sessionId]);
@@ -299,10 +302,6 @@ export default function SessionPaymentPage() {
                   height={280}
                   className="rounded-lg"
                 />
-              </div>
-              <div className="flex items-center gap-2 mt-3 text-muted-foreground">
-                <QrCode className="w-4 h-4" />
-                <p className="text-sm">Scan with any UPI app to pay</p>
               </div>
             </div>
 
