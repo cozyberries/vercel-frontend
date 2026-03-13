@@ -14,13 +14,25 @@ test.describe.configure({ mode: "serial" });
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Fetch the full list of product slugs from the local API. */
+/** Fetch the full list of product slugs from the local API (paginated). */
 async function fetchAllProductSlugs(baseURL: string): Promise<string[]> {
-  const res = await fetch(`${baseURL}/api/products?limit=100`);
-  if (!res.ok) throw new Error(`Products API returned ${res.status}`);
-  const data = await res.json();
-  const products: Array<{ slug: string }> = data.products ?? data ?? [];
-  return products.map((p) => p.slug).filter(Boolean);
+  const limit = 100;
+  const allProducts: Array<{ slug: string }> = [];
+  let page = 1;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const res = await fetch(`${baseURL}/api/products?limit=${limit}&page=${page}`);
+    if (!res.ok) throw new Error(`Products API returned ${res.status}`);
+    const data = await res.json();
+    const products: Array<{ slug: string }> = data.products ?? data ?? [];
+    allProducts.push(...products);
+    const pagination = data.pagination;
+    hasNextPage = pagination?.hasNextPage === true && products.length === limit;
+    page += 1;
+  }
+
+  return allProducts.map((p) => p.slug).filter(Boolean);
 }
 
 /** Wait for the product detail page price to appear (signals data has loaded). */
