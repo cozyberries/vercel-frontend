@@ -38,11 +38,12 @@ export default function Hero() {
   );
 
   // Clamp currentIndex when image list length changes (prevents out-of-bounds on viewport resize)
+  // Uses functional updater so currentIndex is not a dependency (avoids running on every slide advance)
   useEffect(() => {
-    if (heroImages.length > 0 && currentIndex >= heroImages.length) {
-      setCurrentIndex(Math.max(0, heroImages.length - 1));
+    if (heroImages.length > 0) {
+      setCurrentIndex((prev) => Math.min(prev, heroImages.length - 1));
     }
-  }, [heroImages.length, currentIndex]);
+  }, [heroImages.length]);
 
   useEffect(() => {
     if (!isAutoPlaying || heroImages.length === 0) return;

@@ -118,11 +118,15 @@ export default function ProductsClient() {
 
   // Error source tracking for reliable retry logic
   const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
+  // Incrementing this triggers the products useEffect to refetch without a full page reload
+  const [productsRetry, setProductsRetry] = useState(0);
 
-  // Track category errors for retry logic
+  // Track category errors — set errorSource when error appears, clear it when error resolves
   useEffect(() => {
     if (categoriesError) {
       setErrorSource('categories');
+    } else {
+      setErrorSource((prev) => (prev === 'categories' ? null : prev));
     }
   }, [categoriesError]);
 
@@ -227,7 +231,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, pageSize]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, pageSize, productsRetry]);
 
   // Load more products function
   const loadMoreProducts = useCallback(async () => {
@@ -601,7 +605,7 @@ export default function ProductsClient() {
               if (errorSource === 'categories') {
                 refetchCategories();
               } else {
-                window.location.reload();
+                setProductsRetry((r) => r + 1);
               }
             }}
             variant="outline"
@@ -835,7 +839,7 @@ export default function ProductsClient() {
                     : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
                 }
               >
-                {Array.from({ length: isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
+                {Array.from({ length: isMobile === true ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
                   <ProductCardSkeleton key={i} />
                 ))}
               </div>
