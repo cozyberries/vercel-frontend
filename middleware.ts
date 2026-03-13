@@ -55,7 +55,9 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/complete-profile");
 
   if (isProtectedRoute && !user) {
-    return redirectWithCookies(new URL("/login", request.url), supabaseResponse);
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+    return redirectWithCookies(loginUrl, supabaseResponse);
   }
 
   // For authenticated users on protected routes (except complete-profile itself),
@@ -138,7 +140,9 @@ export async function middleware(request: NextRequest) {
         res.cookies.set("profile_phone_just_saved", "", { path: "/", maxAge: 0 });
         return res;
       }
-      return redirectWithCookies(new URL("/complete-profile", request.url), supabaseResponse);
+      const completeProfileUrl = new URL("/complete-profile", request.url);
+      completeProfileUrl.searchParams.set("redirect", request.nextUrl.pathname);
+      return redirectWithCookies(completeProfileUrl, supabaseResponse);
     }
   }
 

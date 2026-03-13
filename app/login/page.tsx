@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 
+function isSafeRedirect(path: string | null): path is string {
+  if (!path || typeof path !== "string") return false;
+  if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return false;
+  // Block protocol schemes but allow colons in query strings
+  const pathWithoutQuery = path.split("?")[0];
+  if (pathWithoutQuery.includes(":")) return false;
+  return true;
+}
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +25,10 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const { signIn, signInWithGoogle } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
+
+  const postAuthUrl = isSafeRedirect(redirectTo) ? redirectTo : "/profile";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +40,7 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     } else {
-      router.push("/profile");
+      router.push(postAuthUrl);
     }
 
     setIsLoading(false);
@@ -37,7 +49,9 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setError("");
-
+    if (isSafeRedirect(redirectTo)) {
+      document.cookie = `auth_redirect=${encodeURIComponent(redirectTo)}; path=/; max-age=300; SameSite=Lax`;
+    }
     const { error } = await signInWithGoogle();
 
     if (error) {
@@ -57,7 +71,7 @@ export default function LoginPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{" "}
             <Link
-              href="/register"
+              href={isSafeRedirect(redirectTo) ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"}
               className="font-medium text-primary hover:text-primary/80"
             >
               create a new account

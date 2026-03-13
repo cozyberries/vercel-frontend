@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { Button } from "@/components/ui/button";
 import PhoneInput from "@/components/PhoneInput";
+
+function isSafeRedirect(path: string | null): path is string {
+  if (!path || typeof path !== "string") return false;
+  if (!path.startsWith("/") || path.startsWith("//")) return false;
+  if (path.includes(":")) return false;
+  return true;
+}
 
 export default function CompleteProfilePage() {
   const [phone, setPhone] = useState("");
@@ -14,12 +21,18 @@ export default function CompleteProfilePage() {
   const [error, setError] = useState("");
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      const loginUrl =
+        redirectTo && isSafeRedirect(redirectTo)
+          ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+          : "/login";
+      router.push(loginUrl);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,11 +53,10 @@ export default function CompleteProfilePage() {
       });
 
       if (response.ok) {
-        // Signal to middleware that phone was just saved (avoids redirect back to complete-profile
-        // before the DB read sees the update)
         document.cookie =
           "profile_phone_just_saved=1; path=/; max-age=300; SameSite=Lax";
-        router.push("/");
+        const destination = isSafeRedirect(redirectTo) ? redirectTo : "/";
+        router.push(destination);
       } else {
         const data = await response.json();
         setError(data.error || "Failed to save phone number");
