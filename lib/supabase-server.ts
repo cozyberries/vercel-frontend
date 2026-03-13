@@ -115,3 +115,21 @@ export const createAdminSupabaseClient = () => {
     }
   });
 };
+
+// Fast Supabase client for public data - does not read cookies (prevents Next.js dynamic opt-in)
+export const createPublicSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Missing Supabase environment variables for public client.");
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+};
+

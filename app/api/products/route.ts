@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient, createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
 
@@ -136,7 +136,7 @@ async function refreshCacheInBackground(
     age: string | null;
   }
 ) {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createPublicSupabaseClient();
 
   let query = supabase
     .from("products")
@@ -224,7 +224,7 @@ const PRODUCTS_ALL_LIMIT = 200;
 /** Fetches all products (no filters) from Supabase and caches to Upstash. Fire-and-forget. */
 async function fetchAndCacheAllProducts(): Promise<void> {
   try {
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createPublicSupabaseClient();
     const query = supabase
       .from("products")
       .select(PRODUCTS_LIST_SELECT, { count: "exact" })
@@ -365,7 +365,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Single DB query — all filters applied inline, no pre-query lookups
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createPublicSupabaseClient();
     let query = supabase
       .from("products")
       .select(PRODUCTS_LIST_SELECT, { count: "exact" });

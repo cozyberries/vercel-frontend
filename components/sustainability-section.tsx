@@ -51,6 +51,7 @@ export default function SustainabilitySection() {
                   alt="Sustainable baby clothing and eco-friendly practices"
                   fill
                   sizes="(max-width: 1024px) 100vw, 40vw"
+                  loading="lazy"
                   className="object-cover"
                   onError={(e) => {
                     e.currentTarget.src = "/placeholder.jpg";

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, ChevronRight, Home, Mail, Instagram } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import {
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { usePreloadedData } from "@/components/data-preloader";
-import { getAgeOptions, type AgeOptionFilter } from "@/lib/services/api";
+import { useAgeOptions } from "@/hooks/useApiQueries";
 import { SOCIAL_CONTACTS } from "@/lib/constants/social";
 
 // Animation variants
@@ -53,29 +53,8 @@ export const HamburgerSheet = () => {
   const [open, setOpen] = useState(false);
   const [expandedDropdowns, setExpandedDropdowns] = useState<string[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [ageOptions, setAgeOptions] = useState<AgeOptionFilter[]>([]);
-  const [ageOptionsError, setAgeOptionsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    getAgeOptions()
-      .then((options) => {
-        if (mounted) {
-          setAgeOptions(options);
-          setAgeOptionsError(null);
-        }
-      })
-      .catch((err) => {
-        if (mounted) {
-          console.error("Failed to load age options:", err);
-          setAgeOptions([]);
-          setAgeOptionsError("Unable to load age options");
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // React Query: deduplicates with all other useAgeOptions() callers — no extra network request
+  const { data: ageOptions = [], isError: ageOptionsError } = useAgeOptions();
 
   const toggleDropdown = (dropdown: string) => {
     setExpandedDropdowns((prev) =>
@@ -216,7 +195,7 @@ export const HamburgerSheet = () => {
                     >
                       {ageOptionsError ? (
                         <p className="px-6 py-2 text-sm text-muted-foreground">
-                          {ageOptionsError}
+                          Unable to load age options
                         </p>
                       ) : (
                         ageOptions.map((age) => (

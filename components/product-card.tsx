@@ -156,9 +156,13 @@ export default function ProductCard({ product, index, currentView, locale = "en-
             alt={product.name}
             width={600}
             height={750}
-            sizes="(max-width: 1023px) 100vw, 25vw"
-            priority={index < 3}
-            loading={index < 3 ? "eager" : "lazy"}
+            sizes={
+              currentView === "list"
+                ? "100vw"
+                : "(max-width: 1023px) 50vw, 25vw"
+            }
+            priority={index < 4}
+            loading={index < 4 ? "eager" : "lazy"}
             decoding="async"
             className="w-full h-full object-cover"
           />

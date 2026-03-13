@@ -15,7 +15,8 @@ import {
 import ProductCard from "@/components/product-card";
 import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
-import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, CategoryOption, SizeOptionFilter, GenderOptionFilter, Product } from "@/lib/services/api";
+import { getProducts, type Product } from "@/lib/services/api";
+import { useCategoryOptions, useSizeOptions, useGenderOptions } from "@/hooks/useApiQueries";
 import { Loader, Search, X, RotateCcw, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -99,78 +100,24 @@ export default function ProductsClient() {
   // null while viewport is unknown (SSR / first render) — avoids double-fetch
   const pageSize = isMobile === null ? null : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
 
-  // Lightweight category options (id, name, slug only — no images/descriptions)
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  // ── Filter options via React Query (cached across navigations) ──
+  const {
+    data: rawCategories = [],
+    isLoading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useCategoryOptions();
 
-  // Size options for filter
-  const [sizeOptions, setSizeOptions] = useState<SizeOptionFilter[]>([]);
-  const [sizeOptionsLoading, setSizeOptionsLoading] = useState(true);
+  const categories = useMemo(
+    () => rawCategories.filter((c) => c.slug !== "accessories" && c.slug !== "newborn-accessories"),
+    [rawCategories],
+  );
 
-  // Gender options for filter
-  const [genderOptions, setGenderOptions] = useState<GenderOptionFilter[]>([]);
-  const [genderOptionsLoading, setGenderOptionsLoading] = useState(true);
+  const { data: sizeOptions = [], isLoading: sizeOptionsLoading } = useSizeOptions();
+  const { data: genderOptions = [], isLoading: genderOptionsLoading } = useGenderOptions();
 
   // Error source tracking for reliable retry logic
   const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
-
-  const fetchCategories = useCallback(async () => {
-    setCategoriesLoading(true);
-    setCategoriesError(null);
-    setErrorSource(null);
-    try {
-      const data = await getCategoryOptions();
-      setCategories(
-        data.filter(
-          (c) =>
-            c.slug !== "accessories" && c.slug !== "newborn-accessories"
-        )
-      );
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load categories";
-      setCategoriesError(errorMessage);
-      setErrorSource('categories');
-    } finally {
-      setCategoriesLoading(false);
-    }
-  }, []);
-
-  const fetchSizeOptions = useCallback(async () => {
-    setSizeOptionsLoading(true);
-    try {
-      const data = await getSizeOptions();
-      setSizeOptions(data);
-    } catch {
-      setSizeOptions([]);
-    } finally {
-      setSizeOptionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
-
-  const fetchGenderOptions = useCallback(async () => {
-    setGenderOptionsLoading(true);
-    try {
-      const data = await getGenderOptions();
-      setGenderOptions(data);
-    } catch {
-      setGenderOptions([]);
-    } finally {
-      setGenderOptionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSizeOptions();
-  }, [fetchSizeOptions]);
-
-  useEffect(() => {
-    fetchGenderOptions();
-  }, [fetchGenderOptions]);
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -615,7 +562,7 @@ export default function ProductsClient() {
   }
 
   if (error || categoriesError) {
-    const displayedError = error || categoriesError;
+    const displayedError = error || (categoriesError instanceof Error ? categoriesError.message : String(categoriesError));
     return (
       <div className="text-center p-12">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -641,7 +588,7 @@ export default function ProductsClient() {
           <Button
             onClick={() => {
               if (errorSource === 'categories') {
-                fetchCategories();
+                refetchCategories();
               } else {
                 window.location.reload();
               }

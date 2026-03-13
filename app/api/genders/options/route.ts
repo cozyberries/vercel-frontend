@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 
 export interface GenderOption {
@@ -51,7 +51,7 @@ export async function GET() {
       });
     }
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createPublicSupabaseClient();
     // Order is enforced in this route (Unisex, Girl(s), Boy(s)), not by DB display_order
     const { data, error } = await supabase
       .from("genders")

@@ -53,6 +53,7 @@ export default function NewbornGiftingSection() {
                       alt="Newborn essential kits"
                       fill
                       sizes="(max-width: 640px) 90vw, 400px"
+                      loading="lazy"
                       className="object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
@@ -91,6 +92,7 @@ export default function NewbornGiftingSection() {
                       alt="Newborn essential kits"
                       fill
                       sizes="(max-width: 1024px) 90vw, 448px"
+                      loading="lazy"
                       className="object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:bg-black/40 transition-[background-color] duration-500" />

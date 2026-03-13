@@ -12,6 +12,12 @@ function redirectWithCookies(url: URL, supabaseResponse: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
+  // Fast path for API routes - skip middleware auth checks to prevent 
+  // blocking parallel API fetches with redundant Supabase Auth round-trips.
+  if (request.nextUrl.pathname.startsWith("/api") || request.nextUrl.pathname.startsWith("/webhook")) {
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });

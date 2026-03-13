@@ -186,6 +186,7 @@ export default function SnowflakeDecoration({
           alt=""
           aria-hidden
           fill
+          unoptimized
           className="object-contain"
         />
       )}
