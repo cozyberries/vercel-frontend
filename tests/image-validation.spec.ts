@@ -25,10 +25,14 @@ async function fetchAllProductSlugs(baseURL: string): Promise<string[]> {
     const res = await fetch(`${baseURL}/api/products?limit=${limit}&page=${page}`);
     if (!res.ok) throw new Error(`Products API returned ${res.status}`);
     const data = await res.json();
-    const products: Array<{ slug: string }> = data.products ?? data ?? [];
+    let products: Array<{ slug: string }>;
+    if (Array.isArray(data?.products)) products = data.products;
+    else if (Array.isArray(data)) products = data;
+    else products = [];
+    if (products.length === 0) break;
     allProducts.push(...products);
     const pagination = data.pagination;
-    hasNextPage = pagination?.hasNextPage === true && products.length === limit;
+    hasNextPage = pagination?.hasNextPage === true;
     page += 1;
   }
 
