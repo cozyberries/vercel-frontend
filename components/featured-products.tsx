@@ -136,7 +136,7 @@ export default function FeaturedProducts() {
                     key={product.id}
                     className="w-full lg:w-1/3 flex-shrink-0 px-2 lg:px-3"
                   >
-                    <ProductCard product={product} index={index} />
+                    <ProductCard product={product} index={index} currentView="list" />
                   </div>
                 ))}
               </div>

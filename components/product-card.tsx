@@ -17,6 +17,7 @@ import { useCart, getCartItemKey } from "./cart-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
+import { toImageSrc } from "@/lib/utils/image";
 import { BsCartPlus } from "react-icons/bs";
 import { RiHeartAddLine } from "react-icons/ri";
 
@@ -151,13 +152,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
         <Link href={`/products/${product.id}`}>
           {/* First Image — text/content renders first; image loads lazily (except first 3) */}
           <Image
-            src={
-              product.images?.[0] &&
-                typeof product.images[0] === "string" &&
-                product.images[0].trim() !== ""
-                ? product.images[0]
-                : images.staticProductImage
-            }
+            src={toImageSrc(product.images?.[0], images.staticProductImage, "list")}
             alt={product.name}
             width={600}
             height={750}
