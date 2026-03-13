@@ -423,7 +423,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
-                    src={toImageSrc(image)}
+                    src={toImageSrc(image, undefined, "thumbnail")}
                     alt={`${product.name} - View ${index + 1}`}
                     width={80}
                     height={80}
@@ -463,7 +463,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
               </button>
 
               <Image
-                src={toImageSrc(product.images?.[selectedImage])}
+                src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
                 alt={product.name}
                 width={600}
                 height={600}
@@ -475,10 +475,10 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
                   <Image
-                    src={toImageSrc(product.images?.[selectedImage])}
+                    src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
                     alt={product.name}
-                    width={600}
-                    height={600}
+                    width={800}
+                    height={800}
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 ease-out"
                     style={{
                       transform: `scale(2.5)`,
@@ -524,7 +524,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
-                    src={toImageSrc(image)}
+                    src={toImageSrc(image, undefined, "thumbnail")}
                     alt={`${product.name} - View ${index + 1}`}
                     width={100}
                     height={100}
@@ -844,7 +844,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
                     <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                       <Link href={`/products/${relatedProduct.slug}`}>
                         <Image
-                          src={toImageSrc(relatedProduct?.images?.[0])}
+                          src={toImageSrc(relatedProduct?.images?.[0], undefined, "list")}
                           alt={relatedProduct?.name}
                           width={400}
                           height={400}
@@ -933,7 +933,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
               onTouchEnd={onTouchEnd}
             >
               <Image
-                src={toImageSrc(product.images?.[selectedImage])}
+                src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
                 alt={product.name}
                 width={400}
                 height={400}
