@@ -10,7 +10,14 @@ export const validateRequiredPhoneNumber = (phone: string): ValidationResult => 
   if (!phone || phone.trim() === "") {
     return { isValid: false, error: "Phone number is required" };
   }
-  return validatePhoneNumber(phone);
+  const cleanPhone = phone.replace(/\D/g, "");
+  // Strip 91 country code prefix if present
+  const digits = cleanPhone.startsWith("91") && cleanPhone.length === 12
+    ? cleanPhone.slice(2)
+    : cleanPhone;
+  if (digits.length !== 10) {
+    return { isValid: false, error: "Phone number must be 10 digits" };
+  }  return validatePhoneNumber(phone);
 };
 
 // Phone number validation
@@ -75,6 +82,56 @@ export const validatePhoneNumber = (phone: string): ValidationResult => {
     error:
       "Phone number must be 10 digits (Indian) or 7-15 digits (international)",
   };
+};
+
+/**
+ * Returns only digits for Indian phone input (max 10, strips 91 prefix).
+ * Use this for storing and validating. e.g. "+91 98765 43210" -> "9876543210"
+ */
+export const getIndianPhoneDigits = (value: string): string => {
+  const digits = value.replace(/\D/g, "");
+  const withoutCountryCode = digits.startsWith("91") && digits.length > 10
+    ? digits.slice(2)
+    : digits;
+  return withoutCountryCode.slice(0, 10);
+};
+
+/**
+ * Formats digits for display with a space after the 5th digit.
+ * Input should be digits only; output e.g. "98765 43210".
+ */
+export const formatIndianPhoneDisplay = (digits: string): string => {
+  const d = digits.replace(/\D/g, "").slice(0, 10);
+  if (d.length <= 5) return d;
+  return `${d.slice(0, 5)} ${d.slice(5)}`;
+};
+  
+/**
+ * Normalizes pasted or typed phone input for Indian numbers.
+ * Strips +91/91 prefix and non-digits, returns at most 10 digits (no space).
+ * Store this value; use formatIndianPhoneDisplay for display.
+ */
+export const normalizeIndianPhoneInput = (value: string): string => {
+  return getIndianPhoneDigits(value);
+};
+
+/** Count digits in formatted string before the given position (for cursor logic). */
+export const countDigitsBefore = (formatted: string, position: number): number => {
+  let count = 0;
+  for (let i = 0; i < position && i < formatted.length; i++) {
+    if (/\d/.test(formatted[i])) count++;
+  }
+  return count;
+};
+
+/** Position in formatted string after the n-th digit (for cursor restoration). */
+export const positionAfterNDigits = (formatted: string, n: number): number => {
+  let count = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (/\d/.test(formatted[i])) count++;
+    if (count === n) return i + 1;
+  }
+  return formatted.length;
 };
 
 // Format phone number for display

@@ -4,6 +4,7 @@ import React from "react";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { getIndianPhoneDigits } from "@/lib/utils/validation";
 import ProfileForm from "@/components/profile/ProfileForm";
 import AddressList from "@/components/profile/AddressList";
 import AddressFormModal from "@/components/profile/AddressFormModal";
@@ -34,8 +35,10 @@ export default function ProfilePage() {
     handleSetDefault,
     handleEditAddress,
     handleCloseAddressModal,
+    handleAddressInputChange,
     setShowAddAddress,
     setAddressData,
+    setAddressValidationErrors,
   } = useProfile(user);
 
   if (!user) {
@@ -87,7 +90,23 @@ export default function ProfilePage() {
               onCancel={handleCancel}
               onInputChange={handleInputChange}
               addresses={addresses}
-              onAddAddress={() => setShowAddAddress(true)}
+              onAddAddress={() => {
+                setAddressData((prev) => ({
+                  ...prev,
+                  phone: getIndianPhoneDigits(profile?.phone ?? ""),
+                  full_name: profile?.full_name ?? "",
+                }));
+                setAddressValidationErrors({
+                  full_name: "",
+                  phone: "",
+                  address_line_1: "",
+                  area: "",
+                  city: "",
+                  state: "",
+                  postal_code: "",
+                });
+                setShowAddAddress(true);
+              }}
               onEditAddress={handleEditAddress}
               onSetDefault={handleSetDefault}
               onSignOut={async () => {
@@ -120,6 +139,7 @@ export default function ProfilePage() {
       {/* Address Form Modal */}
       <AddressFormModal
         enablePincodeCheck
+        profilePhone={profile?.phone ?? undefined}
         isOpen={showAddAddress || !!editingAddress}
         isEditing={!!editingAddress}
         isSaving={isSaving}
@@ -127,24 +147,14 @@ export default function ProfilePage() {
         validationErrors={addressValidationErrors}
         addresses={addresses}
         onClose={handleCloseAddressModal}
-        onSave={() =>
-          editingAddress
-            ? handleUpdateAddress(editingAddress)
-            : handleAddAddress()
-        }
-        onInputChange={(field: string, value: string) => {
-          if (field === "is_default") {
-            setAddressData((prev) => ({
-              ...prev,
-              is_default: value === "true",
-            }));
+        onSave={async () => {
+          if (editingAddress) {
+            await handleUpdateAddress(editingAddress);
           } else {
-            setAddressData((prev) => ({
-              ...prev,
-              [field]: value,
-            }));
+            await handleAddAddress();
           }
         }}
+        onInputChange={handleAddressInputChange}
         onDelete={
           editingAddress ? () => handleDeleteAddress(editingAddress) : undefined
         }

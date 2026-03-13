@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PincodeCheckResult } from "@/lib/types/shipping";
+import { getIndianPhoneDigits } from "@/lib/utils/validation";
+import IndianPhoneInput from "@/components/IndianPhoneInput";
 
 interface AddressData {
   address_type: "home" | "work" | "billing" | "shipping" | "other";
@@ -54,6 +56,8 @@ interface AddressFormModalProps {
   onDelete?: () => void;
   /** Enable pincode serviceability check. When true, pincode is validated and city/state/country are auto-filled. */
   enablePincodeCheck?: boolean;
+  /** Profile phone number; when set, user can choose "Use my profile number" for the address phone field. */
+  profilePhone?: string | null;
 }
 
 export default function AddressFormModal({
@@ -68,6 +72,7 @@ export default function AddressFormModal({
   onInputChange,
   onDelete,
   enablePincodeCheck,
+  profilePhone,
 }: AddressFormModalProps) {
   const [pincodeStatus, setPincodeStatus] = useState<
     "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
@@ -174,6 +179,23 @@ export default function AddressFormModal({
     [enablePincodeCheck, onInputChange]
   );
 
+  // When modal opens with an existing pincode (e.g. edit address), run pincode check once so delivery status and city/state/area show
+  const prevIsOpenRef = useRef(false);
+  useEffect(() => {
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+    if (!isOpen || !enablePincodeCheck || !justOpened) return;
+    const pincode = addressData.postal_code;
+    if (pincode && /^\d{6}$/.test(pincode)) {
+      checkPincode(pincode);
+    }
+  }, [
+    isOpen,
+    enablePincodeCheck,
+    addressData.postal_code,
+    checkPincode,
+  ]);
+
   const handlePincodeChange = useCallback(
     (value: string) => {
       onInputChange("postal_code", value);
@@ -248,20 +270,29 @@ export default function AddressFormModal({
                 )}
               </div>
               <div>
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">Phone Number *</Label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <span className="text-gray-500 text-sm">+91</span>
                   </div>
-                  <Input
+                  <IndianPhoneInput
                     id="phone"
                     value={addressData.phone}
-                    onChange={(e) => onInputChange("phone", e.target.value)}
-                    placeholder="98765 43210"
-                    className={`pl-12 ${validationErrors.phone ? "border-red-500" : ""
-                      }`}
+                    onChange={(digits) => onInputChange("phone", digits)}
+                    className={`pl-12 ${validationErrors.phone ? "border-red-500" : ""}`}
                   />
                 </div>
+                {profilePhone != null && profilePhone !== "" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onInputChange("phone", getIndianPhoneDigits(profilePhone ?? ""))
+                    }
+                    className="mt-1.5 text-sm text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/20 rounded"
+                  >
+                    Use my profile number
+                  </button>
+                )}
                 {validationErrors.phone && (
                   <div className="flex items-center mt-1 text-sm text-red-600">
                     <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
@@ -475,6 +506,7 @@ export default function AddressFormModal({
                 onClick={onSave}
                 disabled={
                   isSaving ||
+                  (!isEditing && !addressData.phone) ||
                   !addressData.address_line_1 ||
                   !addressData.city ||
                   !addressData.state ||

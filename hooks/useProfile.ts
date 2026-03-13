@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { User } from "@supabase/supabase-js";
-import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
+import {
+  validatePhoneNumber,
+  validateFullName,
+  validateRequiredPhoneNumber,
+} from "@/lib/utils/validation";
 
 interface UserProfile {
   id: string;
@@ -177,7 +181,11 @@ export function useProfile(user: any) {
 
   const handleSave = async () => {
     if (!user) return;
-
+    const phoneValidation = validateRequiredPhoneNumber(editData.phone);
+    if(!phoneValidation.isValid) {
+      setValidationErrors({ ...validationErrors, phone: phoneValidation.error || "" });
+      return;
+    }
     setIsSaving(true);
     try {
       const response = await fetch("/api/profile", {
@@ -220,8 +228,89 @@ export function useProfile(user: any) {
     setIsEditing(true);
   };
 
+  const validateAddressField = (field: string, value: string) => {
+    let error = "";
+    if (field === "full_name") {
+      const validation = validateFullName(value);
+      if (!value.trim()) error = "Full name is required";
+      else if (!validation.isValid) error = validation.error || "";
+    }
+    if (field === "phone") {
+      const validation = validateRequiredPhoneNumber(value);
+      if (!validation.isValid) error = validation.error || "";
+    }
+    if (
+      field === "address_line_1" ||
+      field === "city" ||
+      field === "state" ||
+      field === "postal_code"
+    ) {
+      if (!value.trim()) {
+        const labels: Record<string, string> = {
+          address_line_1: "Building / Street address is required",
+          city: "City is required",
+          state: "State is required",
+          postal_code: "PIN code is required",
+        };
+        error = labels[field];
+      }
+    }
+    setAddressValidationErrors((prev) => ({ ...prev, [field]: error }));
+  };
+
+  const validateAllAddressFields = (
+    data: typeof addressData
+  ): boolean => {
+    const errors = {
+      full_name: "",
+      phone: "",
+      address_line_1: "",
+      area: "",
+      city: "",
+      state: "",
+      postal_code: "",
+    };
+    const fullNameVal = validateFullName(data.full_name);
+    if (!data.full_name.trim()) errors.full_name = "Full name is required";
+    else if (!fullNameVal.isValid) errors.full_name = fullNameVal.error || "";
+    const phoneVal = validateRequiredPhoneNumber(data.phone);
+    if (!phoneVal.isValid) errors.phone = phoneVal.error || "";
+    if (!data.address_line_1.trim())
+      errors.address_line_1 = "Building / Street address is required";
+    if (!data.city.trim()) errors.city = "City is required";
+    if (!data.state.trim()) errors.state = "State is required";
+    if (!data.postal_code.trim()) errors.postal_code = "PIN code is required";
+    setAddressValidationErrors(errors);
+    return !Object.values(errors).some((e) => e !== "");
+  };
+
+  const handleAddressInputChange = (field: string, value: string) => {
+    if (field === "is_default") {
+      setAddressData((prev) => ({
+        ...prev,
+        is_default: value === "true",
+      }));
+      return;
+    }
+    setAddressData((prev) => ({ ...prev, [field]: value }));
+    const addressFieldsToValidate = [
+      "full_name",
+      "phone",
+      "address_line_1",
+      "city",
+      "state",
+      "postal_code",
+    ];
+    if (addressFieldsToValidate.includes(field)) {
+      validateAddressField(field, value);
+    }
+  };
+
   const handleAddAddress = async (): Promise<UserAddress | null> => {
     if (isSavingRef.current) return null;
+    if (!validateAllAddressFields(addressData)) {
+      return null;
+    }
     isSavingRef.current = true;
     setIsSaving(true);
     try {
@@ -283,6 +372,9 @@ export function useProfile(user: any) {
 
   const handleUpdateAddress = async (addressId: string): Promise<UserAddress | null> => {
     if (isSavingRef.current) return null;
+    if (!validateAllAddressFields(addressData)) {
+      return null;
+    }
     isSavingRef.current = true;
     setIsSaving(true);
     try {
@@ -350,6 +442,32 @@ export function useProfile(user: any) {
 
       if (response.ok) {
         setAddresses((prev) => prev.filter((addr) => addr.id !== addressId));
+        if (editingAddress === addressId) {
+          setEditingAddress(null);
+          setShowAddAddress(false);
+          setAddressData({
+            address_type: "home",
+            label: "",
+            full_name: "",
+            phone: "",
+            address_line_1: "",
+            area: "",
+            city: "",
+            state: "",
+            postal_code: "",
+            country: "India",
+            is_default: false,
+          });
+          setAddressValidationErrors({
+            full_name: "",
+            phone: "",
+            address_line_1: "",
+            area: "",
+            city: "",
+            state: "",
+            postal_code: "",
+          });
+        }
       } else {
         const errorData = await response.json();
         alert(`Failed to delete address: ${errorData.error}`);
@@ -482,6 +600,7 @@ export function useProfile(user: any) {
     handleSetDefault,
     handleEditAddress,
     handleCloseAddressModal,
+    handleAddressInputChange,
     setShowAddAddress,
     setAddressData,
     setAddressValidationErrors,
