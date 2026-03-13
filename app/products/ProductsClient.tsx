@@ -15,7 +15,8 @@ import {
 import ProductCard from "@/components/product-card";
 import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
-import { getProducts, getCategoryOptions, getSizeOptions, getGenderOptions, CategoryOption, SizeOptionFilter, GenderOptionFilter, Product } from "@/lib/services/api";
+import { getProducts, type Product } from "@/lib/services/api";
+import { useCategoryOptions, useSizeOptions, useGenderOptions } from "@/hooks/useApiQueries";
 import { Loader, Search, X, RotateCcw, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -99,78 +100,35 @@ export default function ProductsClient() {
   // null while viewport is unknown (SSR / first render) — avoids double-fetch
   const pageSize = isMobile === null ? null : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
 
-  // Lightweight category options (id, name, slug only — no images/descriptions)
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  // ── Filter options via React Query (cached across navigations) ──
+  const {
+    data: rawCategories = [],
+    isLoading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useCategoryOptions();
 
-  // Size options for filter
-  const [sizeOptions, setSizeOptions] = useState<SizeOptionFilter[]>([]);
-  const [sizeOptionsLoading, setSizeOptionsLoading] = useState(true);
+  const categories = useMemo(
+    () => rawCategories.filter((c) => c.slug !== "accessories" && c.slug !== "newborn-accessories"),
+    [rawCategories],
+  );
 
-  // Gender options for filter
-  const [genderOptions, setGenderOptions] = useState<GenderOptionFilter[]>([]);
-  const [genderOptionsLoading, setGenderOptionsLoading] = useState(true);
+  const { data: sizeOptions = [], isLoading: sizeOptionsLoading } = useSizeOptions();
+  const { data: genderOptions = [], isLoading: genderOptionsLoading } = useGenderOptions();
 
   // Error source tracking for reliable retry logic
   const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
+  // Incrementing this triggers the products useEffect to refetch without a full page reload
+  const [productsRetry, setProductsRetry] = useState(0);
 
-  const fetchCategories = useCallback(async () => {
-    setCategoriesLoading(true);
-    setCategoriesError(null);
-    setErrorSource(null);
-    try {
-      const data = await getCategoryOptions();
-      setCategories(
-        data.filter(
-          (c) =>
-            c.slug !== "accessories" && c.slug !== "newborn-accessories"
-        )
-      );
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load categories";
-      setCategoriesError(errorMessage);
+  // Track category errors — set errorSource when error appears, clear it when error resolves
+  useEffect(() => {
+    if (categoriesError) {
       setErrorSource('categories');
-    } finally {
-      setCategoriesLoading(false);
+    } else {
+      setErrorSource((prev) => (prev === 'categories' ? null : prev));
     }
-  }, []);
-
-  const fetchSizeOptions = useCallback(async () => {
-    setSizeOptionsLoading(true);
-    try {
-      const data = await getSizeOptions();
-      setSizeOptions(data);
-    } catch {
-      setSizeOptions([]);
-    } finally {
-      setSizeOptionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
-
-  const fetchGenderOptions = useCallback(async () => {
-    setGenderOptionsLoading(true);
-    try {
-      const data = await getGenderOptions();
-      setGenderOptions(data);
-    } catch {
-      setGenderOptions([]);
-    } finally {
-      setGenderOptionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSizeOptions();
-  }, [fetchSizeOptions]);
-
-  useEffect(() => {
-    fetchGenderOptions();
-  }, [fetchGenderOptions]);
+  }, [categoriesError]);
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -218,10 +176,13 @@ export default function ProductsClient() {
     setSearchInput(currentSearch);
   }, [currentSearch]);
 
+  // Memoize searchParams string to create stable dependency (prevent unnecessary useEffect re-runs)
+  const searchParamsString = useMemo(() => searchParams.toString(), [searchParams]);
+
   // Scroll to top when landing on products page or when any filter/category/age changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
-  }, [searchParams.toString()]);
+  }, [searchParamsString]);
 
   // Load products with server-side filtering, sorting, and search
   useEffect(() => {
@@ -270,7 +231,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, pageSize]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, pageSize, productsRetry]);
 
   // Load more products function
   const loadMoreProducts = useCallback(async () => {
@@ -597,7 +558,8 @@ export default function ProductsClient() {
   );
 
   if (isProductsLoading) {
-    const skeletonCount = isMobile === null ? PAGE_SIZE_DESKTOP : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
+    // Explicit null handling: show desktop skeleton count while mobile/desktop detection is pending
+    const skeletonCount = isMobile === true ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
     return (
       <>
         <div className="mb-6">{mobileFilterRow}</div>
@@ -615,7 +577,7 @@ export default function ProductsClient() {
   }
 
   if (error || categoriesError) {
-    const displayedError = error || categoriesError;
+    const displayedError = error || (categoriesError instanceof Error ? categoriesError.message : String(categoriesError));
     return (
       <div className="text-center p-12">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -641,9 +603,9 @@ export default function ProductsClient() {
           <Button
             onClick={() => {
               if (errorSource === 'categories') {
-                fetchCategories();
+                refetchCategories();
               } else {
-                window.location.reload();
+                setProductsRetry((r) => r + 1);
               }
             }}
             variant="outline"
@@ -877,7 +839,7 @@ export default function ProductsClient() {
                     : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
                 }
               >
-                {Array.from({ length: isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
+                {Array.from({ length: isMobile === true ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
                   <ProductCardSkeleton key={i} />
                 ))}
               </div>

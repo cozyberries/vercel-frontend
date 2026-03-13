@@ -67,6 +67,7 @@ export default function WhyMuslinSection() {
                   alt="Soft muslin baby clothing"
                   fill
                   sizes="(max-width: 1024px) 100vw, 40vw"
+                  loading="lazy"
                   className="object-cover"
                   onError={() => setImageSrc("/placeholder.jpg")}
                 />

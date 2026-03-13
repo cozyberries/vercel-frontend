@@ -5,7 +5,14 @@ import {
   getAgeOptions,
   getCategories,
   getFeaturedProducts,
+  getCategoryOptions,
+  getSizeOptions,
+  getGenderOptions,
+  getProducts,
   type AgeOptionFilter,
+  type CategoryOption,
+  type SizeOptionFilter,
+  type GenderOptionFilter,
 } from "@/lib/services/api";
 
 /**
@@ -47,3 +54,70 @@ export function useFeaturedProducts(limit: number = 6) {
     gcTime: 1000 * 60 * 60, // 1 hour
   });
 }
+
+/**
+ * Custom hook for fetching lightweight category options (id, name, slug)
+ * Used in product filters — cached for 1 hour
+ */
+export function useCategoryOptions() {
+  return useQuery<CategoryOption[]>({
+    queryKey: ["categoryOptions"],
+    queryFn: () => getCategoryOptions(),
+    staleTime: 1000 * 60 * 60,
+    gcTime: 1000 * 60 * 60 * 24,
+  });
+}
+
+/**
+ * Custom hook for fetching size filter options
+ * Cached for 1 hour since sizes rarely change
+ */
+export function useSizeOptions() {
+  return useQuery<SizeOptionFilter[]>({
+    queryKey: ["sizeOptions"],
+    queryFn: () => getSizeOptions(),
+    staleTime: 1000 * 60 * 60,
+    gcTime: 1000 * 60 * 60 * 24,
+  });
+}
+
+/**
+ * Custom hook for fetching gender filter options
+ * Cached for 1 hour since genders rarely change
+ */
+export function useGenderOptions() {
+  return useQuery<GenderOptionFilter[]>({
+    queryKey: ["genderOptions"],
+    queryFn: () => getGenderOptions(),
+    staleTime: 1000 * 60 * 60,
+    gcTime: 1000 * 60 * 60 * 24,
+  });
+}
+
+/**
+ * Custom hook for fetching paginated products with filters
+ * Caches each unique filter combination for 30 seconds
+ */
+export function useProducts(params: {
+  limit?: number;
+  page?: number;
+  category?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  featured?: boolean;
+  search?: string;
+  size?: string;
+  gender?: string;
+  age?: string;
+  enabled?: boolean;
+}) {
+  const { enabled = true, ...queryParams } = params;
+  return useQuery({
+    queryKey: ["products", queryParams],
+    queryFn: () => getProducts(queryParams),
+    staleTime: 1000 * 30, // 30 seconds  
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    enabled,
+  });
+}
+

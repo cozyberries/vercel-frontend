@@ -18,8 +18,10 @@ const nextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
-    deviceSizes: [390, 640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    // Capped at 1920 — screens beyond this are rare and the savings are huge
+    deviceSizes: [390, 640, 750, 828, 1080, 1200, 1920],
     imageSizes: [32, 48, 64, 128, 192, 256, 384],
+    // Tell Next.js to cache optimised images for 7 days server-side
     minimumCacheTTL: 604800,
     remotePatterns: [
       {
@@ -46,6 +48,20 @@ const nextConfig = {
   },
   async headers() {
     return [
+      // ── Optimised images: 1 hour cache + 1 day stale-while-revalidate (remote images may be mutable at same URL) ──
+      {
+        source: '/_next/image',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' },
+        ],
+      },
+      // ── Static assets ──
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
       // Reference data — changes rarely, cache 1 hour, serve stale for 24 h while revalidating
       { source: '/api/categories',         headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },
       { source: '/api/ages/options',        headers: [{ key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' }] },

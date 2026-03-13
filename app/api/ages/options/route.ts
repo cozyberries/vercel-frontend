@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 
 export interface AgeOption {
@@ -52,7 +52,7 @@ export async function GET() {
       });
     }
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createPublicSupabaseClient();
     const { data, error } = await supabase
       .from("sizes")
       .select("slug, name, display_order")

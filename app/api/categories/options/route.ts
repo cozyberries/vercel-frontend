@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 
 export interface CategoryOption {
@@ -58,7 +58,7 @@ export async function GET() {
     }
 
     // 3. Query only the three fields we need
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createPublicSupabaseClient();
     const { data, error } = await supabase
       .from("categories")
       .select("slug, name")
