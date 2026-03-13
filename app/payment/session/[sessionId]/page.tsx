@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,13 +50,16 @@ export default function SessionPaymentPage() {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
 
+  const fetchedSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
       return;
     }
 
-    if (user && sessionId) {
+    if (user && sessionId && fetchedSessionIdRef.current !== sessionId) {
+      fetchedSessionIdRef.current = sessionId;
       fetchSession();
     }
   }, [user, loading, sessionId]);
@@ -300,10 +303,6 @@ export default function SessionPaymentPage() {
                   className="rounded-lg"
                 />
               </div>
-              <div className="flex items-center gap-2 mt-3 text-muted-foreground">
-                <QrCode className="w-4 h-4" />
-                <p className="text-sm">Scan with any UPI app to pay</p>
-              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -370,13 +369,16 @@ export default function SessionPaymentPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       PhonePe, Google Pay, Paytm, BHIM, or any other UPI app
                     </p>
-                    <a
-                      href={UPI_GENERAL_DEEPLINK}
-                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = UPI_GENERAL_DEEPLINK;
+                      }}
+                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline text-left"
                     >
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
                       Tap to open a payment app
-                    </a>
+                    </button>
                   </div>
                 </li>
 
@@ -558,8 +560,8 @@ export default function SessionPaymentPage() {
                     {session.shipping_address.full_name}
                   </p>
                   <p>{session.shipping_address.address_line_1}</p>
-                  {session.shipping_address.address_line_2 && (
-                    <p>{session.shipping_address.address_line_2}</p>
+                  {session.shipping_address.area && (
+                    <p>{session.shipping_address.area}</p>
                   )}
                   <p>
                     {session.shipping_address.city},{" "}

@@ -262,27 +262,36 @@ export default function PaymentPage() {
                   <p className="text-sm font-medium">Or pay using</p>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <a
-                    href={upiLinks.phonepe}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = upiLinks.phonepe;
+                    }}
                     className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors"
                   >
                     <Image src="/phonepe.png" alt="PhonePe" width={40} height={40} className="rounded-lg" />
                     <span className="text-xs font-medium">PhonePe</span>
-                  </a>
-                  <a
-                    href={upiLinks.gpay}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = upiLinks.gpay;
+                    }}
                     className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
                   >
                     <Image src="/gpay.png" alt="GPay" width={40} height={40} className="rounded-lg" />
                     <span className="text-xs font-medium">GPay</span>
-                  </a>
-                  <a
-                    href={upiLinks.paytm}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = upiLinks.paytm;
+                    }}
                     className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-sky-400 hover:bg-sky-50 transition-colors"
                   >
                     <Image src="/paytm.png" alt="Paytm" width={40} height={40} className="rounded-lg" />
                     <span className="text-xs font-medium">Paytm</span>
-                  </a>
+                  </button>
                 </div>
               </div>
             )}
@@ -431,8 +440,8 @@ export default function PaymentPage() {
                     {order.shipping_address.full_name}
                   </p>
                   <p>{order.shipping_address.address_line_1}</p>
-                  {order.shipping_address.address_line_2 && (
-                    <p>{order.shipping_address.address_line_2}</p>
+                  {order.shipping_address.area && (
+                    <p>{order.shipping_address.area}</p>
                   )}
                   <p>
                     {order.shipping_address.city},{" "}
