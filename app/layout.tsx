@@ -67,7 +67,10 @@ export default function RootLayout({
                       {children}
                     </ConditionalLayout>
                     <ScrollToTopButton />
-                    <Toaster />
+                    <Toaster
+                      closeButton
+                      duration={2000}
+                    />
                   </ThemeProvider>
                   </RatingProvider>
                 </CartProvider>

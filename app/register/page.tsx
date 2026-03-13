@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,13 @@ import { Separator } from "@/components/ui/separator";
 import { sendActivity } from "@/lib/utils/activities";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import PhoneInput from "@/components/PhoneInput";
+
+function isSafeRedirect(path: string | null): path is string {
+  if (!path || typeof path !== "string") return false;
+  if (!path.startsWith("/") || path.startsWith("//")) return false;
+  if (path.includes(":")) return false;
+  return true;
+}
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -23,7 +30,8 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const { signUp, signInWithGoogle } = useAuth();
-  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +57,9 @@ export default function RegisterPage() {
       setError(error.message);
       await sendActivity("user_registration_failed", `User ${email} registration failed`, email);
     } else {
+      if (isSafeRedirect(redirectTo)) {
+        document.cookie = `auth_redirect=${encodeURIComponent(redirectTo)}; path=/; max-age=3600; SameSite=Lax`;
+      }
       setMessage("Check your email for a confirmation link!");
       await sendActivity("user_registered_success", `User ${email} registered successfully`, email);
     }
@@ -60,7 +71,9 @@ export default function RegisterPage() {
     setIsGoogleLoading(true);
     setError("");
     setMessage("");
-
+    if (isSafeRedirect(redirectTo)) {
+      document.cookie = `auth_redirect=${encodeURIComponent(redirectTo)}; path=/; max-age=300; SameSite=Lax`;
+    }
     const { error } = await signInWithGoogle();
 
     if (error) {
@@ -79,7 +92,7 @@ export default function RegisterPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{" "}
             <Link
-              href="/login"
+              href={isSafeRedirect(redirectTo) ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
               className="font-medium text-primary hover:text-primary/80"
             >
               sign in to your existing account

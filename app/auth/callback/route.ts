@@ -14,9 +14,30 @@ function getBaseUrl(request: NextRequest): string {
   return `${protocol}://${host}`;
 }
 
+function isSafeRedirect(path: string | null): path is string {
+  if (!path || typeof path !== "string") return false;
+  let decoded = path;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch (error) {
+    return false;
+  }
+  if (!decoded.startsWith("/") || decoded.startsWith("//")) return false;
+  if (decoded.includes(":")) return false;
+  return true;
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const base = getBaseUrl(request);
+  const authRedirectRaw = request.cookies.get("auth_redirect")?.value;
+  const authRedirect = authRedirectRaw && isSafeRedirect(authRedirectRaw) ? decodeURIComponent(authRedirectRaw) : null;
+
+  const clearAuthRedirectCookie = (response: NextResponse) => {
+    response.cookies.set("auth_redirect", "", { path: "/", maxAge: 0 });
+    return response;
+  };
 
   if (code) {
     const supabase = await createServerSupabaseClient();
@@ -24,8 +45,10 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error("Error exchanging code for session:", error);
-      const base = getBaseUrl(request);
-      return NextResponse.redirect(new URL("/login?error=auth_callback_error", base));
+      const loginUrl = new URL("/login", base);
+      loginUrl.searchParams.set("error", "auth_callback_error");
+      if (authRedirect) loginUrl.searchParams.set("redirect", authRedirect);
+      return NextResponse.redirect(loginUrl);
     }
 
     // If this is a new OAuth user, create their profile
@@ -84,7 +107,9 @@ export async function GET(request: NextRequest) {
             );
 
           // New user — redirect to complete profile (phone required)
-          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
+          const completeUrl = new URL("/complete-profile", base);
+          if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
+          return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));
         }
 
         // Existing user — check if phone is missing
@@ -96,25 +121,32 @@ export async function GET(request: NextRequest) {
 
         if (phoneCheckError) {
           console.error("Error checking phone:", phoneCheckError);
-          // Safe fallback: prompt user to complete profile if check fails
-          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
+          const completeUrl = new URL("/complete-profile", base);
+          if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
+          return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));
         }
 
         if (!profileWithPhone?.phone) {
-          return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
+          const completeUrl = new URL("/complete-profile", base);
+          if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
+          return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));
         }
       } catch (profileError) {
-        // Don't fail the OAuth flow if profile creation fails
         console.error("Error creating OAuth user profile:", profileError);
-        // Safe fallback: redirect to complete-profile so user can retry
-        return NextResponse.redirect(new URL("/complete-profile", getBaseUrl(request)));
+        const completeUrl = new URL("/complete-profile", base);
+        if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
+        return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));
       }
     }
 
-    // Existing user with phone — redirect to home
-    return NextResponse.redirect(new URL("/", getBaseUrl(request)));
+    // Existing user with phone — redirect to intended destination or home
+    const destination = authRedirect || "/";
+    const res = NextResponse.redirect(new URL(destination, base));
+    return clearAuthRedirectCookie(res);
   }
 
-  // No code — redirect to home
-  return NextResponse.redirect(new URL("/", getBaseUrl(request)));
+  // No code — redirect to home or intended destination
+  const destination = authRedirect || "/";
+  const res = NextResponse.redirect(new URL(destination, base));
+  return clearAuthRedirectCookie(res);
 }

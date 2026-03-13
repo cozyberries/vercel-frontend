@@ -129,6 +129,10 @@ export default function ProductCard({ product, index, currentView, locale = "en-
     router.push(`/products/${product.id}`);
   };
 
+  const cartQuantityForProduct = cart
+  .filter(item => item.id === product.id)
+  .reduce((sum, item) => sum + item.quantity, 0);
+
   return (
     <div
       className="group flex flex-col overflow-hidden bg-white transition-[shadow,transform] duration-300 shadow-sm lg:shadow-sm lg:border lg:border-gray-200/50 lg:hover:shadow-md cursor-pointer rounded-2xl"
@@ -201,22 +205,26 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 lg:h-8 lg:w-8 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 ${anyVariantInCart
-                    ? "bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/50"
-                    : "bg-white/90 hover:bg-white"
-                    }`}
+                  className="h-9 w-9 lg:h-8 lg:w-8 rounded-full shadow-md hover:shadow-lg pointer-events-auto border-0 bg-white/90 hover:bg-white"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                   }}
                   aria-label="Add to cart"
                 >
-                  <BsCartPlus
-                    className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${anyVariantInCart
-                      ? "fill-primary text-primary"
-                      : "text-gray-700 hover:text-primary"
-                      }`}
-                  />
+                  <div className="relative">
+                    <BsCartPlus
+                      className={`h-5 w-5 lg:h-4 lg:w-4 transition-all duration-200 ${anyVariantInCart
+                        ? "text-green-700"
+                        : "text-gray-700 hover:text-primary hover:scale-110"
+                        }`}
+                    />
+                    {anyVariantInCart && (
+                      <div className="absolute -top-3 -right-2 bg-red-500 text-white text-[9px] rounded-full h-4 w-4 flex items-center justify-center font-bold shadow-md border border-white">
+                        {cartQuantityForProduct}
+                      </div>
+                    )}
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -242,7 +250,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                           e.stopPropagation();
                           handleAddVariant(opt.size, opt.color, opt.price);
                         }}
-                        className={`flex items-center justify-between gap-1 rounded-sm py-1.5 text-sm hover:bg-accent/50 ${inCart ? "bg-accent/80" : ""}`}
+                        className={`flex items-center justify-between gap-1 rounded-sm py-1.5 text-sm hover:bg-accent/50 ${inCart ? "bg-accent" : ""}`}
                       >
                         <div className="flex min-w-0 shrink flex-col">
                           <span className="truncate font-medium">{opt.label}</span>
