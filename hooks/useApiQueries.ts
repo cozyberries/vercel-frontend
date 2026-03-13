@@ -9,6 +9,7 @@ import {
   getSizeOptions,
   getGenderOptions,
   getProducts,
+  getProductById,
   type AgeOptionFilter,
   type CategoryOption,
   type SizeOptionFilter,
@@ -91,6 +92,20 @@ export function useGenderOptions() {
     queryFn: () => getGenderOptions(),
     staleTime: 1000 * 60 * 60,
     gcTime: 1000 * 60 * 60 * 24,
+  });
+}
+
+/**
+ * Custom hook for fetching a single product by slug
+ * Caches for 5 minutes — product data rarely changes
+ */
+export function useProductById(slug: string | null | undefined) {
+  return useQuery({
+    queryKey: ["product", slug],
+    queryFn: () => getProductById(slug!),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
+    enabled: !!slug,
   });
 }
 

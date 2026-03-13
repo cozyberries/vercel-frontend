@@ -9,7 +9,8 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Product, SizeOption, getProductById, getProducts } from "@/lib/services/api";
+import { Product, SizeOption, getProducts } from "@/lib/services/api";
+import { useProductById } from "@/hooks/useApiQueries";
 import { useWishlist } from "./wishlist-context";
 import { useCart, getCartItemKey } from "./cart-context";
 import { usePreloadedData } from "./data-preloader";
@@ -50,8 +51,6 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<number>(0);
-  const [product, setProduct] = useState<Product | null>(null);
-  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isMobile, setIsMobile] = useState(false);
@@ -68,6 +67,12 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const { user } = useAuth();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
+  const { getDetailedProductById, isLoading } = usePreloadedData();
+  const { data: fetchedProduct, isLoading: isFetchingProduct } = useProductById(productSlug);
+  const product = getDetailedProductById(productSlug) ?? fetchedProduct ?? null;
+  const router = useRouter();
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -93,11 +98,6 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
 
     loadProducts();
   }, [product?.slug, product?.category_slug])
-
-  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
-  const { getDetailedProductById, isLoading } = usePreloadedData();
-  const router = useRouter();
 
   const isInCart = cart.some(
     (item) =>
@@ -236,33 +236,6 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
   }, [reviews, productSlug, users]);
 
 
-  // Fetch product data
-  useEffect(() => {
-    const fetchProduct = async () => {
-      // First try to get from preloaded data
-      const preloadedProduct = getDetailedProductById(productSlug);
-      if (preloadedProduct) {
-        setProduct(preloadedProduct);
-        return;
-      }
-
-      // If not found in preloaded data, fetch from API
-      setIsLoadingProduct(true);
-      try {
-        const fetchedProduct = await getProductById(productSlug);
-        setProduct(fetchedProduct);
-      } catch (error) {
-        console.error("Error fetching product:", error);
-        setProduct(null);
-      } finally {
-        setIsLoadingProduct(false);
-      }
-    };
-
-    if (productSlug) {
-      fetchProduct();
-    }
-  }, [productSlug, getDetailedProductById]);
 
   useEffect(() => {
     // Set default selections if product is loaded
@@ -382,7 +355,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
     }
   }, [isInCart]);
 
-  if (isLoading || isLoadingProduct) {
+  if (isLoading || isFetchingProduct) {
     return (
       <LoadingCard />
     );
