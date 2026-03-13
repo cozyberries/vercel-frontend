@@ -2,6 +2,10 @@ import { chromium, type Request } from 'playwright';
 
 (async () => {
   console.log('=== Products Page Performance Analysis ===\n');
+
+  // Make image wait timeout configurable via CLI arg or env var (default: 3000ms)
+  const imageWaitTimeout = parseInt(process.argv[2] || process.env.IMAGE_WAIT_TIMEOUT || '3000', 10);
+
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
@@ -40,7 +44,8 @@ import { chromium, type Request } from 'playwright';
         try {
           const body = await response.body();
           entry.size = body.byteLength;
-        } catch {
+        } catch (error) {
+          console.warn(`Failed to read response body for ${req.url()}: ${error instanceof Error ? error.message : String(error)}`);
           entry.size = 0;
         }
       }
@@ -91,8 +96,8 @@ import { chromium, type Request } from 'playwright';
     console.log(`\nSlowest API request: ${sorted[0].url.replace('http://localhost:3000', '')} (${(sorted[0].endTime || 0) - sorted[0].startTime}ms)`);
   }
 
-  // Wait for images to finish
-  await page.waitForTimeout(3000);
+  // Wait for images to finish (configurable via first CLI arg or IMAGE_WAIT_TIMEOUT env var)
+  await page.waitForTimeout(imageWaitTimeout);
 
   console.log(`\n=== Image Load Details ===`);
   for (const req of imageReqs) {

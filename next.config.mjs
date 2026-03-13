@@ -48,11 +48,11 @@ const nextConfig = {
   },
   async headers() {
     return [
-      // ── Optimised images: let browsers cache for 1 year (hash in URL already busts cache) ──
+      // ── Optimised images: 1 hour cache + 1 day stale-while-revalidate (remote images may be mutable at same URL) ──
       {
         source: '/_next/image',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          { key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' },
         ],
       },
       // ── Static assets ──

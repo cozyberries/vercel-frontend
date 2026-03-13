@@ -117,7 +117,15 @@ export const createAdminSupabaseClient = () => {
 };
 
 // Fast Supabase client for public data - does not read cookies (prevents Next.js dynamic opt-in)
+// Module-level cache for singleton instance
+let publicSupabaseClientInstance: ReturnType<typeof createClient> | null = null;
+
 export const createPublicSupabaseClient = () => {
+  // Return cached instance if already initialized
+  if (publicSupabaseClientInstance) {
+    return publicSupabaseClientInstance;
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -125,11 +133,13 @@ export const createPublicSupabaseClient = () => {
     throw new Error("Missing Supabase environment variables for public client.");
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  publicSupabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+
+  return publicSupabaseClientInstance;
 };
 

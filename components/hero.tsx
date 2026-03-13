@@ -37,8 +37,15 @@ export default function Hero() {
     [isMobile],
   );
 
+  // Clamp currentIndex when image list length changes (prevents out-of-bounds on viewport resize)
   useEffect(() => {
-    if (!isAutoPlaying) return;
+    if (heroImages.length > 0 && currentIndex >= heroImages.length) {
+      setCurrentIndex(Math.max(0, heroImages.length - 1));
+    }
+  }, [heroImages.length, currentIndex]);
+
+  useEffect(() => {
+    if (!isAutoPlaying || heroImages.length === 0) return;
 
     const intervalId = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % heroImages.length);

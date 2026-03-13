@@ -119,6 +119,13 @@ export default function ProductsClient() {
   // Error source tracking for reliable retry logic
   const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
 
+  // Track category errors for retry logic
+  useEffect(() => {
+    if (categoriesError) {
+      setErrorSource('categories');
+    }
+  }, [categoriesError]);
+
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
@@ -165,10 +172,13 @@ export default function ProductsClient() {
     setSearchInput(currentSearch);
   }, [currentSearch]);
 
+  // Memoize searchParams string to create stable dependency (prevent unnecessary useEffect re-runs)
+  const searchParamsString = useMemo(() => searchParams.toString(), [searchParams]);
+
   // Scroll to top when landing on products page or when any filter/category/age changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
-  }, [searchParams.toString()]);
+  }, [searchParamsString]);
 
   // Load products with server-side filtering, sorting, and search
   useEffect(() => {
@@ -544,7 +554,8 @@ export default function ProductsClient() {
   );
 
   if (isProductsLoading) {
-    const skeletonCount = isMobile === null ? PAGE_SIZE_DESKTOP : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
+    // Explicit null handling: show desktop skeleton count while mobile/desktop detection is pending
+    const skeletonCount = isMobile === true ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
     return (
       <>
         <div className="mb-6">{mobileFilterRow}</div>
