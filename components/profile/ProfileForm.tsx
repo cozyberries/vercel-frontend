@@ -16,7 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
+import { validatePhoneNumber, validateFullName, formatIndianPhoneDisplay } from "@/lib/utils/validation";
+import IndianPhoneInput from "@/components/IndianPhoneInput";
 import AddressCard from "./AddressCard";
 
 interface UserProfile {
@@ -167,10 +168,10 @@ export default function ProfileForm({
                     +91
                   </span>
                 </div>
-                <Input
+                <IndianPhoneInput
                   id="phone"
                   value={editData.phone}
-                  onChange={(e) => onInputChange("phone", e.target.value)}
+                  onChange={(digits) => onInputChange("phone", digits)}
                   placeholder="98765 43210"
                   disabled={isSaving}
                   className={`w-full h-11 pl-12 ${validationErrors.phone
@@ -201,7 +202,7 @@ export default function ProfileForm({
               <Phone className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-base font-medium text-foreground">
-                  {profile?.phone ? `+91 ${profile.phone}` : "Not provided"}
+                  {profile?.phone ? `+91 ${formatIndianPhoneDisplay(profile.phone)}` : "Not provided"}
                 </p>
               </div>
             </div>
