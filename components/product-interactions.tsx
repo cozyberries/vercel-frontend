@@ -350,11 +350,9 @@ export default function ProductInteractions({ product, initialSize, staticConten
     }
   }, [isInCart]);
 
-  if (showViewReviewModal) {
-    return <ViewReview reviews={allReviews} />;
-  }
-
-  return (
+  return showViewReviewModal ? (
+    <ViewReview reviews={allReviews} />
+  ) : (
     <div className="container mx-auto px-4 py-4 md:py-8 pb-40 md:pb-8">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
