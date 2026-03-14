@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductUpdate } from "@/lib/types/product";
-import { aggregateSizesFromVariants } from "../route";
+import { aggregateSizesFromVariants } from "@/lib/utils/product";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

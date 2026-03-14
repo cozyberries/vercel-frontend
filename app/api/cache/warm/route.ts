@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService, isRedisConfigured } from "@/lib/upstash";
 import { Product } from "@/lib/types/product";
-import { aggregateSizesFromVariants } from "@/app/api/products/route";
+import { aggregateSizesFromVariants } from "@/lib/utils/product";
 
 // TTL constants — data is static, only changes on deploy; cron refreshes daily at 2 AM IST
 const TTL_REFERENCE = 86400; // 24h: categories, ages, genders, sizes

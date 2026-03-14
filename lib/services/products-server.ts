@@ -2,7 +2,7 @@
 import 'server-only';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { Product } from '@/lib/types/product';
-import { aggregateSizesFromVariants } from '@/app/api/products/route';
+import { aggregateSizesFromVariants } from '@/lib/utils/product';
 
 export async function getAllProductSlugs(): Promise<{ id: string }[]> {
   const supabase = await createServerSupabaseClient();
