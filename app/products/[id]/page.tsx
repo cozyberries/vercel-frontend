@@ -1,10 +1,10 @@
 // app/products/[id]/page.tsx
 import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
-import ProductDetails from '@/components/product-details';
 import { getAllProductSlugs, getProductBySlug } from '@/lib/services/products-server';
+import ProductInteractions from '@/components/product-interactions';
+import ProductStaticInfo from '@/components/product-static-info';
 
-export const revalidate = 86400; // regenerate after 24h
+export const revalidate = 86400;
 
 export async function generateStaticParams() {
   return getAllProductSlugs();
@@ -23,8 +23,10 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   if (!product) notFound();
 
   return (
-    <Suspense fallback={null}>
-      <ProductDetails id={id} initialSize={size} initialProduct={product} />
-    </Suspense>
+    <ProductInteractions
+      product={product}
+      initialSize={size}
+      staticContent={<ProductStaticInfo product={product} />}
+    />
   );
 }
