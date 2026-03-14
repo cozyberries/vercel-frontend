@@ -8,7 +8,7 @@ import { ChevronLeft, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Product, SizeOption, getProducts } from "@/lib/services/api";
+import { Product, SizeOption } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart, getCartItemKey } from "./cart-context";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import ViewReview from "./view_review";
 import { FaStar } from "react-icons/fa";
 import RatingForm from "./rating/RatingForm";
 import { useAuth } from "./supabase-auth-provider";
+import { useFeaturedProducts } from "@/hooks/useApiQueries";
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -43,7 +44,7 @@ interface ProductInteractionsProps {
 }
 
 export default function ProductInteractions({ product, initialSize, staticContent }: ProductInteractionsProps) {
-  const productSlug = product.slug ?? (product as any).id ?? "";
+  const productSlug = product.slug ?? product.id ?? "";
 
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
@@ -62,37 +63,16 @@ export default function ProductInteractions({ product, initialSize, staticConten
   const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
   const [users, setUsers] = useState<User[]>([]);
   const [productRating, setProductRating] = useState<number>(0);
-  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
   const router = useRouter();
 
-  useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const response = await getProducts({
-          limit: 12,
-          page: 1,
-          category: product?.category_slug || undefined,
-          sortBy: "price",
-          sortOrder: "asc",
-          featured: true,
-          search: "",
-        });
-
-        const filtered = response.products.filter(
-          (p) => p.slug !== product?.slug && p.category_slug === product?.category_slug
-        );
-        setRelatedProducts(filtered);
-      } catch (err) {
-        console.error("Error loading products:", err);
-      }
-    };
-
-    loadProducts();
-  }, [product?.slug, product?.category_slug]);
+  const { data: allFeaturedData } = useFeaturedProducts(12);
+  const relatedProducts = (allFeaturedData ?? []).filter(
+    (p: Product) => p.slug !== product.slug && p.category_slug === product.category_slug
+  );
 
   const isInCart = cart.some(
     (item) =>
