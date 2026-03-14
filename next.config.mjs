@@ -42,6 +42,16 @@ const nextConfig = {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
+    // Faster cold start & smaller bundles — tree-shake barrel imports
+    optimizePackageImports: [
+      "lucide-react",
+      "framer-motion",
+      "@supabase/supabase-js",
+      "@tanstack/react-query",
+      "sonner",
+      "react-icons",
+      "class-variance-authority",
+    ],
   },
   env: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,

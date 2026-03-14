@@ -3,15 +3,14 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   ReactNode,
 } from "react";
 import {
-  getCategories,
   getAllProductsDetailed,
   Product,
 } from "@/lib/services/api";
+import { useCategoryOptions } from "@/hooks/useApiQueries";
 
 interface Category {
   id: string;
@@ -46,36 +45,21 @@ const DataPreloaderContext = createContext<PreloadedData>({
 });
 
 export function DataPreloader({ children }: { children: ReactNode }) {
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Categories now fetched via React Query — shared cache with ProductsClient,
+  // HamburgerSheet, etc. Eliminates the duplicate getCategories() API call.
+  const {
+    data: categories = [] as Category[],
+    isLoading: categoriesLoading,
+    error: categoriesError,
+  } = useCategoryOptions();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [detailedProducts, setDetailedProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const preloadData = async () => {
-      try {
-        // Only load categories initially - products will be loaded on-demand
-        const categoriesData = await getCategories();
-
-        setCategories(categoriesData);
-        setProducts([]); // Products will be loaded when needed
-        setDetailedProducts([]); // Detailed products will be loaded when needed
-        setError(null);
-      } catch (err) {
-        console.error("Error preloading data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load data");
-        // Set empty arrays as fallback
-        setCategories([]);
-        setProducts([]);
-        setDetailedProducts([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    preloadData();
-  }, []);
+  const isLoading = categoriesLoading || productsLoading;
+  const error = productsError || (categoriesError instanceof Error ? categoriesError.message : categoriesError ? String(categoriesError) : null);
 
   const getProductById = (id: string): Product | null => {
     return products.find((product) => product.id === id) || null;
@@ -89,17 +73,17 @@ export function DataPreloader({ children }: { children: ReactNode }) {
     if (products.length > 0) return; // Already loaded
 
     try {
-      setIsLoading(true);
+      setProductsLoading(true);
       const rawProductsData = await getAllProductsDetailed();
 
       setProducts(rawProductsData);
       setDetailedProducts(rawProductsData);
-      setError(null);
+      setProductsError(null);
     } catch (err) {
       console.error("Error loading products:", err);
-      setError(err instanceof Error ? err.message : "Failed to load products");
+      setProductsError(err instanceof Error ? err.message : "Failed to load products");
     } finally {
-      setIsLoading(false);
+      setProductsLoading(false);
     }
   };
 
