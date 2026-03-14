@@ -1,5 +1,6 @@
 // lib/services/products-server.ts
 import 'server-only';
+import { cache } from 'react';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { Product } from '@/lib/services/api';
 import { aggregateSizesFromVariants } from '@/lib/utils/product';
@@ -15,7 +16,7 @@ export async function getAllProductSlugs(): Promise<{ id: string }[]> {
   return data.map((p) => ({ id: p.slug }));
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+export const getProductBySlug = cache(async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
@@ -77,4 +78,4 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     product_features: undefined,
     product_variants: undefined,
   } as unknown as Product;
-}
+});
