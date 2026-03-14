@@ -1,7 +1,57 @@
 import { Redis } from "@upstash/redis";
 import { directRedis } from "./redis-client";
 
-// Create Redis client instance
+/** Response body for 503 when Redis is required but not configured. */
+export const REDIS_REQUIRED_BODY = {
+  error: "Redis is required",
+  message: "Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
+} as const;
+
+/** True when Upstash Redis env vars are set. Redis is mandatory for this app. */
+export function isRedisConfigured(): boolean {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  return typeof url === "string" && url.length > 0 && typeof token === "string" && token.length > 0;
+}
+
+/** Validate Redis connectivity (PING command). Call only when isRedisConfigured() is true. */
+export async function checkRedisReachable(): Promise<{ ok: boolean; error?: string }> {
+  if (!isRedisConfigured()) {
+    return { ok: false, error: "Redis not configured" };
+  }
+  const url = process.env.UPSTASH_REDIS_REST_URL!;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(["PING"]),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      return { ok: false, error: `${res.status} ${res.statusText}: ${text}` };
+    }
+    const data = (await res.json()) as { result?: string };
+    if (data.result === "PONG") return { ok: true };
+    return { ok: false, error: `Unexpected response: ${String(data.result)}` };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+// Create Redis client instance (required for app to function)
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
@@ -206,12 +256,26 @@ export class UpstashService {
     }
   }
 
-  // Delete cache entries by pattern
+  // Delete cache entries by pattern. Uses SCAN instead of KEYS to avoid blocking on large datasets.
   static async deletePattern(pattern: string) {
+    const DEL_BATCH = 250;
+    const SCAN_COUNT = 100;
     try {
-      const keys = await redis.keys(pattern);
+      let cursor: number | string = 0;
+      const keys: string[] = [];
+      do {
+        const result = (await redis.scan(cursor, { match: pattern, count: SCAN_COUNT })) as [number | string, string[]];
+        const nextCursor = result[0];
+        const page = Array.isArray(result[1]) ? result[1] : [];
+        keys.push(...page);
+        cursor = nextCursor;
+      } while (cursor !== 0 && String(cursor) !== "0");
+
+      for (let i = 0; i < keys.length; i += DEL_BATCH) {
+        const batch = keys.slice(i, i + DEL_BATCH);
+        if (batch.length > 0) await redis.del(...batch);
+      }
       if (keys.length > 0) {
-        await redis.del(...keys);
         console.log(`Deleted ${keys.length} cache keys matching pattern: ${pattern}`);
       }
       return true;

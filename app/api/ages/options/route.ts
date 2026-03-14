@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured, REDIS_REQUIRED_BODY } from "@/lib/upstash";
 
 export interface AgeOption {
   id: string;
@@ -16,6 +16,9 @@ const IN_MEMORY_TTL = 120_000; // 2 minutes
 
 export async function GET() {
   try {
+    if (!isRedisConfigured()) {
+      return NextResponse.json(REDIS_REQUIRED_BODY, { status: 503 });
+    }
     if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
       return NextResponse.json(inMemoryCache.data, {
         headers: {
@@ -78,7 +81,7 @@ export async function GET() {
     });
 
     inMemoryCache = { data: options, timestamp: Date.now() };
-    UpstashService.set(cacheKey, options, 7200).catch((err) => {
+    UpstashService.set(cacheKey, options, 86400).catch((err) => {
       console.error("Failed to cache age options:", err);
     });
 

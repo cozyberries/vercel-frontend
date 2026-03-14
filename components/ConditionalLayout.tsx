@@ -1,9 +1,17 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
-import MobileBottomHeader from "@/components/MobileBottomHeader";
+
+// Lazy-load MobileBottomHeader — it imports framer-motion (~130KB) which is
+// not needed for initial page render / LCP. The bottom nav appears after
+// the main content is interactive.
+const MobileBottomHeader = dynamic(
+  () => import("@/components/MobileBottomHeader"),
+  { ssr: false }
+);
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;

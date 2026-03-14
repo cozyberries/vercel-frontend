@@ -1,0 +1,33 @@
+---
+description: React/Next performance — images, dynamic imports, bundle, Suspense
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# React & Next.js — Fast Load & Paint
+
+## Images (LCP and bandwidth)
+
+- Use **`next/image`** for all content images. For Cloudinary/Supabase URLs use `toImageSrc()` from `@/lib/utils/image` (preset: `list` | `detail` | `thumbnail`).
+- Always set **`sizes`** so the correct srcset is chosen (e.g. grid of 4: `(max-width: 768px) 50vw, 25vw`; single column: `100vw` or appropriate max).
+- Use **`priority`** only for the single LCP image per page (e.g. hero); do not use on every image.
+- Keep **`alt`** meaningful for accessibility and SEO.
+
+## Dynamic imports (bundle and TTI)
+
+- **Heavy or client-only sections** (animations, IntersectionObserver, below-fold): use `next/dynamic` with a small `loading` fallback. Use `ssr: false` only when the component does not need SEO. Example: `HomeClientSections.tsx`.
+- **Modals, drawers, heavy forms**: consider dynamic import so they are not in the initial bundle.
+- **Preload on intent**: for heavy flows (e.g. checkout), preload on hover/focus: `onMouseEnter={() => void import('./HeavyComponent')}`.
+
+## Barrel imports (build and cold start)
+
+- Prefer **direct imports** from large libraries. For `lucide-react`, either import from the specific icon path or add to `next.config.mjs`:
+  `experimental: { optimizePackageImports: ['lucide-react'] }`.
+- Avoid barrel files that re-export many components; import from the actual component file (e.g. `@/components/ui/button` not a barrel that re-exports all of ui).
+
+## Server Components and Suspense
+
+- For async Server Components that fetch data: wrap the data-dependent part in **Suspense** so layout/nav/footer can stream first; put a skeleton in `fallback`.
+- Prefer **parallel data fetching** in the same component (start promises, then `await Promise.all`) rather than sequential awaits.
+
+When adding or editing pages, ensure above-the-fold content is not blocked by heavy JS or unnecessary data; use loading states or skeletons for async content.

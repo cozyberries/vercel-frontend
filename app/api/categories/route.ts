@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured, REDIS_REQUIRED_BODY } from "@/lib/upstash";
 // In-memory cache for categories (avoids Redis round-trip on hot path)
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
@@ -20,6 +20,10 @@ function isPurgeAuthorized(request: Request): boolean {
 
 export async function GET(request: Request) {
   try {
+    if (!isRedisConfigured()) {
+      return NextResponse.json(REDIS_REQUIRED_BODY, { status: 503 });
+    }
+
     const { searchParams } = new URL(request.url);
     const purge = searchParams.get("purge") === "1";
 
@@ -27,11 +31,9 @@ export async function GET(request: Request) {
       if (!isPurgeAuthorized(request)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-      
-      // Atomic rate limit: only allow purge if we win the SET NX (key absent/expired)
+      inMemoryCache = null;
       const now = Date.now();
       const purgeTtlSeconds = Math.ceil(PURGE_RATE_LIMIT_MS / 1000);
-
       try {
         const acquired = await UpstashService.setIfNotExists(PURGE_RATE_LIMIT_KEY, now, purgeTtlSeconds);
         if (!acquired) {
@@ -43,13 +45,14 @@ export async function GET(request: Request) {
             { status: 429 }
           );
         }
+        await UpstashService.delete("categories:list");
       } catch (error) {
-        // Fall back to authorization-only check if Redis is unavailable
-        console.warn("Redis rate limit check failed, proceeding with auth-only check:", error);
+        console.warn("Redis rate limit check failed:", error);
+        return NextResponse.json(
+          { error: "Redis unavailable", message: "Purge could not complete." },
+          { status: 503 }
+        );
       }
-      
-      inMemoryCache = null;
-      await UpstashService.delete("categories:list");
     }
 
     // 1. Check in-memory cache first (instant, no network)
@@ -64,10 +67,8 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Create cache key for categories
+    // 2. Redis cache
     const cacheKey = 'categories:list';
-    
-    // Try to get from Redis cache with timeout
     let cachedCategories = null;
     let timeoutId: NodeJS.Timeout | null = null;
     try {
@@ -77,13 +78,9 @@ export async function GET(request: Request) {
       });
       cachedCategories = await Promise.race([cachePromise, timeoutPromise]);
     } catch (err) {
-      // Cache lookup timed out or failed, skip cache
-      console.warn("categories cache lookup failed (skipping cache)", { error: err });
+      console.warn("categories cache lookup failed", { error: err });
     } finally {
-      // Clear the timeout to prevent memory leaks if cache promise resolved first
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     }
 
     if (!purge && cachedCategories) {
@@ -124,8 +121,7 @@ export async function GET(request: Request) {
     // Update in-memory cache
     inMemoryCache = { data: categories, timestamp: Date.now() };
 
-    // Cache the results for 1 hour (categories don't change often)
-    UpstashService.set(cacheKey, categories, 3600).catch((error) => {
+    UpstashService.set(cacheKey, categories, 86400).catch((error) => {
       console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
     });
     

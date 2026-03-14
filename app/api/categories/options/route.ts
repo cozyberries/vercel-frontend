@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured, REDIS_REQUIRED_BODY } from "@/lib/upstash";
 
 export interface CategoryOption {
   id: string;
@@ -16,6 +16,9 @@ const IN_MEMORY_TTL = 120_000; // 2 minutes — options change very rarely
 
 export async function GET() {
   try {
+    if (!isRedisConfigured()) {
+      return NextResponse.json(REDIS_REQUIRED_BODY, { status: 503 });
+    }
     // 1. Check in-memory cache first (instant)
     if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
       return NextResponse.json(inMemoryCache.data, {
@@ -27,7 +30,7 @@ export async function GET() {
       });
     }
 
-    // 2. Try Redis cache
+    // 2. Redis cache
     const cacheKey = "categories:options";
     let cached: CategoryOption[] | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -40,10 +43,7 @@ export async function GET() {
     } catch {
       // Cache miss or timeout — continue to DB
     } finally {
-      // Clear the timeout to prevent memory leaks if cache promise resolved first
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     }
 
     if (cached && Array.isArray(cached)) {
@@ -81,7 +81,7 @@ export async function GET() {
 
     // Update caches
     inMemoryCache = { data: options, timestamp: Date.now() };
-    UpstashService.set(cacheKey, options, 7200).catch((err) => {
+    UpstashService.set(cacheKey, options, 86400).catch((err) => {
       console.error("Failed to cache category options:", err);
     });
 

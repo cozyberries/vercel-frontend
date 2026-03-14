@@ -20,8 +20,9 @@ import { useCategoryOptions, useSizeOptions, useGenderOptions } from "@/hooks/us
 import { Loader, Search, X, RotateCcw, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
-const PAGE_SIZE_MOBILE = 10;
-const PAGE_SIZE_DESKTOP = 12;
+const PAGE_SIZE = 12;
+// Max pages to re-fetch for scroll restore (prevents 4+ sequential API calls on back-nav)
+const MAX_SCROLL_RESTORE_PAGES = 2;
 
 function parseApiError(err: unknown, fallback: string): string {
   const data =
@@ -97,8 +98,6 @@ export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
-  // null while viewport is unknown (SSR / first render) — avoids double-fetch
-  const pageSize = isMobile === null ? null : isMobile ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
 
   // ── Filter options via React Query (cached across navigations) ──
   const {
@@ -187,8 +186,6 @@ export default function ProductsClient() {
   // Load products with server-side filtering, sorting, and search
   useEffect(() => {
     // Wait until viewport is known so we fetch with the correct page size (once)
-    if (pageSize === null) return;
-
     const loadProducts = async () => {
       try {
         setIsLoading(true);
@@ -198,7 +195,7 @@ export default function ProductsClient() {
         setAllProducts([]);
 
         const response = await getProducts({
-          limit: pageSize,
+          limit: PAGE_SIZE,
           page: 1,
           category: currentCategory !== "all" ? currentCategory : undefined,
           size: currentSize !== "all" ? currentSize : undefined,
@@ -231,18 +228,18 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, pageSize, productsRetry]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, productsRetry]);
 
   // Load more products function
   const loadMoreProducts = useCallback(async () => {
-    if (isLoadingMore || !hasMoreProducts || pageSize === null) return;
+    if (isLoadingMore || !hasMoreProducts) return;
 
     try {
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
 
       const response = await getProducts({
-        limit: pageSize,
+        limit: PAGE_SIZE,
         page: nextPage,
         category: currentCategory !== "all" ? currentCategory : undefined,
         size: currentSize !== "all" ? currentSize : undefined,
@@ -293,7 +290,6 @@ export default function ProductsClient() {
     currentSortOrder,
     currentFeatured,
     currentSearch,
-    pageSize,
   ]);
 
   // Persist product slugs so the product detail page can show prev/next navigation
@@ -308,16 +304,8 @@ export default function ProductsClient() {
     }
   }, [allProducts]);
 
-  // Lock body scroll while initial products are loading; restore when done
-  useEffect(() => {
-    if (isLoading) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = prev;
-      };
-    }
-  }, [isLoading]);
+  // NOTE: Scroll lock removed — it blocked users from interacting with the page
+  // while products loaded. The skeleton grid provides adequate loading feedback.
 
   // Hide footer while more products can be loaded (visibility preserves layout)
   useEffect(() => {
@@ -342,14 +330,15 @@ export default function ProductsClient() {
           loadMoreProducts();
         }
       },
-      { rootMargin: "600px" }
+      { rootMargin: "100px" }
     );
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [hasMoreProducts, isLoadingMore, loadMoreProducts, isLoading]);
 
-  // Restore scroll to the product that was clicked when returning from product detail
+  // Restore scroll to the product that was clicked when returning from product detail.
+  // Capped at MAX_SCROLL_RESTORE_PAGES to avoid sequential API waterfall on back-nav.
   useEffect(() => {
     if (isLoading || allProducts.length === 0) return;
 
@@ -359,7 +348,15 @@ export default function ProductsClient() {
         const s = sessionStorage.getItem("productsPageScrollToIndex");
         if (s != null) {
           const n = parseInt(s, 10);
-          if (!isNaN(n) && n >= 0) scrollRestoreIndexRef.current = n;
+          if (!isNaN(n) && n >= 0) {
+            // If the target index would require too many pages, skip scroll restore
+            const maxRestorable = MAX_SCROLL_RESTORE_PAGES * PAGE_SIZE;
+            if (n >= maxRestorable) {
+              sessionStorage.removeItem("productsPageScrollToIndex");
+            } else {
+              scrollRestoreIndexRef.current = n;
+            }
+          }
         }
       } catch {
         // ignore
@@ -381,8 +378,19 @@ export default function ProductsClient() {
       return;
     }
 
-    if (hasMoreProducts && !isLoadingMore) {
+    // Only load more if we haven't exceeded the page cap
+    const currentMaxIndex = allProducts.length;
+    if (hasMoreProducts && !isLoadingMore && currentMaxIndex < MAX_SCROLL_RESTORE_PAGES * PAGE_SIZE) {
       loadMoreProducts();
+    } else if (currentMaxIndex >= MAX_SCROLL_RESTORE_PAGES * PAGE_SIZE) {
+      // Past the cap — abandon scroll restore, scroll to top
+      scrollRestoreIndexRef.current = null;
+      try {
+        sessionStorage.removeItem("productsPageScrollToIndex");
+      } catch {
+        // ignore
+      }
+      window.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [isLoading, allProducts.length, hasMoreProducts, isLoadingMore, loadMoreProducts]);
 
@@ -558,8 +566,7 @@ export default function ProductsClient() {
   );
 
   if (isProductsLoading) {
-    // Explicit null handling: show desktop skeleton count while mobile/desktop detection is pending
-    const skeletonCount = isMobile === true ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP;
+    const skeletonCount = PAGE_SIZE;
     return (
       <>
         <div className="mb-6">{mobileFilterRow}</div>
@@ -839,7 +846,7 @@ export default function ProductsClient() {
                     : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
                 }
               >
-                {Array.from({ length: isMobile === true ? PAGE_SIZE_MOBILE : PAGE_SIZE_DESKTOP }).map((_, i) => (
+                {Array.from({ length: PAGE_SIZE }).map((_, i) => (
                   <ProductCardSkeleton key={i} />
                 ))}
               </div>
