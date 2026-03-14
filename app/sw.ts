@@ -16,13 +16,13 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // All page navigations — NetworkFirst with offline fallback
+    // All page navigations — NetworkFirst with offline fallback (timeout 10s so slow/server hiccups don’t show offline page)
     {
       matcher: ({ request }) => request.mode === "navigate",
       handler: "NetworkFirst",
       options: {
         cacheName: "pages-cache",
-        networkTimeoutSeconds: 3,
+        networkTimeoutSeconds: 10,
         expiration: { maxEntries: 30, maxAgeSeconds: 24 * 60 * 60 },
       },
     },

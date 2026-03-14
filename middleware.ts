@@ -162,8 +162,10 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - sw.js, site.webmanifest (PWA assets — must skip middleware so SW registration and manifest never run Supabase auth)
+     * - workbox-*.js, worker-*.js (Serwist/Workbox chunks if emitted to public)
+     * - common static extensions
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js$|site\\.webmanifest$|workbox-.*\\.js$|worker-.*\\.js$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };

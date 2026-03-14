@@ -9,6 +9,7 @@ import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
+import PwaUpdateHandler from "@/components/pwa-update-handler";
 import { Toaster } from "sonner";
 import { RatingProvider } from "@/components/rating-context";
 import { QueryProvider } from "@/components/query-provider";
@@ -77,6 +78,7 @@ export default function RootLayout({
                     <ConditionalLayout>
                       {children}
                     </ConditionalLayout>
+                    <PwaUpdateHandler />
                     <ScrollToTopButton />
                     <Toaster
                       closeButton
