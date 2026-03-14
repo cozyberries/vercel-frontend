@@ -355,7 +355,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   } else {
-    if (cronSecret === "" || typeof cronSecret !== "string") {
+    if (cronSecret === "") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const auth = request.headers.get("authorization");
