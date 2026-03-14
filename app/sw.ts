@@ -1,6 +1,12 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import {
+  Serwist,
+  NetworkFirst,
+  StaleWhileRevalidate,
+  CacheFirst,
+  ExpirationPlugin,
+} from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -10,23 +16,44 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+// Only cache successful same-origin responses
+const cacheablePlugin = {
+  cacheWillUpdate: async ({ response }: { response: Response }) =>
+    response.status === 200 ? response : null,
+};
+
+// Accept opaque (cross-origin, status 0) and normal 200 responses — needed for Cloudinary
+const opaqueOrOkPlugin = {
+  cacheWillUpdate: async ({ response }: { response: Response }) =>
+    response.status === 0 || response.status === 200 ? response : null,
+};
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
-  navigationPreload: true,
+  // navigationPreload MUST be false — enabling it alongside NetworkFirst for navigate
+  // requests causes a double-fetch race condition that crashes the service worker.
+  navigationPreload: false,
   runtimeCaching: [
-    // All page navigations — NetworkFirst with offline fallback (timeout 10s so slow/server hiccups don’t show offline page)
+    // ── Page navigations ──────────────────────────────────────────────────────
+    // NetworkFirst: always try the network first; fall back to cache on failure.
+    // 10 s timeout prevents a slow server from showing the offline page too early.
     {
       matcher: ({ request }) => request.mode === "navigate",
-      handler: "NetworkFirst",
-      options: {
+      handler: new NetworkFirst({
         cacheName: "pages-cache",
         networkTimeoutSeconds: 10,
-        expiration: { maxEntries: 30, maxAgeSeconds: 24 * 60 * 60 },
-      },
+        plugins: [
+          cacheablePlugin,
+          new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 24 * 60 * 60 }),
+        ],
+      }),
     },
-    // Reference data APIs — StaleWhileRevalidate (matches next.config.mjs 1h cache headers)
+
+    // ── Reference data APIs ───────────────────────────────────────────────────
+    // StaleWhileRevalidate: serve cached immediately, refresh in the background.
+    // These rarely change (categories, ages, sizes, genders) so stale is fine.
     {
       matcher: ({ url }) =>
         [
@@ -36,52 +63,87 @@ const serwist = new Serwist({
           "/api/genders/options",
           "/api/categories/options",
         ].some((p) => url.pathname.startsWith(p)),
-      handler: "StaleWhileRevalidate",
-      options: {
+      handler: new StaleWhileRevalidate({
         cacheName: "api-reference-cache",
-        expiration: { maxEntries: 20, maxAgeSeconds: 3600 },
-      },
+        plugins: [
+          cacheablePlugin,
+          new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 3600 }),
+        ],
+      }),
     },
-    // Product listings — NetworkFirst (price/stock sensitive)
+
+    // ── Product listings ──────────────────────────────────────────────────────
+    // NetworkFirst: prices and stock are mutable — always prefer fresh data.
+    // 6 s timeout (raised from 3 s) to survive slow mobile connections.
     {
       matcher: ({ url }) => url.pathname.startsWith("/api/products"),
-      handler: "NetworkFirst",
-      options: {
+      handler: new NetworkFirst({
         cacheName: "api-products-cache",
-        networkTimeoutSeconds: 3,
-        expiration: { maxEntries: 50, maxAgeSeconds: 60 },
-      },
+        networkTimeoutSeconds: 6,
+        plugins: [
+          cacheablePlugin,
+          new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 }),
+        ],
+      }),
     },
-    // Cloudinary images — CacheFirst (immutable CDN, q_auto/f_auto)
+
+    // ── Cloudinary images ─────────────────────────────────────────────────────
+    // CacheFirst: CDN URLs are content-addressed / immutable; cache aggressively.
+    // opaqueOrOkPlugin accepts status 0 (opaque cross-origin) responses safely.
     {
       matcher: ({ url }) => url.hostname === "res.cloudinary.com",
-      handler: "CacheFirst",
-      options: {
+      handler: new CacheFirst({
         cacheName: "cloudinary-images",
-        expiration: { maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 },
-      },
+        plugins: [
+          opaqueOrOkPlugin,
+          new ExpirationPlugin({
+            maxEntries: 100,
+            maxAgeSeconds: 7 * 24 * 60 * 60,
+          }),
+        ],
+      }),
     },
-    // Next.js static chunks — CacheFirst (hash-busted filenames, truly immutable)
+
+    // ── Next.js static chunks ─────────────────────────────────────────────────
+    // CacheFirst: filenames are hash-busted by Next.js — truly immutable.
+    // Defined before defaultCache so our rule wins if there's any overlap.
     {
       matcher: ({ url }) => url.pathname.startsWith("/_next/static/"),
-      handler: "CacheFirst",
-      options: {
+      handler: new CacheFirst({
         cacheName: "next-static",
-        expiration: { maxEntries: 200, maxAgeSeconds: 365 * 24 * 60 * 60 },
-      },
+        plugins: [
+          cacheablePlugin,
+          new ExpirationPlugin({
+            maxEntries: 200,
+            maxAgeSeconds: 365 * 24 * 60 * 60,
+          }),
+        ],
+      }),
     },
-    // Next.js image optimization
+
+    // ── Next.js image optimisation ────────────────────────────────────────────
+    // This route was the direct cause of the production crash:
+    //   "TypeError: c.handle is not a function" — the string "StaleWhileRevalidate"
+    //   was passed as a handler; the SW tried to call .handle() on it and threw.
+    // Fix: pass a real strategy instance. opaqueOrOkPlugin handles cross-origin imgs.
     {
       matcher: ({ url }) => url.pathname.startsWith("/_next/image"),
-      handler: "StaleWhileRevalidate",
-      options: {
+      handler: new StaleWhileRevalidate({
         cacheName: "next-image",
-        expiration: { maxEntries: 60, maxAgeSeconds: 3600 },
-      },
+        plugins: [
+          opaqueOrOkPlugin,
+          new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 3600 }),
+        ],
+      }),
     },
+
+    // defaultCache covers everything else (fonts, etc.).
+    // Our explicit rules above take priority because they are defined first.
     ...defaultCache,
   ],
-  // Offline fallback: failed navigations → /offline page (precached)
+
+  // Offline fallback — /offline must be in __SW_MANIFEST (precached).
+  // Guaranteed via additionalPrecacheEntries in next.config.mjs.
   fallbacks: {
     entries: [
       {
