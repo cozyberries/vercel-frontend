@@ -42,16 +42,20 @@ const nextConfig = {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
-    // Faster cold start & smaller bundles — tree-shake barrel imports
-    optimizePackageImports: [
-      "lucide-react",
-      "framer-motion",
-      "@supabase/supabase-js",
-      "@tanstack/react-query",
-      "sonner",
-      "react-icons",
-      "class-variance-authority",
-    ],
+    // Experimental: optimizePackageImports is not recommended for production. We gate it behind
+    // NEXT_OPTIMIZE_PACKAGE_IMPORTS=true so production builds don't enable it by default.
+    // When enabled, reduces bundle size and cold start by tree-shaking barrel imports.
+    ...(process.env.NEXT_OPTIMIZE_PACKAGE_IMPORTS === 'true' && {
+      optimizePackageImports: [
+        "lucide-react",
+        "framer-motion",
+        "@supabase/supabase-js",
+        "@tanstack/react-query",
+        "sonner",
+        "react-icons",
+        "class-variance-authority",
+      ],
+    }),
   },
   env: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,

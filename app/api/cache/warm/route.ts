@@ -65,14 +65,23 @@ async function warmProductsPage(
     sortBy: string;
     sortOrder: string;
   }
-): Promise<{ key: string; count: number }> {
+): Promise<{ key: string; count: number; totalPages: number }> {
   let query = supabase
     .from("products")
     .select(PRODUCTS_SELECT, { count: "exact" });
 
   if (params.featured) query = query.eq("is_featured", true);
   if (params.category !== "all") query = query.eq("category_slug", params.category);
-  query = query.order("created_at", { ascending: false }).order("slug", { ascending: true });
+  const sortBy = ["default", "price", "name"].includes(params.sortBy) ? params.sortBy : "default";
+  const sortOrder = params.sortOrder === "asc" || params.sortOrder === "desc" ? params.sortOrder : "desc";
+  if (sortBy === "price") {
+    query = query.order("price", { ascending: sortOrder === "asc" });
+  } else if (sortBy === "name") {
+    query = query.order("name", { ascending: sortOrder === "asc" });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+  query = query.order("slug", { ascending: true });
 
   const offset = (params.page - 1) * params.limit;
   const { data, count, error } = await query.range(offset, offset + params.limit - 1);
@@ -340,13 +349,15 @@ export async function POST() {
 // GET — called by Vercel cron (daily at 2 AM UTC). Requires CRON_SECRET auth.
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    // Fail closed in production; in development an explicit CRON_SECRET='' in
-    // .env.local opts out of auth for local testing only.
+  if (cronSecret === undefined) {
+    // Only truly unset CRON_SECRET: fail closed in production; in dev allow for local testing.
     if (process.env.NODE_ENV === "production") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   } else {
+    if (cronSecret === "" || typeof cronSecret !== "string") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const auth = request.headers.get("authorization");
     if (auth !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

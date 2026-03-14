@@ -98,7 +98,6 @@ export default function ProductsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
-  const pageSize = PAGE_SIZE;
 
   // ── Filter options via React Query (cached across navigations) ──
   const {
@@ -187,8 +186,6 @@ export default function ProductsClient() {
   // Load products with server-side filtering, sorting, and search
   useEffect(() => {
     // Wait until viewport is known so we fetch with the correct page size (once)
-    if (pageSize === null) return;
-
     const loadProducts = async () => {
       try {
         setIsLoading(true);
@@ -198,7 +195,7 @@ export default function ProductsClient() {
         setAllProducts([]);
 
         const response = await getProducts({
-          limit: pageSize,
+          limit: PAGE_SIZE,
           page: 1,
           category: currentCategory !== "all" ? currentCategory : undefined,
           size: currentSize !== "all" ? currentSize : undefined,
@@ -231,18 +228,18 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, pageSize, productsRetry]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, productsRetry]);
 
   // Load more products function
   const loadMoreProducts = useCallback(async () => {
-    if (isLoadingMore || !hasMoreProducts || pageSize === null) return;
+    if (isLoadingMore || !hasMoreProducts) return;
 
     try {
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
 
       const response = await getProducts({
-        limit: pageSize,
+        limit: PAGE_SIZE,
         page: nextPage,
         category: currentCategory !== "all" ? currentCategory : undefined,
         size: currentSize !== "all" ? currentSize : undefined,
@@ -293,7 +290,6 @@ export default function ProductsClient() {
     currentSortOrder,
     currentFeatured,
     currentSearch,
-    pageSize,
   ]);
 
   // Persist product slugs so the product detail page can show prev/next navigation
@@ -570,7 +566,6 @@ export default function ProductsClient() {
   );
 
   if (isProductsLoading) {
-    // Explicit null handling: show desktop skeleton count while mobile/desktop detection is pending
     const skeletonCount = PAGE_SIZE;
     return (
       <>
