@@ -13,21 +13,20 @@ interface Props {
 export default function ProductStaticInfo({ product }: Props) {
   return (
     <div className="flex flex-col">
-      <div>
-        {product.category && (
-          <Link
-            href={`/collections/${product.category.toLowerCase()}`}
-            className="text-sm text-muted-foreground hover:text-primary"
-          >
-            {product.category}
-          </Link>
-        )}
+      {product.category_slug && (
+        <Link
+          href={`/collections/${product.category_slug}`}
+          className="text-sm text-muted-foreground hover:text-primary"
+        >
+          {product.category}
+        </Link>
+      )}
 
-        <div className="flex items-center justify-between mt-2 mb-4">
-          <h1 className="text-2xl md:text-3xl font-light">
-            {product.name}
-          </h1>
-        </div>
+      <div className="mt-2 mb-4">
+        <h1 className="text-2xl md:text-3xl font-light">
+          {product.name}
+        </h1>
+      </div>
 
         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
           <div className="flex items-center gap-2">
@@ -80,7 +79,6 @@ export default function ProductStaticInfo({ product }: Props) {
             <Separator className="my-8" />
           </>
         )}
-      </div>
     </div>
   );
 }
