@@ -56,6 +56,7 @@ export default function CheckoutPage() {
 
   // Use profile hook for address management
   const {
+    profile,
     addresses,
     isLoading: addressesLoading,
     showAddAddress,
@@ -585,6 +586,7 @@ export default function CheckoutPage() {
         validationErrors={addressValidationErrors}
         addresses={addresses}
         enablePincodeCheck
+        profilePhone={profile?.phone ?? undefined}
         onClose={() => {
           setShowAddressModal(false);
           handleCloseAddressModal();

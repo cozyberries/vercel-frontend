@@ -81,6 +81,22 @@ export default function AddressFormModal({
   const [addressHint, setAddressHint] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pincodeAbortRef = useRef<AbortController | null>(null);
+  const hasPrefilledPhoneRef = useRef(false);
+
+  // Pre-fill phone with profile number when opening "Add address" (not when editing)
+  useEffect(() => {
+    if (!isOpen) {
+      hasPrefilledPhoneRef.current = false;
+      return;
+    }
+    if (isEditing || !profilePhone || profilePhone.trim() === "") return;
+    if (hasPrefilledPhoneRef.current) return;
+    const digits = getIndianPhoneDigits(profilePhone);
+    if (digits) {
+      onInputChange("phone", digits);
+      hasPrefilledPhoneRef.current = true;
+    }
+  }, [isOpen, isEditing, profilePhone, onInputChange]);
 
   // Clear any pending debounce timer when the modal unmounts
   useEffect(() => {
@@ -288,7 +304,7 @@ export default function AddressFormModal({
                     onClick={() =>
                       onInputChange("phone", getIndianPhoneDigits(profilePhone ?? ""))
                     }
-                    className="mt-1.5 text-sm text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/20 rounded"
+                    className="mt-1.5 text-sm text-primary hover:underline"
                   >
                     Use my profile number
                   </button>
