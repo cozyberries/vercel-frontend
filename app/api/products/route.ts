@@ -212,7 +212,7 @@ async function refreshCacheInBackground(
     },
   };
 
-  UpstashService.set(cacheKey, response, 1800).catch((error) => {
+  UpstashService.set(cacheKey, response, 86400).catch((error) => {
     console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
   });
   console.log(`Cache refresh initiated for key: ${cacheKey}`);
@@ -266,7 +266,7 @@ async function fetchAndCacheAllProducts(): Promise<void> {
       },
     };
 
-    await UpstashService.set(PRODUCTS_ALL_KEY, response, 1800);
+    await UpstashService.set(PRODUCTS_ALL_KEY, response, 86400);
   } catch (err) {
     console.warn("Failed to fetch/cache products:all:", err);
   }
@@ -461,7 +461,7 @@ export async function GET(request: NextRequest) {
     };
 
     setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
-    UpstashService.set(cacheKey, response, 1800).catch((error) => {
+    UpstashService.set(cacheKey, response, 86400).catch((error) => {
       console.error(`Failed to cache products data for key: ${cacheKey}`, error);
     });
     fetchAndCacheAllProducts().catch((error) => {

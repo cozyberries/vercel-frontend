@@ -190,13 +190,15 @@ curl -X POST https://yourdomain.com/api/cache/warm
 ```
 
 ### Environment Variables
-Ensure these are set:
+- **Redis is required.** Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Use `GET /api/health/redis` to validate configuration and connectivity. Without Redis, data API routes return 503.
+- Ensure:
 ```bash
 UPSTASH_REDIS_REST_URL=your_redis_url
 UPSTASH_REDIS_REST_TOKEN=your_redis_token
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_key
 ```
+- After setting Redis, warm the cache: `POST /api/cache/warm` (warms categories, categories/options, ages/options, sizes/options, genders/options, ratings, products, and common product-list keys).
 
 ## Best Practices
 

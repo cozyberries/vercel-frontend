@@ -1,0 +1,34 @@
+---
+description: Fast loading for all pages — stack checklist (Next.js, TanStack Query, images, caching)
+alwaysApply: true
+---
+
+# Fast Loading — All Pages
+
+Apply these so every page loads fast. Stack: Next.js 15 App Router, TanStack Query, Cloudinary/Supabase images, Supabase auth.
+
+## 1. Eliminate request waterfalls (CRITICAL)
+
+- **API routes** (`app/api/**`): Start independent async work immediately; use `Promise.all()` for independent fetches. Never `await A` then `await B` when B does not depend on A.
+- **Server Components**: Prefer parallel fetches (e.g. start promises at top, `await Promise.all([...])`) or move data-dependent UI into async children with **Suspense** so shell (layout/header/footer) can stream first.
+- **Client**: Data is already deduped via TanStack Query (`useApiQueries.ts`) and Axios dedup in `lib/services/api.ts` — prefer these over ad-hoc fetch in new code.
+
+## 2. Images (CRITICAL for LCP)
+
+- Use **`next/image`** for all product/category/hero images. Use `lib/utils/image.ts` `toImageSrc()` for Cloudinary/Supabase URLs.
+- Set **`sizes`** so the right resolution is requested (e.g. list cards: `(max-width: 768px) 50vw, 25vw`).
+- Use **`priority`** only for above-the-fold hero or LCP image (one per page).
+- Keep `next.config.mjs` image config: AVIF/WebP, `minimumCacheTTL`, `remotePatterns` for Cloudinary and Supabase.
+
+## 3. Bundle & rendering
+
+- **Heavy or client-only sections**: Use `next/dynamic` with `loading` (and `ssr: false` when no SEO benefit). See `HomeClientSections.tsx` for pattern.
+- **Barrel imports**: Prefer direct imports for large libraries. If using `lucide-react` barrel, add `experimental.optimizePackageImports: ['lucide-react']` in `next.config.mjs`.
+- **Analytics / non-critical scripts**: Load after hydration (e.g. dynamic import with `ssr: false`).
+
+## 4. Caching (already in place — preserve)
+
+- **API cache headers** in `next.config.mjs`: 1h + stale-while-revalidate for reference data; 60s for products. Do not remove or shorten without reason.
+- **TanStack Query**: Keep existing `staleTime` (e.g. 1min) and deduplication; avoid bypassing with raw fetch for the same data.
+
+When adding new pages or API routes, check: no sequential awaits when parallel is possible; images use `next/image` + `sizes`; heavy UI is dynamically imported.

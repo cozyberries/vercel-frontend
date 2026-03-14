@@ -394,6 +394,7 @@ export default function ProductsClient() {
       } catch {
         // ignore
       }
+      window.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [isLoading, allProducts.length, hasMoreProducts, isLoadingMore, loadMoreProducts]);
 

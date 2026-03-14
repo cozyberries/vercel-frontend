@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,8 +18,6 @@ import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
 import { toImageSrc } from "@/lib/utils/image";
-import { BsCartPlus } from "react-icons/bs";
-import { RiHeartAddLine } from "react-icons/ri";
 
 interface ProductCardProps {
   product: Product;
@@ -192,9 +190,9 @@ export default function ProductCard({ product, index, currentView, locale = "en-
             }}
             aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
           >
-            <RiHeartAddLine
+            <Heart
               size={20}
-              className={`transition-colors duration-200 ${inWishlist ? "text-red-500" : "text-gray-600 hover:text-red-500"
+              className={`transition-colors duration-200 ${inWishlist ? "text-red-500 fill-red-500" : "text-gray-600 hover:text-red-500"
                 }`}
             />
           </Button>
@@ -212,7 +210,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                   aria-label="Add to cart"
                 >
                   <div className="relative">
-                    <BsCartPlus
+                    <ShoppingCart
                       className={`h-5 w-5 lg:h-4 lg:w-4 transition-all duration-200 ${anyVariantInCart
                         ? "text-green-700"
                         : "text-gray-700 hover:text-primary hover:scale-110"
@@ -332,7 +330,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
               }}
               aria-label={anyVariantInCart ? "Add another" : "Add to cart"}
             >
-              <BsCartPlus
+              <ShoppingCart
                 className={`h-5 w-5 lg:h-4 lg:w-4 transition-colors duration-200 ${anyVariantInCart
                   ? "fill-primary text-primary"
                   : "text-gray-700 hover:text-primary"

@@ -1,0 +1,69 @@
+---
+description: API route performance — avoid waterfalls, parallelize independent work
+globs: app/api/**/*.ts
+alwaysApply: false
+---
+
+# API Routes — Fast Response (No Waterfalls)
+
+Sequential `await` calls add full round-trip latency each time. Parallelize independent work so the route returns quickly.
+
+## Do: Start then await
+
+Start all independent operations immediately, then await together.
+
+```typescript
+// ❌ BAD — config and data are sequential
+export async function GET(request: Request) {
+  const session = await auth();
+  const config = await fetchConfig();
+  const data = await fetchData(session.user.id);
+  return Response.json({ data, config });
+}
+
+// ✅ GOOD — auth needed for data; config is independent
+export async function GET(request: Request) {
+  const sessionPromise = auth();
+  const configPromise = fetchConfig();
+  const session = await sessionPromise;
+  const [config, data] = await Promise.all([
+    configPromise,
+    fetchData(session.user.id),
+  ]);
+  return Response.json({ data, config });
+}
+```
+
+## Do: Defer await until the branch that needs it
+
+If one path does not need a value, do not await it before branching.
+
+```typescript
+// ❌ BAD
+const user = await fetchUser();
+if (skipDetail) return Response.json({ skipped: true });
+const detail = await fetchDetail(user.id);
+
+// ✅ GOOD
+if (skipDetail) return Response.json({ skipped: true });
+const user = await fetchUser();
+const detail = await fetchDetail(user.id);
+```
+
+## Do: Promise.all for fully independent fetches
+
+```typescript
+// ❌ BAD — 3 round trips in sequence
+const categories = await getCategories();
+const products = await getProducts();
+const options = await getOptions();
+
+// ✅ GOOD — 1 round trip
+const [categories, products, options] = await Promise.all([
+  getCategories(),
+  getProducts(),
+  getOptions(),
+]);
+```
+
+Keep cache headers for routes that set them (e.g. reference data: long s-maxage; products: shorter TTL). See `next.config.mjs` `headers()`.

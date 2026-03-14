@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured } from "@/lib/upstash";
 import { Product } from "@/lib/types/product";
 import { aggregateSizesFromVariants } from "@/app/api/products/route";
+
+// TTL constants — data is static, only changes on deploy; cron refreshes daily at 2 AM IST
+const TTL_REFERENCE = 86400; // 24h: categories, ages, genders, sizes
+const TTL_PRODUCT   = 86400; // 24h: individual product detail pages
+const TTL_LIST      = 86400; // 24h: product list pages
+const TTL_RATINGS   = 86400; // 24h: ratings
 
 function productsCacheKey(params: {
   limit: number;
@@ -37,8 +43,7 @@ function processProducts(rows: any[]): Product[] {
     const variants = Array.isArray(product.product_variants) ? product.product_variants : [];
     const fallbackPrice =
       typeof product.price === "number" && !Number.isNaN(product.price) ? product.price : 0;
-    const sizes =
-      aggregateSizes ? aggregateSizes(variants, fallbackPrice) : [];
+    const sizes = aggregateSizes ? aggregateSizes(variants, fallbackPrice) : [];
     return {
       ...product,
       id: product.slug,
@@ -59,32 +64,20 @@ async function warmProductsPage(
     featured: boolean;
     sortBy: string;
     sortOrder: string;
-  },
-  ttl = 1800
-): Promise<{ key: string; count: number; totalItems: number }> {
+  }
+): Promise<{ key: string; count: number }> {
   let query = supabase
     .from("products")
     .select(PRODUCTS_SELECT, { count: "exact" });
 
   if (params.featured) query = query.eq("is_featured", true);
   if (params.category !== "all") query = query.eq("category_slug", params.category);
-
-  if (params.sortBy === "price") {
-    query = query.order("price", { ascending: params.sortOrder === "asc" });
-  } else if (params.sortBy === "name") {
-    query = query.order("name", { ascending: params.sortOrder === "asc" });
-  } else {
-    query = query.order("created_at", { ascending: false });
-  }
-  query = query.order("slug", { ascending: true });
+  query = query.order("created_at", { ascending: false }).order("slug", { ascending: true });
 
   const offset = (params.page - 1) * params.limit;
   const { data, count, error } = await query.range(offset, offset + params.limit - 1);
 
-  if (error) {
-    console.error("Cache warm: failed to fetch products page:", error.message);
-    throw new Error(`Failed to fetch products: ${error.message}`);
-  }
+  if (error) throw new Error(`Failed to fetch products: ${error.message}`);
 
   const products = processProducts(data || []);
   const totalItems = count || 0;
@@ -103,165 +96,237 @@ async function warmProductsPage(
   };
 
   const key = productsCacheKey(params);
-  await UpstashService.set(key, response, ttl);
-  return { key, count: products.length, totalItems };
+  await UpstashService.set(key, response, TTL_LIST);
+  return { key, count: products.length, totalPages };
 }
 
-export async function POST(request: NextRequest) {
+async function runWarm(): Promise<{ warmed: string[]; errors: string[] }> {
+  const supabase = await createServerSupabaseClient();
+  const warmed: string[] = [];
+  const errors: string[] = [];
+  const CHUNK = 20;
+
+  // 1. Category options
   try {
-    const supabase = await createServerSupabaseClient();
-    const warmed: string[] = [];
-    const errors: string[] = [];
+    const { data } = await supabase
+      .from("categories")
+      .select("slug, name")
+      .eq("display", true)
+      .order("name", { ascending: true });
+    const options = (data || []).map((c: any) => ({ id: c.slug, name: c.name, slug: c.slug }));
+    await UpstashService.set("categories:options", options, TTL_REFERENCE);
+    warmed.push("categories:options");
+  } catch (e: any) {
+    errors.push(`category options: ${e.message}`);
+  }
 
-    // 1. Category options
-    try {
-      const { data: catOpts } = await supabase
-        .from("categories")
-        .select("slug, name")
-        .eq("display", true)
-        .order("name", { ascending: true });
+  // 2. Full categories (with image, for homepage)
+  try {
+    const { data } = await supabase
+      .from("categories")
+      .select("slug, name, description, image, display, created_at, updated_at")
+      .eq("display", true)
+      .order("name", { ascending: true });
+    const processed = (data || []).map((cat: any) => ({
+      ...cat,
+      id: cat.slug,
+      images: cat.image ? [{ url: cat.image, is_primary: true, display_order: 0 }] : [],
+    }));
+    await UpstashService.set("categories:list", processed, TTL_REFERENCE);
+    warmed.push("categories:list");
+  } catch (e: any) {
+    errors.push(`full categories: ${e.message}`);
+  }
 
-      const options = (catOpts || []).map((c: any) => ({ id: c.slug, name: c.name, slug: c.slug }));
-      await UpstashService.set("categories:options", options, 7200);
-      warmed.push("categories:options");
-    } catch (e: any) {
-      errors.push(`category options: ${e.message}`);
+  // 3. Age options (from sizes table)
+  try {
+    const { data } = await supabase
+      .from("sizes")
+      .select("slug, name, display_order")
+      .order("display_order", { ascending: true })
+      .order("name", { ascending: true });
+    const ageOptions = (data || []).map((row: any) => {
+      const slug = String(row.slug ?? "").toLowerCase().trim();
+      return { id: slug, name: String(row.name ?? ""), slug, display_order: Number(row.display_order ?? 0) };
+    });
+    await UpstashService.set("ages:options", ageOptions, TTL_REFERENCE);
+    warmed.push("ages:options");
+  } catch (e: any) {
+    errors.push(`ages:options: ${e.message}`);
+  }
+
+  // 4. Size options
+  try {
+    const { data } = await supabase
+      .from("sizes")
+      .select("slug, name, display_order")
+      .order("display_order", { ascending: true })
+      .order("name", { ascending: true });
+    const sizeOptions = (data || []).flatMap((row: any) => {
+      const slug = String(row.slug ?? "").toLowerCase().trim();
+      if (!slug) return [];
+      return [{ id: slug, slug, name: String(row.name ?? ""), display_order: Number(row.display_order ?? 0) }];
+    });
+    await UpstashService.set("sizes:options", sizeOptions, TTL_REFERENCE);
+    warmed.push("sizes:options");
+  } catch (e: any) {
+    errors.push(`sizes:options: ${e.message}`);
+  }
+
+  // 5. Gender options
+  try {
+    const { data } = await supabase.from("genders").select("slug, name, display_order");
+    const genderOrder = ["Unisex", "Girl", "Girls", "Boy", "Boys"];
+    const rawOptions = (data || []).map((row: any) => ({
+      id: String(row.slug),
+      name: String(row.name),
+      display_order: Number(row.display_order ?? 0),
+    }));
+    const options = [...rawOptions].sort((a, b) => {
+      const i = genderOrder.findIndex((g) => g.toLowerCase() === a.name.toLowerCase());
+      const j = genderOrder.findIndex((g) => g.toLowerCase() === b.name.toLowerCase());
+      return (i === -1 ? 999 : i) - (j === -1 ? 999 : j);
+    });
+    await UpstashService.set("genders:options", options, TTL_REFERENCE);
+    warmed.push("genders:options");
+  } catch (e: any) {
+    errors.push(`genders:options: ${e.message}`);
+  }
+
+  // 6. Ratings
+  try {
+    const { data: ratings } = await supabase
+      .from("ratings")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    await UpstashService.set("ratings:all", ratings || [], TTL_RATINGS);
+    warmed.push("ratings:all");
+
+    const byProduct = new Map<string, any[]>();
+    for (const r of ratings || []) {
+      if (!r.product_slug) continue;
+      const arr = byProduct.get(r.product_slug) || [];
+      arr.push(r);
+      byProduct.set(r.product_slug, arr);
     }
-
-    // 2. Full categories (with image, for homepage)
-    try {
-      const { data: fullCats } = await supabase
-        .from("categories")
-        .select("slug, name, description, image, display, created_at, updated_at")
-        .eq("display", true)
-        .order("name", { ascending: true });
-
-      const processed = (fullCats || []).map((cat: any) => ({
-        ...cat,
-        id: cat.slug,
-        images: cat.image ? [{ url: cat.image, is_primary: true, display_order: 0 }] : [],
-      }));
-
-      await UpstashService.set("categories:list", processed, 3600);
-      warmed.push("categories:list");
-    } catch (e: any) {
-      errors.push(`full categories: ${e.message}`);
-    }
-
-    // 3. Ratings
-    const RATINGS_CONCURRENCY = 20;
-    try {
-      const { data: ratings } = await supabase
-        .from("ratings")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      await UpstashService.set("ratings:all", ratings || [], 900);
-      warmed.push("ratings:all");
-
-      const byProduct = new Map<string, any[]>();
-      for (const r of ratings || []) {
-        const key = r.product_slug;
-        if (!key) {
-          console.warn("[cache warm] Rating missing product_slug:", { id: r.id, user_id: r.user_id, created_at: r.created_at });
-          continue;
-        }
-        const arr = byProduct.get(key) || [];
-        arr.push(r);
-        byProduct.set(key, arr);
-      }
-      const ratingEntries = [...byProduct.entries()];
-      for (let i = 0; i < ratingEntries.length; i += RATINGS_CONCURRENCY) {
-        const chunk = ratingEntries.slice(i, i + RATINGS_CONCURRENCY);
-        const keys = await Promise.all(
-          chunk.map(([slug, arr]) =>
-            UpstashService.set(`ratings:product:${slug}`, arr, 900).then(
-              () => `ratings:product:${slug}`
-            )
+    const ratingEntries = [...byProduct.entries()];
+    for (let i = 0; i < ratingEntries.length; i += CHUNK) {
+      const chunk = ratingEntries.slice(i, i + CHUNK);
+      const keys = await Promise.all(
+        chunk.map(([slug, arr]) =>
+          UpstashService.set(`ratings:product:${slug}`, arr, TTL_RATINGS).then(
+            () => `ratings:product:${slug}`
           )
-        );
-        warmed.push(...keys);
-      }
-    } catch (e: any) {
-      errors.push(`ratings: ${e.message}`);
+        )
+      );
+      warmed.push(...keys);
     }
+  } catch (e: any) {
+    errors.push(`ratings: ${e.message}`);
+  }
 
-    // 4. Individual products
-    try {
-      const { data: allProds } = await supabase
-        .from("products")
-        .select(PRODUCTS_SELECT)
-        .order("created_at", { ascending: false });
+  // 7. Individual products (full detail, used by /api/products/[id])
+  try {
+    const { data: allProds } = await supabase
+      .from("products")
+      .select(PRODUCTS_SELECT)
+      .order("created_at", { ascending: false });
 
-      const productList = allProds || [];
-      const PRODUCTS_CONCURRENCY = RATINGS_CONCURRENCY;
-      for (let i = 0; i < productList.length; i += PRODUCTS_CONCURRENCY) {
-        const chunk = productList.slice(i, i + PRODUCTS_CONCURRENCY);
-        const keys = await Promise.all(
-          chunk.map(async (product: any) => {
-            const processed = processProducts([product])[0];
-            await UpstashService.cacheProduct(product.slug, processed, 1800);
-            return `product:${product.slug}`;
-          })
-        );
-        warmed.push(...keys);
-      }
-    } catch (e: any) {
-      errors.push(`individual products: ${e.message}`);
+    const productList = allProds || [];
+    for (let i = 0; i < productList.length; i += CHUNK) {
+      const chunk = productList.slice(i, i + CHUNK);
+      const keys = await Promise.all(
+        chunk.map(async (product: any) => {
+          const processed = processProducts([product])[0];
+          await UpstashService.cacheProduct(product.slug, processed, TTL_PRODUCT);
+          return `product:${product.slug}`;
+        })
+      );
+      warmed.push(...keys);
     }
+  } catch (e: any) {
+    errors.push(`individual products: ${e.message}`);
+  }
 
-    // 5. Product list pages — common filter combinations
-    const { data: catRows, error: catError } = await supabase
+  // 8. Product list pages (default sort)
+  //    - All products: warm ALL pages so infinite scroll is always cached
+  //    - Each category: page 1 only (less traffic)
+  //    - Featured products: page 1 (home page)
+  let categorySlugList: string[] = [];
+  try {
+    const { data: catRows } = await supabase
       .from("categories")
       .select("slug")
       .eq("display", true);
+    categorySlugList = (catRows || []).map((c: any) => c.slug);
+  } catch (e: any) {
+    errors.push(`category slugs for product lists: ${e.message}`);
+  }
+  const defaultSort = { sortBy: "default", sortOrder: "desc" };
 
-    if (catError) {
-      errors.push(`categories fetch: ${catError.message}`);
+  // Warm all pages for "all products" view
+  try {
+    const first = await warmProductsPage(supabase, {
+      limit: 12, page: 1, category: "all", featured: false, ...defaultSort,
+    });
+    warmed.push(first.key);
+    for (let pg = 2; pg <= first.totalPages; pg++) {
+      const result = await warmProductsPage(supabase, {
+        limit: 12, page: pg, category: "all", featured: false, ...defaultSort,
+      });
+      warmed.push(result.key);
     }
+  } catch (e: any) {
+    errors.push(`products list (all): ${e.message}`);
+  }
 
-    const PAGE_SIZES = [4, 12];
-    const SORT_COMBOS = [
-      { sortBy: "default", sortOrder: "desc" },
-      { sortBy: "price", sortOrder: "asc" },
-      { sortBy: "price", sortOrder: "desc" },
-    ];
-    const CATEGORIES = ["all", ...(catRows || []).map((c: any) => c.slug)];
-    const FEATURED_FLAGS = [false, true];
-
-    for (const limit of PAGE_SIZES) {
-      for (const { sortBy, sortOrder } of SORT_COMBOS) {
-        for (const cat of CATEGORIES) {
-          for (const feat of FEATURED_FLAGS) {
-            try {
-              const pagesToWarm = 3;
-              for (let page = 1; page <= pagesToWarm; page++) {
-                const result = await warmProductsPage(supabase, {
-                  limit, page, category: cat, featured: feat, sortBy, sortOrder,
-                });
-                warmed.push(result.key);
-                if (result.count === 0 || result.count < limit) break;
-              }
-            } catch (e: any) {
-              errors.push(`products combo: ${e.message}`);
-            }
-          }
-        }
-      }
+  // Warm page 1 for each category
+  for (const category of categorySlugList) {
+    try {
+      const result = await warmProductsPage(supabase, {
+        limit: 12, page: 1, category, featured: false, ...defaultSort,
+      });
+      warmed.push(result.key);
+    } catch (e: any) {
+      errors.push(`products list (${category}): ${e.message}`);
     }
+  }
 
-    const status = errors.length > 0 ? 207 : 200;
-    const PREVIEW_KEYS = 50;
+  try {
+    const result = await warmProductsPage(supabase, {
+      limit: 12, page: 1, category: "all", featured: true, ...defaultSort,
+    });
+    warmed.push(result.key);
+  } catch (e: any) {
+    errors.push(`featured products: ${e.message}`);
+  }
+
+  return { warmed, errors };
+}
+
+// POST — manual trigger (admin or post-deploy scripts)
+export async function POST() {
+  if (!isRedisConfigured()) {
+    return NextResponse.json(
+      { success: false, error: "Redis not configured" },
+      { status: 400 }
+    );
+  }
+  try {
+    const start = Date.now();
+    const { warmed, errors } = await runWarm();
     return NextResponse.json(
       {
         success: true,
         message: "Cache warming completed",
         timestamp: new Date().toISOString(),
         warmed: warmed.length,
-        keysPreview: warmed.slice(0, PREVIEW_KEYS),
+        keysPreview: warmed.slice(0, 50),
         errors,
+        durationMs: Date.now() - start,
       },
-      { status }
+      { status: errors.length > 0 ? 207 : 200 }
     );
   } catch (error) {
     console.error("Cache warming error:", error);
@@ -272,9 +337,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json({
-    message: "Cache warming endpoint",
-    usage: "POST to warm all caches",
-  });
+// GET — called by Vercel cron (daily at 2 AM UTC). Requires CRON_SECRET auth.
+export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    // Fail closed in production; in development an explicit CRON_SECRET='' in
+    // .env.local opts out of auth for local testing only.
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else {
+    const auth = request.headers.get("authorization");
+    if (auth !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
+  if (!isRedisConfigured()) {
+    return NextResponse.json(
+      { success: false, error: "Redis not configured" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const start = Date.now();
+    const { warmed, errors } = await runWarm();
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Cache warming completed",
+        timestamp: new Date().toISOString(),
+        warmed: warmed.length,
+        errors,
+        durationMs: Date.now() - start,
+      },
+      { status: errors.length > 0 ? 207 : 200 }
+    );
+  } catch (error) {
+    console.error("Cache warming error:", error);
+    return NextResponse.json(
+      { success: false, error: "Cache warming failed", details: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
 }

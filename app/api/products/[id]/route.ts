@@ -137,7 +137,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       product_variants: undefined,
     };
 
-    UpstashService.cacheProduct(id, product, 1800).catch((error) => {
+    UpstashService.cacheProduct(id, product, 86400).catch((error) => {
       console.error(`Failed to cache product ${id}:`, error);
     });
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured } from "@/lib/upstash";
 import { setAgeSlugsCache } from "@/lib/age-slug-sizes";
 
 export interface SizeOption {
@@ -33,16 +33,19 @@ export async function GET() {
     const cacheKey = "sizes:options";
     let cached: SizeOption[] | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
-    try {
-      const cachePromise = UpstashService.get(cacheKey);
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
-      });
-      cached = (await Promise.race([cachePromise, timeoutPromise])) as SizeOption[] | null;
-    } catch {
-      // continue to DB
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+
+    if (isRedisConfigured()) {
+      try {
+        const cachePromise = UpstashService.get(cacheKey);
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
+        });
+        cached = (await Promise.race([cachePromise, timeoutPromise])) as SizeOption[] | null;
+      } catch {
+        // continue to DB
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
     }
 
     if (cached && Array.isArray(cached)) {
@@ -89,9 +92,11 @@ export async function GET() {
     setAgeSlugsCache(Array.from(slugSet));
 
     inMemoryCache = { data: options, timestamp: Date.now() };
-    UpstashService.set(cacheKey, options, 7200).catch((err) => {
-      console.error("Failed to cache size options:", err);
-    });
+    if (isRedisConfigured()) {
+      UpstashService.set(cacheKey, options, 86400).catch((err) => {
+        console.error("Failed to cache size options:", err);
+      });
+    }
 
     return NextResponse.json(options, {
       headers: {

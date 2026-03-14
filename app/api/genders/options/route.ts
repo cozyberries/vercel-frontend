@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured } from "@/lib/upstash";
 
 export interface GenderOption {
   id: string;
@@ -28,16 +28,19 @@ export async function GET() {
     const cacheKey = "genders:options";
     let cached: GenderOption[] | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
-    try {
-      const cachePromise = UpstashService.get(cacheKey);
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
-      });
-      cached = (await Promise.race([cachePromise, timeoutPromise])) as GenderOption[] | null;
-    } catch {
-      // continue to DB
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+
+    if (isRedisConfigured()) {
+      try {
+        const cachePromise = UpstashService.get(cacheKey);
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
+        });
+        cached = (await Promise.race([cachePromise, timeoutPromise])) as GenderOption[] | null;
+      } catch {
+        // continue to DB
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
     }
 
     if (cached && Array.isArray(cached)) {
@@ -82,9 +85,11 @@ export async function GET() {
     });
 
     inMemoryCache = { data: options, timestamp: Date.now() };
-    UpstashService.set(cacheKey, options, 7200).catch((err) => {
-      console.error("Failed to cache gender options:", err);
-    });
+    if (isRedisConfigured()) {
+      UpstashService.set(cacheKey, options, 86400).catch((err) => {
+        console.error("Failed to cache gender options:", err);
+      });
+    }
 
     return NextResponse.json(options, {
       headers: {
