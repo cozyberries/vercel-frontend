@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import { UpstashService, isRedisConfigured, REDIS_REQUIRED_BODY } from "@/lib/upstash";
+import { UpstashService, isRedisConfigured } from "@/lib/upstash";
 
 export interface CategoryOption {
   id: string;
@@ -16,9 +16,8 @@ const IN_MEMORY_TTL = 120_000; // 2 minutes — options change very rarely
 
 export async function GET() {
   try {
-    if (!isRedisConfigured()) {
-      return NextResponse.json(REDIS_REQUIRED_BODY, { status: 503 });
-    }
+    const redisConfigured = isRedisConfigured();
+
     // 1. Check in-memory cache first (instant)
     if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
       return NextResponse.json(inMemoryCache.data, {
@@ -30,20 +29,22 @@ export async function GET() {
       });
     }
 
-    // 2. Redis cache
+    // 2. Redis cache (skip when Redis not configured — e.g. production without Upstash)
     const cacheKey = "categories:options";
     let cached: CategoryOption[] | null = null;
-    let timeoutId: NodeJS.Timeout | null = null;
-    try {
-      const cachePromise = UpstashService.get(cacheKey);
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
-      });
-      cached = (await Promise.race([cachePromise, timeoutPromise])) as CategoryOption[] | null;
-    } catch {
-      // Cache miss or timeout — continue to DB
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+    if (redisConfigured) {
+      let timeoutId: NodeJS.Timeout | null = null;
+      try {
+        const cachePromise = UpstashService.get(cacheKey);
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
+        });
+        cached = (await Promise.race([cachePromise, timeoutPromise])) as CategoryOption[] | null;
+      } catch {
+        // Cache miss or timeout — continue to DB
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
     }
 
     if (cached && Array.isArray(cached)) {
@@ -73,17 +74,18 @@ export async function GET() {
       );
     }
 
-    const options: CategoryOption[] = (data || []).map((row) => ({
+    const options: CategoryOption[] = (data || []).map((row: CategoryOption) => ({
       id: String(row.slug),
       name: String(row.name),
       slug: String(row.slug),
     }));
 
-    // Update caches
     inMemoryCache = { data: options, timestamp: Date.now() };
-    UpstashService.set(cacheKey, options, 86400).catch((err) => {
-      console.error("Failed to cache category options:", err);
-    });
+    if (redisConfigured) {
+      UpstashService.set(cacheKey, options, 86400).catch((err) => {
+        console.error("Failed to cache category options:", err);
+      });
+    }
 
     return NextResponse.json(options, {
       headers: {

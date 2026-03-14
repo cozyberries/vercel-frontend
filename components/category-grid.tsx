@@ -34,10 +34,10 @@ const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
 export default function CategoryGrid() {
   const { categories, isLoading } = usePreloadedData();
 
-  // Filter categories: display=true and not in the separate newborn section
+  // Filter categories: display not false (API already filters display=true; be resilient to missing field) and not in hide list
   const displayCategories = categories.filter(
     (category) =>
-      category.display === true &&
+      category.display !== false &&
       !HIDE_FROM_HOMEPAGE_SLUGS.includes(category.slug ?? ""),
   );
 

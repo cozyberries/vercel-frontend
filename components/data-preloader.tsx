@@ -10,8 +10,9 @@ import {
   getAllProductsDetailed,
   Product,
 } from "@/lib/services/api";
-import { useCategoryOptions } from "@/hooks/useApiQueries";
+import { useCategories } from "@/hooks/useApiQueries";
 
+/** Full category shape from /api/categories (needed for grid display + images). */
 interface Category {
   id: string;
   name: string;
@@ -19,6 +20,7 @@ interface Category {
   description?: string;
   display?: boolean;
   image?: string;
+  images?: { url?: string }[];
   is_primary?: boolean;
 }
 
@@ -45,13 +47,12 @@ const DataPreloaderContext = createContext<PreloadedData>({
 });
 
 export function DataPreloader({ children }: { children: ReactNode }) {
-  // Categories now fetched via React Query — shared cache with ProductsClient,
-  // HamburgerSheet, etc. Eliminates the duplicate getCategories() API call.
+  // Full categories (with display, image) for homepage grid; shared cache with other consumers.
   const {
     data: categories = [] as Category[],
     isLoading: categoriesLoading,
     error: categoriesError,
-  } = useCategoryOptions();
+  } = useCategories();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [detailedProducts, setDetailedProducts] = useState<Product[]>([]);
