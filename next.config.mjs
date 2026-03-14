@@ -1,5 +1,14 @@
 import BundleAnalyzer from '@next/bundle-analyzer';
+import withSerwistInit from '@serwist/next';
+
 const withBundleAnalyzer = BundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
+
+const withSerwist = withSerwistInit({
+  swSrc: 'app/sw.ts',
+  swDest: 'public/sw.js',
+  reloadOnOnline: true,
+  disable: process.env.NODE_ENV === 'development',
+});
 
 let userConfig = undefined
 try {
@@ -110,4 +119,4 @@ function mergeConfig(nextConfig, userConfig) {
   }
 }
 
-export default withBundleAnalyzer(nextConfig)
+export default withSerwist(withBundleAnalyzer(nextConfig))

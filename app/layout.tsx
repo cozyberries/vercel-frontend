@@ -19,6 +19,15 @@ export const metadata: Metadata = {
   title: "CozyBerries | Premium Baby Clothing",
   description: "Adorable, high-quality clothing for your little ones",
   generator: "v0.dev",
+  manifest: "/site.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CozyBerries",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -47,7 +56,9 @@ export default function RootLayout({
           sizes="16x16"
           href="/favicon-16x16.png"
         />
-        <link rel="manifest" href="/site.webmanifest" />
+        <meta name="theme-color" content="#ffffff" />
+        <meta name="msapplication-TileColor" content="#ffffff" />
+        <meta name="msapplication-tap-highlight" content="no" />
       </head>
       {/* suppressHydrationWarning on body helps when a browser extension (e.g. Cursor) injects data-cursor-ref into the DOM after server render */}
       <body className={inter.className} suppressHydrationWarning>
