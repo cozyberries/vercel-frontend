@@ -44,9 +44,10 @@ interface ProductDetailsProps {
   id: string;
   /** Pre-select this size when present in URL (e.g. from product card quick view). */
   initialSize?: string;
+  initialProduct?: Product;
 }
 
-export default function ProductDetails({ id: productSlug, initialSize }: ProductDetailsProps) {
+export default function ProductDetails({ id: productSlug, initialSize, initialProduct }: ProductDetailsProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -71,7 +72,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
   const { getDetailedProductById, isLoading } = usePreloadedData();
   const { data: fetchedProduct, isLoading: isFetchingProduct } = useProductById(productSlug);
-  const product = getDetailedProductById(productSlug) ?? fetchedProduct ?? null;
+  const product = initialProduct ?? getDetailedProductById(productSlug) ?? fetchedProduct ?? null;
   const router = useRouter();
 
   useEffect(() => {
@@ -355,7 +356,7 @@ export default function ProductDetails({ id: productSlug, initialSize }: Product
     }
   }, [isInCart]);
 
-  if (isLoading || isFetchingProduct) {
+  if (!initialProduct && (isLoading || isFetchingProduct)) {
     return (
       <LoadingCard />
     );

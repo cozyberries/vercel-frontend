@@ -1,7 +1,7 @@
 // lib/services/products-server.ts
 import 'server-only';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
-import { Product } from '@/lib/types/product';
+import { Product } from '@/lib/services/api';
 import { aggregateSizesFromVariants } from '@/lib/utils/product';
 
 export async function getAllProductSlugs(): Promise<{ id: string }[]> {
