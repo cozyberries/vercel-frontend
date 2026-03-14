@@ -71,7 +71,7 @@ export default function ProductDetails({ id: productSlug, initialSize, initialPr
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
   const { getDetailedProductById, isLoading } = usePreloadedData();
-  const { data: fetchedProduct, isLoading: isFetchingProduct } = useProductById(productSlug);
+  const { data: fetchedProduct, isLoading: isFetchingProduct } = useProductById(productSlug, { enabled: !initialProduct });
   const product = initialProduct ?? getDetailedProductById(productSlug) ?? fetchedProduct ?? null;
   const router = useRouter();
 

@@ -99,13 +99,13 @@ export function useGenderOptions() {
  * Custom hook for fetching a single product by slug
  * Caches for 5 minutes — product data rarely changes
  */
-export function useProductById(slug: string | null | undefined) {
+export function useProductById(slug: string | null | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["product", slug],
     queryFn: () => getProductById(slug!),
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes
-    enabled: !!slug,
+    enabled: (options?.enabled ?? true) && !!slug,
   });
 }
 
