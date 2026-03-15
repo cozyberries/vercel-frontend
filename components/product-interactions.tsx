@@ -206,6 +206,11 @@ export default function ProductInteractions({ product, initialSize, staticConten
           productReviews?.length > 0 ? (totalRating / productReviews?.length).toFixed(1) : 0;
         setProductRating(Number(averageRating));
       } catch (error) {
+        console.error('[fetchReviewsLocal] Failed to build review list', {
+          error,
+          productSlug,
+          reviewCount: reviews?.length ?? 0,
+        });
         return;
       }
     };
@@ -640,10 +645,9 @@ export default function ProductInteractions({ product, initialSize, staticConten
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
                 });
-                // Use router navigation with small delay to ensure state update
-                setTimeout(() => {
-                  router.push("/checkout");
-                }, 100);
+                // flushSync in addToCartTemporary guarantees state is committed
+                // before this call returns, so we can navigate immediately.
+                router.push("/checkout");
               }}
             >
               Buy Now

@@ -100,8 +100,8 @@ app/products/[id]/loading.tsx   ← replaces <div>Loading...</div> Suspense fall
 | `lib/services/products-server.ts` | New — server-only Supabase fetch functions |
 | `components/product-static-info.tsx` | New — RSC static section |
 | `components/product-interactions.tsx` | New — client interactive section |
-| `app/products/[id]/page.jsx` | Delete |
-| `components/product-details.tsx` | Delete (after split is complete) |
+| `app/products/[id]/page.jsx` | Deleted ✓ |
+| `components/product-details.tsx` | Deleted ✓ |
 
 ---
 
@@ -116,7 +116,7 @@ app/products/[id]/loading.tsx   ← replaces <div>Loading...</div> Suspense fall
 
 ## Verification
 
-1. `npm run build` — confirm generateStaticParams pre-builds 48 routes (output shows `○ /products/[slug]` entries)
+1. `npm run build` — confirm generateStaticParams pre-builds 48 routes (output shows `○ /products/[id]` entries)
 2. `npm run start` — test a product page URL directly; should load with pre-rendered HTML (view source shows product content, not empty shell)
 3. Browser DevTools → Network → disable cache, hard reload a product page; first response should already contain product HTML (not just `<div>Loading...</div>`)
 4. Chrome Lighthouse on a product page — verify LCP < 2s

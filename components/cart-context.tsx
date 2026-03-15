@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useCartPersistence } from "@/hooks/useCartPersistence";
 import { logEvent } from "@/lib/services/event-logger";
 
@@ -91,10 +92,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const addToCartTemporary = (item: CartItem) => {
-    // Add to cart temporarily without persisting to localStorage/Supabase
-    setIsTemporaryCart(true);
-    setTemporaryCartItem(item);
-    setCart([item]);
+    // flushSync commits state synchronously so callers can navigate immediately
+    // after this call without a setTimeout race.
+    flushSync(() => {
+      setIsTemporaryCart(true);
+      setTemporaryCartItem(item);
+      setCart([item]);
+    });
   };
 
   return (

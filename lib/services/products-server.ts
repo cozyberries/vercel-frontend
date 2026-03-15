@@ -2,7 +2,15 @@
 import 'server-only';
 import { cache } from 'react';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
-import { Product } from '@/lib/services/api';
+import { Product, ProductVariant } from '@/lib/services/api';
+
+/** Explicit return shape produced by getProductBySlug — avoids blanket `as unknown as Product`. */
+type EnrichedProduct = Pick<
+  Product,
+  | 'id' | 'name' | 'slug' | 'description' | 'price' | 'care_instructions'
+  | 'stock_quantity' | 'is_featured' | 'category_slug' | 'category'
+  | 'categories' | 'features' | 'images' | 'colors' | 'sizes' | 'variants'
+>;
 import { aggregateSizesFromVariants } from '@/lib/utils/product';
 
 export async function getAllProductSlugs(): Promise<{ id: string }[]> {
@@ -12,7 +20,10 @@ export async function getAllProductSlugs(): Promise<{ id: string }[]> {
     .select('slug')
     .order('created_at', { ascending: false });
 
-  if (error || !data) return [];
+  if (error || !data) {
+    console.error('[getAllProductSlugs] Failed to fetch product slugs', { error });
+    return [];
+  }
   return data.map((p) => ({ id: p.slug }));
 }
 
@@ -65,17 +76,23 @@ export const getProductBySlug = cache(async function getProductBySlug(slug: stri
 
   const sizes = aggregateSizesFromVariants(data.product_variants || [], data.price ?? 0);
 
-  return {
-    ...data,
+  const enriched: EnrichedProduct = {
     id: data.slug,
-    category: (data.categories as any)?.name ?? '',
-    images,
+    slug: data.slug,
+    name: data.name ?? '',
+    description: data.description ?? '',
+    price: data.price ?? 0,
+    care_instructions: data.care_instructions ?? '',
+    stock_quantity: Number(data.stock_quantity ?? 0),
+    is_featured: data.is_featured ?? false,
+    category_slug: data.category_slug ?? '',
+    category: (data.categories as { name: string; slug: string } | null)?.name ?? '',
+    categories: data.categories as { name: string; slug: string },
     features,
-    variants,
+    images,
+    colors: (data.color_slugs ?? []) as string[],
     sizes,
-    colors: data.color_slugs ?? [],
-    product_images: undefined,
-    product_features: undefined,
-    product_variants: undefined,
-  } as unknown as Product;
+    variants: variants as ProductVariant[],
+  };
+  return enriched;
 });
