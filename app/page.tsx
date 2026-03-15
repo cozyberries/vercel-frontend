@@ -1,4 +1,5 @@
 import Hero from "@/components/hero";
+import EarlyBirdBanner from "@/components/early-bird-banner";
 import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
 import {
@@ -15,6 +16,7 @@ export default function Home() {
   return (
     <div className="flex flex-col">
       <Hero />
+      <EarlyBirdBanner />
 
       {/* Shop by Age */}
       <section className="lg:py-14 py-8 bg-[#f9f7f4] relative overflow-hidden">
