@@ -174,7 +174,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
 
   // Scroll to top on product change (e.g. clicking a related product)
   useEffect(() => {
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [productSlug]);
 
   // Set the product slug in the rating context so reviews are fetched and the review form knows the target product
