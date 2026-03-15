@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { Truck } from 'lucide-react';
 import { FREE_DELIVERY_THRESHOLD } from '@/lib/constants';
 import { Product } from '@/lib/services/api';
+import WishlistButton from './wishlist-button';
 
 interface Props {
   product: Product;
@@ -22,10 +23,11 @@ export default function ProductStaticInfo({ product }: Props) {
         </Link>
       )}
 
-      <div className="mt-2 mb-4">
-        <h1 className="text-2xl md:text-3xl font-light">
+      <div className="flex justify-between items-start mt-2 mb-4">
+        <h1 className="text-2xl md:text-3xl font-light pr-2">
           {product.name}
         </h1>
+        <WishlistButton product={product} />
       </div>
 
         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
@@ -35,24 +37,7 @@ export default function ProductStaticInfo({ product }: Props) {
           </div>
         </div>
 
-        <Separator className="my-8" />
-
-        <div className="space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900">Description</h2>
-          <div className="rounded-lg">
-            <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
-              {product.description ? (
-                <div className="whitespace-pre-wrap">{product.description}</div>
-              ) : (
-                <p className="text-gray-500 italic">
-                  No description available for this product.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <Separator className="my-8" />
+        <Separator className="my-4" />
 
         {product.features && product.features.length > 0 && (
           <>
@@ -64,7 +49,7 @@ export default function ProductStaticInfo({ product }: Props) {
                 ))}
               </ul>
             </div>
-            <Separator className="my-8" />
+            <Separator className="my-4" />
           </>
         )}
 
@@ -76,7 +61,7 @@ export default function ProductStaticInfo({ product }: Props) {
                 <div className="whitespace-pre-wrap">{product.care_instructions}</div>
               </div>
             </div>
-            <Separator className="my-8" />
+            <Separator className="my-4" />
           </>
         )}
     </div>
