@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     // Log event (fire-and-forget)
     logServerEvent(supabase, user.id, "checkout_session_created", {
       session_id: session.id,
-      total_amount: orderSummary.total_amount,
+      total_amount: finalTotal,
       item_count: items.length,
     });
 
