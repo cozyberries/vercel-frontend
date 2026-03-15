@@ -1,7 +1,7 @@
 import Hero from "@/components/hero";
-import EarlyBirdBanner from "@/components/early-bird-banner";
 import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
+import EarlyBirdBanner from "@/components/early-bird-banner";
 import {
   FeaturedProducts,
   SnowflakeDecoration,
