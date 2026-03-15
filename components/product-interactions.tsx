@@ -19,6 +19,7 @@ import { FaStar } from "react-icons/fa";
 import RatingForm from "./rating/RatingForm";
 import { useAuth } from "./supabase-auth-provider";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
+import DiscountedPrice from '@/components/discounted-price'
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -521,14 +522,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
           </div>
 
           {/* Price */}
-          <p className="text-2xl font-medium mb-6">
-            ₹{displayPrice.toFixed(0)}
-            {selectedSize && selectedSize.price < product.price && (
-              <span className="text-sm text-muted-foreground line-through ml-2">
-                ₹{product.price.toFixed(0)}
-              </span>
-            )}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap mb-6">
+            <DiscountedPrice price={displayPrice} />
+          </div>
 
           <div className="space-y-6 mb-8">
             {product.colors && product.colors.length > 0 && (
@@ -820,7 +816,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                           <p className="text-sm text-muted-foreground mb-1">
                             {relatedProduct.category}
                           </p>
-                          <p className="font-medium">₹{relatedProduct.price.toFixed(0)}</p>
+                          <DiscountedPrice price={relatedProduct.price} />
                         </div>
                       </div>
                     );
