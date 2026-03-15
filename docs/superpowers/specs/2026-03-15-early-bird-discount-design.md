@@ -135,8 +135,9 @@ A small presentational component accepting `price: number` that internally calls
 1. **Coupon code:** `const offer = getActiveOffer()` + `const couponCode = offer?.code ?? ''` — derived constant (not state), empty when offer inactive
 2. **Discount amount:** `const discountAmount = offer ? Math.floor(subtotal * offer.discountRate) : 0`
 3. **Total:** `const total = subtotal - discountAmount + deliveryCharge`
+3. **Total:** `const total = subtotal - discountAmount + deliveryCharge`
 4. **Free delivery threshold:** uses the **discounted subtotal** (`subtotal - discountAmount`) to determine if free delivery applies, so customers paying the discounted price still benefit from the free-delivery threshold correctly.
-4. **Order summary UI additions:**
+5. **Order summary UI additions:**
    - Coupon field row: label `"Promo Code"`, read-only input showing `EARLY5` with a green checkmark when valid
    - Discount line item: `"Discount (EARLY5)" → -₹{discountAmount}` in green between subtotal and delivery
 5. **Checkout session request:** Add `coupon_code: couponCode` to the POST body

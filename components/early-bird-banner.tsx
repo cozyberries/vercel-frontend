@@ -41,12 +41,27 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
 export default function EarlyBirdBanner() {
   const offer = getActiveOffer()
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
+  // Updated once per minute so the aria-live announcement isn't excessively verbose.
+  const [liveText, setLiveText] = useState<string>('')
 
   useEffect(() => {
     if (!offer) return
-    setTimeLeft(getTimeLeft(offer.expiresAt))
-    const id = setInterval(() => setTimeLeft(getTimeLeft(offer.expiresAt)), 1000)
-    return () => clearInterval(id)
+
+    const update = () => {
+      const t = getTimeLeft(offer.expiresAt)
+      setTimeLeft(t)
+      setLiveText(
+        `${t.days} days, ${t.hrs} hours, ${t.mins} minutes remaining`
+      )
+    }
+
+    update()
+    const secondId = setInterval(() => setTimeLeft(getTimeLeft(offer.expiresAt)), 1000)
+    const minuteId = setInterval(update, 60000)
+    return () => {
+      clearInterval(secondId)
+      clearInterval(minuteId)
+    }
   }, [offer])
 
   if (!offer) return null
@@ -92,12 +107,22 @@ export default function EarlyBirdBanner() {
 
         {/* Countdown */}
         {timeLeft && (
-          <div className="flex justify-center gap-2.5 mb-6">
-            <CountdownBox value={timeLeft.days} label="Days" />
-            <CountdownBox value={timeLeft.hrs}  label="Hrs"  />
-            <CountdownBox value={timeLeft.mins} label="Mins" />
-            <CountdownBox value={timeLeft.secs} label="Secs" />
-          </div>
+          <>
+            {/* Visually-hidden live region — updates per minute to avoid per-second noise */}
+            <span
+              aria-live="polite"
+              aria-atomic="true"
+              className="sr-only"
+            >
+              {liveText}
+            </span>
+            <div className="flex justify-center gap-2.5 mb-6" aria-hidden="true">
+              <CountdownBox value={timeLeft.days} label="Days" />
+              <CountdownBox value={timeLeft.hrs}  label="Hrs"  />
+              <CountdownBox value={timeLeft.mins} label="Mins" />
+              <CountdownBox value={timeLeft.secs} label="Secs" />
+            </div>
+          </>
         )}
 
         <Link

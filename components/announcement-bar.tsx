@@ -13,7 +13,7 @@ export default function AnnouncementBar() {
     if (!offer) return
     const dismissed = localStorage.getItem(`announcement-dismissed-${offer.code}`)
     if (!dismissed) setVisible(true)
-  }, [offer])
+  }, [offer?.code])
 
   if (!offer || !visible) return null
 
@@ -32,7 +32,7 @@ export default function AnnouncementBar() {
         className="text-sm font-medium text-center leading-tight"
       >
         🌿 {offer.label} —{' '}
-        <strong>5% off all products</strong>
+        <strong>{Math.round(offer.discountRate * 100)}% off all products</strong>
         {' · '}
         <span
           style={{ background: '#3d2b1a', color: '#f5eee0' }}
@@ -40,7 +40,8 @@ export default function AnnouncementBar() {
         >
           {offer.code}
         </span>
-        {' '}applied automatically · Ends April&nbsp;30
+        {' '}applied automatically · Ends{' '}
+        {offer.expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
       </p>
       <button
         onClick={handleDismiss}
