@@ -2,49 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductCreate } from "@/lib/types/product";
-
-type AggregatedSize = {
-  name: string;
-  price: number;
-  stock_quantity: number;
-  display_order: number;
-};
-
-/**
- * Aggregate sizes from product variants, deduplicating by size name.
- * Sums stock across same-size variants and keeps the lowest price.
- */
-export function aggregateSizesFromVariants(
-  variants: any[],
-  fallbackPrice: number
-): AggregatedSize[] {
-  const sizeMap = new Map<string, AggregatedSize>();
-
-  for (const v of variants) {
-    const sizeName = v.sizes?.name;
-    if (!sizeName) continue;
-
-    const existing = sizeMap.get(sizeName);
-    const variantPrice = v.price ?? fallbackPrice;
-    const variantStock = Number(v.stock_quantity ?? 0);
-
-    if (!existing) {
-      sizeMap.set(sizeName, {
-        name: sizeName,
-        price: variantPrice,
-        stock_quantity: variantStock,
-        display_order: v.sizes?.display_order ?? 0,
-      });
-    } else {
-      existing.stock_quantity += variantStock;
-      if (variantPrice < existing.price) existing.price = variantPrice;
-    }
-  }
-
-  return Array.from(sizeMap.values()).sort(
-    (a, b) => a.display_order - b.display_order
-  );
-}
+import { aggregateSizesFromVariants } from "@/lib/utils/product";
 
 /**
  * Pure function — no DB call needed.
