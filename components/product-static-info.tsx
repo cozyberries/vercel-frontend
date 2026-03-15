@@ -13,7 +13,7 @@ interface Props {
 export default function ProductStaticInfo({ product }: Props) {
   return (
     <div className="flex flex-col">
-      {product.category_slug && (
+      {product.category_slug && product.category && (
         <Link
           href={`/collections/${product.category_slug}`}
           className="text-sm text-muted-foreground hover:text-primary"

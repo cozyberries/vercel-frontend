@@ -13,7 +13,6 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ size?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -31,9 +30,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function ProductPage({ params, searchParams }: PageProps) {
+export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
-  const { size } = await searchParams;
 
   const product = await getProductBySlug(id);
   if (!product) notFound();
@@ -41,7 +39,6 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   return (
     <ProductInteractions
       product={product}
-      initialSize={size}
       staticContent={<ProductStaticInfo product={product} />}
     />
   );

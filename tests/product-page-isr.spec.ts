@@ -140,6 +140,7 @@ test.describe("ProductStaticInfo: static text content renders", () => {
     const h1 = page.locator("h1").first();
     await expect(h1).toBeVisible();
     const name = (await h1.textContent())?.trim();
+    expect(name).toBeTruthy();
     expect(name!.length).toBeGreaterThan(0);
   });
 

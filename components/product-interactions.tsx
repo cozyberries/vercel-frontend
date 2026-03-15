@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,11 @@ interface ProductInteractionsProps {
   staticContent: React.ReactNode;
 }
 
-export default function ProductInteractions({ product, initialSize, staticContent }: ProductInteractionsProps) {
+export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent }: ProductInteractionsProps) {
+  // Read ?size= from URL client-side so the server component stays fully static (ISR).
+  const searchParams = useSearchParams();
+  const initialSize = searchParams.get("size") ?? initialSizeProp;
+
   const productSlug = product.slug ?? product.id ?? "";
 
   const [quantity, setQuantity] = useState(1);
