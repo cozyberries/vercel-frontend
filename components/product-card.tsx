@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
 import { toImageSrc } from "@/lib/utils/image";
+import DiscountedPrice from '@/components/discounted-price';
 
 interface ProductCardProps {
   product: Product;
@@ -384,16 +385,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
               {product.categories.name}
             </p>
           )}
-          <p className="flex items-center justify-end gap-2 text-sm font-bold text-gray-900 group-hover:text-primary transition-colors duration-200 flex-shrink-0">
-            {hasRange ? (
-              <>
-                <span className="text-xs lg:text-[10px] font-medium text-gray-500">Starts at</span>
-                {formatPrice(minPrice, locale, currency)}
-              </>
-            ) : (
-              formatPrice(minPrice, locale, currency)
-            )}
-          </p>
+          <DiscountedPrice price={minPrice} showStartsAt={hasRange} />
         </div>
       </div>
     </div>
