@@ -62,7 +62,7 @@ export default function EarlyBirdBanner() {
     >
       <div className="max-w-lg mx-auto text-center">
         {/* Boho decoration */}
-        <div className="text-2xl mb-3 tracking-widest opacity-60" aria-hidden>
+        <div className="text-2xl mb-3 tracking-widest opacity-60" aria-hidden="true">
           🌿 ✿ 🌿
         </div>
 
