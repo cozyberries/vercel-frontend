@@ -7,6 +7,8 @@ import {
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import { EARLY_BIRD_OFFER } from "@/lib/config/offers";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateOrderRequest = await request.json();
-    const { items, shipping_address_id, billing_address_id, notes } = body;
+    const { items, shipping_address_id, billing_address_id, coupon_code, notes } = body;
 
     await logServerEvent(supabase, user.id, "checkout_request_received", {
       items_count: items?.length ?? 0,
@@ -84,6 +86,37 @@ export async function POST(request: NextRequest) {
     }
 
     const orderSummary = calculateOrderSummary(items);
+
+    // Validate coupon and compute server-side discount
+    let discountCode: string | null = null
+    let discountAmount = 0
+
+    if (coupon_code) {
+      const offer = EARLY_BIRD_OFFER
+      const isValid =
+        offer.enabled &&
+        coupon_code === offer.code &&
+        new Date() <= offer.expiresAt
+
+      if (!isValid) {
+        return NextResponse.json(
+          { error: 'invalid_coupon', message: 'This offer has expired or is invalid.' },
+          { status: 422 }
+        )
+      }
+
+      discountCode = offer.code
+      discountAmount = Math.floor(orderSummary.subtotal * offer.discountRate)
+    }
+
+    // Recompute total with discount applied
+    const discountedSubtotal = orderSummary.subtotal - discountAmount
+    const serverDeliveryCharge =
+      items.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
+        ? DELIVERY_CHARGE_INR
+        : 0
+    const finalTotal = discountedSubtotal + serverDeliveryCharge
+
     const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
     // Expire any existing pending sessions for this user
@@ -104,9 +137,11 @@ export async function POST(request: NextRequest) {
         billing_address: billingAddress,
         items,
         subtotal: orderSummary.subtotal,
-        delivery_charge: orderSummary.delivery_charge,
+        discount_code: discountCode,
+        discount_amount: discountAmount,
+        delivery_charge: serverDeliveryCharge,
         tax_amount: orderSummary.tax_amount,
-        total_amount: orderSummary.total_amount,
+        total_amount: finalTotal,
         currency: orderSummary.currency,
         notes: notes || null,
         status: "pending",
