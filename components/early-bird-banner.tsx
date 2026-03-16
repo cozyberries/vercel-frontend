@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getActiveOffer } from '@/lib/utils/discount'
+import { useActiveOffer } from '@/hooks/useApiQueries'
 
 interface TimeLeft {
   days: number
@@ -39,24 +39,23 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
 }
 
 export default function EarlyBirdBanner() {
-  const offer = getActiveOffer()
+  const { data: offer } = useActiveOffer()
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
-  // Updated once per minute so the aria-live announcement isn't excessively verbose.
   const [liveText, setLiveText] = useState<string>('')
 
   useEffect(() => {
     if (!offer) return
 
+    const expiresAt = new Date(offer.expiresAt)
+
     const update = () => {
-      const t = getTimeLeft(offer.expiresAt)
+      const t = getTimeLeft(expiresAt)
       setTimeLeft(t)
-      setLiveText(
-        `${t.days} days, ${t.hrs} hours, ${t.mins} minutes remaining`
-      )
+      setLiveText(`${t.days} days, ${t.hrs} hours, ${t.mins} minutes remaining`)
     }
 
     update()
-    const secondId = setInterval(() => setTimeLeft(getTimeLeft(offer.expiresAt)), 1000)
+    const secondId = setInterval(() => setTimeLeft(getTimeLeft(expiresAt)), 1000)
     const minuteId = setInterval(update, 60000)
     return () => {
       clearInterval(secondId)
@@ -76,7 +75,6 @@ export default function EarlyBirdBanner() {
       className="w-full py-8 px-4"
     >
       <div className="max-w-lg mx-auto text-center">
-        {/* Boho decoration */}
         <div className="text-2xl mb-3 tracking-widest opacity-60" aria-hidden="true">
           🌿 ✿ 🌿
         </div>
@@ -97,7 +95,7 @@ export default function EarlyBirdBanner() {
             style={{ color: '#c47c5a', borderBottom: '2px solid #c47c5a' }}
             className="inline-block"
           >
-            5% OFF
+            {offer.badgeText}
           </span>
         </h2>
 
@@ -105,24 +103,15 @@ export default function EarlyBirdBanner() {
           Discount applied automatically · No code needed
         </p>
 
-        {/* Countdown */}
+        <span className="sr-only" aria-live="polite">{liveText}</span>
+
         {timeLeft && (
-          <>
-            {/* Visually-hidden live region — updates per minute to avoid per-second noise */}
-            <span
-              aria-live="polite"
-              aria-atomic="true"
-              className="sr-only"
-            >
-              {liveText}
-            </span>
-            <div className="flex justify-center gap-2.5 mb-6" aria-hidden="true">
-              <CountdownBox value={timeLeft.days} label="Days" />
-              <CountdownBox value={timeLeft.hrs}  label="Hrs"  />
-              <CountdownBox value={timeLeft.mins} label="Mins" />
-              <CountdownBox value={timeLeft.secs} label="Secs" />
-            </div>
-          </>
+          <div className="flex justify-center gap-2.5 mb-6">
+            <CountdownBox value={timeLeft.days} label="Days" />
+            <CountdownBox value={timeLeft.hrs}  label="Hrs"  />
+            <CountdownBox value={timeLeft.mins} label="Mins" />
+            <CountdownBox value={timeLeft.secs} label="Secs" />
+          </div>
         )}
 
         <Link
