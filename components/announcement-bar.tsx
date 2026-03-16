@@ -3,11 +3,11 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { getActiveOffer } from '@/lib/utils/discount'
+import { useActiveOffer } from '@/hooks/useApiQueries'
 
 export default function AnnouncementBar() {
+  const { data: offer } = useActiveOffer()
   const [visible, setVisible] = useState(false)
-  const offer = getActiveOffer()
 
   useEffect(() => {
     if (!offer) return
@@ -40,8 +40,7 @@ export default function AnnouncementBar() {
         >
           {offer.code}
         </span>
-        {' '}applied automatically · Ends{' '}
-        {offer.expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
+        {' '}applied automatically
       </p>
       <button
         onClick={handleDismiss}
