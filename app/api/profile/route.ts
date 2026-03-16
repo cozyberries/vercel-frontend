@@ -34,6 +34,7 @@ export async function GET() {
 
       if (useCache) {
         const headers = {
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
           "X-Cache-Status": cacheResult.isStale ? "STALE" : "HIT",
           "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
           "X-Data-Source": "REDIS_CACHE",
@@ -67,6 +68,7 @@ export async function GET() {
     });
 
     const headers = {
+      "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
       "X-Cache-Status": "MISS",
       "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
       "X-Data-Source": "SUPABASE_DATABASE",
