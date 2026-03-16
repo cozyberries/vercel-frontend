@@ -22,10 +22,15 @@ export interface SearchSuggestion {
   categoryName?: string;
 }
 
-const INDEX_NAME = 'products';
+const INDEX_NAME = 'catalog';
 
-/** Singleton Upstash Search index. Only instantiated server-side. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _searchIndex: any = null;
+
+/** Lazily initialised module-level singleton — avoids recreating the client on every call. */
 function getSearchIndex() {
+  if (_searchIndex) return _searchIndex;
+
   const url = process.env.UPSTASH_SEARCH_REST_URL;
   const token = process.env.UPSTASH_SEARCH_REST_TOKEN;
 
@@ -35,7 +40,8 @@ function getSearchIndex() {
     );
   }
 
-  return new Search({ url, token }).index<SearchDocumentContent>(INDEX_NAME);
+  _searchIndex = new Search({ url, token }).index<SearchDocumentContent>(INDEX_NAME);
+  return _searchIndex;
 }
 
 /**
@@ -75,7 +81,10 @@ export async function querySearch(
 ): Promise<SearchSuggestion[]> {
   const index = getSearchIndex();
 
-  const results = await index.search({ query, limit });
+  const results = (await index.search({ query, limit })) as Array<{
+    id: string;
+    content: SearchDocumentContent;
+  }>;
 
   const suggestions: SearchSuggestion[] = results.map((result) => ({
     id: result.id,
