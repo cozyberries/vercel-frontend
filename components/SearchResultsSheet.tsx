@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, X, Package, Tag, Loader2, Heart, Star } from "lucide-react";
+import { Search, Package, Tag, Loader2, Heart, Users, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,7 +26,7 @@ interface SearchResultsSheetProps {
 interface SearchSuggestion {
   id: string;
   name: string;
-  type: "product" | "category";
+  type: "product" | "category" | "gender" | "size";
   slug?: string;
   image?: string;
   categoryName?: string;
@@ -67,25 +67,31 @@ export default function SearchResultsSheet({
     }
   }, [showSuggestions]);
 
-  // Fetch search suggestions
-  const fetchSuggestions = async (query: string) => {
-    if (query.length < 2) {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch search suggestions with 300ms debounce
+  const fetchSuggestions = useCallback((query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (query.trim().length < 2) {
       setSuggestions([]);
       return;
     }
 
-    try {
-      const response = await fetch(
-        `/api/search/suggestions?q=${encodeURIComponent(query)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.suggestions || []);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/search/suggestions?q=${encodeURIComponent(query.trim())}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSuggestions(data.suggestions || []);
+        }
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
       }
-    } catch (error) {
-      console.error("Error fetching suggestions:", error);
-    }
-  };
+    }, 300);
+  }, []);
 
   // Perform search
   const performSearch = async (query: string) => {
@@ -234,15 +240,17 @@ export default function SearchResultsSheet({
 
   // Handle suggestion click
   const handleSuggestionClick = (suggestion: SearchSuggestion) => {
-    // persist to recent searches if product suggestion
     if (suggestion.type === "product" && suggestion.name) addRecentSearch(suggestion.name);
-    if (suggestion.type === "product") {
-      // Navigate to product page
-      window.location.href = `/products/${suggestion.id}`;
-    } else {
-      // Navigate to category page
-      window.location.href = `/products?category=${suggestion.slug}`;
-    }
+
+    const slug = suggestion.slug ?? suggestion.id;
+    const destinations: Record<SearchSuggestion["type"], string> = {
+      product: `/products/${suggestion.id}`,
+      category: `/products?category=${slug}`,
+      gender: `/products?gender=${slug}`,
+      size: `/products?size=${slug}`,
+    };
+
+    window.location.href = destinations[suggestion.type];
     onOpenChange(false);
   };
 
@@ -292,18 +300,31 @@ export default function SearchResultsSheet({
     );
   };
 
-  // Get suggestion icon
+  // Get suggestion icon per type
   const getSuggestionIcon = (suggestion: SearchSuggestion) => {
-    if (suggestion.type === "product") {
-      return <Package className="w-4 h-4 text-muted-foreground" />;
-    } else {
-      return <Tag className="w-4 h-4 text-muted-foreground" />;
-    }
+    const icons: Record<SearchSuggestion["type"], React.ReactNode> = {
+      product: <Package className="w-4 h-4 text-muted-foreground" />,
+      category: <Tag className="w-4 h-4 text-muted-foreground" />,
+      gender: <Users className="w-4 h-4 text-muted-foreground" />,
+      size: <Ruler className="w-4 h-4 text-muted-foreground" />,
+    };
+    return icons[suggestion.type];
   };
 
-  // Reset state when modal closes
+  // Human-readable label shown below suggestion name
+  const getSuggestionLabel = (suggestion: SearchSuggestion): string | null => {
+    const labels: Partial<Record<SearchSuggestion["type"], string>> = {
+      category: "Category",
+      gender: "Gender",
+      size: "Size",
+    };
+    return labels[suggestion.type] ?? null;
+  };
+
+  // Reset state when sheet closes, clear any pending debounce
   useEffect(() => {
     if (!isOpen) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       setSearchQuery("");
       setSearchResults([]);
       setSuggestions([]);
@@ -311,6 +332,13 @@ export default function SearchResultsSheet({
       setSelectedIndex(-1);
     }
   }, [isOpen]);
+
+  // Clear debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -339,55 +367,58 @@ export default function SearchResultsSheet({
                 {showSuggestions && suggestions.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
                     <div className="p-2">
-                      {suggestions
-                        .filter((s) => s.type === "product")
-                        .map((suggestion, index) => (
-                          <button
-                            key={`${suggestion.type}-${suggestion.id}`}
-                            onClick={() => handleSuggestionClick(suggestion)}
-                            onMouseEnter={() => handleSuggestionHover(index)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
-                              selectedIndex === index
-                                ? "bg-primary/10 border border-primary/20"
-                                : "hover:bg-muted/50"
-                            }`}
-                          >
-                            {/* Image or fallback */}
-                            <div className="flex-shrink-0">
-                              {suggestion.image ? (
-                                <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
-                                  <Image
-                                    src={toImageSrc(suggestion.image)}
-                                    alt={suggestion.name}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
-                                  <Package className="w-4 h-4 text-muted-foreground" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-foreground truncate">
-                                {highlightText(suggestion.name, searchQuery)}
+                      {suggestions.map((suggestion, index) => (
+                        <button
+                          key={`${suggestion.type}-${suggestion.id}`}
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          onMouseEnter={() => handleSuggestionHover(index)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
+                            selectedIndex === index
+                              ? "bg-primary/10 border border-primary/20"
+                              : "hover:bg-muted/50"
+                          }`}
+                        >
+                          {/* Image (products only) or type icon */}
+                          <div className="flex-shrink-0">
+                            {suggestion.type === "product" && suggestion.image ? (
+                              <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden">
+                                <Image
+                                  src={toImageSrc(suggestion.image)}
+                                  alt={suggestion.name}
+                                  fill
+                                  className="object-cover"
+                                  sizes="40px"
+                                />
                               </div>
-                              {suggestion.categoryName && (
-                                <div className="text-xs text-muted-foreground truncate">
-                                  in {suggestion.categoryName}
-                                </div>
-                              )}
-                            </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
+                                {getSuggestionIcon(suggestion)}
+                              </div>
+                            )}
+                          </div>
 
-                            {/* Search icon */}
-                            <div className="flex-shrink-0">
-                              <Search className="w-4 h-4 text-muted-foreground" />
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">
+                              {highlightText(suggestion.name, searchQuery)}
                             </div>
-                          </button>
-                        ))}
+                            {suggestion.categoryName ? (
+                              <div className="text-xs text-muted-foreground truncate">
+                                in {suggestion.categoryName}
+                              </div>
+                            ) : getSuggestionLabel(suggestion) ? (
+                              <div className="text-xs text-muted-foreground truncate">
+                                {getSuggestionLabel(suggestion)}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {/* Arrow hint */}
+                          <div className="flex-shrink-0">
+                            <Search className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </button>
+                      ))}
                     </div>
 
                     {/* Footer with search hint */}
@@ -397,7 +428,7 @@ export default function SearchResultsSheet({
                         <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
                           Enter
                         </kbd>{" "}
-                        to search for "{searchQuery}"
+                        to search for &ldquo;{searchQuery}&rdquo;
                       </div>
                     </div>
                   </div>
