@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   validatePhoneNumber,
   validateFullName,
   validateRequiredPhoneNumber,
 } from "@/lib/utils/validation";
-import { useProfileCombined, PROFILE_COMBINED_QUERY_KEY } from "@/hooks/useApiQueries";
+import { getProfileCombined, type ProfileCombinedResponse } from "@/lib/services/api";
+
+const PROFILE_COMBINED_QUERY_KEY = ["profile", "combined"] as const;
 
 interface UserProfile {
   id: string;
@@ -38,7 +40,13 @@ interface UserAddress {
 
 export function useProfile(user: any) {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useProfileCombined(user?.id);
+  const { data, isLoading } = useQuery<ProfileCombinedResponse>({
+    queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id],
+    queryFn: () => getProfileCombined(),
+    staleTime: 1000 * 60,
+    gcTime: 1000 * 60 * 10,
+    enabled: !!user?.id,
+  });
 
   const profile: UserProfile | null = data?.profile ?? null;
   const addresses: UserAddress[] = data?.addresses ?? [];

@@ -9,7 +9,11 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { sendActivity } from "@/lib/utils/activities";
-import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import {
+  validateEmail,
+  validateRequiredPhoneNumber,
+  validateSignupPassword,
+} from "@/lib/utils/validation";
 import PhoneInput from "@/components/PhoneInput";
 
 function isSafeRedirect(path: string | null): path is string {
@@ -21,10 +25,12 @@ function isSafeRedirect(path: string | null): path is string {
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,9 +44,26 @@ export default function RegisterPage() {
     setIsLoading(true);
     setError("");
     setMessage("");
+    setEmailError("");
+    setPhoneError("");
+    setPasswordError("");
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      setEmailError(emailValidation.error || "Invalid email");
+      setIsLoading(false);
+      return;
+    }
+
+    const passwordValidation = validateSignupPassword(password);
+    if (!passwordValidation.isValid) {
+      setPasswordError(passwordValidation.error || "Invalid password");
+      setIsLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setPasswordError("Passwords do not match");
       setIsLoading(false);
       return;
     }
@@ -52,7 +75,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const { error } = await signUp(email, password, phone.replace(/\D/g, ""));
+    const { error } = await signUp(email.trim(), password, phone.replace(/\D/g, ""));
     if (error) {
       setError(error.message);
       await sendActivity("user_registration_failed", `User ${email} registration failed`, email);
@@ -155,9 +178,19 @@ export default function RegisterPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailError) setEmailError("");
+                }}
                 className="mt-1"
+                aria-invalid={!!emailError}
+                aria-describedby={emailError ? "email-error" : undefined}
               />
+              {emailError && (
+                <p id="email-error" className="mt-1 text-sm text-red-600" role="alert">
+                  {emailError}
+                </p>
+              )}
             </div>
             <PhoneInput
               value={phone}
@@ -174,9 +207,19 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }}
                 className="mt-1"
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? "password-error" : undefined}
               />
+              {passwordError && (
+                <p id="password-error" className="mt-1 text-sm text-red-600" role="alert">
+                  {passwordError}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -187,7 +230,10 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 required
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }}
                 className="mt-1"
               />
             </div>

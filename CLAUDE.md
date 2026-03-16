@@ -56,6 +56,7 @@ app/
 - Phone number required before checkout (enforced by middleware)
 - Roles: `customer`, `admin`, `super_admin`
 - Profile auto-created on signup via API route (bypasses RLS)
+- **Email confirmation**: To send "Check your email" confirmation links, enable **Confirm email** in Supabase Dashboard → Authentication → Providers → Email, and add your site URL (e.g. `http://localhost:3000/auth/callback`) to Redirect URLs. For reliable delivery, configure SMTP in Project Settings → Auth.
 
 ### Payment System (Custom UPI)
 - UPI deep links for PhonePe (`phonepe://pay?`), GPay (`tez://upi/pay?`), Paytm (`paytmmp://pay?`)

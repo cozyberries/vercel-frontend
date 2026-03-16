@@ -282,9 +282,19 @@ export function SupabaseAuthProvider({
   };
 
   const signUp = async (email: string, password: string, phone?: string) => {
+    const redirectUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback`
+        : process.env.NEXT_PUBLIC_SITE_URL
+          ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")}/auth/callback`
+          : "http://localhost:3000/auth/callback";
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: redirectUrl,
+      },
     });
     
     // If signup is successful and user is created, create a profile with generated name

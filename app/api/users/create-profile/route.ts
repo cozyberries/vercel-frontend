@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PostgrestError } from "@supabase/supabase-js";
-import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { generateNameFromEmail, validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { UpstashService } from "@/lib/upstash";
 
-// Initialize user profile after signup
-// This endpoint uses admin client to bypass RLS and create profile
+// Initialize user profile after signup.
+// Called by the client immediately after signUp(); no session is available yet when
+// email confirmation is required, so we do not require session. Security: we verify
+// the user exists in auth.users and email matches, plus rate limit per userId.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -15,17 +17,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "userId and email are required" },
         { status: 400 }
-      );
-    }
-
-    // --- Auth check: verify the caller's session matches the claimed userId ---
-    const sessionSupabase = await createServerSupabaseClient();
-    const { data: { user: sessionUser } } = await sessionSupabase.auth.getUser();
-
-    if (!sessionUser || sessionUser.id !== userId) {
-      return NextResponse.json(
-        { error: "Unauthorized: session does not match userId" },
-        { status: 401 }
       );
     }
 
