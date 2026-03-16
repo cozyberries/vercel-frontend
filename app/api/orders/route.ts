@@ -7,6 +7,8 @@ import {
   validateItemPrices,
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
+import { validateAndApplyOffer } from "@/lib/utils/offers-server";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateOrderRequest = await request.json();
-    const { items, shipping_address_id, billing_address_id, notes } = body;
+    const { items, shipping_address_id, billing_address_id, coupon_code, notes } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -74,6 +76,29 @@ export async function POST(request: NextRequest) {
     }
 
     const orderSummary = calculateOrderSummary(items);
+
+    let discountCode: string | null = null;
+    let discountAmount = 0;
+
+    if (coupon_code) {
+      const result = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: "invalid_coupon", message: result.error },
+          { status: 422 }
+        );
+      }
+      discountCode = result.data.discountCode;
+      discountAmount = result.data.discountAmount;
+    }
+
+    const discountedSubtotal = orderSummary.subtotal - discountAmount;
+    const serverDeliveryCharge =
+      items.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
+        ? DELIVERY_CHARGE_INR
+        : 0;
+    const finalTotal = discountedSubtotal + serverDeliveryCharge;
+
     const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
     const orderData: OrderCreate = {
@@ -83,9 +108,11 @@ export async function POST(request: NextRequest) {
       shipping_address: shippingAddress,
       billing_address: billingAddress,
       subtotal: orderSummary.subtotal,
-      delivery_charge: orderSummary.delivery_charge,
+      discount_code: discountCode ?? undefined,
+      discount_amount: discountAmount,
+      delivery_charge: serverDeliveryCharge,
       tax_amount: orderSummary.tax_amount,
-      total_amount: orderSummary.total_amount,
+      total_amount: finalTotal,
       currency: orderSummary.currency,
       notes,
     };
