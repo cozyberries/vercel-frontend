@@ -80,6 +80,8 @@ export interface OrderBase {
   total_amount: number;
   currency?: string;
   notes?: string;
+  discount_code?: string;
+  discount_amount?: number;
 }
 
 /** Shape inserted into the orders table (no items — stored separately). */
@@ -142,6 +144,7 @@ export interface CreateOrderRequest {
   items: OrderItemInput[];
   shipping_address_id: string;
   billing_address_id?: string;
+  coupon_code?: string;
   notes?: string;
 }
 
@@ -176,8 +179,21 @@ export interface CheckoutSession {
   total_amount: number;
   currency: string;
   notes?: string;
+  discount_code?: string;
+  discount_amount?: number;
   status: CheckoutSessionStatus;
   order_id?: string;
   created_at: string;
   updated_at: string;
+}
+
+// ─── Offers ───────────────────────────────────────────────────────────────────
+
+export interface ActiveOfferResponse {
+  code: string
+  discountRate: number
+  expiresAt: string   // ISO string from API
+  label: string
+  badgeText: string
+  enabled: boolean
 }

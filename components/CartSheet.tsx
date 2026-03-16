@@ -16,12 +16,20 @@ import CartItemRow from "@/components/CartItem";
 import Link from "next/link";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 import { useCartTotals } from "@/hooks/useCartTotals";
+import { getActiveOffer } from "@/lib/utils/discount";
 
 export default function CartSheet() {
   const { cart, updateQuantity, removeFromCart, clearCart, isLoading } =
     useCart();
   const [open, setOpen] = useState(false);
-  const { subtotal, deliveryCharge, grandTotal } = useCartTotals(cart);
+  const offer = getActiveOffer();
+  const {
+    subtotal,
+    discountAmount,
+    discountedSubtotal,
+    deliveryCharge,
+    grandTotal,
+  } = useCartTotals(cart, offer);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -93,6 +101,18 @@ export default function CartSheet() {
                 <span className="font-medium">Subtotal</span>
                 <span className="font-semibold">₹{subtotal.toFixed(0)}</span>
               </div>
+              {offer && discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between items-center text-base text-muted-foreground">
+                    <span className="font-medium">Promo ({offer.code})</span>
+                    <span className="text-green-600 text-xs font-semibold">Applied</span>
+                  </div>
+                  <div className="flex justify-between items-center text-base text-green-600">
+                    <span className="font-medium">Discount ({offer.badgeText})</span>
+                    <span className="font-semibold">-₹{discountAmount.toFixed(0)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Delivery Charge</span>
                 {deliveryCharge === 0 ? (
@@ -101,10 +121,10 @@ export default function CartSheet() {
                   <span className="font-semibold">₹{deliveryCharge.toFixed(0)}</span>
                 )}
               </div>
-              {subtotal < FREE_DELIVERY_THRESHOLD && (
+              {discountedSubtotal < FREE_DELIVERY_THRESHOLD && (
                 <div className="bg-primary/10 border border-primary/20 rounded-md p-3 text-sm">
                   <p className="text-primary font-medium">
-                    Add products worth ₹{(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} to get free shipping.
+                    Add products worth ₹{(FREE_DELIVERY_THRESHOLD - discountedSubtotal).toFixed(0)} to get free shipping.
                   </p>
                 </div>
               )}

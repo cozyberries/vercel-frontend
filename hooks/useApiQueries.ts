@@ -10,11 +10,13 @@ import {
   getGenderOptions,
   getProducts,
   getProductById,
+  getActiveOfferFromApi,
   type AgeOptionFilter,
   type CategoryOption,
   type SizeOptionFilter,
   type GenderOptionFilter,
 } from "@/lib/services/api";
+import type { ActiveOfferResponse } from "@/lib/types/order";
 
 /**
  * Custom hook for fetching age options
@@ -133,6 +135,20 @@ export function useProducts(params: {
     staleTime: 1000 * 30, // 30 seconds  
     gcTime: 1000 * 60 * 5, // 5 minutes
     enabled,
+  });
+}
+
+/**
+ * Fetches the current active offer from /api/offers/active.
+ * Cached for 10 minutes — offer config rarely changes mid-session.
+ * Returns null when no offer is active.
+ */
+export function useActiveOffer() {
+  return useQuery<ActiveOfferResponse | null>({
+    queryKey: ["activeOffer"],
+    queryFn: () => getActiveOfferFromApi(),
+    staleTime: 1000 * 60 * 10,  // 10 minutes
+    gcTime: 1000 * 60 * 60,     // 1 hour
   });
 }
 

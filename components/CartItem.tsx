@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { images } from "@/app/assets/images";
 import type { CartItem } from "@/components/cart-context";
+import DiscountedPrice from "@/components/discounted-price";
 
 interface CartItemProps {
   item: CartItem;
@@ -37,7 +38,7 @@ export default function CartItemRow({
           </div>
         )}
         <div className="text-sm font-semibold mt-1">
-          ₹{item.price.toFixed(0)}
+          <DiscountedPrice price={item.price} />
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
           <div className="inline-flex items-center border h-7 rounded-md overflow-hidden">

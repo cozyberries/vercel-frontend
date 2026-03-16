@@ -30,6 +30,7 @@ import { sendActivity } from "@/lib/utils/activities";
 import { logEvent } from "@/lib/services/event-logger";
 import { toImageSrc } from "@/lib/utils/image";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { getActiveOffer } from '@/lib/utils/discount'
 
 interface CheckoutFormData {
   email: string;
@@ -75,8 +76,15 @@ export default function CheckoutPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const deliveryCharge = cart.length > 0 && subtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
-  const total = subtotal + deliveryCharge;
+  const offer = getActiveOffer()
+  const couponCode = offer?.code ?? ''
+  const discountAmount = offer ? Math.floor(subtotal * offer.discountRate) : 0
+  const discountedSubtotal = subtotal - discountAmount
+  const deliveryCharge =
+    cart.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
+      ? DELIVERY_CHARGE_INR
+      : 0
+  const total = discountedSubtotal + deliveryCharge
 
   // Redirect if user is not authenticated
   useEffect(() => {
@@ -195,7 +203,8 @@ export default function CheckoutPage() {
             ...(item.color ? { color: item.color } : {}),
           })),
           shipping_address_id: selectedAddressId,
-          notes: formData.notes || "",
+          ...(couponCode ? { coupon_code: couponCode } : {}),
+          notes: formData.notes || undefined,
         }),
       });
 
@@ -537,6 +546,23 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>₹{subtotal.toFixed(0)}</span>
                 </div>
+                {offer && discountAmount > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm items-center">
+                      <span className="text-muted-foreground">Promo Code</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="bg-[#f5eee0] text-[#3d2b1a] text-xs font-bold px-2 py-0.5 rounded-full border border-[#c9a87c]">
+                          {couponCode}
+                        </span>
+                        <span className="text-green-600 text-xs">✓ Applied</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Discount ({offer.badgeText})</span>
+                      <span>-₹{discountAmount.toFixed(0)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
                   {deliveryCharge === 0 ? (

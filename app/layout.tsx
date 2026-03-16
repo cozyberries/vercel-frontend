@@ -9,7 +9,7 @@ import { WishlistProvider } from "@/components/wishlist-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
-import PwaUpdateHandler from "@/components/pwa-update-handler";
+import PwaUpdateHandler from "@/components/PwaUpdateHandlerClient";
 import { Toaster } from "sonner";
 import { RatingProvider } from "@/components/rating-context";
 import { QueryProvider } from "@/components/query-provider";
