@@ -613,3 +613,54 @@ export async function getActiveOfferFromApi(): Promise<ActiveOfferResponse | nul
   );
   return response.data.offer;
 }
+
+// ---------- Profile (auth required) ----------
+
+export interface ProfileCombinedProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url?: string | null;
+  created_at?: string;
+  updated_at: string;
+}
+
+export interface ProfileCombinedAddress {
+  id: string;
+  user_id: string;
+  address_type: string;
+  label: string | null;
+  full_name: string | null;
+  phone: string | null;
+  address_line_1: string;
+  area: string | null;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileCombinedResponse {
+  profile: ProfileCombinedProfile;
+  addresses: ProfileCombinedAddress[];
+}
+
+/**
+ * Fetches profile and addresses in one request. Uses cookie-based auth.
+ * Deduplicated and cached by TanStack Query when used via useProfileCombined.
+ */
+export async function getProfileCombined(): Promise<ProfileCombinedResponse> {
+  const { data } = await dedupeGet<ProfileCombinedResponse>("/api/profile/combined");
+  if (!data?.profile) {
+    throw new Error("Invalid profile response");
+  }
+  return {
+    profile: data.profile,
+    addresses: Array.isArray(data.addresses) ? data.addresses : [],
+  };
+}

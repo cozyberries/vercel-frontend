@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   validatePhoneNumber,
   validateFullName,
   validateRequiredPhoneNumber,
 } from "@/lib/utils/validation";
+import { useProfileCombined, PROFILE_COMBINED_QUERY_KEY } from "@/hooks/useApiQueries";
 
 interface UserProfile {
   id: string;
@@ -36,9 +37,12 @@ interface UserAddress {
 }
 
 export function useProfile(user: any) {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [addresses, setAddresses] = useState<UserAddress[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useProfileCombined(user?.id);
+
+  const profile: UserProfile | null = data?.profile ?? null;
+  const addresses: UserAddress[] = data?.addresses ?? [];
+
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -78,74 +82,17 @@ export function useProfile(user: any) {
     postal_code: "",
   });
 
-  // Ref-based guard to prevent double-submission (state updates are batched)
   const isSavingRef = useRef(false);
 
-  // Fetch profile data and addresses using combined endpoint for better performance
+  // Sync editData when profile loads or changes from cache/refetch
   useEffect(() => {
-    const controller = new AbortController();
-
-    const fetchData = async () => {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        // Use combined endpoint to fetch both profile and addresses in a single request
-        const response = await fetch("/api/profile/combined", { signal: controller.signal });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          // Set profile data
-          if (data.profile) {
-            setProfile(data.profile);
-            setEditData({
-              full_name: data.profile.full_name || "",
-              phone: data.profile.phone || "",
-            });
-          }
-
-          // Set addresses data
-          setAddresses(data.addresses || []);
-        } else {
-          // Fallback to separate endpoints if combined endpoint fails
-          console.warn("Combined endpoint failed, falling back to separate endpoints");
-          const [profileResponse, addressesResponse] = await Promise.all([
-            fetch("/api/profile", { signal: controller.signal }),
-            fetch("/api/profile/addresses", { signal: controller.signal }),
-          ]);
-
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            setProfile(profileData);
-            setEditData({
-              full_name: profileData.full_name || "",
-              phone: profileData.phone || "",
-            });
-          }
-
-          if (addressesResponse.ok) {
-            const addressesData = await addressesResponse.json();
-            setAddresses(addressesData);
-          } else {
-            setAddresses([]);
-          }
-        }
-      } catch (error) {
-        // DOMException (AbortError) is not instanceof Error in Chromium — check name directly
-        if ((error as { name?: string })?.name === "AbortError") return;
-        console.error("Error fetching profile data:", error);
-        setAddresses([]);
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    };
-
-    fetchData();
-    return () => controller.abort();
-  }, [user]);
+    if (data?.profile) {
+      setEditData({
+        full_name: data.profile.full_name || "",
+        phone: data.profile.phone || "",
+      });
+    }
+  }, [data?.profile]);
 
   const validateField = (field: string, value: string) => {
     let error = "";
@@ -197,8 +144,7 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
-        const updatedProfile = await response.json();
-        setProfile(updatedProfile);
+        await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         setIsEditing(false);
         setValidationErrors({ full_name: "", phone: "" });
       } else {
@@ -323,8 +269,8 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
+        await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         const newAddress: UserAddress = await response.json();
-        setAddresses((prev) => [...prev, newAddress]);
         setShowAddAddress(false);
         setAddressData({
           address_type: "home",
@@ -387,10 +333,8 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
+        await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         const updatedAddress: UserAddress = await response.json();
-        setAddresses((prev) =>
-          prev.map((addr) => (addr.id === addressId ? updatedAddress : addr))
-        );
         setEditingAddress(null);
         setAddressData({
           address_type: "home",
@@ -441,7 +385,7 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
-        setAddresses((prev) => prev.filter((addr) => addr.id !== addressId));
+        await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         if (editingAddress === addressId) {
           setEditingAddress(null);
           setShowAddAddress(false);
@@ -515,13 +459,7 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
-        const updatedAddress = await response.json();
-        setAddresses((prev) =>
-          prev.map((addr) => ({
-            ...addr,
-            is_default: addr.id === addressId,
-          }))
-        );
+        await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id] });
       } else {
         const errorData = await response.json();
         alert(`Failed to set default address: ${errorData.error}`);
