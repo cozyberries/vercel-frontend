@@ -11,7 +11,6 @@ import {
   Check,
   MapPin,
   Plus,
-  Star,
   Loader2,
   CheckCircle,
   AlertCircle,
@@ -342,17 +341,20 @@ export default function CheckoutPage() {
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <MapPin className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm text-gray-500">Type:</span>
                                 <span className="text-sm font-medium capitalize">
                                   {address.address_type}
                                 </span>
                                 {address.label && (
-                                  <span className="text-sm text-gray-500">
-                                    ({address.label})
-                                  </span>
+                                  <>
+                                    <span className="text-sm text-gray-400">·</span>
+                                    <span className="text-sm text-gray-500" title="Nickname">
+                                      {address.label}
+                                    </span>
+                                  </>
                                 )}
                                 {address.is_default && (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    <Star className="w-3 h-3 mr-1" />
                                     Default
                                   </span>
                                 )}

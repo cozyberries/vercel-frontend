@@ -225,6 +225,10 @@ export default function AddressFormModal({
 
   if (!isOpen) return null;
 
+  const isOnlyAddress =
+    (!isEditing && addresses.length === 0) ||
+    (isEditing && addresses.length === 1);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center md:p-4 z-50">
       <div className="bg-white rounded-t-2xl md:rounded-lg shadow-xl max-w-2xl w-full max-h-[92vh] md:max-h-[90vh] flex flex-col">
@@ -258,13 +262,14 @@ export default function AddressFormModal({
                 </select>
               </div>
               <div>
-                <Label htmlFor="label">Label (Optional)</Label>
+                <Label htmlFor="label">Nickname (optional)</Label>
                 <Input
                   id="label"
                   value={addressData.label}
                   onChange={(e) => onInputChange("label", e.target.value)}
-                  placeholder="e.g., Mom's House, Office"
+                  placeholder="e.g. Safana home, Mom's House"
                 />
+                <p className="text-xs text-muted-foreground mt-1">A friendly name to tell addresses apart; type above is the category.</p>
               </div>
             </div>
 
@@ -479,21 +484,20 @@ export default function AddressFormModal({
                 type="checkbox"
                 id="is_default"
                 checked={addressData.is_default}
-                disabled={addresses.length === 1}
+                disabled={isOnlyAddress}
                 onChange={(e) =>
                   onInputChange("is_default", e.target.checked.toString())
                 }
-                className={`rounded border-gray-300 ${addresses.length === 1 ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
+                className={`rounded border-gray-300 ${isOnlyAddress ? "opacity-50 cursor-not-allowed" : ""}`}
               />
               <Label
                 htmlFor="is_default"
-                className={addresses.length === 1 ? "opacity-50" : ""}
+                className={isOnlyAddress ? "opacity-50" : ""}
               >
                 Set as default address
-                {addresses.length === 1 && (
+                {isOnlyAddress && (
                   <span className="text-xs text-gray-500 ml-1">
-                    (Only address - automatically default)
+                    (Only address – automatically default)
                   </span>
                 )}
               </Label>

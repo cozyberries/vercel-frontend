@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Star, Edit3 } from "lucide-react";
+import { MapPin, CheckCircle, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UserAddress {
@@ -46,31 +46,35 @@ export default function AddressCard({
       </Button>
 
       <div className="space-y-3 pr-8">
-        {/* Header with type and default badge */}
-        <div className="flex items-center justify-between">
+        {/* Header: type (category), optional nickname, default badge */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Type:</span>
             <span className="text-xs font-medium capitalize text-foreground bg-background px-2 py-1 rounded-full border">
               {address.address_type}
             </span>
             {address.label && (
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                {address.label}
-              </span>
+              <>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-muted-foreground" title="Nickname for this address">
+                  {address.label}
+                </span>
+              </>
             )}
             {address.is_default && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                <Star className="w-3 h-3 mr-1" />
                 Default
               </span>
             )}
             {!address.is_default && (
               <Button
                 variant="outline"
-                size="icon"
+                size="sm"
                 onClick={() => onSetDefault(address.id)}
-                className="h-8 w-8"
+                className="h-8 gap-1"
               >
-                <Star className="w-3 h-3" />
+                <CheckCircle className="w-3 h-3" />
+                Set default
               </Button>
             )}
           </div>

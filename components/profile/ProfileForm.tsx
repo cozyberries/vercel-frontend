@@ -5,7 +5,7 @@ import {
   User,
   Phone,
   Edit3,
-  Save,
+  Check,
   X,
   AlertCircle,
   MapPin,
@@ -88,42 +88,37 @@ export default function ProfileForm({
 }: ProfileFormProps) {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-3">
-          <User className="w-6 h-6 text-primary" />
-          <h3 className="text-xl font-light">Personal Information</h3>
-        </div>
-        <div className="flex items-center space-x-2">
-          {!isEditing ? (
-            <Button onClick={onEdit} size="icon" variant="outline">
-              <Edit3 className="w-4 h-4" />
-            </Button>
-          ) : (
-            <div className="flex space-x-2">
-              <Button
-                onClick={onSave}
-                disabled={
-                  isSaving ||
-                  !!validationErrors.full_name ||
-                  !!validationErrors.phone
-                }
-                size="icon"
-                variant="outline"
-              >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-              </Button>
-              {!isSaving && (
-                <Button variant="outline" onClick={onCancel} size="icon">
-                  <X className="w-4 h-4" />
-                </Button>
+      <div className="flex items-center justify-end gap-2 mb-8">
+        {!isEditing ? (
+          <Button onClick={onEdit} size="icon" variant="outline" className="size-10 shrink-0" aria-label="Edit profile">
+            <Edit3 className="w-4 h-4" />
+          </Button>
+        ) : (
+          <>
+            <Button
+              onClick={onSave}
+              disabled={
+                isSaving ||
+                !!validationErrors.full_name ||
+                !!validationErrors.phone
+              }
+              size="icon"
+              variant="outline"
+              className="size-10 shrink-0"
+              aria-label={isSaving ? "Saving..." : "Save changes"}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
               )}
-            </div>
-          )}
-        </div>
+            </Button>
+            {!isSaving && (
+              <Button variant="outline" onClick={onCancel} size="icon" className="size-10 shrink-0" aria-label="Cancel editing">
+                <X className="w-4 h-4" />
+              </Button>
+            )}          </>
+        )}
       </div>
 
       {/* Basic Information Section */}
@@ -164,7 +159,7 @@ export default function ProfileForm({
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-muted-foreground text-sm font-medium">
+                  <span className="text-base md:text-sm font-normal text-muted-foreground">
                     +91
                   </span>
                 </div>
@@ -193,7 +188,7 @@ export default function ProfileForm({
             <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
               <User className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-base font-medium text-foreground">
+                <p className="text-base font-normal text-foreground">
                   {profile?.full_name || "Not provided"}
                 </p>
               </div>
@@ -201,7 +196,7 @@ export default function ProfileForm({
             <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
               <Phone className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-base font-medium text-foreground">
+                <p className="text-base font-normal text-foreground">
                   {profile?.phone ? `+91 ${formatIndianPhoneDisplay(profile.phone)}` : "Not provided"}
                 </p>
               </div>
@@ -217,10 +212,9 @@ export default function ProfileForm({
             <MapPin className="w-5 h-5 text-primary" />
             <h3 className="text-xl font-light">Addresses</h3>
           </div>
-          <Button onClick={onAddAddress} size="icon" variant="outline">
+          <Button onClick={onAddAddress} size="icon" variant="outline" className="size-10 shrink-0" aria-label="Add new address">
             <Plus className="w-4 h-4" />
-          </Button>
-        </div>
+          </Button>        </div>
 
         <div className="space-y-4">
           {addresses.length === 0 ? (
