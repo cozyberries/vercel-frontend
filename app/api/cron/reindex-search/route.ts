@@ -33,6 +33,11 @@ async function buildDocuments(supabase: any): Promise<{
         .order('display_order', { ascending: true }),
     ]);
 
+  if (productsResult.error) throw new Error(`[reindex-search] products: ${productsResult.error.message}`);
+  if (categoriesResult.error) throw new Error(`[reindex-search] categories: ${categoriesResult.error.message}`);
+  if (gendersResult.error) throw new Error(`[reindex-search] genders: ${gendersResult.error.message}`);
+  if (sizesResult.error) throw new Error(`[reindex-search] sizes: ${sizesResult.error.message}`);
+
   const documents: SearchDocument[] = [];
   const counts: Record<string, number> = {
     products: 0,
@@ -148,8 +153,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** POST — manual trigger for development and admin use. No CRON_SECRET required. */
-export async function POST() {
+/** POST — manual trigger for development and admin use. Requires CRON_SECRET when configured. */
+export async function POST(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const auth = request.headers.get('authorization');
+    if (auth !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
   if (!isSearchConfigured()) {
     return NextResponse.json(
       { error: 'Upstash Search not configured.' },
