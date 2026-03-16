@@ -477,6 +477,8 @@ export default function SearchResultsSheet({
                                 name: product.name,
                                 price: product.price,
                                 image: (product.images?.[0] as any)?.url ?? (product.images?.[0] as any),
+                                size: product.sizes?.[0]?.name,
+                                color: product.variants?.[0]?.color ?? product.colors?.[0],
                               });
                               toast.success(
                                 `${product.name} added to wishlist!`
@@ -563,6 +565,8 @@ export default function SearchResultsSheet({
                                         name: prod.name,
                                         price: prod.price ?? 0,
                                         image: prodImgSrc,
+                                        size: prod.sizes?.[0]?.name,
+                                        color: prod.variants?.[0]?.color ?? prod.colors?.[0],
                                       });
                                       toast.success(`${prod.name} added to wishlist!`);
                                     }
@@ -651,6 +655,8 @@ export default function SearchResultsSheet({
                                     name: p.name,
                                     price: p.price ?? 0,
                                     image: productImageSrc,
+                                    size: p.sizes?.[0]?.name,
+                                    color: p.variants?.[0]?.color ?? p.colors?.[0],
                                   });
                                   toast.success(`${p.name} added to wishlist!`);
                                 }

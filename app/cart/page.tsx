@@ -13,11 +13,11 @@ export default function CartPage() {
     const { cart, updateQuantity, removeFromCart, clearCart, isLoading } = useCart();
     const offer = getActiveOffer();
     const {
-      subtotal,
-      discountAmount,
-      discountedSubtotal,
-      deliveryCharge,
-      grandTotal,
+        subtotal,
+        discountAmount,
+        discountedSubtotal,
+        deliveryCharge,
+        grandTotal,
     } = useCartTotals(cart, offer);
 
     if (isLoading) {
@@ -105,10 +105,34 @@ export default function CartPage() {
                             )}
                         </div>
                         {discountedSubtotal < FREE_DELIVERY_THRESHOLD && (
-                            <div className="bg-primary/10 border border-primary/20 rounded-md p-3 text-sm">
-                                <p className="text-primary font-medium">
-                                    Add products worth ₹{(FREE_DELIVERY_THRESHOLD - discountedSubtotal).toFixed(0)} to get free shipping.
-                                </p>
+                            <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-xl p-4 shadow-sm">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-4L4 7m8 4v10M4 7v10l8 4" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-primary font-semibold text-lg">Free shipping awaits!</p>
+                                        <p className="text-muted-foreground text-sm">Add ₹{(FREE_DELIVERY_THRESHOLD - discountedSubtotal).toFixed(0)} more</p>                                    </div>
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="w-full bg-gray-100 rounded-full h-2">
+                                    <div 
+                                        className="w-full bg-gray-100 rounded-full h-2"
+                                        role="progressbar"
+                                        aria-valuenow={Math.round((discountedSubtotal / FREE_DELIVERY_THRESHOLD) * 100)}
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-label="Progress toward free delivery"
+                                    >
+                                        <div
+                                            className="bg-gradient-to-r from-primary to-secondary h-2 rounded-full transition-all duration-300"
+                                            style={{ width: `${Math.min((discountedSubtotal / FREE_DELIVERY_THRESHOLD) * 100, 100)}%` }}
+                                        />
+                                    </div>                        
+                                </div>
                             </div>
                         )}
                         <div className="flex justify-between items-center text-base border-t py-2">

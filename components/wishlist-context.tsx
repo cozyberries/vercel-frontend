@@ -12,6 +12,8 @@ export interface WishlistItem {
   name: string;
   price: number;
   image?: string;
+  size?: string;
+  color?: string;
 }
 
 interface WishlistContextType {

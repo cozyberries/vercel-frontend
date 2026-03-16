@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import ProductCard from "./product-card";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
+
+const MIN_SWIPE_PX = 50;
 
 export default function FeaturedProducts() {
   const { data: products = [], isLoading, error } = useFeaturedProducts(6);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Track screen size for responsive behavior
   useEffect(() => {
@@ -22,6 +25,49 @@ export default function FeaturedProducts() {
     window.addEventListener("resize", checkScreenSize);
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
+
+  const maxIndex = products.length <= 1
+    ? 0
+    : isMobile
+      ? products.length - 1
+      : Math.max(0, products.length - 3);
+
+  const goToPrev = useCallback(() => {
+    setCurrentIndex((i) => (i <= 0 ? maxIndex : i - 1));
+  }, [maxIndex]);
+
+  const goToNext = useCallback(() => {
+    setCurrentIndex((i) => (i >= maxIndex ? 0 : i + 1));
+  }, [maxIndex]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = {
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY,
+    };
+  }, []);
+
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStartRef.current) return;
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      touchStartRef.current = null;
+
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      if (absX < MIN_SWIPE_PX || absX <= absY) return;
+
+      if (deltaX > 0) {
+        goToPrev();
+      } else {
+        goToNext();
+      }
+    },
+    [goToPrev, goToNext]
+  );
 
   // Auto-scroll animation with jerk effect
   useEffect(() => {
@@ -130,6 +176,8 @@ export default function FeaturedProducts() {
                     currentIndex * (isMobile ? 100 : 33.33)
                   }%)`,
                 }}
+                onTouchStart={onTouchStart}
+                onTouchEnd={onTouchEnd}
               >
                 {products.map((product, index) => (
                   <div
