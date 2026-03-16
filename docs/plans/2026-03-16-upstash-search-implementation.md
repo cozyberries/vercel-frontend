@@ -328,8 +328,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** POST — manual trigger (no CRON_SECRET required; use only in development or admin flows). */
-export async function POST() {
+/** POST — manual trigger. When CRON_SECRET is set, requires Authorization: Bearer <CRON_SECRET>. */
+export async function POST(request: NextRequest) {
   if (!isSearchConfigured()) {
     return NextResponse.json(
       { error: 'Upstash Search not configured.' },
@@ -392,6 +392,8 @@ With the dev server running (`npm run dev`):
 ```bash
 curl -X POST http://localhost:3000/api/cron/reindex-search
 ```
+
+If `CRON_SECRET` is set (e.g. in production), include the header: `-H "Authorization: Bearer $CRON_SECRET"`.
 
 Expected response:
 ```json

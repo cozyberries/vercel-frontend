@@ -32,6 +32,10 @@ async function supabaseFallbackSearch(normalised: string) {
     console.error('[search/suggestions] Supabase categories error:', categoriesResult.error);
   }
 
+  if (productsResult.error && categoriesResult.error) {
+    return [];
+  }
+
   const suggestions = [];
 
   for (const product of productsResult.data ?? []) {
@@ -64,7 +68,24 @@ async function supabaseFallbackSearch(normalised: string) {
   return suggestions;
 }
 
+const REDIS_CACHE_TIMEOUT_MS = 1500;
+const SEARCH_TIMEOUT_MS = 4000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+function rejectAfter(ms: number): Promise<never> {
+  return new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
+  );
+}
+
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
 
@@ -75,41 +96,64 @@ export async function GET(request: NextRequest) {
 
   const cacheKey = `search:suggestions:${normalised}`;
 
-  // 1. Redis cache — 60s TTL for burst deduplication
-  const cached = await UpstashService.get(cacheKey).catch(() => null);
+  // 1. Redis cache — 60s TTL; short timeout so slow Redis doesn't block (treat as miss)
+  const cacheStart = Date.now();
+  const cached = await withTimeout(
+    UpstashService.get(cacheKey).catch(() => null),
+    REDIS_CACHE_TIMEOUT_MS,
+    null
+  );
+  const cacheMs = Date.now() - cacheStart;
+
   if (cached) {
+    const totalMs = Date.now() - start;
     return NextResponse.json(cached, {
       headers: {
         'X-Cache-Status': 'HIT',
         'X-Data-Source': 'REDIS_CACHE',
+        'X-Cache-Check-Ms': String(cacheMs),
+        'X-Response-Time-Ms': String(totalMs),
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
       },
     });
   }
 
   try {
-    let suggestions;
-    let dataSource: string;
+    const searchStart = Date.now();
 
-    if (isSearchConfigured()) {
-      // 2a. Upstash Search — primary path
-      suggestions = await querySearch(normalised, 8);
-      dataSource = 'UPSTASH_SEARCH';
-    } else {
-      // 2b. Supabase ILIKE fallback — dev without Upstash Search configured
-      suggestions = await supabaseFallbackSearch(normalised);
-      dataSource = 'SUPABASE_FALLBACK';
-    }
+    const searchPromise = isSearchConfigured()
+      ? querySearch(normalised, 8).then((s) => ({ s, dataSource: 'UPSTASH_SEARCH' as const }))
+      : supabaseFallbackSearch(normalised).then((s) => ({ s, dataSource: 'SUPABASE_FALLBACK' as const }));
 
+    const result = await Promise.race([
+      searchPromise,
+      rejectAfter(SEARCH_TIMEOUT_MS),
+    ]).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('Timeout')) {
+        console.warn('[search/suggestions] Search timed out:', normalised);
+        return { s: [], dataSource: 'TIMEOUT' as const };
+      }
+      throw err;
+    });
+
+    const suggestions = result.s;
+    const dataSource = result.dataSource;
+
+    const searchMs = Date.now() - searchStart;
+    const totalMs = Date.now() - start;
     const response = { suggestions };
 
-    // 3. Cache in Redis for 60s
+    // 3. Cache in Redis for 60s (fire-and-forget)
     UpstashService.set(cacheKey, response, 60).catch(() => {});
 
     return NextResponse.json(response, {
       headers: {
         'X-Cache-Status': 'MISS',
         'X-Data-Source': dataSource,
+        'X-Cache-Check-Ms': String(cacheMs),
+        'X-Search-Ms': String(searchMs),
+        'X-Response-Time-Ms': String(totalMs),
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
       },
     });

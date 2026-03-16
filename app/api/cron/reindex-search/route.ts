@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { indexDocuments, isSearchConfigured, SearchDocument } from '@/lib/services/search-client';
 
+type SupabaseClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
+
 function extractPrimaryImage(productImages: Array<{ url?: string; is_primary?: boolean; display_order?: number }>): string | undefined {
   const sorted = [...productImages].sort(
     (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)
@@ -10,7 +12,7 @@ function extractPrimaryImage(productImages: Array<{ url?: string; is_primary?: b
   return primary?.url ?? undefined;
 }
 
-async function buildDocuments(supabase: any): Promise<{
+async function buildDocuments(supabase: SupabaseClient): Promise<{
   documents: SearchDocument[];
   counts: Record<string, number>;
 }> {
