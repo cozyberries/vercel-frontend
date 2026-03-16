@@ -1,5 +1,6 @@
 import axios from "axios";
 import { normalizeProduct } from "@/lib/utils/product";
+import type { ActiveOfferResponse } from "@/lib/types/order";
 // ---------- Types ----------
 export interface ProductVariant {
   slug: string;
@@ -601,3 +602,14 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
     return false;
   }
 };
+
+/**
+ * Fetches the current active offer from the server.
+ * Returns null when no offer is active.
+ */
+export async function getActiveOfferFromApi(): Promise<ActiveOfferResponse | null> {
+  const response = await api.get<{ offer: ActiveOfferResponse | null }>(
+    "/api/offers/active"
+  );
+  return response.data.offer;
+}

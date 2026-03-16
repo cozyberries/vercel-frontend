@@ -186,3 +186,14 @@ export interface CheckoutSession {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Offers ───────────────────────────────────────────────────────────────────
+
+export interface ActiveOfferResponse {
+  code: string
+  discountRate: number
+  expiresAt: string   // ISO string from API
+  label: string
+  badgeText: string
+  enabled: boolean
+}
