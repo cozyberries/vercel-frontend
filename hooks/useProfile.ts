@@ -6,6 +6,7 @@ import {
   validatePhoneNumber,
   validateFullName,
   validateRequiredPhoneNumber,
+  validateAddress,
 } from "@/lib/utils/validation";
 
 interface UserProfile {
@@ -253,6 +254,9 @@ export function useProfile(user: any) {
           postal_code: "PIN code is required",
         };
         error = labels[field];
+      } else if (field === "address_line_1") {
+        const addressVal = validateAddress(value);
+        if (!addressVal.isValid) error = addressVal.error || "";
       }
     }
     setAddressValidationErrors((prev) => ({ ...prev, [field]: error }));
@@ -275,8 +279,12 @@ export function useProfile(user: any) {
     else if (!fullNameVal.isValid) errors.full_name = fullNameVal.error || "";
     const phoneVal = validateRequiredPhoneNumber(data.phone);
     if (!phoneVal.isValid) errors.phone = phoneVal.error || "";
-    if (!data.address_line_1.trim())
+    if (!data.address_line_1.trim()) {
       errors.address_line_1 = "Building / Street address is required";
+    } else {
+      const addressVal = validateAddress(data.address_line_1);
+      if (!addressVal.isValid) errors.address_line_1 = addressVal.error || "";
+    }
     if (!data.city.trim()) errors.city = "City is required";
     if (!data.state.trim()) errors.state = "State is required";
     if (!data.postal_code.trim()) errors.postal_code = "PIN code is required";

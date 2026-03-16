@@ -273,6 +273,7 @@ export const formatPostalCode = (
 };
 
 // Address validation
+// Allows letters, numbers, spaces, and common address chars: \ - / ' " , . # ( ) & ; : + ° ² № ~
 export const validateAddress = (address: string): ValidationResult => {
   if (!address || address.trim() === "") {
     return {
@@ -299,8 +300,8 @@ export const validateAddress = (address: string): ValidationResult => {
     };
   }
 
-  // Check for valid characters (letters, numbers, spaces, common punctuation)
-  const validAddressRegex = /^[a-zA-Z0-9\s.,#-]+$/;
+  // Allow letters, numbers, spaces, and address punctuation/symbols: backslash, hyphen, slash, quotes, comma, period, # ( ) & ; : + ° ² № ~
+  const validAddressRegex = /^[\p{L}\p{N}\s.,#'"\/\\\-()&;:+°²№~]+$/u;
   if (!validAddressRegex.test(cleanAddress)) {
     return {
       isValid: false,
