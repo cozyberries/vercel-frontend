@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, X, Package, Tag, Loader2, Heart, Star } from "lucide-react";
+import { Search, Package, Tag, Loader2, Heart, Users, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,7 @@ import { images } from "@/app/assets/images";
 import { toImageSrc } from "@/lib/utils/image";
 import { useWishlist } from "./wishlist-context";
 import { toast } from "sonner";
+import DiscountedPrice from "@/components/discounted-price";
 
 interface SearchResultsSheetProps {
   isOpen: boolean;
@@ -26,10 +27,25 @@ interface SearchResultsSheetProps {
 interface SearchSuggestion {
   id: string;
   name: string;
-  type: "product" | "category";
+  type: "product" | "category" | "gender" | "size";
   slug?: string;
   image?: string;
   categoryName?: string;
+}
+
+/** Safely get price from product (API/cache may return number or string). */
+function getProductPrice(p: { price?: unknown } | null): number {
+  if (!p || p.price == null) return 0;
+  const n = Number(p.price);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Safely get size names from product (handles { name }[] or string[]). */
+function getProductSizeNames(p: { sizes?: unknown[] } | null): string[] {
+  if (!p || !Array.isArray(p.sizes) || p.sizes.length === 0) return [];
+  return p.sizes
+    .map((s) => (typeof s === "string" ? s : (s as { name?: string })?.name))
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
 }
 
 export default function SearchResultsSheet({
@@ -39,6 +55,7 @@ export default function SearchResultsSheet({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -47,6 +64,8 @@ export default function SearchResultsSheet({
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
   const [recentSearchItems, setRecentSearchItems] = useState<(Product | null)[]>([]);
+  const [recentSearchItemsLoading, setRecentSearchItemsLoading] = useState(false);
+  const [topProductsLoading, setTopProductsLoading] = useState(true);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -67,25 +86,38 @@ export default function SearchResultsSheet({
     }
   }, [showSuggestions]);
 
-  // Fetch search suggestions
-  const fetchSuggestions = async (query: string) => {
-    if (query.length < 2) {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch search suggestions with 200ms debounce (Upstash Search)
+  const fetchSuggestions = useCallback((query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (query.trim().length < 2) {
       setSuggestions([]);
+      setSuggestionsLoading(false);
       return;
     }
 
-    try {
-      const response = await fetch(
-        `/api/search/suggestions?q=${encodeURIComponent(query)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.suggestions || []);
+    setSuggestionsLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/search/suggestions?q=${encodeURIComponent(query.trim())}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSuggestions(data.suggestions || []);
+        } else {
+          setSuggestions([]);
+        }
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+        setSuggestions([]);
+      } finally {
+        setSuggestionsLoading(false);
       }
-    } catch (error) {
-      console.error("Error fetching suggestions:", error);
-    }
-  };
+    }, 200);
+  }, []);
 
   // Perform search
   const performSearch = async (query: string) => {
@@ -118,8 +150,10 @@ export default function SearchResultsSheet({
     }
   };
 
-  // Recent searches helpers (localStorage)
+  // Recent searches + product cache (localStorage) — persist queries and full product data (price, sizes, etc.)
   const RECENT_KEY = "recent_searches";
+  const RECENT_ITEMS_KEY = "search_sheet_recent_items";
+
   const loadRecentSearches = (): string[] => {
     try {
       const raw = localStorage.getItem(RECENT_KEY);
@@ -139,6 +173,25 @@ export default function SearchResultsSheet({
     }
   };
 
+  const loadRecentSearchItems = (): (Product | null)[] => {
+    try {
+      const raw = localStorage.getItem(RECENT_ITEMS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as (Product | null)[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveRecentSearchItems = (items: (Product | null)[]) => {
+    try {
+      localStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(items));
+    } catch {
+      // ignore
+    }
+  };
+
   const addRecentSearch = (q: string) => {
     if (!q) return;
     setRecentSearches((prev) => {
@@ -148,23 +201,35 @@ export default function SearchResultsSheet({
     });
   };
 
+  // On mount: load recent searches and cached product items so price/sizes show immediately after refresh
   useEffect(() => {
     try {
-      const loaded = loadRecentSearches();
-      setRecentSearches(loaded);
+      const queries = loadRecentSearches();
+      setRecentSearches(queries);
+      if (queries.length > 0) {
+        const cached = loadRecentSearchItems();
+        if (cached.length === queries.length) {
+          setRecentSearchItems(cached);
+          setRecentSearchItemsLoading(false);
+        }
+      }
     } catch {
       // ignore
     }
   }, []);
 
-  // When recent searches change, fetch top product for each query to render as cards
+  // When recent searches change, fetch product for each query and persist (price, sizes, discount, etc.)
   useEffect(() => {
     if (!recentSearches || recentSearches.length === 0) {
       setRecentSearchItems([]);
+      setRecentSearchItemsLoading(false);
+      saveRecentSearchItems([]);
       return;
     }
 
     let mounted = true;
+    const cached = loadRecentSearchItems();
+    if (cached.length !== recentSearches.length) setRecentSearchItemsLoading(true);
     const loadRecentItems = async () => {
       const promises = recentSearches.map(async (q) => {
         try {
@@ -179,6 +244,8 @@ export default function SearchResultsSheet({
       const results = await Promise.all(promises);
       if (!mounted) return;
       setRecentSearchItems(results);
+      setRecentSearchItemsLoading(false);
+      saveRecentSearchItems(results);
     };
 
     loadRecentItems();
@@ -187,18 +254,50 @@ export default function SearchResultsSheet({
     };
   }, [recentSearches]);
 
-  // Load top products for default card grid
+  // Top products cache (localStorage) — persist full product data so price/sizes/discount show after refresh
+  const TOP_PRODUCTS_KEY = "search_sheet_top_products";
+
+  const loadTopProductsFromStorage = (): Product[] => {
+    try {
+      const raw = localStorage.getItem(TOP_PRODUCTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as Product[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveTopProducts = (products: Product[]) => {
+    try {
+      localStorage.setItem(TOP_PRODUCTS_KEY, JSON.stringify(products));
+    } catch {
+      // ignore
+    }
+  };
+
+  // On mount: show cached top products immediately, then fetch fresh and persist
   useEffect(() => {
+    const cached = loadTopProductsFromStorage();
+    if (cached.length > 0) {
+      setTopProducts(cached);
+      setTopProductsLoading(false);
+    }
+
     let mounted = true;
     const loadTop = async () => {
       try {
-        const res = await fetch("/api/products?sort=top&limit=6");
+        const res = await fetch("/api/products?limit=6&page=1");
         if (!res.ok) return;
         const data = await res.json();
+        const products = data.products || [];
         if (!mounted) return;
-        setTopProducts(data.products || []);
+        setTopProducts(products);
+        saveTopProducts(products);
       } catch {
         // ignore
+      } finally {
+        if (mounted) setTopProductsLoading(false);
       }
     };
     loadTop();
@@ -232,17 +331,19 @@ export default function SearchResultsSheet({
     }
   };
 
-  // Handle suggestion click
+  // Handle suggestion click — use slug for URLs (id is namespaced e.g. "product:slug")
   const handleSuggestionClick = (suggestion: SearchSuggestion) => {
-    // persist to recent searches if product suggestion
     if (suggestion.type === "product" && suggestion.name) addRecentSearch(suggestion.name);
-    if (suggestion.type === "product") {
-      // Navigate to product page
-      window.location.href = `/products/${suggestion.id}`;
-    } else {
-      // Navigate to category page
-      window.location.href = `/products?category=${suggestion.slug}`;
-    }
+
+    const slug = suggestion.slug ?? suggestion.id.replace(/^[^:]+:/, "");
+    const destinations: Record<SearchSuggestion["type"], string> = {
+      product: `/products/${slug}`,
+      category: `/products?category=${slug}`,
+      gender: `/products?gender=${slug}`,
+      size: `/products?size=${slug}`,
+    };
+
+    window.location.href = destinations[suggestion.type];
     onOpenChange(false);
   };
 
@@ -274,15 +375,14 @@ export default function SearchResultsSheet({
     setSelectedIndex(index);
   };
 
-  // Highlight text function
+  // Highlight text: split by query (regex-escaped); odd-index parts are matches (capturing group).
   const highlightText = (text: string, query: string) => {
     if (!query) return text;
-
-    const regex = new RegExp(`(${query})`, "gi");
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = text.split(regex);
-
     return parts.map((part, index) =>
-      regex.test(part) ? (
+      index % 2 === 1 ? (
         <span key={index} className="font-semibold text-primary">
           {part}
         </span>
@@ -292,18 +392,31 @@ export default function SearchResultsSheet({
     );
   };
 
-  // Get suggestion icon
+  // Get suggestion icon per type
   const getSuggestionIcon = (suggestion: SearchSuggestion) => {
-    if (suggestion.type === "product") {
-      return <Package className="w-4 h-4 text-muted-foreground" />;
-    } else {
-      return <Tag className="w-4 h-4 text-muted-foreground" />;
-    }
+    const icons: Record<SearchSuggestion["type"], React.ReactNode> = {
+      product: <Package className="w-4 h-4 text-muted-foreground" />,
+      category: <Tag className="w-4 h-4 text-muted-foreground" />,
+      gender: <Users className="w-4 h-4 text-muted-foreground" />,
+      size: <Ruler className="w-4 h-4 text-muted-foreground" />,
+    };
+    return icons[suggestion.type];
   };
 
-  // Reset state when modal closes
+  // Human-readable label shown below suggestion name
+  const getSuggestionLabel = (suggestion: SearchSuggestion): string | null => {
+    const labels: Partial<Record<SearchSuggestion["type"], string>> = {
+      category: "Category",
+      gender: "Gender",
+      size: "Size",
+    };
+    return labels[suggestion.type] ?? null;
+  };
+
+  // Reset state when sheet closes, clear any pending debounce
   useEffect(() => {
     if (!isOpen) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       setSearchQuery("");
       setSearchResults([]);
       setSuggestions([]);
@@ -312,9 +425,16 @@ export default function SearchResultsSheet({
     }
   }, [isOpen]);
 
+  // Clear debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[min(95vw,500px)] p-0">
+      <SheetContent side="right" className="w-[min(95vw,640px)] p-0">
         <div className="flex h-full flex-col">
           <SheetHeader className="p-4 border-b">
             <SheetTitle>Search Products</SheetTitle>
@@ -335,13 +455,25 @@ export default function SearchResultsSheet({
                   onKeyDown={handleKeyDown}
                 />
 
-                {/* Search Suggestions */}
-                {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                {/* Search Suggestions (Upstash Search) */}
+                {showSuggestions && (suggestionsLoading || suggestions.length > 0 || searchQuery.trim().length >= 2) && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-[320px] overflow-y-auto">
                     <div className="p-2">
-                      {suggestions
-                        .filter((s) => s.type === "product")
-                        .map((suggestion, index) => (
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border/50 mb-2">
+                        Suggested
+                      </div>
+
+                      {suggestionsLoading ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-sm">Searching...</span>
+                        </div>
+                      ) : suggestions.length === 0 ? (
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                          No suggestions for &ldquo;{searchQuery.trim()}&rdquo;
+                        </div>
+                      ) : (
+                        suggestions.map((suggestion, index) => (
                           <button
                             key={`${suggestion.type}-${suggestion.id}`}
                             onClick={() => handleSuggestionClick(suggestion)}
@@ -352,20 +484,21 @@ export default function SearchResultsSheet({
                                 : "hover:bg-muted/50"
                             }`}
                           >
-                            {/* Image or fallback */}
+                            {/* Image (products only) or type icon */}
                             <div className="flex-shrink-0">
-                              {suggestion.image ? (
-                                <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                              {suggestion.type === "product" && suggestion.image ? (
+                                <div className="relative w-10 h-10 bg-muted rounded-md overflow-hidden">
                                   <Image
                                     src={toImageSrc(suggestion.image)}
                                     alt={suggestion.name}
                                     fill
                                     className="object-cover"
+                                    sizes="40px"
                                   />
                                 </div>
                               ) : (
                                 <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
-                                  <Package className="w-4 h-4 text-muted-foreground" />
+                                  {getSuggestionIcon(suggestion)}
                                 </div>
                               )}
                             </div>
@@ -375,31 +508,36 @@ export default function SearchResultsSheet({
                               <div className="text-sm font-medium text-foreground truncate">
                                 {highlightText(suggestion.name, searchQuery)}
                               </div>
-                              {suggestion.categoryName && (
+                              {suggestion.categoryName ? (
                                 <div className="text-xs text-muted-foreground truncate">
                                   in {suggestion.categoryName}
                                 </div>
-                              )}
+                              ) : getSuggestionLabel(suggestion) ? (
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {getSuggestionLabel(suggestion)}
+                                </div>
+                              ) : null}
                             </div>
 
-                            {/* Search icon */}
                             <div className="flex-shrink-0">
                               <Search className="w-4 h-4 text-muted-foreground" />
                             </div>
                           </button>
-                        ))}
+                        ))
+                      )}
                     </div>
 
-                    {/* Footer with search hint */}
-                    <div className="border-t border-border p-2 bg-muted/30">
-                      <div className="text-xs text-muted-foreground text-center">
-                        Press{" "}
-                        <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
-                          Enter
-                        </kbd>{" "}
-                        to search for "{searchQuery}"
+                    {!suggestionsLoading && suggestions.length > 0 && (
+                      <div className="border-t border-border p-2 bg-muted/30">
+                        <div className="text-xs text-muted-foreground text-center">
+                          Press{" "}
+                          <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
+                            Enter
+                          </kbd>{" "}
+                          to search for &ldquo;{searchQuery}&rdquo;
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -416,7 +554,7 @@ export default function SearchResultsSheet({
               <div className="p-4 space-y-4">
                 <div className="text-sm text-muted-foreground mb-4">
                   Found {searchResults.length} product
-                  {searchResults.length !== 1 ? "s" : ""} for "{searchQuery}"
+                  {searchResults.length !== 1 ? "s" : ""} for &ldquo;{searchQuery}&rdquo;
                 </div>
                 {searchResults.map((product) => {
                   const inWishlist = isInWishlist(product.id);
@@ -502,7 +640,7 @@ export default function SearchResultsSheet({
                   No products found
                 </h3>
                 <p className="text-gray-500 text-sm">
-                  We couldn't find any products matching "{searchQuery}". Try
+                  We couldn&apos;t find any products matching &ldquo;{searchQuery}&rdquo;. Try
                   different keywords.
                 </p>
               </div>
@@ -514,6 +652,17 @@ export default function SearchResultsSheet({
                     <div className="space-y-2">
                       {recentSearches.map((q, idx) => {
                         const prod = recentSearchItems[idx] ?? null;
+                        if (recentSearchItemsLoading && idx >= recentSearchItems.length) {
+                          return (
+                            <div key={`${q}-${idx}-loading`} className="flex items-center gap-4 p-3 border rounded-lg animate-pulse">
+                              <div className="w-14 h-14 rounded bg-muted flex-shrink-0" />
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <div className="h-4 bg-muted rounded w-3/4" />
+                                <div className="h-3 bg-muted rounded w-1/3" />
+                              </div>
+                            </div>
+                          );
+                        }
                         if (prod) {
                           const img = (prod.images?.[0] ?? null) as any;
                           const prodImgSrc = (img as any)?.url ?? (img as any) ?? null;
@@ -542,9 +691,24 @@ export default function SearchResultsSheet({
                                   <div className="text-sm font-medium truncate">
                                     {prod.name}
                                   </div>
-                                  <div className="text-sm font-medium mt-1">
-                                    ₹{(prod.price ?? 0).toFixed(0)}
+                                  <div className="mt-1">
+                                    <DiscountedPrice
+                                      price={getProductPrice(prod)}
+                                      className="text-sm font-medium"
+                                    />
                                   </div>
+                                  {getProductSizeNames(prod).length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      {getProductSizeNames(prod).map((name) => (
+                                        <span
+                                          key={name}
+                                          className="inline-block px-2 py-0.5 text-xs font-medium bg-muted rounded border border-border"
+                                        >
+                                          {name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </Link>
 
@@ -561,7 +725,7 @@ export default function SearchResultsSheet({
                                       addToWishlist({
                                         id: prod.id,
                                         name: prod.name,
-                                        price: prod.price ?? 0,
+                                        price: getProductPrice(prod),
                                         image: prodImgSrc,
                                       });
                                       toast.success(`${prod.name} added to wishlist!`);
@@ -601,7 +765,18 @@ export default function SearchResultsSheet({
                 <section>
                   <h4 className="text-sm font-medium mb-2">Top products</h4>
                   <div className="space-y-2">
-                    {topProducts.slice(0, 6).map((p) => {
+                    {topProductsLoading ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <div key={`top-skeleton-${i}`} className="flex items-center gap-4 p-3 border rounded-lg animate-pulse">
+                          <div className="w-14 h-14 rounded bg-muted flex-shrink-0" />
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="h-4 bg-muted rounded w-2/3" />
+                            <div className="h-3 bg-muted rounded w-1/4" />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                    topProducts.slice(0, 6).map((p) => {
                       const img = (p.images?.[0] ?? null) as any;
                       const productImageSrc =
                         (img as any)?.url ?? (img as any) ?? null;
@@ -630,9 +805,24 @@ export default function SearchResultsSheet({
                               <div className="text-sm font-medium truncate">
                                 {p.name}
                               </div>
-                              <div className="text-sm font-medium mt-1">
-                                ₹{(p.price ?? 0).toFixed(0)}
+                              <div className="mt-1">
+                                <DiscountedPrice
+                                  price={getProductPrice(p)}
+                                  className="text-sm font-medium"
+                                />
                               </div>
+                              {getProductSizeNames(p).length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {getProductSizeNames(p).map((name) => (
+                                    <span
+                                      key={name}
+                                      className="inline-block px-2 py-0.5 text-xs font-medium bg-muted rounded border border-border"
+                                    >
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </Link>
 
@@ -649,7 +839,7 @@ export default function SearchResultsSheet({
                                   addToWishlist({
                                     id: p.id,
                                     name: p.name,
-                                    price: p.price ?? 0,
+                                    price: getProductPrice(p),
                                     image: productImageSrc,
                                   });
                                   toast.success(`${p.name} added to wishlist!`);
@@ -665,7 +855,8 @@ export default function SearchResultsSheet({
                           </div>
                         </div>
                       );
-                    })}
+                    })
+                    )}
                   </div>
                 </section>
               </div>
