@@ -62,7 +62,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existing) {
         const stockQty = existing.stock_quantity ?? item.stock_quantity;
         const maxQty = stockQty ?? Infinity;
-        const newQty = Math.min(existing.quantity + item.quantity, maxQty);
+        const newQty = Math.min(Math.max(1, existing.quantity + item.quantity), maxQty);
         return prev.map((i) =>
           getCartItemKey(i) === itemKey
             ? { ...i, quantity: newQty, stock_quantity: stockQty }
@@ -70,7 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
       }
       const maxQty = item.stock_quantity ?? Infinity;
-      const qty = Math.min(item.quantity, maxQty);
+      const qty = Math.min(Math.max(1, item.quantity), maxQty);
       return [...prev, { ...item, quantity: qty }];
     });
     logEvent("cart_add", { product_id: item.id, quantity: item.quantity, size: item.size, color: item.color });
