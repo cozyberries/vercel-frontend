@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
-import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Product, SizeOption } from "@/lib/services/api";
@@ -172,6 +172,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       toast.error("Something went wrong. Please try again.");
     }
   };
+
+  // Scroll to top on product change (e.g. clicking a related product)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [productSlug]);
 
   // Set the product slug in the rating context so reviews are fetched and the review form knows the target product
   useEffect(() => {
@@ -353,7 +358,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${
                     index === selectedImage ? "ring-2 ring-primary" : ""
                   }`}
                   onClick={() => setSelectedImage(index)}
@@ -402,15 +407,52 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 <span>Back</span>
               </button>
 
-              <Image
-                src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
-                alt={product.name}
-                width={600}
-                height={600}
-                className="w-full h-full object-cover transition-transform duration-300 ease-out select-none"
-                priority
-                draggable={false}
-              />
+              {/* Prev/Next arrows */}
+              {product.images && product.images.length > 1 && (
+                <>
+                  {selectedImage > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSelectedImage(selectedImage - 1); }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full w-8 h-8 bg-white/80 backdrop-blur-sm flex items-center justify-center shadow active:scale-90 transition-transform"
+                      aria-label="Previous image"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                  )}
+                  {selectedImage < product.images.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSelectedImage(selectedImage + 1); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full w-8 h-8 bg-white/80 backdrop-blur-sm flex items-center justify-center shadow active:scale-90 transition-transform"
+                      aria-label="Next image"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  )}
+                </>
+              )}
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={selectedImage}
+                  initial={{ scale: 1.08 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0.96 }}
+                  transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
+                  className="w-full h-full"
+                >
+                  <Image
+                    src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
+                    alt={product.name}
+                    width={600}
+                    height={600}
+                    className="w-full h-full object-cover select-none"
+                    priority
+                    draggable={false}
+                  />
+                </motion.div>
+              </AnimatePresence>
 
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
@@ -459,7 +501,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer ${
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${
                     index === selectedImage ? "ring-2 ring-primary" : ""
                   }`}
                   onClick={() => setSelectedImage(index)}
@@ -479,73 +521,32 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
 
         {/* Product Details */}
         <div className="flex flex-col">
-          {/* Static content: category, name, description, features, care (RSC passed as prop) */}
+          {/* Static content: title + wishlist button (h1 for SEO), category, shipping, features, care (RSC passed as prop) */}
           {staticContent}
 
           {/* Ratings row */}
           {allReviews?.length > 0 && (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <p className="flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]">
                 <FaStar /> {productRating} | {allReviews?.length} Ratings
               </p>
             </div>
           )}
 
-          {/* Wishlist button */}
-          <div className="flex items-center justify-end mt-2 mb-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => {
-                if (inWishlist) {
-                  removeFromWishlist(product.id);
-                  toast.success(`${product.name} removed from wishlist!`);
-                } else {
-                  addToWishlist({
-                    id: product.id,
-                    name: product.name,
-                    price: displayPrice,
-                    image: product.images?.[0],
-                  });
-                  toast.success(`${product.name} added to wishlist!`);
-                }
-              }}
-            >
-              <Heart
-                className={`h-5 w-5 ${inWishlist ? "fill-red-500 text-red-500" : ""}`}
-              />
-              <span className="sr-only">
-                {inWishlist ? "Remove from wishlist" : "Add to wishlist"}
-              </span>
-            </Button>
-          </div>
-
           {/* Price */}
           <div className="flex items-center gap-2 flex-wrap mb-6">
             <DiscountedPrice price={displayPrice} />
           </div>
-
-          <div className="space-y-6 mb-8">
-            {product.colors && product.colors.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-3">Color</h3>
-                <div className="flex gap-3">
-                  {product.colors.map((color) => (
-                    <button
-                      key={color}
-                      className={`w-8 h-8 rounded-full border ${
-                        color === selectedColor ? "ring-2 ring-primary ring-offset-2" : ""
-                      }`}
-                      style={{ backgroundColor: color.toLowerCase() }}
-                      aria-label={color}
-                      onClick={() => setSelectedColor(color)}
-                    />
-                  ))}
-                </div>
-              </div>
+          <p className="text-2xl font-medium mb-4">
+            ₹{displayPrice.toFixed(0)}
+            {selectedSize && selectedSize.price < product.price && (
+              <span className="text-sm text-muted-foreground line-through ml-2">
+                ₹{product.price.toFixed(0)}
+              </span>
             )}
+          </p>
 
+          <div className="space-y-4 mb-6">
             {product.sizes && product.sizes.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -627,6 +628,15 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 </Button>
               </div>
             </div>
+
+            {product.description && (
+              <div>
+                <h3 className="text-sm font-medium mb-2">Description</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                  {product.description}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Desktop CTA buttons */}
