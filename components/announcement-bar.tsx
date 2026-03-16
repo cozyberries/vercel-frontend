@@ -3,10 +3,10 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { useActiveOffer } from '@/hooks/useApiQueries'
+import { getActiveOffer } from '@/lib/utils/discount'
 
 export default function AnnouncementBar() {
-  const { data: offer } = useActiveOffer()
+  const offer = getActiveOffer()
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {

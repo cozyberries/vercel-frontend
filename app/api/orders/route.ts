@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest, OrderCreate } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
@@ -12,7 +13,8 @@ import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const cookieStore = await cookies();
+    const supabase = await createServerSupabaseClient(cookieStore);
 
     const {
       data: { user },
@@ -190,7 +192,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const cookieStore = await cookies();
+    const supabase = await createServerSupabaseClient(cookieStore);
 
     const {
       data: { user },

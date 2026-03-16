@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useActiveOffer } from '@/hooks/useApiQueries'
+import { getActiveOffer } from '@/lib/utils/discount'
 
 interface TimeLeft {
   days: number
@@ -39,23 +39,21 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
 }
 
 export default function EarlyBirdBanner() {
-  const { data: offer } = useActiveOffer()
+  const offer = getActiveOffer()
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
   const [liveText, setLiveText] = useState<string>('')
 
   useEffect(() => {
     if (!offer) return
 
-    const expiresAt = new Date(offer.expiresAt)
-
     const update = () => {
-      const t = getTimeLeft(expiresAt)
+      const t = getTimeLeft(offer.expiresAt)
       setTimeLeft(t)
       setLiveText(`${t.days} days, ${t.hrs} hours, ${t.mins} minutes remaining`)
     }
 
     update()
-    const secondId = setInterval(() => setTimeLeft(getTimeLeft(expiresAt)), 1000)
+    const secondId = setInterval(() => setTimeLeft(getTimeLeft(offer.expiresAt)), 1000)
     const minuteId = setInterval(update, 60000)
     return () => {
       clearInterval(secondId)
@@ -104,15 +102,6 @@ export default function EarlyBirdBanner() {
         </p>
 
         <span className="sr-only" aria-live="polite">{liveText}</span>
-
-        {timeLeft && (
-          <div className="flex justify-center gap-2.5 mb-6">
-            <CountdownBox value={timeLeft.days} label="Days" />
-            <CountdownBox value={timeLeft.hrs}  label="Hrs"  />
-            <CountdownBox value={timeLeft.mins} label="Mins" />
-            <CountdownBox value={timeLeft.secs} label="Secs" />
-          </div>
-        )}
 
         <Link
           href="/products"
