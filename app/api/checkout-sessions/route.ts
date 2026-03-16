@@ -7,7 +7,7 @@ import {
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
-import { EARLY_BIRD_OFFER } from "@/lib/config/offers";
+import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
@@ -92,21 +92,15 @@ export async function POST(request: NextRequest) {
     let discountAmount = 0
 
     if (coupon_code) {
-      const offer = EARLY_BIRD_OFFER
-      const isValid =
-        offer.enabled &&
-        coupon_code === offer.code &&
-        new Date() <= offer.expiresAt
-
-      if (!isValid) {
+      const result = validateAndApplyOffer(coupon_code, orderSummary.subtotal)
+      if (!result.ok) {
         return NextResponse.json(
-          { error: 'invalid_coupon', message: 'This offer has expired or is invalid.' },
+          { error: 'invalid_coupon', message: result.error },
           { status: 422 }
         )
       }
-
-      discountCode = offer.code
-      discountAmount = Math.floor(orderSummary.subtotal * offer.discountRate)
+      discountCode = result.data.discountCode
+      discountAmount = result.data.discountAmount
     }
 
     // Recompute total with discount applied
