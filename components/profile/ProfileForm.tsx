@@ -90,7 +90,7 @@ export default function ProfileForm({
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
       <div className="flex items-center justify-end gap-2 mb-8">
         {!isEditing ? (
-          <Button onClick={onEdit} size="icon" variant="outline" className="size-10 shrink-0">
+          <Button onClick={onEdit} size="icon" variant="outline" className="size-10 shrink-0" aria-label="Edit profile">
             <Edit3 className="w-4 h-4" />
           </Button>
         ) : (
@@ -105,6 +105,7 @@ export default function ProfileForm({
               size="icon"
               variant="outline"
               className="size-10 shrink-0"
+              aria-label={isSaving ? "Saving..." : "Save changes"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -113,11 +114,10 @@ export default function ProfileForm({
               )}
             </Button>
             {!isSaving && (
-              <Button variant="outline" onClick={onCancel} size="icon" className="size-10 shrink-0">
+              <Button variant="outline" onClick={onCancel} size="icon" className="size-10 shrink-0" aria-label="Cancel editing">
                 <X className="w-4 h-4" />
               </Button>
-            )}
-          </>
+            )}          </>
         )}
       </div>
 
@@ -212,10 +212,9 @@ export default function ProfileForm({
             <MapPin className="w-5 h-5 text-primary" />
             <h3 className="text-xl font-light">Addresses</h3>
           </div>
-          <Button onClick={onAddAddress} size="icon" variant="outline" className="size-10 shrink-0">
+          <Button onClick={onAddAddress} size="icon" variant="outline" className="size-10 shrink-0" aria-label="Add new address">
             <Plus className="w-4 h-4" />
-          </Button>
-        </div>
+          </Button>        </div>
 
         <div className="space-y-4">
           {addresses.length === 0 ? (
