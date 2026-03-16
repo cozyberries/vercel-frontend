@@ -25,6 +25,13 @@ async function supabaseFallbackSearch(normalised: string) {
       .limit(3),
   ]);
 
+  if (productsResult.error) {
+    console.error('[search/suggestions] Supabase products error:', productsResult.error);
+  }
+  if (categoriesResult.error) {
+    console.error('[search/suggestions] Supabase categories error:', categoriesResult.error);
+  }
+
   const suggestions = [];
 
   for (const product of productsResult.data ?? []) {
@@ -61,11 +68,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
 
-  if (!query || query.length < 2) {
+  const normalised = (query ?? '').trim().toLowerCase();
+  if (normalised.length < 2) {
     return NextResponse.json({ suggestions: [] });
   }
 
-  const normalised = query.trim().toLowerCase();
   const cacheKey = `search:suggestions:${normalised}`;
 
   // 1. Redis cache — 60s TTL for burst deduplication
