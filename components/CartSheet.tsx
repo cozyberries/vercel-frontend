@@ -48,9 +48,9 @@ export default function CartSheet() {
           <span className="sr-only">Cart</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[min(90vw,400px)] p-0">
-        <div className="flex h-full flex-col">
-          <SheetHeader className="p-4 border-b">
+      <SheetContent side="right" className="w-[min(90vw,400px)] p-0 shadow-2xl ring-1 ring-black/10 border-0">
+        <div className="flex h-full flex-col min-h-0">
+          <SheetHeader className="p-4 border-b shrink-0">
             <SheetTitle>Your Cart</SheetTitle>
           </SheetHeader>
           {cart.length !== 0 && (
@@ -64,8 +64,7 @@ export default function CartSheet() {
               </Button>
             </div>
           )}
-          <div className="flex-1 overflow-y-auto p-4">
-            {isLoading ? (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-h-0 overscroll-contain">            {isLoading ? (
               <div className="py-8 text-center text-muted-foreground">
                 <div className="animate-pulse">Loading cart...</div>
               </div>
@@ -96,7 +95,7 @@ export default function CartSheet() {
           </div>
 
           {cart.length > 0 && (
-            <div className="border-t p-4 space-y-3">
+            <div className="border-t p-4 space-y-3 shrink-0">
               <div className="flex justify-between items-center text-base">
                 <span className="font-medium">Subtotal</span>
                 <span className="font-semibold">₹{subtotal.toFixed(0)}</span>
@@ -122,10 +121,26 @@ export default function CartSheet() {
                 )}
               </div>
               {discountedSubtotal < FREE_DELIVERY_THRESHOLD && (
-                <div className="bg-primary/10 border border-primary/20 rounded-md p-3 text-sm">
-                  <p className="text-primary font-medium">
-                    Add products worth ₹{(FREE_DELIVERY_THRESHOLD - discountedSubtotal).toFixed(0)} to get free shipping.
-                  </p>
+                <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                      <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-4L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-primary font-semibold text-lg">Free shipping awaits!</p>
+                      <p className="text-gray-600 text-sm">Add ₹{(FREE_DELIVERY_THRESHOLD - discountedSubtotal).toFixed(0)} more</p>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-primary to-secondary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min((discountedSubtotal / FREE_DELIVERY_THRESHOLD) * 100, 100)}%` }}
+                    />
+                  </div>
                 </div>
               )}
               <div className="flex justify-between items-center text-base">

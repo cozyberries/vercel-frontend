@@ -8,11 +8,14 @@ import { useWishlist } from "@/components/wishlist-context";
 import { useCart, getCartItemKey } from "@/components/cart-context";
 import { images } from "@/app/assets/images";
 import { toast } from "sonner";
+import WishlistWarningDialog from "@/components/wishlist-warning-dialog";
+import { useState } from "react";
 
 export default function WishlistPage() {
   const { wishlist, removeFromWishlist, clearWishlist, isLoading } =
     useWishlist();
   const { cart, updateQuantity, addToCart } = useCart();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleAddToCart = (item: {
     id: string;
@@ -67,7 +70,7 @@ export default function WishlistPage() {
             variant="ghost"
             size="sm"
             className="text-red-500 hover:text-red-600 hover:bg-red-50"
-            onClick={clearWishlist}
+            onClick={() => setShowClearConfirm(true)}
           >
             Clear All
           </Button>
@@ -76,7 +79,7 @@ export default function WishlistPage() {
 
       {/* Empty state */}
       {wishlist.length === 0 ? (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
           <Heart className="h-20 w-20 text-gray-200 mb-6" />
           <h2 className="text-lg font-semibold text-gray-700 mb-2">
             Your wishlist is empty
@@ -90,7 +93,7 @@ export default function WishlistPage() {
         </div>
       ) : (
         /* Wishlist grid — 2 columns like product listing */
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {wishlist.map((item) => (
             <div
               key={item.id}
@@ -99,14 +102,14 @@ export default function WishlistPage() {
               {/* Image */}
               <Link
                 href={`/products/${item.id}`}
-                className="relative aspect-[4/5] overflow-hidden"
+                className="relative overflow-hidden aspect-[1/1]"
               >
                 <Image
                   src={item.image || images.staticProductImage}
                   alt={item.name}
                   fill
                   sizes="(max-width: 768px) 45vw, 250px"
-                  className="object-cover"
+                  className="object-cover w-full h-full"
                 />
               </Link>
 
@@ -129,6 +132,11 @@ export default function WishlistPage() {
                     {item.name}
                   </h3>
                 </Link>
+                {(item.size || item.color) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[item.size, item.color].filter(Boolean).join(" · ")}
+                  </p>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-gray-900">
                     {"\u20B9"}{item.price.toFixed(0)}
@@ -148,6 +156,12 @@ export default function WishlistPage() {
           ))}
         </div>
       )}
+      <WishlistWarningDialog
+        wishlist={wishlist}
+        showClearConfirm={showClearConfirm}
+        setShowClearConfirm={setShowClearConfirm}
+        clearWishlist={clearWishlist}
+      />
     </div>
   );
 }
