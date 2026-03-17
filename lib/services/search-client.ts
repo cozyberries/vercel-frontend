@@ -9,6 +9,13 @@ export interface SearchDocument {
   slug: string;
   image?: string;
   category?: string;
+  /** Product-only: for filtering/sorting product list from search DB */
+  category_slug?: string;
+  gender_slug?: string;
+  size_slugs?: string[];
+  price?: number;
+  created_at?: string;
+  is_featured?: boolean;
 }
 
 type SearchDocumentContent = Omit<SearchDocument, 'id'>;
@@ -104,6 +111,104 @@ export async function querySearch(
   });
 
   return suggestions;
+}
+
+/** Params for product list query — filters and pagination. */
+export interface ProductListSearchParams {
+  search?: string | null;
+  category?: string | null;
+  gender?: string | null;
+  size?: string | null;
+  age?: string | null;
+  featured?: boolean;
+  limit?: number;
+}
+
+const PRODUCT_LIST_MAX_RESULTS = 500;
+
+/**
+ * Query Upstash Search for product slugs (and optional sort fields) for listing.
+ * Used by GET /api/products so listing and filters come from cache or search DB only.
+ * Returns up to PRODUCT_LIST_MAX_RESULTS slugs; caller paginates and enriches from Supabase.
+ */
+export async function queryProductSlugs(
+  params: ProductListSearchParams
+): Promise<{ slugs: string[] }> {
+  const index = getSearchIndex();
+  const {
+    search,
+    category,
+    gender,
+    size,
+    age,
+    featured,
+    limit = PRODUCT_LIST_MAX_RESULTS,
+  } = params;
+
+  const clauses: Record<string, unknown>[] = [{ type: { equals: 'product' } }];
+
+  if (featured === true) {
+    clauses.push({ is_featured: { equals: true } });
+  }
+
+  if (category && category !== 'all') {
+    clauses.push({ category_slug: { equals: category.trim().toLowerCase() } });
+  }
+
+  if (gender && gender !== 'all') {
+    const normalized = gender.trim().toLowerCase();
+    const genderSlugs =
+      /^boy(s)?$/.test(normalized)
+        ? ['boy', 'unisex']
+        : /^girl(s)?$/.test(normalized)
+          ? ['girl', 'unisex']
+          : [normalized];
+    if (genderSlugs.length === 1) {
+      clauses.push({ gender_slug: { equals: genderSlugs[0] } });
+    } else {
+      clauses.push({
+        OR: genderSlugs.map((slug) => ({ gender_slug: { equals: slug } })),
+      });
+    }
+  }
+
+  if (size) {
+    clauses.push({
+      size_slugs: { contains: size.trim().toLowerCase() },
+    });
+  }
+
+  if (age) {
+    const ageSlug = age.trim().toLowerCase();
+    const is3To6 = ageSlug === '3-6y' || ageSlug === '3-6-years';
+    if (is3To6) {
+      clauses.push({
+        OR: ['3-4y', '4-5y', '5-6y'].map((s) => ({
+          size_slugs: { contains: s },
+        })),
+      });
+    } else {
+      clauses.push({
+        size_slugs: { contains: ageSlug },
+      });
+    }
+  }
+
+  // When no search term, use a broad query that matches most product documents so filter-only requests succeed
+  const queryText = search?.trim() || 'a';
+  const filter = clauses.length > 0 ? { AND: clauses } : undefined;
+
+  const results = (await index.search({
+    query: queryText,
+    limit: Math.min(limit, PRODUCT_LIST_MAX_RESULTS),
+    filter,
+  })) as Array<{ id: string; content: SearchDocumentContent }>;
+
+  const slugs = results
+    .filter((r) => r.id.startsWith('product:'))
+    .map((r) => r.id.replace(/^product:/, ''));
+
+  return { slugs };
 }
 
 /** Returns true when Upstash Search env vars are set. */

@@ -12,18 +12,37 @@ function extractPrimaryImage(productImages: Array<{ url?: string; is_primary?: b
   return primary?.url ?? undefined;
 }
 
+const PRODUCTS_PAGE_SIZE = 1000;
+
+/** Fetch all products in pages; Supabase default limit is 1000 per query. */
+async function fetchAllProducts(supabase: SupabaseClient) {
+  const select =
+    'slug, name, description, category_slug, gender_slug, size_slugs, price, created_at, is_featured, categories(name, slug), product_images(url, is_primary, display_order), product_features(feature)';
+  const all: unknown[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('products')
+      .select(select)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PRODUCTS_PAGE_SIZE - 1);
+    if (error) throw new Error(`[reindex-search] products: ${error.message}`);
+    const page = data ?? [];
+    if (page.length === 0) break;
+    all.push(...page);
+    if (page.length < PRODUCTS_PAGE_SIZE) break;
+    offset += PRODUCTS_PAGE_SIZE;
+  }
+  return all;
+}
+
 async function buildDocuments(supabase: SupabaseClient): Promise<{
   documents: SearchDocument[];
   counts: Record<string, number>;
 }> {
-  const [productsResult, categoriesResult, gendersResult, sizesResult] =
+  const [productsData, categoriesResult, gendersResult, sizesResult] =
     await Promise.all([
-      supabase
-        .from('products')
-        .select(
-          'slug, name, description, category_slug, categories(name, slug), product_images(url, is_primary, display_order), product_features(feature)'
-        )
-        .order('created_at', { ascending: false }),
+      fetchAllProducts(supabase),
       supabase
         .from('categories')
         .select('slug, name, image')
@@ -35,7 +54,6 @@ async function buildDocuments(supabase: SupabaseClient): Promise<{
         .order('display_order', { ascending: true }),
     ]);
 
-  if (productsResult.error) throw new Error(`[reindex-search] products: ${productsResult.error.message}`);
   if (categoriesResult.error) throw new Error(`[reindex-search] categories: ${categoriesResult.error.message}`);
   if (gendersResult.error) throw new Error(`[reindex-search] genders: ${gendersResult.error.message}`);
   if (sizesResult.error) throw new Error(`[reindex-search] sizes: ${sizesResult.error.message}`);
@@ -48,13 +66,26 @@ async function buildDocuments(supabase: SupabaseClient): Promise<{
     sizes: 0,
   };
 
-  for (const product of productsResult.data ?? []) {
+  for (const product of productsData as Array<{
+    slug?: string;
+    name?: string;
+    description?: string;
+    category_slug?: string;
+    gender_slug?: string;
+    size_slugs?: string[];
+    price?: number;
+    created_at?: string;
+    is_featured?: boolean;
+    categories?: { name?: string; slug?: string } | Array<{ name?: string; slug?: string }>;
+    product_images?: Array<{ url?: string; is_primary?: boolean; display_order?: number }>;
+    product_features?: Array<{ feature?: string }>;
+  }>) {
     const categoryName = Array.isArray(product.categories)
       ? product.categories[0]?.name
-      : (product.categories as any)?.name;
+      : product.categories?.name;
 
     const features = (product.product_features ?? [])
-      .map((f: any) => f.feature)
+      .map((f) => f.feature)
       .filter(Boolean)
       .join(' ');
 
@@ -63,9 +94,15 @@ async function buildDocuments(supabase: SupabaseClient): Promise<{
       type: 'product',
       name: product.name ?? '',
       description: [product.description, features].filter(Boolean).join(' '),
-      slug: product.slug,
+      slug: product.slug ?? '',
       image: extractPrimaryImage(product.product_images ?? []),
       category: categoryName,
+      category_slug: product.category_slug ?? undefined,
+      gender_slug: product.gender_slug ?? undefined,
+      size_slugs: Array.isArray(product.size_slugs) ? product.size_slugs : undefined,
+      price: typeof product.price === 'number' ? product.price : undefined,
+      created_at: product.created_at ?? undefined,
+      is_featured: product.is_featured === true,
     });
     counts.products++;
   }

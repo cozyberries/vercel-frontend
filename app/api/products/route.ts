@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import {
+  isSearchConfigured,
+  queryProductSlugs,
+} from "@/lib/services/search-client";
 import { Product, ProductCreate } from "@/lib/types/product";
 import { aggregateSizesFromVariants } from "@/lib/utils/product";
 
@@ -27,7 +31,7 @@ function extractImages(productImages: any[], limit?: number): string[] {
 
 // ─── In-memory LRU cache ────────────────────────────────────────────────────
 
-type MemoryCacheEntry = { data: any; timestamp: number };
+type MemoryCacheEntry = { data: any; timestamp: number; origin?: "UPSTASH_SEARCH" | "SUPABASE_DATABASE" };
 const inMemoryProductsCache = new Map<string, MemoryCacheEntry>();
 const PRODUCTS_MEMORY_TTL = 30_000;
 const MAX_MEMORY_ENTRIES = 50;
@@ -46,9 +50,14 @@ function getMemoryCache(key: string): MemoryCacheEntry | undefined {
   return entry;
 }
 
-function setMemoryCache(key: string, entry: MemoryCacheEntry): void {
+function setMemoryCache(
+  key: string,
+  entry: MemoryCacheEntry,
+  origin?: "UPSTASH_SEARCH" | "SUPABASE_DATABASE"
+): void {
+  const fullEntry = origin ? { ...entry, origin } : entry;
   inMemoryProductsCache.delete(key);
-  inMemoryProductsCache.set(key, entry);
+  inMemoryProductsCache.set(key, fullEntry);
   while (inMemoryProductsCache.size > MAX_MEMORY_ENTRIES) {
     const firstKey = inMemoryProductsCache.keys().next().value;
     if (firstKey) inMemoryProductsCache.delete(firstKey);
@@ -94,8 +103,34 @@ async function refreshCacheInBackground(
     age: string | null;
   }
 ) {
-  const supabase = await createPublicSupabaseClient();
+  try {
+    if (isSearchConfigured()) {
+      const { products, totalItems, totalPages } =
+        await fetchProductsFromUpstashAndSupabase(params);
+      const response = {
+        products,
+        pagination: {
+          currentPage: params.page,
+          totalPages,
+          totalItems,
+          itemsPerPage: params.limit,
+          hasNextPage: params.page < totalPages,
+          hasPrevPage: params.page > 1,
+        },
+      };
+      UpstashService.set(cacheKey, response, 86400).catch((error) => {
+        console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
+      });
+      UpstashService.set(`${cacheKey}:origin`, "UPSTASH_SEARCH", 86400).catch(() => {});
+      console.log(`Cache refresh initiated for key: ${cacheKey}`);
+      return;
+    }
+  } catch (error) {
+    console.error(`Background refresh (Upstash) failed for ${cacheKey}:`, error);
+    return;
+  }
 
+  const supabase = await createPublicSupabaseClient();
   let query = supabase
     .from("products")
     .select(PRODUCTS_LIST_SELECT, { count: "exact" });
@@ -112,7 +147,13 @@ async function refreshCacheInBackground(
   }
 
   if (params.age) {
-    query = query.contains("size_slugs", [params.age.trim().toLowerCase()]);
+    const ageSlug = params.age.trim().toLowerCase();
+    const is3To6 = ageSlug === "3-6y" || ageSlug === "3-6-years";
+    if (is3To6) {
+      query = query.overlaps("size_slugs", ["3-4y", "4-5y", "5-6y"]);
+    } else {
+      query = query.contains("size_slugs", [ageSlug]);
+    }
   }
 
   if (params.size) {
@@ -174,6 +215,92 @@ async function refreshCacheInBackground(
     console.error(`Failed to refresh cache for key ${cacheKey}:`, error);
   });
   console.log(`Cache refresh initiated for key: ${cacheKey}`);
+}
+
+/** Fetch product list from Upstash Search (slugs) then enrich from Supabase. Used when search DB is configured. */
+async function fetchProductsFromUpstashAndSupabase(params: {
+  limit: number;
+  page: number;
+  featured: boolean;
+  category: string | null;
+  search: string | null;
+  sortBy: string;
+  sortOrder: string;
+  size: string | null;
+  gender: string | null;
+  age: string | null;
+}): Promise<{
+  products: Product[];
+  totalItems: number;
+  totalPages: number;
+}> {
+  const { slugs } = await queryProductSlugs({
+    search: params.search,
+    category: params.category,
+    gender: params.gender,
+    size: params.size,
+    age: params.age,
+    featured: params.featured,
+    limit: 500,
+  });
+
+  if (slugs.length === 0) {
+    return {
+      products: [],
+      totalItems: 0,
+      totalPages: 0,
+    };
+  }
+
+  const supabase = await createPublicSupabaseClient();
+  const { data: rawData, error } = await supabase
+    .from("products")
+    .select(PRODUCTS_LIST_SELECT)
+    .in("slug", slugs);
+
+  if (error) {
+    throw new Error(`Supabase enrich failed: ${error.message}`);
+  }
+
+  const unordered = (rawData || []).map((product: any) => {
+    const images = extractImages(product.product_images, 1);
+    const sizes = aggregateSizesFromVariants(
+      product.product_variants || [],
+      product.price
+    );
+    return {
+      ...product,
+      id: product.slug,
+      images,
+      sizes,
+      product_images: undefined,
+      product_variants: undefined,
+    } as Product;
+  });
+
+  const asc = params.sortOrder === "asc";
+  const sorted = [...unordered].sort((a, b) => {
+    if (params.sortBy === "price") {
+      const pa = a.price ?? 0;
+      const pb = b.price ?? 0;
+      return asc ? pa - pb : pb - pa;
+    }
+    if (params.sortBy === "name") {
+      const na = (a.name ?? "").toLowerCase();
+      const nb = (b.name ?? "").toLowerCase();
+      return asc ? na.localeCompare(nb) : nb.localeCompare(na);
+    }
+    const ca = a.created_at ?? "";
+    const cb = b.created_at ?? "";
+    return asc ? ca.localeCompare(cb) : cb.localeCompare(ca);
+  });
+
+  const totalItems = sorted.length;
+  const totalPages = Math.ceil(totalItems / params.limit);
+  const start = (params.page - 1) * params.limit;
+  const products = sorted.slice(start, start + params.limit);
+
+  return { products, totalItems, totalPages };
 }
 
 const PRODUCTS_ALL_KEY = "products:all";
@@ -264,42 +391,51 @@ export async function GET(request: NextRequest) {
     // 1. In-memory cache (instant)
     const memEntry = getMemoryCache(cacheKey);
     if (memEntry && Date.now() - memEntry.timestamp < PRODUCTS_MEMORY_TTL) {
-      return NextResponse.json(memEntry.data, {
-        headers: {
-          "X-Cache-Status": "HIT",
-          "X-Cache-Key": cacheKey,
-          "X-Data-Source": "MEMORY_CACHE",
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
-        },
-      });
+      const headers: Record<string, string> = {
+        "X-Cache-Status": "HIT",
+        "X-Cache-Key": cacheKey,
+        "X-Data-Source": "MEMORY_CACHE",
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+      };
+      if (memEntry.origin) headers["X-Data-Origin"] = memEntry.origin;
+      return NextResponse.json(memEntry.data, { headers });
     }
 
     // 2. Redis cache
     let cachedResponse = null;
+    let cachedOrigin: string | null = null;
     let ttl = -1;
     let isStale = false;
     let timeoutId: NodeJS.Timeout | null = null;
+    const originKey = `${cacheKey}:origin`;
     try {
-      const cachePromise = UpstashService.getWithTTL(cacheKey);
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
-      });
-      const result = (await Promise.race([cachePromise, timeoutPromise])) as {
-        data: any;
-        ttl: number;
-        isStale: boolean;
-      };
+      const [cacheResult, originResult] = await Promise.all([
+        Promise.race([
+          UpstashService.getWithTTL(cacheKey),
+          new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error("Cache timeout")), 2000);
+          }),
+        ]),
+        UpstashService.get(originKey).catch(() => null),
+      ]);
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = null;
+      const result = cacheResult as { data: any; ttl: number; isStale: boolean };
       cachedResponse = result.data;
       ttl = result.ttl;
       isStale = result.isStale;
+      cachedOrigin = typeof originResult === "string" ? originResult : null;
     } catch {
-      console.warn("Cache lookup failed or timed out for products, fetching from DB");
-    } finally {
       if (timeoutId) clearTimeout(timeoutId);
+      console.warn("Cache lookup failed or timed out for products, fetching from DB");
     }
 
     if (cachedResponse) {
-      setMemoryCache(cacheKey, { data: cachedResponse, timestamp: Date.now() });
+      setMemoryCache(
+        cacheKey,
+        { data: cachedResponse, timestamp: Date.now() },
+        cachedOrigin === "UPSTASH_SEARCH" ? "UPSTASH_SEARCH" : cachedOrigin === "SUPABASE_DATABASE" ? "SUPABASE_DATABASE" : undefined
+      );
       if (isStale) {
         (async () => {
           try {
@@ -311,18 +447,92 @@ export async function GET(request: NextRequest) {
           }
         })();
       }
-      return NextResponse.json(cachedResponse, {
-        headers: {
-          "X-Cache-Status": isStale ? "STALE" : "HIT",
-          "X-Cache-Key": cacheKey,
-          "X-Data-Source": "REDIS_CACHE",
-          "X-Cache-TTL": ttl.toString(),
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
-        },
-      });
+      const headers: Record<string, string> = {
+        "X-Cache-Status": isStale ? "STALE" : "HIT",
+        "X-Cache-Key": cacheKey,
+        "X-Data-Source": "REDIS_CACHE",
+        "X-Cache-TTL": ttl.toString(),
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+      };
+      if (cachedOrigin) headers["X-Data-Origin"] = cachedOrigin;
+      return NextResponse.json(cachedResponse, { headers });
     }
 
-    // 3. Single DB query — all filters applied inline, no pre-query lookups
+    // 3. Cache miss — source from Upstash Search (when configured) or Supabase
+    if (isSearchConfigured()) {
+      try {
+        const { products, totalItems, totalPages } =
+          await fetchProductsFromUpstashAndSupabase({
+            limit,
+            page,
+            featured,
+            category,
+            search,
+            sortBy,
+            sortOrder,
+            size,
+            gender,
+            age,
+          });
+
+        const response = {
+          products,
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalItems,
+            itemsPerPage: limit,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+          },
+        };
+
+        setMemoryCache(cacheKey, { data: response, timestamp: Date.now() }, "UPSTASH_SEARCH");
+        const originKey = `${cacheKey}:origin`;
+        UpstashService.set(cacheKey, response, 86400).catch((error) => {
+          console.error(`Failed to cache products data for key: ${cacheKey}`, error);
+        });
+        UpstashService.set(originKey, "UPSTASH_SEARCH", 86400).catch(() => {});
+
+        return NextResponse.json(response, {
+          headers: {
+            "X-Cache-Status": "MISS",
+            "X-Cache-Key": cacheKey,
+            "X-Data-Source": "UPSTASH_SEARCH",
+            "X-Cache-Set": "ASYNC",
+            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+          },
+        });
+      } catch (upstashError) {
+        console.error("[products] Upstash path failed:", upstashError);
+        // Search must come from cache or Upstash only — never Supabase
+        if (search?.trim()) {
+          const emptyResponse = {
+            products: [] as Product[],
+            pagination: {
+              currentPage: page,
+              totalPages: 0,
+              totalItems: 0,
+              itemsPerPage: limit,
+              hasNextPage: false,
+              hasPrevPage: page > 1,
+            },
+          };
+          return NextResponse.json(emptyResponse, {
+            headers: {
+              "X-Cache-Status": "MISS",
+              "X-Cache-Key": cacheKey,
+              "X-Data-Source": "UPSTASH_SEARCH",
+              "X-Data-Source-Error": "query-failed",
+              "Cache-Control": "public, s-maxage=0, no-store",
+            },
+          });
+        }
+        // Filter-only (no search): fall through to Supabase so user still gets data
+      }
+    }
+
+    // Supabase path (when Upstash not configured or when Upstash failed on filter-only request)
     const supabase = await createPublicSupabaseClient();
     let query = supabase
       .from("products")
@@ -330,18 +540,15 @@ export async function GET(request: NextRequest) {
 
     if (featured) query = query.eq("is_featured", true);
 
-    // Category: direct slug match — no extra lookup needed
     if (category && category !== "all") {
       query = query.eq("category_slug", category.trim().toLowerCase());
     }
 
-    // Gender: pure function, no DB round-trip
     if (gender && gender !== "all") {
       const genderSlugs = resolveGenderSlugsForFilter(gender);
       if (genderSlugs.length > 0) query = query.in("gender_slug", genderSlugs);
     }
 
-    // Age: filter by size. 3-6y is combined → filter by all three sizes (3-4y, 4-5y, 5-6y)
     if (age) {
       const ageSlug = age.trim().toLowerCase();
       const is3To6Years =
@@ -353,7 +560,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Size: slug IS the identifier — direct array contains, no lookup
     if (size) {
       query = query.contains("size_slugs", [size.trim().toLowerCase()]);
     }
@@ -418,7 +624,8 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    setMemoryCache(cacheKey, { data: response, timestamp: Date.now() });
+    setMemoryCache(cacheKey, { data: response, timestamp: Date.now() }, "SUPABASE_DATABASE");
+    UpstashService.set(`${cacheKey}:origin`, "SUPABASE_DATABASE", 86400).catch(() => {});
     UpstashService.set(cacheKey, response, 86400).catch((error) => {
       console.error(`Failed to cache products data for key: ${cacheKey}`, error);
     });
