@@ -85,10 +85,10 @@ export default function CheckoutPage() {
       : 0
   const total = discountedSubtotal + deliveryCharge
 
-  // Redirect if user is not authenticated
+  // Redirect if user is not authenticated; preserve redirect so post-login returns to checkout
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.push("/login?redirect=/checkout");
     }
   }, [user, loading, router]);
 
