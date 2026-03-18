@@ -10,11 +10,15 @@ import {
   getGenderOptions,
   getProducts,
   getProductById,
+  getActiveOfferFromApi,
+  getProfileCombined,
   type AgeOptionFilter,
   type CategoryOption,
   type SizeOptionFilter,
   type GenderOptionFilter,
 } from "@/lib/services/api";
+import type { ActiveOfferResponse } from "@/lib/types/order";
+import type { ProfileCombinedResponse } from "@/lib/services/api";
 
 /**
  * Custom hook for fetching age options
@@ -133,6 +137,37 @@ export function useProducts(params: {
     staleTime: 1000 * 30, // 30 seconds  
     gcTime: 1000 * 60 * 5, // 5 minutes
     enabled,
+  });
+}
+
+/**
+ * Fetches the current active offer from /api/offers/active.
+ * Cached for 10 minutes — offer config rarely changes mid-session.
+ * Returns null when no offer is active.
+ */
+export function useActiveOffer() {
+  return useQuery<ActiveOfferResponse | null>({
+    queryKey: ["activeOffer"],
+    queryFn: () => getActiveOfferFromApi(),
+    staleTime: 1000 * 60 * 10,  // 10 minutes
+    gcTime: 1000 * 60 * 60,     // 1 hour
+  });
+}
+
+/** Query key prefix for profile+addresses combined; append userId for invalidation. */
+export const PROFILE_COMBINED_QUERY_KEY = ["profile", "combined"] as const;
+
+/**
+ * Fetches profile and addresses in one request. Cached per user for 1 min, gc 10 min.
+ * Enable only when userId is present (authenticated). Used by useProfile.
+ */
+export function useProfileCombined(userId: string | undefined) {
+  return useQuery<ProfileCombinedResponse>({
+    queryKey: [...PROFILE_COMBINED_QUERY_KEY, userId],
+    queryFn: () => getProfileCombined(),
+    staleTime: 1000 * 60,       // 1 minute
+    gcTime: 1000 * 60 * 10,    // 10 minutes
+    enabled: !!userId,
   });
 }
 

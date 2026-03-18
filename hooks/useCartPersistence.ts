@@ -151,19 +151,18 @@ export function useCartPersistence({
   }, [authLoading, isTemporaryCart]);
 
   /**
-   * Persist cart changes
+   * Persist cart changes.
+   * Always save to localStorage (including temporary cart) so that after OAuth
+   * full-page redirect we can restore and merge with the user's remote cart.
    */
   const persistCart = useCallback(
     (items: CartItem[]) => {
-      // Don't persist if this is a temporary cart
-      if (isTemporaryCart) {
-        return;
-      }
-
-      // Always save to localStorage immediately
+      // Always save to localStorage so temporary cart survives OAuth redirect
       cartService.saveLocalCart(items);
 
-      // If user is authenticated, sync to Supabase in background
+      // Skip Supabase sync for temporary cart; merge happens on sign-in via loadInitialCart/handleAuthChange
+      if (isTemporaryCart) return;
+
       const userId = userIdRef.current;
       if (userId) {
         debouncedSyncToSupabase(items, userId);

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
 import { toImageSrc } from "@/lib/utils/image";
+import DiscountedPrice from '@/components/discounted-price';
 
 interface ProductCardProps {
   product: Product;
@@ -37,7 +38,21 @@ export default function ProductCard({ product, index, currentView, locale = "en-
   const hasVariants =
     (product.variants?.length ?? 0) > 0 || (product.sizes?.length ?? 0) > 0;
 
-  const addOptions: { size?: string; color?: string; price: number; label: string }[] =
+  const getStockForVariant = (size?: string, color?: string): number => {
+    if ((product.variants?.length ?? 0) > 0) {
+      const v = (product.variants as ProductVariant[]).find(
+        (x) => x.size === size && (x.color ?? "") === (color ?? "")
+      );
+      return v?.stock_quantity ?? 0;
+    }
+    if ((product.sizes?.length ?? 0) > 0 && size) {
+      const s = product.sizes.find((x) => x.name === size);
+      return s?.stock_quantity ?? 0;
+    }
+    return product.stock_quantity ?? 0;
+  };
+
+  const addOptions: { size?: string; color?: string; price: number; label: string; stock: number }[] =
     hasVariants
       ? (product.variants?.length ?? 0) > 0
         ? (product.variants as ProductVariant[])
@@ -48,6 +63,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
             price: v.price,
             label:
               [v.size, v.color].filter(Boolean).join(" / ") || v.size || "—",
+            stock: v.stock_quantity ?? 0,
           }))
         : (product.sizes ?? [])
           .filter((s) => (s.stock_quantity ?? 0) > 0)
@@ -55,8 +71,9 @@ export default function ProductCard({ product, index, currentView, locale = "en-
             size: s.name,
             price: s.price,
             label: s.name,
+            stock: s.stock_quantity ?? 0,
           }))
-      : [{ price: product.price, label: "Add" }];
+      : [{ price: product.price, label: "Add", stock: product.stock_quantity ?? 0 }];
 
   const { min: minPrice, hasRange } = getMinPrice(product);
 
@@ -71,19 +88,28 @@ export default function ProductCard({ product, index, currentView, locale = "en-
     size?: string,
     color?: string,
     price?: number,
-    basePrice?: number
+    basePrice?: number,
+    stock?: number
   ) => {
     // Cart stores price (GST-inclusive); honor basePrice when price is undefined
     const itemPrice = price ?? basePrice ?? product.price;
     const existing = getCartItemForVariant(size, color);
+    const stockQty = stock ?? getStockForVariant(size, color);
+    if (stockQty <= 0) {
+      toast.error("This option is out of stock");
+      return;
+    }
+    if (existing && existing.quantity >= stockQty) {
+      toast.error(`Only ${stockQty} item${stockQty === 1 ? " is" : "s are"} available. Cannot add more.`);
+      return;
+    }
+    if (stockQty < 3) {
+      toast.warning(`Only ${stockQty} item${stockQty === 1 ? " is" : "s are"} available.`);
+    }
     if (existing) {
-      updateQuantity(
-        product.id,
-        existing.quantity + 1,
-        existing.size,
-        existing.color
-      );
-      toast.success(`${product.name} quantity updated in cart`);
+      const newQty = Math.min(existing.quantity + 1, stockQty);
+      updateQuantity(product.id, newQty, existing.size, existing.color);
+      toast.success(newQty === stockQty ? `Maximum ${stockQty} in cart` : `${product.name} quantity updated in cart`);
     } else {
       addToCart({
         id: product.id,
@@ -91,6 +117,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
         price: itemPrice,
         image: product.images?.[0],
         quantity: 1,
+        stock_quantity: stockQty,
         ...(size ? { size } : {}),
         ...(color ? { color } : {}),
       });
@@ -129,8 +156,8 @@ export default function ProductCard({ product, index, currentView, locale = "en-
   };
 
   const cartQuantityForProduct = cart
-  .filter(item => item.id === product.id)
-  .reduce((sum, item) => sum + item.quantity, 0);
+    .filter(item => item.id === product.id)
+    .reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div
@@ -143,7 +170,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
       >
         {/* Featured Badge */}
         {product.is_featured && (
-          <span className="absolute top-3 left-3 z-10 bg-amber-500 text-white text-xs lg:text-[10px] font-semibold px-2.5 py-1 lg:px-2 lg:py-0.5 rounded-full shadow-md">
+          <span className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 bg-amber-500 text-white text-xs lg:text-[10px] font-semibold px-2.5 py-1 lg:px-2 lg:py-0.5 rounded-full shadow-md">
             Featured
           </span>
         )}
@@ -184,6 +211,8 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                   name: product.name,
                   price: product.price,
                   image: product.images?.[0],
+                  size: product.sizes?.[0]?.name ?? "",
+                  color: product.variants?.[0]?.color ?? "",
                 });
                 toast.success(`${product.name} added to wishlist!`);
               }
@@ -326,7 +355,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleAddVariant();
+                handleAddVariant(undefined, undefined, undefined, undefined, addOptions[0]?.stock);              
               }}
               aria-label={anyVariantInCart ? "Add another" : "Add to cart"}
             >
@@ -384,16 +413,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
               {product.categories.name}
             </p>
           )}
-          <p className="flex items-center justify-end gap-2 text-sm font-bold text-gray-900 group-hover:text-primary transition-colors duration-200 flex-shrink-0">
-            {hasRange ? (
-              <>
-                <span className="text-xs lg:text-[10px] font-medium text-gray-500">Starts at</span>
-                {formatPrice(minPrice, locale, currency)}
-              </>
-            ) : (
-              formatPrice(minPrice, locale, currency)
-            )}
-          </p>
+          <DiscountedPrice price={minPrice} showStartsAt={hasRange} />
         </div>
       </div>
     </div>

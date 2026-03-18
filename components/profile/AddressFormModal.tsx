@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { X, AlertCircle, Trash2, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { X, AlertCircle, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -225,6 +225,10 @@ export default function AddressFormModal({
 
   if (!isOpen) return null;
 
+  const isOnlyAddress =
+    (!isEditing && addresses.length === 0) ||
+    (isEditing && addresses.length === 1);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center md:p-4 z-50">
       <div className="bg-white rounded-t-2xl md:rounded-lg shadow-xl max-w-2xl w-full max-h-[92vh] md:max-h-[90vh] flex flex-col">
@@ -258,13 +262,14 @@ export default function AddressFormModal({
                 </select>
               </div>
               <div>
-                <Label htmlFor="label">Label (Optional)</Label>
+                <Label htmlFor="label">Nickname (optional)</Label>
                 <Input
                   id="label"
                   value={addressData.label}
                   onChange={(e) => onInputChange("label", e.target.value)}
-                  placeholder="e.g., Mom's House, Office"
+                  placeholder="e.g. My Home, Office, Parents"
                 />
+                <p className="text-xs text-muted-foreground mt-1">A friendly name to tell addresses apart; type above is the category.</p>
               </div>
             </div>
 
@@ -479,21 +484,20 @@ export default function AddressFormModal({
                 type="checkbox"
                 id="is_default"
                 checked={addressData.is_default}
-                disabled={addresses.length === 1}
+                disabled={isOnlyAddress}
                 onChange={(e) =>
                   onInputChange("is_default", e.target.checked.toString())
                 }
-                className={`rounded border-gray-300 ${addresses.length === 1 ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
+                className={`rounded border-gray-300 ${isOnlyAddress ? "opacity-50 cursor-not-allowed" : ""}`}
               />
               <Label
                 htmlFor="is_default"
-                className={addresses.length === 1 ? "opacity-50" : ""}
+                className={isOnlyAddress ? "opacity-50" : ""}
               >
                 Set as default address
-                {addresses.length === 1 && (
+                {isOnlyAddress && (
                   <span className="text-xs text-gray-500 ml-1">
-                    (Only address - automatically default)
+                    (Only address – automatically default)
                   </span>
                 )}
               </Label>
@@ -501,52 +505,36 @@ export default function AddressFormModal({
           </div>
         </div>
 
-        <div className="border-t p-4 md:px-6 md:pb-6 shrink-0 space-y-3 md:space-y-0">
-          {/* Mobile: stacked buttons */}
-          <div className="flex flex-col-reverse md:flex-row md:justify-between gap-3">
-            {/* Delete Button - Only show when editing */}
-            {isEditing && onDelete && (
-              <Button
-                variant="outline"
-                onClick={onDelete}
-                className="w-full md:w-auto text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Address
-              </Button>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-col md:flex-row gap-3 md:ml-auto">
-              <Button
-                onClick={onSave}
-                disabled={
-                  isSaving ||
-                  (!isEditing && !addressData.phone) ||
-                  !addressData.address_line_1 ||
-                  !addressData.city ||
-                  !addressData.state ||
-                  !addressData.postal_code ||
-                  !!validationErrors.full_name ||
-                  !!validationErrors.phone ||
-                  !!validationErrors.address_line_1 ||
-                  !!validationErrors.city ||
-                  !!validationErrors.state ||
-                  !!validationErrors.postal_code ||
-                  (enablePincodeCheck && pincodeStatus !== "serviceable")
-                }
-                className="w-full md:w-auto"
-              >
-                {isSaving
-                  ? "Saving..."
-                  : isEditing
-                    ? "Update Address"
-                    : "Add Address"}
-              </Button>
-              <Button variant="outline" onClick={onClose} className="w-full md:w-auto">
-                Cancel
-              </Button>
-            </div>
+        <div className="border-t p-4 md:px-6 md:pb-6 shrink-0">
+          <div className="flex flex-col md:flex-row gap-3">
+            <Button
+              onClick={onSave}
+              disabled={
+                isSaving ||
+                (!isEditing && !addressData.phone) ||
+                !addressData.address_line_1 ||
+                !addressData.city ||
+                !addressData.state ||
+                !addressData.postal_code ||
+                !!validationErrors.full_name ||
+                !!validationErrors.phone ||
+                !!validationErrors.address_line_1 ||
+                !!validationErrors.city ||
+                !!validationErrors.state ||
+                !!validationErrors.postal_code ||
+                (enablePincodeCheck && pincodeStatus !== "serviceable")
+              }
+              className="w-full md:w-auto"
+            >
+              {isSaving
+                ? "Saving..."
+                : isEditing
+                  ? "Update Address"
+                  : "Add Address"}
+            </Button>
+            <Button variant="outline" onClick={onClose} className="w-full md:w-auto">
+              Cancel
+            </Button>
           </div>
         </div>
       </div>

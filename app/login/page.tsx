@@ -35,6 +35,11 @@ export default function LoginPage() {
     setIsLoading(true);
     setError("");
 
+    // Persist redirect so any post-auth flow (e.g. callback) sends user to intended page
+    if (isSafeRedirect(redirectTo)) {
+      document.cookie = `auth_redirect=${encodeURIComponent(redirectTo)}; path=/; max-age=300; SameSite=Lax`;
+    }
+
     const { error } = await signIn(email, password);
 
     if (error) {

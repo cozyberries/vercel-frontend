@@ -10,6 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useSwipeToClose } from "@/hooks/useSwipeToClose";
 import {
   Select,
   SelectContent,
@@ -92,6 +93,8 @@ export default function FilterSheet({
     setOpen(isOpen);
   };
 
+  const swipeLeftToClose = useSwipeToClose("left", () => setOpen(false));
+
   const handleApplyFilters = () => {
     onApplyFilters({
       category: pendingCategory,
@@ -116,7 +119,10 @@ export default function FilterSheet({
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-[min(90vw,400px)] p-0">
-        <div className="flex h-full flex-col">
+        <div
+          className="flex h-full flex-col touch-pan-y"
+          {...swipeLeftToClose}
+        >
           <SheetHeader className="p-4 border-b">
             <SheetTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />

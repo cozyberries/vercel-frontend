@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { images } from "@/app/assets/images";
 import type { CartItem } from "@/components/cart-context";
+import DiscountedPrice from "@/components/discounted-price";
 
 interface CartItemProps {
   item: CartItem;
@@ -16,6 +17,9 @@ export default function CartItemRow({
   onQuantityChange,
   onRemove,
 }: CartItemProps) {
+
+  const maxedOut = item.stock_quantity != null && item.quantity >= item.stock_quantity;
+
   return (
     <div className="flex items-center gap-4 border-b pb-4">
       <div className="relative w-16 h-16 flex-shrink-0">
@@ -37,14 +41,19 @@ export default function CartItemRow({
           </div>
         )}
         <div className="text-sm font-semibold mt-1">
-          ₹{item.price.toFixed(0)}
+          <DiscountedPrice price={item.price} />
         </div>
-        <div className="mt-2 text-sm text-muted-foreground">
+        {maxedOut && (
+          <p className="text-xs text-amber-600 font-medium mt-1">
+            Only {item.stock_quantity} item{item.stock_quantity === 1 ? " is" : "s are"} available
+          </p>
+        )}        <div className="mt-2 text-sm text-muted-foreground">
           <div className="inline-flex items-center border h-7 rounded-md overflow-hidden">
             <Button
               type="button"
               variant="ghost"
-              className="px-3 py-2 hover:bg-accent"
+              className={`px-3 py-2 hover:bg-accent ${item.quantity <= 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={item.quantity <= 1}
               onClick={() =>
                 onQuantityChange(item.id, Math.max(1, item.quantity - 1), item.size, item.color)
               }
@@ -58,8 +67,14 @@ export default function CartItemRow({
             <Button
               type="button"
               variant="ghost"
-              className="px-3 py-2 hover:bg-accent"
-              onClick={() => onQuantityChange(item.id, item.quantity + 1, item.size, item.color)}
+              className={`px-3 py-2 hover:bg-accent ${maxedOut ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={maxedOut}
+              onClick={() => {
+                if (maxedOut) return;
+                const next = item.quantity + 1;
+                const maxQty = item.stock_quantity ?? next;
+                onQuantityChange(item.id, Math.min(next, maxQty), item.size, item.color);
+              }}
               aria-label="Increase quantity"
             >
               +

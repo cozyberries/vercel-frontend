@@ -27,10 +27,10 @@ const MAX_SCROLL_RESTORE_PAGES = 2;
 function parseApiError(err: unknown, fallback: string): string {
   const data =
     err &&
-    typeof err === "object" &&
-    "response" in err
+      typeof err === "object" &&
+      "response" in err
       ? (err as { response?: { data?: { error?: string; details?: string } } })
-          .response?.data
+        .response?.data
       : null;
   if (data?.error) {
     return data.details ? `${data.error}: ${data.details}` : data.error;
@@ -528,7 +528,7 @@ export default function ProductsClient() {
 
   /* ─── Shared mobile filter row (search + FilterSheet + reset) ─── */
   const mobileFilterRow = (
-    <div className="flex items-center gap-2 lg:hidden">
+    <div className="flex flex-col gap-4 lg:hidden">
       <ProductSearchInput
         value={searchInput}
         onChange={setSearchInput}
@@ -538,30 +538,59 @@ export default function ProductsClient() {
         disabled={isProductsLoading || isFiltersLoading}
         className="flex-1"
       />
-      <FilterSheet
-        categories={categories}
-        sizeOptions={sizeOptions}
-        genderOptions={genderOptions}
-        currentCategory={currentCategory}
-        currentSize={currentSize}
-        currentGender={currentGender}
-        currentSort={currentSort}
-        currentSortOrder={currentSortOrder}
-        onApplyFilters={handleApplyFilters}
-        onClearFilters={handleClearFilters}
-        disabled={isProductsLoading || isFiltersLoading}
-      />
-      {hasActiveFilters && !isProductsLoading && !isFiltersLoading && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleClearFilters}
-          className="h-10 w-10 shrink-0 text-muted-foreground"
-          aria-label="Clear all filters"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-      )}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <FilterSheet
+            categories={categories}
+            sizeOptions={sizeOptions}
+            genderOptions={genderOptions}
+            currentCategory={currentCategory}
+            currentSize={currentSize}
+            currentGender={currentGender}
+            currentSort={currentSort}
+            currentSortOrder={currentSortOrder}
+            onApplyFilters={handleApplyFilters}
+            onClearFilters={handleClearFilters}
+            disabled={isProductsLoading || isFiltersLoading}
+          />
+          {hasActiveFilters && !isProductsLoading && !isFiltersLoading && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearFilters}
+              className="text-foreground hover:text-foreground"
+              aria-label="Clear all filters"
+            >
+              Reset Filters
+            </Button>
+          )}
+        </div>
+        <div>
+          {/* View toggle: mobile only — above products when we have results */}
+          {allProducts.length > 0 && isMobile === true && (
+            <div className="flex items-center border rounded-md p-0.5">
+              <Button
+                variant={effectiveView === "grid" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handleViewChange("grid")}
+                aria-label="Grid view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={effectiveView === "list" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handleViewChange("list")}
+                aria-label="List view"
+              >
+                <LayoutList className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 
@@ -775,32 +804,6 @@ export default function ProductsClient() {
           )}
         </div>
       </div>
-
-      {/* View toggle: mobile only — above products when we have results */}
-      {allProducts.length > 0 && isMobile === true && (
-        <div className="flex justify-end mb-3">
-          <div className="flex items-center border rounded-md p-0.5">
-            <Button
-              variant={effectiveView === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => handleViewChange("grid")}
-              aria-label="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={effectiveView === "list" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => handleViewChange("list")}
-              aria-label="List view"
-            >
-              <LayoutList className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Active search chip */}
       {currentSearch && (

@@ -12,6 +12,7 @@ export interface CartItem {
   quantity: number;
   size?: string;
   color?: string;
+  stock_quantity?: number;
 }
 
 /** Unique key for a cart line item (same product in different sizes = different keys) */
@@ -59,13 +60,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart((prev) => {
       const existing = prev.find((i) => getCartItemKey(i) === itemKey);
       if (existing) {
+        const stockQty = existing.stock_quantity ?? item.stock_quantity;
+        const maxQty = stockQty ?? Infinity;
+        const newQty = Math.min(Math.max(1, existing.quantity + item.quantity), maxQty);
         return prev.map((i) =>
           getCartItemKey(i) === itemKey
-            ? { ...i, quantity: i.quantity + item.quantity }
+            ? { ...i, quantity: newQty, stock_quantity: stockQty }
             : i
         );
       }
-      return [...prev, item];
+      const maxQty = item.stock_quantity ?? Infinity;
+      const qty = Math.min(Math.max(1, item.quantity), maxQty);
+      return [...prev, { ...item, quantity: qty }];
     });
     logEvent("cart_add", { product_id: item.id, quantity: item.quantity, size: item.size, color: item.color });
   };
@@ -79,7 +85,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = (id: string, quantity: number, size?: string, color?: string) => {
     const key = getCartItemKey({ id, size, color });
     setCart((prev) =>
-      prev.map((i) => (getCartItemKey(i) === key ? { ...i, quantity } : i))
+      prev.map((i) => {
+        if (getCartItemKey(i) !== key) return i;
+        const maxQty = i.stock_quantity ?? Infinity;
+        const capped = Math.min(Math.max(1, quantity), maxQty);
+        return { ...i, quantity: capped };
+      })
     );
   };
 

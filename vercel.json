@@ -8,6 +8,11 @@
     {
       "path": "/api/cache/warm",
       "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/reindex-search",
+      "schedule": "30 21 * * *"
     }
   ]
-} 
+}
+ 

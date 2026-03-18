@@ -5,6 +5,45 @@ export interface ValidationResult {
   error?: string;
 }
 
+/** RFC-style email format; required for signup. */
+export const validateEmail = (email: string): ValidationResult => {
+  const trimmed = email.trim();
+  if (!trimmed) {
+    return { isValid: false, error: "Email is required" };
+  }
+  // Reasonable email pattern: local@domain.tld, max lengths to avoid abuse
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(trimmed)) {
+    return { isValid: false, error: "Please enter a valid email address" };
+  }
+  if (trimmed.length > 254) {
+    return { isValid: false, error: "Email is too long" };
+  }
+  return { isValid: true };
+};
+
+/** Password strength for signup; aligns with common auth requirements (e.g. Supabase default). */
+export const validateSignupPassword = (password: string): ValidationResult => {
+  if (!password) {
+    return { isValid: false, error: "Password is required" };
+  }
+  if (password.length < 8) {
+    return { isValid: false, error: "Password must be at least 8 characters" };
+  }
+  if (password.length > 72) {
+    return { isValid: false, error: "Password must be less than 72 characters" };
+  }
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  if (!hasLetter || !hasNumber) {
+    return {
+      isValid: false,
+      error: "Password must include at least one letter and one number",
+    };
+  }
+  return { isValid: true };
+};
+
 // Phone number validation (required version - for signup flows)
 export const validateRequiredPhoneNumber = (phone: string): ValidationResult => {
   if (!phone || phone.trim() === "") {
@@ -273,6 +312,7 @@ export const formatPostalCode = (
 };
 
 // Address validation
+// Allows letters, numbers, spaces, and common address chars: \ - / ' " , . # ( ) & ; : + ° ² № ~
 export const validateAddress = (address: string): ValidationResult => {
   if (!address || address.trim() === "") {
     return {
@@ -299,8 +339,8 @@ export const validateAddress = (address: string): ValidationResult => {
     };
   }
 
-  // Check for valid characters (letters, numbers, spaces, common punctuation)
-  const validAddressRegex = /^[a-zA-Z0-9\s.,#-]+$/;
+  // Allow letters, numbers, spaces, and address punctuation/symbols: backslash, hyphen, slash, quotes, comma, period, # ( ) & ; : + ° ² № ~
+  const validAddressRegex = /^[\p{L}\p{N}\s.,#'"\/\\\-()&;:+°²№~]+$/u;
   if (!validAddressRegex.test(cleanAddress)) {
     return {
       isValid: false,

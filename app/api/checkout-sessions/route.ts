@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest } from "@/lib/types/order";
 import {
@@ -7,10 +8,13 @@ import {
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import { validateAndApplyOffer } from "@/lib/utils/offers-server";
+import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const cookieStore = await cookies();
+    const supabase = await createServerSupabaseClient(cookieStore);
 
     const {
       data: { user },
@@ -33,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateOrderRequest = await request.json();
-    const { items, shipping_address_id, billing_address_id, notes } = body;
+    const { items, shipping_address_id, billing_address_id, coupon_code, notes } = body;
 
     await logServerEvent(supabase, user.id, "checkout_request_received", {
       items_count: items?.length ?? 0,
@@ -84,6 +88,31 @@ export async function POST(request: NextRequest) {
     }
 
     const orderSummary = calculateOrderSummary(items);
+
+    // Validate coupon and compute server-side discount
+    let discountCode: string | null = null
+    let discountAmount = 0
+
+    if (coupon_code) {
+      const result = validateAndApplyOffer(coupon_code, orderSummary.subtotal)
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: 'invalid_coupon', message: result.error },
+          { status: 422 }
+        )
+      }
+      discountCode = result.data.discountCode
+      discountAmount = result.data.discountAmount
+    }
+
+    // Recompute total with discount applied
+    const discountedSubtotal = orderSummary.subtotal - discountAmount
+    const serverDeliveryCharge =
+      items.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
+        ? DELIVERY_CHARGE_INR
+        : 0
+    const finalTotal = discountedSubtotal + serverDeliveryCharge
+
     const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
     // Expire any existing pending sessions for this user
@@ -104,9 +133,11 @@ export async function POST(request: NextRequest) {
         billing_address: billingAddress,
         items,
         subtotal: orderSummary.subtotal,
-        delivery_charge: orderSummary.delivery_charge,
+        discount_code: discountCode,
+        discount_amount: discountAmount,
+        delivery_charge: serverDeliveryCharge,
         tax_amount: orderSummary.tax_amount,
-        total_amount: orderSummary.total_amount,
+        total_amount: finalTotal,
         currency: orderSummary.currency,
         notes: notes || null,
         status: "pending",
@@ -125,7 +156,7 @@ export async function POST(request: NextRequest) {
     // Log event (fire-and-forget)
     logServerEvent(supabase, user.id, "checkout_session_created", {
       session_id: session.id,
-      total_amount: orderSummary.total_amount,
+      total_amount: finalTotal,
       item_count: items.length,
     });
 

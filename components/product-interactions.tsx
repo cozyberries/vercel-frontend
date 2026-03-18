@@ -19,6 +19,7 @@ import { FaStar } from "react-icons/fa";
 import RatingForm from "./rating/RatingForm";
 import { useAuth } from "./supabase-auth-provider";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
+import DiscountedPrice from '@/components/discounted-price'
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -63,6 +64,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [hasSwiped, setHasSwiped] = useState(false);
   const swipeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartYRef = useRef<number>(0);
+  const touchEndYRef = useRef<number>(0);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
   const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
   const [users, setUsers] = useState<User[]>([]);
@@ -245,10 +248,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   // Display and cart use same price (GST-inclusive); validation checks against this
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
 
-  const incrementQuantity = () => {
-    setQuantity((prev) => prev + 1);
-  };
+  const availableStock = selectedSize != null ? (selectedSize.stock_quantity ?? 0) : (product?.stock_quantity ?? 0);
+  const currentVariantKey = getCartItemKey({
+    id: product?.id ?? "",
+    size: selectedSize?.name,
+    color: selectedColor || undefined,
+  });
+  const existingCartItem = cart.find((i) => getCartItemKey(i) === currentVariantKey);
+  const existingCartQty = existingCartItem?.quantity ?? 0;
+  const maxCanAdd = Math.max(0, availableStock - existingCartQty);
 
+  const incrementQuantity = () => {
+    setQuantity((prev) => Math.min(prev + 1, maxCanAdd > 0 ? maxCanAdd : availableStock));
+  }
   const decrementQuantity = () => {
     if (quantity > 1) {
       setQuantity((prev) => prev - 1);
@@ -287,11 +299,14 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
+    touchStartYRef.current = e.targetTouches[0].clientY;
+    touchEndYRef.current = e.targetTouches[0].clientY;
     setHasSwiped(false);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
+    touchEndYRef.current = e.targetTouches[0].clientY;
   };
 
   const onTouchEnd = () => {
@@ -302,9 +317,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       swipeTimeoutRef.current = null;
     }
 
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
+    const distanceX = touchStart - touchEnd;
+    const distanceY = Math.abs(touchEndYRef.current - touchStartYRef.current);
+    const isHorizontalSwipe = Math.abs(distanceX) >= distanceY;
+    const isLeftSwipe = isHorizontalSwipe && distanceX > minSwipeDistance;
+    const isRightSwipe = isHorizontalSwipe && distanceX < -minSwipeDistance;
 
     if (isLeftSwipe && product?.images && selectedImage < product.images.length - 1) {
       setSelectedImage(selectedImage + 1);
@@ -357,9 +374,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${
-                    index === selectedImage ? "ring-2 ring-primary" : ""
-                  }`}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${index === selectedImage ? "ring-2 ring-primary" : ""
+                    }`}
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
@@ -376,11 +392,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
           {/* Main Image */}
           <div className="lg:flex-1">
             <div
-              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-[opacity,transform] duration-300 ease-out ${
-                !isMobile
+              className={`aspect-square z-10 bg-[#f5f5f5] relative transition-[opacity,transform] duration-300 ease-out ${!isMobile
                   ? "cursor-zoom-in hover:shadow-lg hover:scale-[1.02]"
-                  : "cursor-pointer touch-none"
-              }`}
+                  : "cursor-pointer touch-pan-y"
+                }`}
               onMouseEnter={handleImageMouseEnter}
               onMouseLeave={handleImageMouseLeave}
               onMouseMove={handleImageMouseMove}
@@ -500,9 +515,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               {product.images.map((image, index) => (
                 <div
                   key={index}
-                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${
-                    index === selectedImage ? "ring-2 ring-primary" : ""
-                  }`}
+                  className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${index === selectedImage ? "ring-2 ring-primary" : ""
+                    }`}
                   onClick={() => setSelectedImage(index)}
                 >
                   <Image
@@ -533,6 +547,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
           )}
 
           {/* Price */}
+          <div className="flex items-center gap-2 flex-wrap mb-6">
+            <DiscountedPrice price={displayPrice} />
+          </div>
           <p className="text-2xl font-medium mb-4">
             ₹{displayPrice.toFixed(0)}
             {selectedSize && selectedSize.price < product.price && (
@@ -562,23 +579,21 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                         onClick={() => !isOutOfStock && setSelectedSize(size)}
                         disabled={isOutOfStock}
                         className={`relative flex flex-col items-center justify-center px-2 py-2.5 border rounded-lg text-sm transition-[border-color,background-color,color,box-shadow] duration-200
-                          ${
-                            isSelected
-                              ? "border-black bg-black text-white shadow-sm"
-                              : isOutOfStock
+                          ${isSelected
+                            ? "border-black bg-black text-white shadow-sm"
+                            : isOutOfStock
                               ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
                               : "border-gray-300 bg-white text-gray-900 hover:border-black hover:shadow-sm"
                           }`}
                       >
                         <span className="font-medium">{size.name}</span>
                         <span
-                          className={`text-xs mt-0.5 ${
-                            isSelected
+                          className={`text-xs mt-0.5 ${isSelected
                               ? "text-gray-300"
                               : isOutOfStock
-                              ? "text-gray-300"
-                              : "text-muted-foreground"
-                          }`}
+                                ? "text-gray-300"
+                                : "text-muted-foreground"
+                            }`}
                         >
                           ₹{size.price.toFixed(0)}
                         </span>
@@ -591,14 +606,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     );
                   })}
                 </div>
-                {selectedSize &&
-                  selectedSize.stock_quantity !== undefined &&
-                  selectedSize.stock_quantity > 0 &&
-                  selectedSize.stock_quantity <= 3 && (
-                    <p className="text-xs text-amber-600 mt-2">
-                      Only {selectedSize.stock_quantity} left in this size!
-                    </p>
-                  )}
+                {availableStock > 0 && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    Only {availableStock} item{availableStock === 1 ? "" : "s"} left in this size!
+                  </p>
+                )}
               </div>
             )}
 
@@ -610,6 +622,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   size="icon"
                   className="rounded-none"
                   onClick={decrementQuantity}
+                  disabled={quantity <= 1}
+                  aria-label="Decrease quantity"
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
@@ -619,6 +633,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   size="icon"
                   className="rounded-none"
                   onClick={incrementQuantity}
+                  disabled={quantity >= availableStock}
+                  aria-label="Increase quantity"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -641,13 +657,21 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               size="lg"
               className="w-1/2 bg-black hover:bg-gray-800"
               onClick={() => {
-                // Add to cart temporarily (replaces existing cart), then redirect to checkout
+                if (availableStock <= 0) {
+                  toast.error("This option is out of stock");
+                  return;
+                }
+                const qty = Math.min(quantity, availableStock);
+                if (quantity > availableStock) {
+                  toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
+                }
                 addToCartTemporary({
                   id: product.id,
                   name: product.name,
                   price: displayPrice,
                   image: product.images?.[0],
-                  quantity,
+                  quantity: qty,
+                  stock_quantity: availableStock,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
                 });
@@ -663,9 +687,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               animate={
                 isShaking
                   ? {
-                      x: [0, -10, 10, -10, 10, -5, 5, 0],
-                      transition: { duration: 0.6, ease: "easeInOut" },
-                    }
+                    x: [0, -10, 10, -10, 10, -5, 5, 0],
+                    transition: { duration: 0.6, ease: "easeInOut" },
+                  }
                   : {}
               }
             >
@@ -678,12 +702,25 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
                     toast.success(`${product.name} removed from cart!`);
                   } else {
+                    if (availableStock <= 0) {
+                      toast.error("This option is out of stock");
+                      return;
+                    }
+                    if (maxCanAdd <= 0) {
+                      toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
+                      return;
+                    }
+                    const qtyToAdd  = Math.min(quantity, maxCanAdd);
+                    if (quantity > maxCanAdd) {
+                      toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
+                    }
                     addToCart({
                       id: product.id,
                       name: product.name,
                       price: displayPrice,
                       image: product.images?.[0],
-                      quantity,
+                      quantity: qtyToAdd,
+                      stock_quantity: availableStock,
                       ...(selectedColor ? { color: selectedColor } : {}),
                       ...(selectedSize ? { size: selectedSize.name } : {}),
                     });
@@ -801,9 +838,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                             }}
                           >
                             <Heart
-                              className={`h-4 w-4 ${
-                                isRelatedInWishlist ? "fill-red-500 text-red-500" : ""
-                              }`}
+                              className={`h-4 w-4 ${isRelatedInWishlist ? "fill-red-500 text-red-500" : ""
+                                }`}
                             />
                             <span className="sr-only">
                               {isRelatedInWishlist ? "Remove from wishlist" : "Add to wishlist"}
@@ -822,7 +858,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                           <p className="text-sm text-muted-foreground mb-1">
                             {relatedProduct.category}
                           </p>
-                          <p className="font-medium">₹{relatedProduct.price.toFixed(0)}</p>
+                          <DiscountedPrice price={relatedProduct.price} />
                         </div>
                       </div>
                     );
@@ -880,9 +916,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     <button
                       key={index}
                       onClick={() => setSelectedImage(index)}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        index === selectedImage ? "bg-white" : "bg-white/50"
-                      }`}
+                      className={`w-2 h-2 rounded-full transition-colors ${index === selectedImage ? "bg-white" : "bg-white/50"
+                        }`}
                     />
                   ))}
                 </div>
@@ -902,13 +937,21 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             size="lg"
             className="w-1/2 h-12 bg-black hover:bg-gray-800"
             onClick={() => {
-              // Add to cart temporarily (replaces existing cart), then redirect to checkout
+              if (availableStock <= 0) {
+                toast.error("This option is out of stock");
+                return;
+              }
+              const qty = Math.min(quantity, availableStock);
+              if (quantity > availableStock) {
+                toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
+              }
               addToCartTemporary({
                 id: product.id,
                 name: product.name,
                 price: displayPrice,
                 image: product.images?.[0],
-                quantity,
+                quantity: qty,
+                stock_quantity: availableStock,
                 ...(selectedColor ? { color: selectedColor } : {}),
                 ...(selectedSize ? { size: selectedSize.name } : {}),
               });
@@ -927,17 +970,31 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             className="w-1/2 h-12 overflow-hidden"
             onClick={() => {
               if (isInCart) {
+              if (isInCart) {
                 removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
-              } else {
+                toast.success(`${product.name} removed from cart!`);
+              } else {                  toast.error("This option is out of stock");
+                  return;
+                }
+                if (maxCanAdd <= 0) {
+                  toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
+                  return;
+                }
+                const qtyToAdd = Math.min(quantity, maxCanAdd);
+                if (quantity > maxCanAdd) {
+                  toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
+                }
                 addToCart({
                   id: product.id,
                   name: product.name,
                   price: displayPrice,
                   image: product.images?.[0],
-                  quantity,
+                  quantity: qtyToAdd,
+                  stock_quantity: availableStock,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
                 });
+                toast.success(`${product.name} added to cart!`);
               }
             }}
           >

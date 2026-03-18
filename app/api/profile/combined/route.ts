@@ -79,6 +79,7 @@ export async function GET() {
       }
 
       const headers = {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
         "X-Cache-Status": isStale ? "STALE" : "HIT",
         "X-Data-Source": "REDIS_CACHE",
         "X-Response-Time": `${Date.now() - startTime}ms`,
@@ -108,6 +109,7 @@ export async function GET() {
     });
 
     const headers = {
+      "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
       "X-Cache-Status": "MISS",
       "X-Data-Source": "SUPABASE_DATABASE",
       "X-Response-Time": `${Date.now() - startTime}ms`,

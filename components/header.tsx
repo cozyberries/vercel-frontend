@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { User } from "lucide-react";
+import { User, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CartSheet from "@/components/CartSheet";
 import WishlistSheet from "@/components/WishlistSheet";
+import SearchResultsSheet from "@/components/SearchResultsSheet";
 import { images } from "@/app/assets/images";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { HamburgerSheet } from "./HamburgerSheet";
@@ -16,6 +18,7 @@ import HeaderLinks from "./HeaderLinks";
 export default function Header() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
@@ -68,6 +71,17 @@ export default function Header() {
 
           {/* Icons + Auth */}
           <div className="flex items-center justify-end flex-1 space-x-1">
+            {/* Search — opens suggestion sheet */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors duration-200"
+              aria-label="Search products"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+            <SearchResultsSheet isOpen={searchOpen} onOpenChange={setSearchOpen} />
             {/* User Icon — desktop only */}
             <div className="hidden lg:block">
               <Link href={user ? "/profile" : "/login"}>

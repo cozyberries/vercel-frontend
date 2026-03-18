@@ -1,5 +1,6 @@
 import axios from "axios";
 import { normalizeProduct } from "@/lib/utils/product";
+import type { ActiveOfferResponse } from "@/lib/types/order";
 // ---------- Types ----------
 export interface ProductVariant {
   slug: string;
@@ -601,3 +602,74 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
     return false;
   }
 };
+
+/**
+ * Fetches the current active offer from the server.
+ * Returns null when no offer is active.
+ */
+export async function getActiveOfferFromApi(): Promise<ActiveOfferResponse | null> {
+  const response = await api.get<{ offer: ActiveOfferResponse | null }>(
+    "/api/offers/active"
+  );
+  return response.data.offer;
+}
+
+// ---------- Profile (auth required) ----------
+
+export interface ProfileCombinedProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url?: string | null;
+  created_at?: string;
+  updated_at: string;
+}
+
+export interface ProfileCombinedAddress {
+  id: string;
+  user_id: string;
+  address_type: string;
+  label: string | null;
+  full_name: string | null;
+  phone: string | null;
+  address_line_1: string;
+  area: string | null;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileCombinedResponse {
+  profile: ProfileCombinedProfile;
+  addresses: ProfileCombinedAddress[];
+}
+
+/**
+ * Fetches profile and addresses in one request. Uses cookie-based auth.
+ * Uses fetch with cache: "no-store" so refetches after mutations always get
+ * fresh data from the server (no stale browser HTTP cache).
+ */
+export async function getProfileCombined(): Promise<ProfileCombinedResponse> {
+  const res = await fetch("/api/profile/combined", {
+    cache: "no-store",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Profile combined failed: ${res.status}`);
+  }
+  const data = (await res.json()) as ProfileCombinedResponse;
+  if (!data?.profile) {
+    throw new Error("Invalid profile response");
+  }
+  return {
+    profile: data.profile,
+    addresses: Array.isArray(data.addresses) ? data.addresses : [],
+  };
+}
