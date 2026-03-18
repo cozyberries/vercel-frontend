@@ -61,7 +61,10 @@ export default function CompleteProfilePage() {
         // fetches fresh data instead of serving the pre-redirect stale copy.
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
         const destination = isSafeRedirect(redirectTo) ? redirectTo : "/";
-        router.push(destination);
+        // Full page navigation so the next request includes the cookie and is not
+        // served from a prefetched response (which may have been a redirect to
+        // complete-profile before the phone was saved).
+        window.location.assign(destination);
       } else {
         const data = await response.json();
         setError(data.error || "Failed to save phone number");
