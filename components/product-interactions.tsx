@@ -468,6 +468,30 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 </motion.div>
               </AnimatePresence>
 
+              {/* Preload other gallery images so switching is instant (same src = cache hit) */}
+              {product.images && product.images.length > 1 && (
+                <div
+                  className="absolute left-0 top-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none"
+                  aria-hidden
+                >
+                  {product.images.map(
+                    (img, index) =>
+                      index !== selectedImage && (
+                        <Image
+                          key={index}
+                          src={toImageSrc(img, undefined, "detail")}
+                          alt=""
+                          width={600}
+                          height={600}
+                          className="object-cover"
+                          draggable={false}
+                          fetchPriority="low"
+                        />
+                      )
+                  )}
+                </div>
+              )}
+
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
                   <Image
