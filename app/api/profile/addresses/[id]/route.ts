@@ -8,6 +8,7 @@ import {
   validateState,
   validatePostalCode,
 } from "@/lib/utils/validation";
+import CacheService from "@/lib/services/cache";
 
 export async function GET(
   request: NextRequest,
@@ -261,6 +262,7 @@ export async function PUT(
       );
     }
 
+    await CacheService.clearAddresses(user.id);
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error in PUT /api/profile/addresses/[id]:", error);
@@ -312,6 +314,7 @@ export async function DELETE(
       );
     }
 
+    await CacheService.clearAddresses(user.id);
     return NextResponse.json({ message: "Address deleted successfully" });
   } catch (error) {
     console.error("Error in DELETE /api/profile/addresses/[id]:", error);
