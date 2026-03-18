@@ -67,6 +67,7 @@ interface ProfileFormProps {
   onAddAddress: () => void;
   onEditAddress: (address: UserAddress) => void;
   onSetDefault: (id: string) => void;
+  onDeleteAddress: (id: string) => void;
   onSignOut: () => void;
 }
 
@@ -84,6 +85,7 @@ export default function ProfileForm({
   onAddAddress,
   onEditAddress,
   onSetDefault,
+  onDeleteAddress,
   onSignOut,
 }: ProfileFormProps) {
   return (
@@ -237,6 +239,7 @@ export default function ProfileForm({
                   address={address}
                   onEditAddress={onEditAddress}
                   onSetDefault={onSetDefault}
+                  onDeleteAddress={onDeleteAddress}
                 />
               ))}
             </div>

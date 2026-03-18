@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export default function CompleteProfilePage() {
   const [error, setError] = useState("");
   const { user, loading } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
 
@@ -55,6 +57,9 @@ export default function CompleteProfilePage() {
       if (response.ok) {
         document.cookie =
           "profile_phone_just_saved=1; path=/; max-age=300; SameSite=Lax";
+        // Bust the TanStack Query profile cache so the profile page always
+        // fetches fresh data instead of serving the pre-redirect stale copy.
+        await queryClient.invalidateQueries({ queryKey: ["profile"] });
         const destination = isSafeRedirect(redirectTo) ? redirectTo : "/";
         router.push(destination);
       } else {

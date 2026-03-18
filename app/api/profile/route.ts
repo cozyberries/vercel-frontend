@@ -185,20 +185,32 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Prepare profile data
-    const profileData = {
+    // Build the payload dynamically so that omitted fields are never overwritten.
+    // upsert merges by primary key — only the columns present in the object are touched.
+    const profileData: Record<string, string | null> = {
       id: user.id,
-      full_name: full_name ?? user.user_metadata?.full_name ?? null,
-      phone: phone ?? null,
       updated_at: new Date().toISOString(),
     };
+
+    // Only set full_name when explicitly provided so existing names are preserved
+    // (e.g. complete-profile sends only phone, must not wipe the name set by create-profile)
+    if (full_name !== undefined) {
+      profileData.full_name = full_name || user.user_metadata?.full_name || null;
+    } else if (user.user_metadata?.full_name) {
+      // Carry forward metadata name on first-ever upsert (no-op if row already exists)
+      profileData.full_name = user.user_metadata.full_name;
+    }
+
+    if (phone !== undefined) {
+      profileData.phone = phone || null;
+    }
 
     // Use admin client so the write always succeeds (avoids RLS blocking new users
     // whose profile was created in auth callback; middleware/GET use same profiles table)
     const adminSupabase = createAdminSupabaseClient();
     const { data, error } = await adminSupabase
       .from("profiles")
-      .upsert([profileData])
+      .upsert([profileData], { onConflict: "id" })
       .select()
       .single();
 
@@ -238,14 +250,15 @@ export async function PUT(request: NextRequest) {
       updated_at: data.updated_at,
     };
 
-    // Clear then set cache so profile page never sees stale "no phone" data
-    // Non-blocking: DB update succeeded, cache failure should not fail the request
-    CacheService.clearProfile(user.id)
-      .then(() => CacheService.setProfile(user.id, updatedUserData))
-      .catch((error) => {
-        console.error(`Failed to update profile cache for user ${user.id}:`, error);
-      });
-    return NextResponse.json(updatedUserData);  } catch (error) {
+    // Clear then set profile cache before responding so /api/profile/combined refetch gets fresh data
+    try {
+      await CacheService.clearProfile(user.id);
+      await CacheService.setProfile(user.id, updatedUserData);
+    } catch (error) {
+      console.error(`Failed to update profile cache for user ${user.id}:`, error);
+    }
+    return NextResponse.json(updatedUserData);
+  } catch (error) {
     console.error("Error in PUT /api/profile:", error);
     return NextResponse.json(
       { error: "Internal Server Error", details: (error as Error).message },

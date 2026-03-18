@@ -652,10 +652,19 @@ export interface ProfileCombinedResponse {
 
 /**
  * Fetches profile and addresses in one request. Uses cookie-based auth.
- * Deduplicated and cached by TanStack Query when used via useProfileCombined.
+ * Uses fetch with cache: "no-store" so refetches after mutations always get
+ * fresh data from the server (no stale browser HTTP cache).
  */
 export async function getProfileCombined(): Promise<ProfileCombinedResponse> {
-  const { data } = await dedupeGet<ProfileCombinedResponse>("/api/profile/combined");
+  const res = await fetch("/api/profile/combined", {
+    cache: "no-store",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Profile combined failed: ${res.status}`);
+  }
+  const data = (await res.json()) as ProfileCombinedResponse;
   if (!data?.profile) {
     throw new Error("Invalid profile response");
   }
