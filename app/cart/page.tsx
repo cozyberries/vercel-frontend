@@ -10,7 +10,7 @@ import { useCartTotals } from "@/hooks/useCartTotals";
 import { getActiveOffer } from "@/lib/utils/discount";
 
 export default function CartPage() {
-    const { cart, updateQuantity, removeFromCart, clearCart, isLoading } = useCart();
+    const { cart, updateQuantity, removeFromCart, isLoading } = useCart();
     const offer = getActiveOffer();
     const {
         subtotal,
@@ -40,17 +40,6 @@ export default function CartPage() {
             </h1>
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6 w-full">
                 <div className="col-span-3 max-h-[500px] overflow-y-auto">
-                    {cart.length !== 0 && (
-                        <div className="flex justify-end">
-                            <Button
-                                variant={"link"}
-                                className="w-fit text-red-400"
-                                onClick={clearCart}
-                            >
-                                clear all
-                            </Button>
-                        </div>
-                    )}
                     <div className="p-4">
                         {cart.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-center">
