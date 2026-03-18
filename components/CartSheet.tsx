@@ -19,8 +19,7 @@ import { useCartTotals } from "@/hooks/useCartTotals";
 import { getActiveOffer } from "@/lib/utils/discount";
 
 export default function CartSheet() {
-  const { cart, updateQuantity, removeFromCart, clearCart, isLoading } =
-    useCart();
+  const { cart, updateQuantity, removeFromCart, isLoading } = useCart();
   const [open, setOpen] = useState(false);
   const offer = getActiveOffer();
   const {
@@ -53,18 +52,8 @@ export default function CartSheet() {
           <SheetHeader className="p-4 border-b shrink-0">
             <SheetTitle>Your Cart</SheetTitle>
           </SheetHeader>
-          {cart.length !== 0 && (
-            <div className="flex justify-end">
-              <Button
-                variant={"link"}
-                className="w-fit text-red-400"
-                onClick={clearCart}
-              >
-                clear all
-              </Button>
-            </div>
-          )}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-h-0 overscroll-contain">            {isLoading ? (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-h-0 overscroll-contain">
+            {isLoading ? (
               <div className="py-8 text-center text-muted-foreground">
                 <div className="animate-pulse">Loading cart...</div>
               </div>
