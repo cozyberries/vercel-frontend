@@ -16,11 +16,28 @@ import { QueryProvider } from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_FRONTEND_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: "CozyBerries | Premium Baby Clothing",
   description: "Adorable, high-quality clothing for your little ones",
   generator: "v0.dev",
   manifest: "/site.webmanifest",
+  openGraph: {
+    title: "CozyBerries | Premium Baby Clothing",
+    description: "Adorable, high-quality clothing for your little ones",
+    type: "website",
+    images: [{ url: "/placeholder.jpg", width: 1200, height: 630, alt: "CozyBerries" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CozyBerries | Premium Baby Clothing",
+    description: "Adorable, high-quality clothing for your little ones",
+    images: ["/placeholder.jpg"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
