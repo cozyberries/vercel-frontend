@@ -16,7 +16,7 @@ import { QueryProvider } from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Must be the public URL of this app (frontend). Required for WhatsApp/social preview images (absolute og:image).
+// Must be the public URL of this app (frontend). Required for link preview image on WhatsApp, Google Chat, Slack, etc. (absolute og:image).
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_FRONTEND_URL?.replace(/\/$/, "") ||
