@@ -44,8 +44,9 @@ export function useProfile(user: any) {
   const { data, isLoading } = useQuery<ProfileCombinedResponse>({
     queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id],
     queryFn: () => getProfileCombined(),
-    staleTime: 1000 * 60,
-    gcTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60,     // 1 min: use cache on repeat visits; invalidate after saves/complete-profile
+    gcTime: 1000 * 60 * 10,  // keep in cache for 10 min after unmount
+    refetchOnWindowFocus: false,
     enabled: !!user?.id,
   });
 
@@ -154,6 +155,7 @@ export function useProfile(user: any) {
 
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
+        await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         setIsEditing(false);
         setValidationErrors({ full_name: "", phone: "" });
       } else {
@@ -286,6 +288,7 @@ export function useProfile(user: any) {
 
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
+        await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         const newAddress: UserAddress = await response.json();
         setShowAddAddress(false);
         setAddressData({
@@ -350,6 +353,7 @@ export function useProfile(user: any) {
 
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
+        await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         const updatedAddress: UserAddress = await response.json();
         setEditingAddress(null);
         setAddressData({
@@ -392,8 +396,6 @@ export function useProfile(user: any) {
 
   const handleDeleteAddress = async (addressId: string) => {
     if (isSavingRef.current) return;
-    if (!confirm("Are you sure you want to delete this address?")) return;
-
     isSavingRef.current = true;
     try {
       const response = await fetch(`/api/profile/addresses/${addressId}`, {
@@ -401,7 +403,17 @@ export function useProfile(user: any) {
       });
 
       if (response.ok) {
+        // Optimistic update: remove deleted address from cache so UI updates immediately
+        const key = [...PROFILE_COMBINED_QUERY_KEY, user.id] as const;
+        queryClient.setQueryData<ProfileCombinedResponse>(key, (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            addresses: old.addresses.filter((a) => a.id !== addressId),
+          };
+        });
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
+        await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         if (editingAddress === addressId) {
           setEditingAddress(null);
           setShowAddAddress(false);
@@ -476,6 +488,7 @@ export function useProfile(user: any) {
 
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id] });
+        await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id] });
       } else {
         const errorData = await response.json();
         alert(`Failed to set default address: ${errorData.error}`);

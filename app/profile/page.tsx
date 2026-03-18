@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { getIndianPhoneDigits } from "@/lib/utils/validation";
 import ProfileForm from "@/components/profile/ProfileForm";
-import AddressList from "@/components/profile/AddressList";
 import AddressFormModal from "@/components/profile/AddressFormModal";
 import { useProfile } from "@/hooks/useProfile";
 
@@ -109,6 +108,7 @@ export default function ProfilePage() {
               }}
               onEditAddress={handleEditAddress}
               onSetDefault={handleSetDefault}
+              onDeleteAddress={handleDeleteAddress}
               onSignOut={async () => {
                 if (isLoggingOut) return;
 
@@ -155,9 +155,6 @@ export default function ProfilePage() {
           }
         }}
         onInputChange={handleAddressInputChange}
-        onDelete={
-          editingAddress ? () => handleDeleteAddress(editingAddress) : undefined
-        }
       />
     </div>
   );
