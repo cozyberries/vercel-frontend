@@ -4,15 +4,11 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PhoneInput from "@/components/PhoneInput";
-import { Label } from "@/components/ui/label";
+import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
-const OTP_FLOW_TYPE_KEY = "otp_flow_type";
-const OTP_AUTH_TOKEN_KEY = "otp_auth_token";
-
-type FlowType = "SMS" | "WHATSAPP";
 
 function isSafeRedirect(path: string | null): path is string {
   if (!path || typeof path !== "string") return false;
@@ -24,27 +20,41 @@ function isSafeRedirect(path: string | null): path is string {
 export default function RegisterPhonePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const redirectTo = searchParams.get("redirect");
 
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [flowType, setFlowType] = useState<FlowType>("SMS");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Already logged in: redirect to profile or intended page
+  useEffect(() => {
+    if (user) {
+      const destination = isSafeRedirect(redirectTo) ? redirectTo : "/profile";
+      router.replace(destination);
+    }
+  }, [user, redirectTo, router]);
+
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <p className="text-sm text-muted-foreground">Redirecting...</p>
+      </div>
+    );
+  }
 
   const registerHref = isSafeRedirect(redirectTo)
     ? `/register?redirect=${encodeURIComponent(redirectTo)}`
     : "/register";
 
-  // Persist redirect so verify API and callback can send user to intended page
   useEffect(() => {
     if (isSafeRedirect(redirectTo)) {
       document.cookie = `auth_redirect=${encodeURIComponent(redirectTo)}; path=/; max-age=300; SameSite=Lax`;
     }
   }, [redirectTo]);
 
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    e?.preventDefault?.();
+  const handleSendOtp = async () => {
     setError("");
     setPhoneError("");
 
@@ -62,7 +72,6 @@ export default function RegisterPhonePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone: digits,
-          flowType,
           intent: "register",
         }),
       });
@@ -79,12 +88,10 @@ export default function RegisterPhonePage() {
         return;
       }
 
-      const { verificationId, authToken } = data;
+      const { verificationId } = data;
       if (verificationId) {
         sessionStorage.setItem(OTP_VERIFICATION_ID_KEY, verificationId);
         sessionStorage.setItem(OTP_PHONE_KEY, digits);
-        sessionStorage.setItem(OTP_FLOW_TYPE_KEY, flowType);
-        if (authToken) sessionStorage.setItem(OTP_AUTH_TOKEN_KEY, authToken);
         router.push("/register/verify");
         return;
       }
@@ -115,7 +122,15 @@ export default function RegisterPhonePage() {
           </p>
         </div>
 
-        <div className="mt-6 space-y-6">
+        <div
+          className="mt-6 space-y-6"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void handleSendOtp();
+            }
+          }}
+        >
           <div className="space-y-4">
             <PhoneInput
               value={phone}
@@ -123,34 +138,9 @@ export default function RegisterPhonePage() {
               error={phoneError}
               onErrorChange={setPhoneError}
             />
-
-            <div>
-              <Label className="mb-2 block">Send OTP via</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="flowType"
-                    value="SMS"
-                    checked={flowType === "SMS"}
-                    onChange={() => setFlowType("SMS")}
-                    className="text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm">Send via SMS</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="flowType"
-                    value="WHATSAPP"
-                    checked={flowType === "WHATSAPP"}
-                    onChange={() => setFlowType("WHATSAPP")}
-                    className="text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm">Send via WhatsApp</span>
-                </label>
-              </div>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              We&apos;ll send a one-time code via SMS.
+            </p>
           </div>
 
           {error && (
@@ -164,9 +154,10 @@ export default function RegisterPhonePage() {
             disabled={loading}
             onClick={(e) => {
               e.preventDefault();
-              handleSendOtp();
+              e.stopPropagation();
+              if (!loading) handleSendOtp();
             }}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+            className="relative z-10 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Sending OTP..." : "Send OTP"}
           </button>

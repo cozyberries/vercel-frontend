@@ -36,9 +36,11 @@ export async function findUserIdByPhone(phone: string): Promise<PhoneUserResult 
 }
 
 /**
- * Create a new user for phone-only auth with a placeholder email, then
- * upsert profiles and user_profiles. If createUser fails due to duplicate
- * (e.g. email already exists), looks up by phone and returns that user if found.
+ * Create a new user for phone-only auth (register flow). This is the single place
+ * we create the Supabase user + profiles + user_profiles for phone signup.
+ * Flow: auth user (placeholder email) → profiles (id, phone, full_name) → user_profiles (role: customer).
+ * Profile page then shows this user's info; middleware allows /profile because profiles.phone is set.
+ * If createUser fails due to duplicate, looks up by phone and returns that user if found.
  */
 export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
   const supabase = createAdminSupabaseClient();

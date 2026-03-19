@@ -5,44 +5,44 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/components/supabase-auth-provider";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
-const OTP_FLOW_TYPE_KEY = "otp_flow_type";
-const OTP_AUTH_TOKEN_KEY = "otp_auth_token";
-
-type FlowType = "SMS" | "WHATSAPP";
 
 export default function RegisterVerifyPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [ready, setReady] = useState(false);
   const [verificationId, setVerificationId] = useState("");
   const [phone, setPhone] = useState("");
-  const [flowType, setFlowType] = useState<FlowType>("SMS");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState("");
   const [resendSuccess, setResendSuccess] = useState("");
+  const [redirectingToProfile, setRedirectingToProfile] = useState(false);
+
+  // Already logged in: no need to verify OTP
+  useEffect(() => {
+    if (user) {
+      router.replace("/profile");
+    }
+  }, [user, router]);
 
   useEffect(() => {
+    if (user) return;
     const storedId = sessionStorage.getItem(OTP_VERIFICATION_ID_KEY);
     const storedPhone = sessionStorage.getItem(OTP_PHONE_KEY);
-    const storedFlow = sessionStorage.getItem(OTP_FLOW_TYPE_KEY) as FlowType | null;
 
-    if (!storedId?.trim() || !storedPhone?.trim() || !storedFlow) {
-      router.replace("/register/phone");
-      return;
-    }
-    if (storedFlow !== "SMS" && storedFlow !== "WHATSAPP") {
+    if (!storedId?.trim() || !storedPhone?.trim()) {
       router.replace("/register/phone");
       return;
     }
     setVerificationId(storedId.trim());
     setPhone(storedPhone.trim());
-    setFlowType(storedFlow);
     setReady(true);
-  }, [router]);
+  }, [user, router]);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,16 +56,12 @@ export default function RegisterVerifyPage() {
 
     setLoading(true);
     try {
-      const authToken = sessionStorage.getItem(OTP_AUTH_TOKEN_KEY);
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (authToken) headers.authToken = authToken;
       const res = await fetch("/api/auth/verifynow/verify", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           verificationId,
           code: trimmedCode,
-          flowType,
           intent: "register",
           phone,
         }),
@@ -83,9 +79,13 @@ export default function RegisterVerifyPage() {
       if (redirectUrl && typeof redirectUrl === "string") {
         sessionStorage.removeItem(OTP_VERIFICATION_ID_KEY);
         sessionStorage.removeItem(OTP_PHONE_KEY);
-        sessionStorage.removeItem(OTP_FLOW_TYPE_KEY);
-        sessionStorage.removeItem(OTP_AUTH_TOKEN_KEY);
-        window.location.href = redirectUrl;
+        setRedirectingToProfile(true);
+        // Allow loading screen to paint before redirect
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 100);
+        });
         return;
       }
       setError("Invalid response. Please try again.");
@@ -106,7 +106,6 @@ export default function RegisterVerifyPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone,
-          flowType,
           intent: "register",
         }),
       });
@@ -123,12 +122,11 @@ export default function RegisterVerifyPage() {
         return;
       }
 
-      const { verificationId: newVerificationId, authToken: newAuthToken } = data;
+      const { verificationId: newVerificationId } = data;
       if (newVerificationId) {
         sessionStorage.setItem(OTP_VERIFICATION_ID_KEY, newVerificationId);
         setVerificationId(newVerificationId);
       }
-      if (newAuthToken) sessionStorage.setItem(OTP_AUTH_TOKEN_KEY, newAuthToken);
       setResendSuccess("OTP sent again.");
     } catch {
       setError("Something went wrong. Please try again.");
@@ -136,6 +134,24 @@ export default function RegisterVerifyPage() {
       setResendLoading(false);
     }
   };
+
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <p className="text-sm text-muted-foreground">Redirecting...</p>
+      </div>
+    );
+  }
+
+  if (redirectingToProfile) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+        <p className="text-sm text-muted-foreground">Creating your account...</p>
+        <p className="text-xs text-muted-foreground mt-1">Taking you to your profile</p>
+      </div>
+    );
+  }
 
   if (!ready) {
     return (

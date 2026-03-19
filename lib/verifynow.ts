@@ -1,30 +1,16 @@
 /**
  * VerifyNow OTP client (server-only). Use from API routes only.
- * Env: VERIFYNOW_CUSTOMER_ID, VERIFYNOW_KEY.
+ * Env: VERIFYNOW_KEY or VERIFYNOW_AUTH_TOKEN = JWT auth token (same as in curl authToken header), VERIFYNOW_CUSTOMER_ID.
+ * Two APIs only: send OTP (POST), validate OTP (GET). SMS only.
+ * 401 = invalid or expired token — use the exact JWT from Message Central.
  */
 
-import { appendFileSync } from 'fs';
-import { join } from 'path';
-
-const DEBUG_LOG = join(process.cwd(), '.cursor', 'debug-eb0f9c.log');
-function debugLog(payload: Record<string, unknown>) {
-  try {
-    appendFileSync(DEBUG_LOG, JSON.stringify({ ...payload, timestamp: Date.now() }) + '\n');
-  } catch {
-    // ignore
-  }
-}
-
-const BASE_AUTH = 'https://cpaas.messagecentral.com/auth/v1/authentication/token';
 const BASE_VERIFICATION = 'https://cpaas.messagecentral.com/verification/v3';
 
-export type VerifyNowFlowType = 'SMS' | 'WHATSAPP';
-
-/**
- * Map VerifyNow error message (from thrown Error) to user-facing message and HTTP status.
- * Used by send and verify API routes.
- */
 export function getVerifyNowUserMessage(message: string): { status: number; error: string } {
+  if (message.includes("401") || message.includes("code: 401")) {
+    return { status: 401, error: "Invalid auth. Check VERIFYNOW_KEY (use the JWT auth token from Message Central)." };
+  }
   if (message.includes("code: 702")) return { status: 400, error: "Wrong OTP. Please try again." };
   if (message.includes("code: 705")) return { status: 400, error: "OTP expired. Request a new one." };
   if (message.includes("code: 800")) return { status: 429, error: "Too many attempts. Try again later." };
@@ -40,88 +26,29 @@ export function getVerifyNowUserMessage(message: string): { status: number; erro
   return { status: 502, error: "Something went wrong. Please try again." };
 }
 
-// Token API: success has token in data or top-level; error returns { error: string } (sometimes with 200)
-type AuthTokenResponse = {
-  data?: {
-    authToken?: string;
-    token?: string;
-    accessToken?: string;
-    access_token?: string;
-    jwt?: string;
-  };
-  authToken?: string;
-  token?: string;
-  access_token?: string;
-  error?: string;
-};
-
 /**
- * Fetch auth token from VerifyNow. Throws on non-200, error payload, or missing token.
- * Uses GET with customerId, key, scope=NEW, country=91; optional email in query.
+ * Auth token from env. Use the same value as in the working curl (JWT in authToken header).
+ * Throws if not set.
  */
-export async function getAuthToken(): Promise<string> {
-  const customerId = process.env.VERIFYNOW_CUSTOMER_ID;
-  const key = process.env.VERIFYNOW_KEY;
-  if (!customerId || !key) {
-    throw new Error('VerifyNow: VERIFYNOW_CUSTOMER_ID and VERIFYNOW_KEY are required');
-  }
-  const url = new URL(BASE_AUTH);
-  url.searchParams.set('customerId', customerId);
-  url.searchParams.set('key', key);
-  url.searchParams.set('scope', 'NEW');
-  url.searchParams.set('country', '91');
-  const email = process.env.VERIFYNOW_EMAIL;
-  if (email) url.searchParams.set('email', email);
-
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { accept: '*/*' },
-  });
-  const body = (await res.json().catch(() => ({}))) as AuthTokenResponse;
-
-  if (!res.ok) {
-    const msg = body.error || res.statusText;
-    throw new Error(`VerifyNow getAuthToken failed: ${res.status} ${msg}`);
-  }
-
-  if (body.error && typeof body.error === 'string') {
-    throw new Error(`VerifyNow token API error: ${body.error}`);
-  }
-
-  const token =
-    body.data?.authToken ??
-    body.data?.token ??
-    body.data?.accessToken ??
-    body.data?.access_token ??
-    body.data?.jwt ??
-    body.authToken ??
-    body.token ??
-    body.access_token;
-  if (!token || typeof token !== 'string') {
-    const hint =
-      process.env.NODE_ENV === 'development'
-        ? ` Response keys: ${JSON.stringify(Object.keys(body))}. data keys: ${body.data ? JSON.stringify(Object.keys(body.data)) : 'none'}.`
-        : '';
-    throw new Error('VerifyNow getAuthToken: missing authToken in response.' + hint);
+export function getAuthTokenFromEnv(): string {
+  const token = process.env.VERIFYNOW_KEY?.trim() || process.env.VERIFYNOW_AUTH_TOKEN?.trim();
+  if (!token) {
+    throw new Error('VerifyNow: VERIFYNOW_KEY or VERIFYNOW_AUTH_TOKEN is required (JWT auth token from Message Central)');
   }
   return token;
 }
 
-/**
- * Normalize mobile number to digits only.
- */
 function normalizeMobileNumber(mobileNumber: string): string {
   return mobileNumber.replace(/\D/g, '');
 }
 
 /**
- * Send OTP. Returns verificationId. Throws on error with response code if available.
- * VerifyNow: POST /verification/v3/send with URL params (countryCode, flowType, mobileNumber, customerId) and header authToken.
+ * Send OTP (SMS only). POST .../v3/send with countryCode, customerId, flowType=SMS, mobileNumber.
+ * Returns verificationId.
  */
 export async function sendOtp(
   authToken: string,
-  mobileNumber: string,
-  flowType: VerifyNowFlowType
+  mobileNumber: string
 ): Promise<{ verificationId: string }> {
   const customerId = process.env.VERIFYNOW_CUSTOMER_ID;
   if (!customerId) {
@@ -130,16 +57,14 @@ export async function sendOtp(
   const normalized = normalizeMobileNumber(mobileNumber);
   const url = new URL(`${BASE_VERIFICATION}/send`);
   url.searchParams.set('countryCode', '91');
-  url.searchParams.set('flowType', flowType);
-  url.searchParams.set('mobileNumber', normalized);
   url.searchParams.set('customerId', customerId);
+  url.searchParams.set('flowType', 'SMS');
+  url.searchParams.set('mobileNumber', normalized);
 
-  const headers = new Headers();
-  headers.set('authToken', authToken);
-
+  // Use exact header name 'authToken' (some APIs are case-sensitive)
   const res = await fetch(url.toString(), {
     method: 'POST',
-    headers,
+    headers: { authToken: authToken } as Record<string, string>,
   });
 
   const resBody = (await res.json().catch(() => ({}))) as {
@@ -161,41 +86,31 @@ export async function sendOtp(
 }
 
 /**
- * Validate OTP. Returns void on success; throws on error with response code.
- * VerifyNow: POST /verification/v3/validateOtp/ with URL params (verificationId, code, flowType, optional langid) and header authToken.
+ * Validate OTP. GET .../v3/validateOtp with countryCode, mobileNumber, verificationId, customerId, code.
  */
 export async function validateOtp(
   authToken: string,
+  mobileNumber: string,
   verificationId: string,
-  code: string,
-  flowType: VerifyNowFlowType,
-  langid?: string
+  code: string
 ): Promise<void> {
-  const url = new URL(`${BASE_VERIFICATION}/validateOtp/`);
-  url.searchParams.set('verificationId', verificationId);
-  url.searchParams.set('code', code);
-  url.searchParams.set('flowType', flowType);
-  if (langid != null && langid.trim() !== '') {
-    url.searchParams.set('langid', langid.trim());
+  const customerId = process.env.VERIFYNOW_CUSTOMER_ID;
+  if (!customerId) {
+    throw new Error('VerifyNow: VERIFYNOW_CUSTOMER_ID is required for validate');
   }
+  const normalized = normalizeMobileNumber(mobileNumber);
+  const url = new URL(`${BASE_VERIFICATION}/validateOtp`);
+  url.searchParams.set('countryCode', '91');
+  url.searchParams.set('mobileNumber', normalized);
+  url.searchParams.set('verificationId', verificationId);
+  url.searchParams.set('customerId', customerId);
+  url.searchParams.set('code', code);
 
-  const headers = new Headers();
-  headers.set('authToken', authToken);
-
-  // #region agent log
-  debugLog({ sessionId: 'eb0f9c', location: 'verifynow.ts:validateOtp:beforeFetch', message: 'validateOtp request', data: { url: url.toString(), authTokenLen: authToken.length, hasAuthHeader: true }, hypothesisId: 'H2,H4,H5' });
-  fetch('http://127.0.0.1:7778/ingest/2101fafd-1cc9-4546-b3ee-1ef67d077cb2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eb0f9c'},body:JSON.stringify({sessionId:'eb0f9c',location:'verifynow.ts:validateOtp:beforeFetch',message:'validateOtp request',data:{url:url.toString(),authTokenLen:authToken.length,hasAuthHeader:true},timestamp:Date.now(),hypothesisId:'H2,H4,H5'})}).catch(()=>{});
-  // #endregion
-
+  // Use exact header name 'authToken' (some APIs are case-sensitive)
   const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers,
+    method: 'GET',
+    headers: { authToken: authToken } as Record<string, string>,
   });
-
-  // #region agent log
-  debugLog({ sessionId: 'eb0f9c', location: 'verifynow.ts:validateOtp:afterFetch', message: 'validateOtp response', data: { status: res.status }, hypothesisId: 'H3,H4,H5' });
-  fetch('http://127.0.0.1:7778/ingest/2101fafd-1cc9-4546-b3ee-1ef67d077cb2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eb0f9c'},body:JSON.stringify({sessionId:'eb0f9c',location:'verifynow.ts:validateOtp:afterFetch',message:'validateOtp response',data:{status:res.status},timestamp:Date.now(),hypothesisId:'H3,H4,H5'})}).catch(()=>{});
-  // #endregion
 
   if (res.ok) {
     return;

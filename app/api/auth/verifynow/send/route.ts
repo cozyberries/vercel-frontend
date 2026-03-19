@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UpstashService } from "@/lib/upstash";
+import { findUserIdByPhone } from "@/lib/auth-phone";
 import {
-  getAuthToken,
+  getAuthTokenFromEnv,
   sendOtp,
   getVerifyNowUserMessage,
-  type VerifyNowFlowType,
 } from "@/lib/verifynow";
 
-const FLOW_TYPES: VerifyNowFlowType[] = ["SMS", "WHATSAPP"];
 const INTENTS = ["register", "login"] as const;
+const NO_ACCOUNT_MESSAGE = "No account with this number. Please register first.";
 const RATE_LIMIT_KEY_PREFIX = "otp_send";
 const RATE_LIMIT_LIMIT = 5;
 const RATE_LIMIT_WINDOW = 900; // 15 min
@@ -17,7 +17,7 @@ const OTP_TIMEOUT_SECONDS = 60;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { phone, flowType, intent } = body;
+    const { phone, intent } = body;
 
     if (phone == null || phone === "") {
       return NextResponse.json(
@@ -30,13 +30,6 @@ export async function POST(request: NextRequest) {
     if (normalizedPhone.length !== 10) {
       return NextResponse.json(
         { error: "Invalid phone number. Must be 10 digits." },
-        { status: 400 }
-      );
-    }
-
-    if (!FLOW_TYPES.includes(flowType)) {
-      return NextResponse.json(
-        { error: "flowType must be SMS or WHATSAPP" },
         { status: 400 }
       );
     }
@@ -60,16 +53,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = await getAuthToken();
-    const { verificationId } = await sendOtp(
-      token,
-      normalizedPhone,
-      flowType as VerifyNowFlowType
-    );
+    // For login: only send OTP if the user already exists
+    if (intent === "login") {
+      const existing = await findUserIdByPhone(normalizedPhone);
+      if (!existing) {
+        return NextResponse.json(
+          { error: NO_ACCOUNT_MESSAGE },
+          { status: 404 }
+        );
+      }
+    }
+
+    const token = getAuthTokenFromEnv();
+    const { verificationId } = await sendOtp(token, normalizedPhone);
 
     return NextResponse.json({
       verificationId,
-      authToken: token,
       timeout: OTP_TIMEOUT_SECONDS,
     });
   } catch (error) {

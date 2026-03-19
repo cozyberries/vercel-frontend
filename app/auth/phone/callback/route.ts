@@ -1,6 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * Completes the phone OTP flow: exchange one-time token for session, then redirect to
+ * /profile (or safe redirect param) so the user sees their info. Session is set on this domain.
+ */
 function getBaseUrl(request: NextRequest): string {
   const requestUrl = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || requestUrl.host;
@@ -56,6 +60,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Default: profile page where user information is shown (see phone-signup-login-flow.md).
   const destination = safeRedirect ?? "/profile";
   const res = NextResponse.redirect(new URL(destination, base));
   return clearAuthRedirectCookie(res);
