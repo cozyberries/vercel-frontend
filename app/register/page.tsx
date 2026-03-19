@@ -120,6 +120,13 @@ export default function RegisterPage() {
             >
               sign in to your existing account
             </Link>
+            {" · "}
+            <Link
+              href={isSafeRedirect(redirectTo) ? `/register/phone?redirect=${encodeURIComponent(redirectTo)}` : "/register/phone"}
+              className="font-medium text-primary hover:text-primary/80"
+            >
+              Use phone instead
+            </Link>
           </p>
         </div>
         {/* Google Sign In */}

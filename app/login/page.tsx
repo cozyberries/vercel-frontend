@@ -81,6 +81,13 @@ export default function LoginPage() {
             >
               create a new account
             </Link>
+            {" · "}
+            <Link
+              href={isSafeRedirect(redirectTo) ? `/login/phone?redirect=${encodeURIComponent(redirectTo)}` : "/login/phone"}
+              className="font-medium text-primary hover:text-primary/80"
+            >
+              Use phone instead
+            </Link>
           </p>
         </div>
         {/* Google Sign In */}
