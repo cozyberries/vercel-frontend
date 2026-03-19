@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UpstashService } from "@/lib/upstash";
-import { getAuthToken, sendOtp, type VerifyNowFlowType } from "@/lib/verifynow";
+import {
+  getAuthToken,
+  sendOtp,
+  getVerifyNowUserMessage,
+  type VerifyNowFlowType,
+} from "@/lib/verifynow";
 
 const FLOW_TYPES: VerifyNowFlowType[] = ["SMS", "WHATSAPP"];
 const INTENTS = ["register", "login"] as const;
@@ -8,16 +13,6 @@ const RATE_LIMIT_KEY_PREFIX = "otp_send";
 const RATE_LIMIT_LIMIT = 5;
 const RATE_LIMIT_WINDOW = 900; // 15 min
 const OTP_TIMEOUT_SECONDS = 60;
-
-function parseVerifyNowError(message: string): { status: number; error: string } {
-  if (message.includes("code: 800")) {
-    return { status: 429, error: "Too many attempts. Try again later." };
-  }
-  if (message.includes("511") || message.includes("code: 5")) {
-    return { status: 502, error: "Something went wrong. Please try again." };
-  }
-  return { status: 502, error: "Something went wrong. Please try again." };
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,7 +73,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const { status, error: userError } = parseVerifyNowError(message);
+    const { status, error: userError } = getVerifyNowUserMessage(message);
     return NextResponse.json({ error: userError }, { status });
   }
 }

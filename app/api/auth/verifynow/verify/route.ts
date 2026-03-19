@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { findUserIdByPhone, createPhoneUser } from "@/lib/auth-phone";
-import { getAuthToken, validateOtp, type VerifyNowFlowType } from "@/lib/verifynow";
+import {
+  getAuthToken,
+  validateOtp,
+  getVerifyNowUserMessage,
+  type VerifyNowFlowType,
+} from "@/lib/verifynow";
 
 const FLOW_TYPES: VerifyNowFlowType[] = ["SMS", "WHATSAPP"];
 const INTENTS = ["register", "login"] as const;
@@ -105,14 +110,8 @@ export async function POST(request: NextRequest) {
   } catch (otpError) {
     const message =
       otpError instanceof Error ? otpError.message : String(otpError);
-    const userMessage =
-      message.includes("validateOtp failed") ||
-      message.includes("wrong") ||
-      message.includes("expired") ||
-      message.includes("invalid")
-        ? "Invalid or expired code. Please try again."
-        : "Verification failed. Please try again.";
-    return NextResponse.json({ error: userMessage }, { status: 400 });
+    const { status, error: userMessage } = getVerifyNowUserMessage(message);
+    return NextResponse.json({ error: userMessage }, { status });
   }
 
   try {

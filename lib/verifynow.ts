@@ -8,6 +8,26 @@ const BASE_VERIFICATION = 'https://cpaas.messagecentral.com/verification/v3';
 
 export type VerifyNowFlowType = 'SMS' | 'WHATSAPP';
 
+/**
+ * Map VerifyNow error message (from thrown Error) to user-facing message and HTTP status.
+ * Used by send and verify API routes.
+ */
+export function getVerifyNowUserMessage(message: string): { status: number; error: string } {
+  if (message.includes("code: 702")) return { status: 400, error: "Wrong OTP. Please try again." };
+  if (message.includes("code: 705")) return { status: 400, error: "OTP expired. Request a new one." };
+  if (message.includes("code: 800")) return { status: 429, error: "Too many attempts. Try again later." };
+  if (
+    message.includes("501") ||
+    message.includes("505") ||
+    message.includes("506") ||
+    message.includes("511") ||
+    message.includes("code: 5")
+  ) {
+    return { status: 502, error: "Something went wrong. Please try again." };
+  }
+  return { status: 502, error: "Something went wrong. Please try again." };
+}
+
 interface AuthTokenResponse {
   data?: { authToken?: string };
   authToken?: string;
