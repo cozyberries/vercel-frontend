@@ -65,7 +65,7 @@ export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
   const userId = createData.user.id;
   const now = new Date().toISOString();
 
-  await supabase.from("profiles").upsert(
+  const { error: profilesError } = await supabase.from("profiles").upsert(
     {
       id: userId,
       phone: digits,
@@ -74,8 +74,11 @@ export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
     },
     { onConflict: "id" }
   );
+  if (profilesError) {
+    throw new Error(`Failed to create profile: ${profilesError.message}`);
+  }
 
-  await supabase
+  const { error: userProfilesError } = await supabase
     .from("user_profiles")
     .upsert(
       {
@@ -87,6 +90,9 @@ export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
       },
       { onConflict: "id", ignoreDuplicates: false }
     );
+  if (userProfilesError) {
+    throw new Error(`Failed to create user profile: ${userProfilesError.message}`);
+  }
 
   return { userId, email: placeholderEmail };
 }
