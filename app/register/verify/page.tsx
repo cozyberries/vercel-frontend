@@ -9,6 +9,8 @@ import { useAuth } from "@/components/supabase-auth-provider";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
+const OTP_REGISTER_FULL_NAME_KEY = "otp_register_full_name";
+const OTP_REGISTER_EMAIL_KEY = "otp_register_email";
 
 export default function RegisterVerifyPage() {
   const router = useRouter();
@@ -56,6 +58,8 @@ export default function RegisterVerifyPage() {
 
     setLoading(true);
     try {
+      const fullName = sessionStorage.getItem(OTP_REGISTER_FULL_NAME_KEY)?.trim() || undefined;
+      const email = sessionStorage.getItem(OTP_REGISTER_EMAIL_KEY)?.trim() || undefined;
       const res = await fetch("/api/auth/verifynow/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,6 +68,8 @@ export default function RegisterVerifyPage() {
           code: trimmedCode,
           intent: "register",
           phone,
+          ...(fullName && { fullName }),
+          ...(email && { email }),
         }),
       });
 
@@ -79,6 +85,8 @@ export default function RegisterVerifyPage() {
       if (redirectUrl && typeof redirectUrl === "string") {
         sessionStorage.removeItem(OTP_VERIFICATION_ID_KEY);
         sessionStorage.removeItem(OTP_PHONE_KEY);
+        sessionStorage.removeItem(OTP_REGISTER_FULL_NAME_KEY);
+        sessionStorage.removeItem(OTP_REGISTER_EMAIL_KEY);
         setRedirectingToProfile(true);
         // Allow loading screen to paint before redirect
         requestAnimationFrame(() => {

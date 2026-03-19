@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Phone } from "lucide-react";
 import PhoneInput from "@/components/PhoneInput";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 
@@ -166,18 +168,19 @@ export default function LoginPhonePage() {
             </p>
           )}
 
-          <button
+          <Button
             type="button"
+            className="w-full relative z-10"
             disabled={loading}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               if (!loading) handleSendOtp();
             }}
-            className="relative z-10 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
           >
+            <Phone className="w-5 h-5" />
             {loading ? "Sending OTP..." : "Send OTP"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

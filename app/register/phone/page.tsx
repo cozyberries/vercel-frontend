@@ -3,12 +3,18 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Phone } from "lucide-react";
 import PhoneInput from "@/components/PhoneInput";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
+const OTP_REGISTER_FULL_NAME_KEY = "otp_register_full_name";
+const OTP_REGISTER_EMAIL_KEY = "otp_register_email";
 
 function isSafeRedirect(path: string | null): path is string {
   if (!path || typeof path !== "string") return false;
@@ -25,6 +31,8 @@ export default function RegisterPhonePage() {
 
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -92,6 +100,10 @@ export default function RegisterPhonePage() {
       if (verificationId) {
         sessionStorage.setItem(OTP_VERIFICATION_ID_KEY, verificationId);
         sessionStorage.setItem(OTP_PHONE_KEY, digits);
+        if (fullName.trim()) sessionStorage.setItem(OTP_REGISTER_FULL_NAME_KEY, fullName.trim());
+        else sessionStorage.removeItem(OTP_REGISTER_FULL_NAME_KEY);
+        if (email.trim()) sessionStorage.setItem(OTP_REGISTER_EMAIL_KEY, email.trim());
+        else sessionStorage.removeItem(OTP_REGISTER_EMAIL_KEY);
         router.push("/register/verify");
         return;
       }
@@ -138,6 +150,34 @@ export default function RegisterPhonePage() {
               error={phoneError}
               onErrorChange={setPhoneError}
             />
+            <div>
+              <Label htmlFor="register-full-name">
+                Full name <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="register-full-name"
+                type="text"
+                autoComplete="name"
+                placeholder="Your name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="register-email">
+                Email <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="register-email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1"
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               We&apos;ll send a one-time code via SMS.
             </p>
@@ -149,18 +189,19 @@ export default function RegisterPhonePage() {
             </p>
           )}
 
-          <button
+          <Button
             type="button"
+            className="w-full relative z-10"
             disabled={loading}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               if (!loading) handleSendOtp();
             }}
-            className="relative z-10 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
           >
+            <Phone className="w-5 h-5" />
             {loading ? "Sending OTP..." : "Send OTP"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

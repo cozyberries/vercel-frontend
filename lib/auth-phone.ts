@@ -35,20 +35,29 @@ export async function findUserIdByPhone(phone: string): Promise<PhoneUserResult 
   return { userId: row.id, email: authData.user.email };
 }
 
+export type CreatePhoneUserOptions = {
+  fullName?: string;
+  email?: string;
+};
+
 /**
  * Create a new user for phone-only auth (register flow). This is the single place
  * we create the Supabase user + profiles + user_profiles for phone signup.
- * Flow: auth user (placeholder email) → profiles (id, phone, full_name) → user_profiles (role: customer).
- * Profile page then shows this user's info; middleware allows /profile because profiles.phone is set.
+ * Optional fullName and email (from register form) are saved to profiles and auth.
  * If createUser fails due to duplicate, looks up by phone and returns that user if found.
  */
-export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
+export async function createPhoneUser(
+  phone: string,
+  options?: CreatePhoneUserOptions
+): Promise<PhoneUserResult> {
   const supabase = createAdminSupabaseClient();
   const digits = normalizePhone(phone);
-  const placeholderEmail = `phone+91${digits}@${PHONE_PLACEHOLDER_DOMAIN}`;
+  const fullName = options?.fullName?.trim() || "User";
+  const preferredEmail = options?.email?.trim();
+  const authEmail = preferredEmail || `phone+91${digits}@${PHONE_PLACEHOLDER_DOMAIN}`;
 
   const { data: createData, error: createError } = await supabase.auth.admin.createUser({
-    email: placeholderEmail,
+    email: authEmail,
     email_confirm: true,
   });
 
@@ -71,7 +80,7 @@ export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
     {
       id: userId,
       phone: digits,
-      full_name: "User",
+      full_name: fullName,
       updated_at: now,
     },
     { onConflict: "id" }
@@ -85,7 +94,7 @@ export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
     .upsert(
       {
         id: userId,
-        full_name: "User",
+        full_name: fullName,
         role: "customer",
         is_active: true,
         updated_at: now,
@@ -96,5 +105,5 @@ export async function createPhoneUser(phone: string): Promise<PhoneUserResult> {
     throw new Error(`Failed to create user profile: ${userProfilesError.message}`);
   }
 
-  return { userId, email: placeholderEmail };
+  return { userId, email: authEmail };
 }

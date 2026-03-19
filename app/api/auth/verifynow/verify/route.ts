@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { findUserIdByPhone, createPhoneUser } from "@/lib/auth-phone";
+import { validateEmail } from "@/lib/utils/validation";
 import {
   getAuthTokenFromEnv,
   validateOtp,
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
     intent,
     phone,
     redirect: bodyRedirect,
+    fullName: bodyFullName,
+    email: bodyEmail,
   } = body;
 
   if (
@@ -144,7 +147,14 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     } else {
-      const created = await createPhoneUser(normalizedPhone);
+      const fullName = typeof bodyFullName === "string" ? bodyFullName.trim() : undefined;
+      const rawEmail = typeof bodyEmail === "string" ? bodyEmail.trim() : undefined;
+      const registerEmail =
+        rawEmail && validateEmail(rawEmail).isValid ? rawEmail : undefined;
+      const created = await createPhoneUser(normalizedPhone, {
+        fullName: fullName || undefined,
+        email: registerEmail,
+      });
       email = created.email;
     }
 

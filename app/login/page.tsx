@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { Phone } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 function isSafeRedirect(path: string | null): path is string {
@@ -96,24 +97,17 @@ export default function LoginPage() {
             >
               create a new account
             </Link>
-            {" · "}
-            <Link
-              href={isSafeRedirect(redirectTo) ? `/login/phone?redirect=${encodeURIComponent(redirectTo)}` : "/login/phone"}
-              className="font-medium text-primary hover:text-primary/80"
-            >
-              Use phone instead
-            </Link>
           </p>
         </div>
-        {/* Google Sign In */}
-        <div className="mt-8">
+        {/* Google & Phone Sign In */}
+        <div className="mt-8 space-y-3">
           <Button
             onClick={handleGoogleSignIn}
             disabled={isGoogleLoading || isLoading}
             variant="outline"
             className="w-full"
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -134,6 +128,19 @@ export default function LoginPage() {
             {isGoogleLoading
               ? "Signing in with Google..."
               : "Continue with Google"}
+          </Button>
+          <Button className="w-full" variant="outline" asChild>
+            <Link
+              href={
+                isSafeRedirect(redirectTo)
+                  ? `/login/phone?redirect=${encodeURIComponent(redirectTo)}`
+                  : "/login/phone"
+              }
+              className="inline-flex items-center justify-center gap-2 w-full"
+            >
+              <Phone className="w-5 h-5" />
+              Continue with phone
+            </Link>
           </Button>
         </div>
 
