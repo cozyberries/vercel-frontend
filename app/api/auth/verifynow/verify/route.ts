@@ -115,56 +115,64 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: userMessage }, { status: 400 });
   }
 
-  let email: string;
+  try {
+    let email: string;
 
-  const existing = await findUserIdByPhone(normalizedPhone);
-  if (existing) {
-    email = existing.email;
-  } else if (intent === "login") {
-    return NextResponse.json(
-      {
-        error: "No account with this number. Please register first.",
-      },
-      { status: 404 }
-    );
-  } else {
-    const created = await createPhoneUser(normalizedPhone);
-    email = created.email;
-  }
+    const existing = await findUserIdByPhone(normalizedPhone);
+    if (existing) {
+      email = existing.email;
+    } else if (intent === "login") {
+      return NextResponse.json(
+        {
+          error: "No account with this number. Please register first.",
+        },
+        { status: 404 }
+      );
+    } else {
+      const created = await createPhoneUser(normalizedPhone);
+      email = created.email;
+    }
 
-  const supabase = createAdminSupabaseClient();
-  const { data: linkData, error: linkError } =
-    await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-    });
+    const supabase = createAdminSupabaseClient();
+    const { data: linkData, error: linkError } =
+      await supabase.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+      });
 
-  if (linkError) {
-    console.error("generateLink error:", linkError);
+    if (linkError) {
+      console.error("generateLink error:", linkError);
+      return NextResponse.json(
+        { error: "Unable to complete sign in. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    const hashedToken = (linkData as { properties?: { hashed_token?: string } })
+      ?.properties?.hashed_token;
+    if (!hashedToken || typeof hashedToken !== "string") {
+      console.error("generateLink: missing hashed_token in response");
+      return NextResponse.json(
+        { error: "Unable to complete sign in. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    const origin = getBaseUrl(request);
+    const redirectRaw =
+      bodyRedirect ?? request.cookies.get("auth_redirect")?.value ?? "";
+    const redirect = isSafeRedirect(redirectRaw)
+      ? decodeURIComponent(redirectRaw)
+      : "/profile";
+
+    const redirectUrl = `${origin}/auth/phone/callback?token_hash=${encodeURIComponent(hashedToken)}&redirect=${encodeURIComponent(redirect)}`;
+
+    return NextResponse.json({ redirectUrl });
+  } catch (err) {
+    console.error("Verify OTP user/link error:", err);
     return NextResponse.json(
       { error: "Unable to complete sign in. Please try again." },
       { status: 500 }
     );
   }
-
-  const hashedToken = (linkData as { properties?: { hashed_token?: string } })
-    ?.properties?.hashed_token;
-  if (!hashedToken || typeof hashedToken !== "string") {
-    console.error("generateLink: missing hashed_token in response");
-    return NextResponse.json(
-      { error: "Unable to complete sign in. Please try again." },
-      { status: 500 }
-    );
-  }
-
-  const origin = getBaseUrl(request);
-  const redirectRaw =
-    bodyRedirect ?? request.cookies.get("auth_redirect")?.value ?? "";
-  const redirect = isSafeRedirect(redirectRaw)
-    ? decodeURIComponent(redirectRaw)
-    : "/profile";
-
-  const redirectUrl = `${origin}/auth/phone/callback?token_hash=${encodeURIComponent(hashedToken)}&redirect=${encodeURIComponent(redirect)}`;
-
-  return NextResponse.json({ redirectUrl });
 }
