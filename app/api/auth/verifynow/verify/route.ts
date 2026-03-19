@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appendFileSync } from "fs";
+import { join } from "path";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { findUserIdByPhone, createPhoneUser } from "@/lib/auth-phone";
 import {
@@ -7,6 +9,15 @@ import {
   getVerifyNowUserMessage,
   type VerifyNowFlowType,
 } from "@/lib/verifynow";
+
+const DEBUG_LOG = join(process.cwd(), ".cursor", "debug-eb0f9c.log");
+function debugLog(payload: Record<string, unknown>) {
+  try {
+    appendFileSync(DEBUG_LOG, JSON.stringify({ ...payload, timestamp: Date.now() }) + "\n");
+  } catch {
+    // ignore
+  }
+}
 
 const FLOW_TYPES: VerifyNowFlowType[] = ["SMS", "WHATSAPP"];
 const INTENTS = ["register", "login"] as const;
@@ -58,6 +69,18 @@ export async function POST(request: NextRequest) {
     redirect: bodyRedirect,
   } = body;
 
+  // Use the same authToken and verificationId from the send OTP response (client sends token in header).
+  const headerAuthToken =
+    request.headers.get("authToken") ?? request.headers.get("authtoken");
+  const bodyAuthToken = (body as { authToken?: string }).authToken;
+  const authTokenFromRequest =
+    (typeof headerAuthToken === "string" && headerAuthToken.trim()
+      ? headerAuthToken.trim()
+      : null) ??
+    (typeof bodyAuthToken === "string" && bodyAuthToken.trim()
+      ? bodyAuthToken.trim()
+      : null);
+
   if (
     verificationId == null ||
     String(verificationId).trim() === "" ||
@@ -99,19 +122,75 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!authTokenFromRequest) {
+    return NextResponse.json(
+      {
+        error: "Session expired. Please go back and request a new OTP.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const verificationIdStr = String(verificationId).trim();
+  const codeStr = String(code).trim();
+  const flowTypeTyped = flowType as VerifyNowFlowType;
+
+  // #region agent log
+  debugLog({ sessionId: "eb0f9c", location: "verify/route.ts:entry", message: "verify received", data: { authTokenLen: authTokenFromRequest.length, fromHeader: !!headerAuthToken?.trim(), fromBody: !!bodyAuthToken?.trim(), verificationId: verificationIdStr, flowType: flowTypeTyped, codeLen: codeStr.length }, hypothesisId: "H1,H2,H4" });
+  fetch('http://127.0.0.1:7778/ingest/2101fafd-1cc9-4546-b3ee-1ef67d077cb2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eb0f9c'},body:JSON.stringify({sessionId:'eb0f9c',location:'verify/route.ts:entry',message:'verify received',data:{authTokenLen:authTokenFromRequest.length,fromHeader:!!headerAuthToken?.trim(),fromBody:!!bodyAuthToken?.trim(),verificationId:verificationIdStr,flowType:flowTypeTyped,codeLen:codeStr.length},timestamp:Date.now(),hypothesisId:'H1,H2,H4'})}).catch(()=>{});
+  // #endregion
+
   try {
-    const token = await getAuthToken();
     await validateOtp(
-      token,
-      String(verificationId).trim(),
-      String(code).trim(),
-      flowType as VerifyNowFlowType
+      authTokenFromRequest,
+      verificationIdStr,
+      codeStr,
+      flowTypeTyped
     );
   } catch (otpError) {
-    const message =
-      otpError instanceof Error ? otpError.message : String(otpError);
-    const { status, error: userMessage } = getVerifyNowUserMessage(message);
-    return NextResponse.json({ error: userMessage }, { status });
+    const is401 =
+      otpError instanceof Error &&
+      /401|validateOtp failed: 401/.test(otpError.message);
+    // #region agent log
+    debugLog({ sessionId: "eb0f9c", location: "verify/route.ts:catch", message: "validateOtp error", data: { is401, message: otpError instanceof Error ? otpError.message : String(otpError) }, hypothesisId: "H3" });
+    fetch('http://127.0.0.1:7778/ingest/2101fafd-1cc9-4546-b3ee-1ef67d077cb2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eb0f9c'},body:JSON.stringify({sessionId:'eb0f9c',location:'verify/route.ts:catch',message:'validateOtp error',data:{is401,message:otpError instanceof Error?otpError.message:String(otpError)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    if (is401) {
+      try {
+        const freshToken = await getAuthToken();
+        // #region agent log
+        debugLog({ sessionId: "eb0f9c", location: "verify/route.ts:retry", message: "retry with fresh token", data: { freshTokenLen: freshToken.length }, hypothesisId: "H3" });
+        fetch('http://127.0.0.1:7778/ingest/2101fafd-1cc9-4546-b3ee-1ef67d077cb2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eb0f9c'},body:JSON.stringify({sessionId:'eb0f9c',location:'verify/route.ts:retry',message:'retry with fresh token',data:{freshTokenLen:freshToken.length},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+        await validateOtp(
+          freshToken,
+          verificationIdStr,
+          codeStr,
+          flowTypeTyped
+        );
+      } catch (retryError) {
+        // #region agent log
+        debugLog({ sessionId: "eb0f9c", location: "verify/route.ts:retryFailed", message: "retry failed", data: { message: retryError instanceof Error ? retryError.message : String(retryError) }, hypothesisId: "H3" });
+        fetch('http://127.0.0.1:7778/ingest/2101fafd-1cc9-4546-b3ee-1ef67d077cb2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eb0f9c'},body:JSON.stringify({sessionId:'eb0f9c',location:'verify/route.ts:retryFailed',message:'retry failed',data:{message:retryError instanceof Error?retryError.message:String(retryError)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+        console.error("[verifynow/verify] retry with fresh token failed:", retryError);
+        const err = retryError instanceof Error ? retryError : new Error(String(retryError));
+        const { status, error: userMessage } = getVerifyNowUserMessage(err.message);
+        const errBody: { error: string; details?: string } = { error: userMessage };
+        if (process.env.NODE_ENV === "development")
+          errBody.details = err.message + (err.cause ? ` (${String(err.cause)})` : "");
+        return NextResponse.json(errBody, { status });
+      }
+    } else {
+      const err = otpError instanceof Error ? otpError : new Error(String(otpError));
+      const cause = err.cause ? ` (${String(err.cause)})` : "";
+      const message = err.message + cause;
+      console.error("[verifynow/verify] OTP/token error:", message);
+      const { status, error: userMessage } = getVerifyNowUserMessage(err.message);
+      const errBody: { error: string; details?: string } = { error: userMessage };
+      if (process.env.NODE_ENV === "development") errBody.details = message;
+      return NextResponse.json(errBody, { status });
+    }
   }
 
   try {
@@ -141,20 +220,24 @@ export async function POST(request: NextRequest) {
 
     if (linkError) {
       console.error("generateLink error:", linkError);
-      return NextResponse.json(
-        { error: "Unable to complete sign in. Please try again." },
-        { status: 500 }
-      );
+      const errMsg = linkError.message || String(linkError);
+      const body: { error: string; details?: string } = {
+        error: "Unable to complete sign in. Please try again.",
+      };
+      if (process.env.NODE_ENV === "development") body.details = `generateLink: ${errMsg}`;
+      return NextResponse.json(body, { status: 500 });
     }
 
     const hashedToken = (linkData as { properties?: { hashed_token?: string } })
       ?.properties?.hashed_token;
     if (!hashedToken || typeof hashedToken !== "string") {
       console.error("generateLink: missing hashed_token in response");
-      return NextResponse.json(
-        { error: "Unable to complete sign in. Please try again." },
-        { status: 500 }
-      );
+      const body: { error: string; details?: string } = {
+        error: "Unable to complete sign in. Please try again.",
+      };
+      if (process.env.NODE_ENV === "development")
+        body.details = "generateLink: missing hashed_token in response";
+      return NextResponse.json(body, { status: 500 });
     }
 
     const origin = getBaseUrl(request);
@@ -168,10 +251,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ redirectUrl });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("Verify OTP user/link error:", err);
-    return NextResponse.json(
-      { error: "Unable to complete sign in. Please try again." },
-      { status: 500 }
-    );
+    const body: { error: string; details?: string } = {
+      error: "Unable to complete sign in. Please try again.",
+    };
+    if (process.env.NODE_ENV === "development") body.details = message;
+    return NextResponse.json(body, { status: 500 });
   }
 }

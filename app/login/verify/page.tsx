@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
 const OTP_FLOW_TYPE_KEY = "otp_flow_type";
+const OTP_AUTH_TOKEN_KEY = "otp_auth_token";
 
 const NO_ACCOUNT_MESSAGE = "No account with this number. Please register first.";
 
@@ -59,9 +60,12 @@ export default function LoginVerifyPage() {
 
     setLoading(true);
     try {
+      const authToken = sessionStorage.getItem(OTP_AUTH_TOKEN_KEY);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (authToken) headers.authToken = authToken;
       const res = await fetch("/api/auth/verifynow/verify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           verificationId,
           code: trimmedCode,
@@ -87,6 +91,10 @@ export default function LoginVerifyPage() {
 
       const { redirectUrl } = data;
       if (redirectUrl && typeof redirectUrl === "string") {
+        sessionStorage.removeItem(OTP_VERIFICATION_ID_KEY);
+        sessionStorage.removeItem(OTP_PHONE_KEY);
+        sessionStorage.removeItem(OTP_FLOW_TYPE_KEY);
+        sessionStorage.removeItem(OTP_AUTH_TOKEN_KEY);
         window.location.href = redirectUrl;
         return;
       }
@@ -129,11 +137,12 @@ export default function LoginVerifyPage() {
         return;
       }
 
-      const { verificationId: newVerificationId } = data;
+      const { verificationId: newVerificationId, authToken: newAuthToken } = data;
       if (newVerificationId) {
         sessionStorage.setItem(OTP_VERIFICATION_ID_KEY, newVerificationId);
         setVerificationId(newVerificationId);
       }
+      if (newAuthToken) sessionStorage.setItem(OTP_AUTH_TOKEN_KEY, newAuthToken);
       setResendSuccess("OTP sent again.");
     } catch {
       setError("Something went wrong. Please try again.");

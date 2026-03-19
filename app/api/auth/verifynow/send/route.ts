@@ -69,11 +69,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       verificationId,
+      authToken: token,
       timeout: OTP_TIMEOUT_SECONDS,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error("[verifynow/send] Error:", message);
     const { status, error: userError } = getVerifyNowUserMessage(message);
-    return NextResponse.json({ error: userError }, { status });
+    const body: { error: string; details?: string } = { error: userError };
+    if (process.env.NODE_ENV === "development") {
+      body.details = message;
+    }
+    return NextResponse.json(body, { status });
   }
 }
