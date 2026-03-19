@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { Phone } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { sendActivity } from "@/lib/utils/activities";
 import {
@@ -35,9 +36,26 @@ export default function RegisterPage() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const { signUp, signInWithGoogle } = useAuth();
+  const { user, signUp, signInWithGoogle } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
+
+  // Already logged in: redirect to profile or intended page
+  useEffect(() => {
+    if (user) {
+      const destination = isSafeRedirect(redirectTo) ? redirectTo : "/profile";
+      router.replace(destination);
+    }
+  }, [user, redirectTo, router]);
+
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <p className="text-sm text-muted-foreground">Redirecting...</p>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,17 +138,24 @@ export default function RegisterPage() {
             >
               sign in to your existing account
             </Link>
+            {" · "}
+            <Link
+              href={isSafeRedirect(redirectTo) ? `/register/phone?redirect=${encodeURIComponent(redirectTo)}` : "/register/phone"}
+              className="font-medium text-primary hover:text-primary/80"
+            >
+              Use phone instead
+            </Link>
           </p>
         </div>
-        {/* Google Sign In */}
-        <div className="mt-8">
+        {/* Google & Phone Sign Up */}
+        <div className="mt-8 space-y-3">
           <Button
             onClick={handleGoogleSignIn}
             disabled={isGoogleLoading || isLoading}
             variant="outline"
             className="w-full"
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -151,6 +176,19 @@ export default function RegisterPage() {
             {isGoogleLoading
               ? "Signing in with Google..."
               : "Continue with Google"}
+          </Button>
+          <Button className="w-full" asChild>
+            <Link
+              href={
+                isSafeRedirect(redirectTo)
+                  ? `/register/phone?redirect=${encodeURIComponent(redirectTo)}`
+                  : "/register/phone"
+              }
+              className="inline-flex items-center justify-center gap-2 w-full"
+            >
+              <Phone className="w-5 h-5" />
+              Continue with phone
+            </Link>
           </Button>
         </div>
 
