@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PhoneInput from "@/components/PhoneInput";
@@ -35,6 +35,13 @@ export default function RegisterPhonePage() {
   const registerHref = isSafeRedirect(redirectTo)
     ? `/register?redirect=${encodeURIComponent(redirectTo)}`
     : "/register";
+
+  // Persist redirect so verify API and callback can send user to intended page
+  useEffect(() => {
+    if (isSafeRedirect(redirectTo)) {
+      document.cookie = `auth_redirect=${encodeURIComponent(redirectTo)}; path=/; max-age=300; SameSite=Lax`;
+    }
+  }, [redirectTo]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
