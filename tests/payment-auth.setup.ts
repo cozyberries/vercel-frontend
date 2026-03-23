@@ -9,7 +9,7 @@ const AUTH_STATE_FILE = "tests/.auth/payment-user.json";
  * This runs before the payment tests so they have a valid session.
  */
 setup("authenticate test user", async ({ page }) => {
-  await page.goto("/login");
+  await page.goto("/login/email");
 
   // Fill in credentials
   await page.getByLabel(/Email address/i).fill(TEST_EMAIL);
