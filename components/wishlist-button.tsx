@@ -3,6 +3,7 @@
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "./wishlist-context";
+import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import { Product } from "@/lib/services/api";
 
@@ -12,6 +13,7 @@ interface WishlistButtonProps {
 
 export default function WishlistButton({ product }: WishlistButtonProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { requireAuthForIntent } = useAuthGate();
   const inWishlist = isInWishlist(product.id);
 
   return (
@@ -24,12 +26,14 @@ export default function WishlistButton({ product }: WishlistButtonProps) {
           removeFromWishlist(product.id);
           toast.success(`${product.name} removed from wishlist!`);
         } else {
-          addToWishlist({
+          const item = {
             id: product.id,
             name: product.name,
             price: product.price,
             image: product.images?.[0],
-          });
+          };
+          if (!requireAuthForIntent({ type: "wishlist", item })) return;
+          addToWishlist(item);
           toast.success(`${product.name} added to wishlist!`);
         }
       }}

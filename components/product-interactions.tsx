@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Product, SizeOption } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart, getCartItemKey } from "./cart-context";
+import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import Reviews from "./reviews";
 import { RatingItem, useRating } from "./rating-context";
@@ -74,6 +75,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
+  const { requireAuthForIntent } = useAuthGate();
   const router = useRouter();
 
   const { data: allFeaturedData } = useFeaturedProducts(12);
@@ -689,7 +691,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 if (quantity > availableStock) {
                   toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
                 }
-                addToCartTemporary({
+                const buyNowItem = {
                   id: product.id,
                   name: product.name,
                   price: displayPrice,
@@ -698,7 +700,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   stock_quantity: availableStock,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
-                });
+                };
+                if (!requireAuthForIntent({ type: "buy_now", item: buyNowItem }))
+                  return;
+                addToCartTemporary(buyNowItem);
                 // flushSync in addToCartTemporary guarantees state is committed
                 // before this call returns, so we can navigate immediately.
                 router.push("/checkout");
@@ -738,7 +743,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     if (quantity > maxCanAdd) {
                       toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
                     }
-                    addToCart({
+                    const cartItem = {
                       id: product.id,
                       name: product.name,
                       price: displayPrice,
@@ -747,7 +752,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                       stock_quantity: availableStock,
                       ...(selectedColor ? { color: selectedColor } : {}),
                       ...(selectedSize ? { size: selectedSize.name } : {}),
-                    });
+                    };
+                    if (!requireAuthForIntent({ type: "cart", item: cartItem }))
+                      return;
+                    addToCart(cartItem);
                     toast.success(`${product.name} added to cart!`);
                   }
                 }}
@@ -851,12 +859,15 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                                 removeFromWishlist(relatedProduct.id);
                                 toast.success(`${relatedProduct.name} removed from wishlist!`);
                               } else {
-                                addToWishlist({
+                                const wItem = {
                                   id: relatedProduct.id,
                                   name: relatedProduct.name,
                                   price: relatedProduct.price,
                                   image: relatedProduct.images?.[0],
-                                });
+                                };
+                                if (!requireAuthForIntent({ type: "wishlist", item: wItem }))
+                                  return;
+                                addToWishlist(wItem);
                                 toast.success(`${relatedProduct.name} added to wishlist!`);
                               }
                             }}
@@ -969,7 +980,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               if (quantity > availableStock) {
                 toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
               }
-              addToCartTemporary({
+              const buyNowItemMobile = {
                 id: product.id,
                 name: product.name,
                 price: displayPrice,
@@ -978,7 +989,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 stock_quantity: availableStock,
                 ...(selectedColor ? { color: selectedColor } : {}),
                 ...(selectedSize ? { size: selectedSize.name } : {}),
-              });
+              };
+              if (!requireAuthForIntent({ type: "buy_now", item: buyNowItemMobile }))
+                return;
+              addToCartTemporary(buyNowItemMobile);
               // Use router navigation with small delay to ensure state update
               setTimeout(() => {
                 router.push("/checkout");
@@ -994,10 +1008,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             className="w-1/2 h-12 overflow-hidden"
             onClick={() => {
               if (isInCart) {
-              if (isInCart) {
                 removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
                 toast.success(`${product.name} removed from cart!`);
-              } else {                  toast.error("This option is out of stock");
+              } else {
+                if (availableStock <= 0) {
+                  toast.error("This option is out of stock");
                   return;
                 }
                 if (maxCanAdd <= 0) {
@@ -1008,7 +1023,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 if (quantity > maxCanAdd) {
                   toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
                 }
-                addToCart({
+                const cartItemMobile = {
                   id: product.id,
                   name: product.name,
                   price: displayPrice,
@@ -1017,7 +1032,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   stock_quantity: availableStock,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
-                });
+                };
+                if (!requireAuthForIntent({ type: "cart", item: cartItemMobile }))
+                  return;
+                addToCart(cartItemMobile);
                 toast.success(`${product.name} added to cart!`);
               }
             }}

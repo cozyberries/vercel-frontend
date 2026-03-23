@@ -16,6 +16,7 @@ import { Product } from "@/lib/services/api";
 import { images } from "@/app/assets/images";
 import { toImageSrc } from "@/lib/utils/image";
 import { useWishlist } from "./wishlist-context";
+import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import DiscountedPrice from "@/components/discounted-price";
 
@@ -61,6 +62,7 @@ export default function SearchResultsSheet({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { requireAuthForIntent } = useAuthGate();
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
   const [recentSearchItems, setRecentSearchItems] = useState<(Product | null)[]>([]);
@@ -610,14 +612,17 @@ export default function SearchResultsSheet({
                                 `${product.name} removed from wishlist!`
                               );
                             } else {
-                              addToWishlist({
+                              const wItem = {
                                 id: product.id,
                                 name: product.name,
                                 price: product.price,
                                 image: (product.images?.[0] as any)?.url ?? (product.images?.[0] as any),
                                 size: product.sizes?.[0]?.name,
                                 color: product.variants?.[0]?.color ?? product.colors?.[0],
-                              });
+                              };
+                              if (!requireAuthForIntent({ type: "wishlist", item: wItem }))
+                                return;
+                              addToWishlist(wItem);
                               toast.success(
                                 `${product.name} added to wishlist!`
                               );
@@ -724,14 +729,17 @@ export default function SearchResultsSheet({
                                       removeFromWishlist(prod.id);
                                       toast.success(`${prod.name} removed from wishlist!`);
                                     } else {
-                                      addToWishlist({
+                                      const wItem = {
                                         id: prod.id,
                                         name: prod.name,
                                         price: getProductPrice(prod),
                                         image: prodImgSrc,
                                         size: prod.sizes?.[0]?.name,
                                         color: prod.variants?.[0]?.color ?? prod.colors?.[0],
-                                      });
+                                      };
+                                      if (!requireAuthForIntent({ type: "wishlist", item: wItem }))
+                                        return;
+                                      addToWishlist(wItem);
                                       toast.success(`${prod.name} added to wishlist!`);
                                     }
                                   }}
@@ -840,14 +848,17 @@ export default function SearchResultsSheet({
                                   removeFromWishlist(p.id);
                                   toast.success(`${p.name} removed from wishlist!`);
                                 } else {
-                                  addToWishlist({
+                                  const wItem = {
                                     id: p.id,
                                     name: p.name,
                                     price: getProductPrice(p),
                                     image: productImageSrc,
                                     size: p.sizes?.[0]?.name,
                                     color: p.variants?.[0]?.color ?? p.colors?.[0],
-                                  });
+                                  };
+                                  if (!requireAuthForIntent({ type: "wishlist", item: wItem }))
+                                    return;
+                                  addToWishlist(wItem);
                                   toast.success(`${p.name} added to wishlist!`);
                                 }
                               }}

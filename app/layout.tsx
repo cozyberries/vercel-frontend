@@ -1,4 +1,5 @@
 import type React from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -6,6 +7,7 @@ import ConditionalLayout from "@/components/ConditionalLayout";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
+import { AuthGateProvider } from "@/components/auth-gate-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
@@ -101,24 +103,28 @@ export default function RootLayout({
             <DataPreloader>
               <WishlistProvider>
                 <CartProvider>
-                  <RatingProvider>
-                  <ThemeProvider
-                    attribute="class"
-                    defaultTheme="light"
-                    enableSystem={false}
-                    disableTransitionOnChange
-                  >
-                    <ConditionalLayout>
-                      {children}
-                    </ConditionalLayout>
-                    <PwaUpdateHandler />
-                    <ScrollToTopButton />
-                    <Toaster
-                      closeButton
-                      duration={2000}
-                    />
-                  </ThemeProvider>
-                  </RatingProvider>
+                  <Suspense fallback={null}>
+                    <AuthGateProvider>
+                      <RatingProvider>
+                        <ThemeProvider
+                          attribute="class"
+                          defaultTheme="light"
+                          enableSystem={false}
+                          disableTransitionOnChange
+                        >
+                          <ConditionalLayout>
+                            {children}
+                          </ConditionalLayout>
+                          <PwaUpdateHandler />
+                          <ScrollToTopButton />
+                          <Toaster
+                            closeButton
+                            duration={2000}
+                          />
+                        </ThemeProvider>
+                      </RatingProvider>
+                    </AuthGateProvider>
+                  </Suspense>
                 </CartProvider>
               </WishlistProvider>
             </DataPreloader>
