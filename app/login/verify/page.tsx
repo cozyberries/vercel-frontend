@@ -240,6 +240,9 @@ export default function LoginVerifyPage() {
             {loading ? "Verifying..." : "Verify"}
           </Button>
 
+          <p className="text-center text-sm text-muted-foreground">
+            OTP may take 1–2 minutes to arrive.
+          </p>
           <p className="text-center text-sm text-gray-600">
             Didn&apos;t receive the code?{" "}
             <button

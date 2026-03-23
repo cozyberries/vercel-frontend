@@ -3,9 +3,38 @@
  * Env: VERIFYNOW_KEY or VERIFYNOW_AUTH_TOKEN = JWT auth token (same as in curl authToken header), VERIFYNOW_CUSTOMER_ID.
  * Two APIs only: send OTP (POST), validate OTP (GET). SMS only.
  * 401 = invalid or expired token — use the exact JWT from Message Central.
+ * Request timeout (default 12s) avoids FUNCTION_INVOCATION_TIMEOUT on Vercel; env VERIFYNOW_REQUEST_TIMEOUT_MS overrides.
  */
 
 const BASE_VERIFICATION = 'https://cpaas.messagecentral.com/verification/v3';
+
+/** Default timeout for VerifyNow API calls; keep under Vercel function limit (10s Hobby). */
+const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
+
+function getRequestTimeoutMs(): number {
+  const raw = process.env.VERIFYNOW_REQUEST_TIMEOUT_MS?.trim();
+  if (!raw) return DEFAULT_REQUEST_TIMEOUT_MS;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 30_000) : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
+/**
+ * fetch with timeout so serverless doesn't hit FUNCTION_INVOCATION_TIMEOUT.
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: ac.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 export function getVerifyNowUserMessage(message: string): { status: number; error: string } {
   if (message.includes("401") || message.includes("code: 401")) {
@@ -14,6 +43,13 @@ export function getVerifyNowUserMessage(message: string): { status: number; erro
   if (message.includes("code: 702")) return { status: 400, error: "Wrong OTP. Please try again." };
   if (message.includes("code: 705")) return { status: 400, error: "OTP expired. Request a new one." };
   if (message.includes("code: 800")) return { status: 429, error: "Too many attempts. Try again later." };
+  if (
+    message.toLowerCase().includes("timeout") ||
+    message.toLowerCase().includes("aborted") ||
+    message.includes("The operation was aborted")
+  ) {
+    return { status: 504, error: "Request timed out. Please try again." };
+  }
   if (
     message.includes("501") ||
     message.includes("505") ||
@@ -61,11 +97,15 @@ export async function sendOtp(
   url.searchParams.set('flowType', 'SMS');
   url.searchParams.set('mobileNumber', normalized);
 
-  // Use exact header name 'authToken' (some APIs are case-sensitive)
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { authToken: authToken } as Record<string, string>,
-  });
+  const timeoutMs = getRequestTimeoutMs();
+  const res = await fetchWithTimeout(
+    url.toString(),
+    {
+      method: 'POST',
+      headers: { authToken: authToken } as Record<string, string>,
+    },
+    timeoutMs
+  );
 
   const resBody = (await res.json().catch(() => ({}))) as {
     data?: { verificationId?: string | number };
@@ -106,11 +146,15 @@ export async function validateOtp(
   url.searchParams.set('customerId', customerId);
   url.searchParams.set('code', code);
 
-  // Use exact header name 'authToken' (some APIs are case-sensitive)
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { authToken: authToken } as Record<string, string>,
-  });
+  const timeoutMs = getRequestTimeoutMs();
+  const res = await fetchWithTimeout(
+    url.toString(),
+    {
+      method: 'GET',
+      headers: { authToken: authToken } as Record<string, string>,
+    },
+    timeoutMs
+  );
 
   if (res.ok) {
     return;

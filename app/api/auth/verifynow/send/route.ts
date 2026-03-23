@@ -7,6 +7,9 @@ import {
   getVerifyNowUserMessage,
 } from "@/lib/verifynow";
 
+/** Keep under Vercel limit (Hobby 10s); allows VerifyNow request timeout to complete. */
+export const maxDuration = 15;
+
 const INTENTS = ["register", "login"] as const;
 const NO_ACCOUNT_MESSAGE = "No account with this number. Please register first.";
 const RATE_LIMIT_KEY_PREFIX = "otp_send";

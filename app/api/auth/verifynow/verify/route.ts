@@ -8,6 +8,9 @@ import {
   getVerifyNowUserMessage,
 } from "@/lib/verifynow";
 
+/** Keep under Vercel limit (Hobby 10s); allows Validate + Supabase to complete. */
+export const maxDuration = 15;
+
 /**
  * Phone OTP verify flow (must stay aligned with docs/plans/2026-03-19-phone-signup-login-flow.md):
  * 1. Validate OTP with VerifyNow.
