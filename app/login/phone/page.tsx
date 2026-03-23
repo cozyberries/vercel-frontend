@@ -47,9 +47,12 @@ export default function LoginPhonePage() {
     );
   }
 
-  const loginHref = isSafeRedirect(redirectTo)
-    ? `/login?redirect=${encodeURIComponent(redirectTo)}`
-    : "/login";
+  const emailLoginHref = isSafeRedirect(redirectTo)
+    ? `/login/email?redirect=${encodeURIComponent(redirectTo)}`
+    : "/login/email";
+  const registerHref = isSafeRedirect(redirectTo)
+    ? `/register?redirect=${encodeURIComponent(redirectTo)}`
+    : "/register";
 
   useEffect(() => {
     if (isSafeRedirect(redirectTo)) {
@@ -123,10 +126,14 @@ export default function LoginPhonePage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{" "}
             <Link
-              href={loginHref}
+              href={emailLoginHref}
               className="font-medium text-primary hover:text-primary/80"
             >
               use email instead
+            </Link>
+            {" · "}
+            <Link href={registerHref} className="font-medium text-primary hover:text-primary/80">
+              create a new account
             </Link>
           </p>
         </div>
@@ -159,10 +166,7 @@ export default function LoginPhonePage() {
           )}
           {noAccount && (
             <p className="text-sm text-center">
-              <Link
-                href="/register/phone"
-                className="font-medium text-primary hover:text-primary/80"
-              >
+              <Link href={registerHref} className="font-medium text-primary hover:text-primary/80">
                 Register with this number
               </Link>
             </p>

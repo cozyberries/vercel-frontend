@@ -43,13 +43,14 @@ test('debug signup process and capture errors', async ({ page }) => {
   });
 
   // Navigate to signup page
-  await page.goto('/register');
+  await page.goto('/register/email');
 
   // Wait for the form to be ready
   await expect(page.getByLabel(/Email address/i)).toBeVisible({ timeout: 15_000 });
 
   // Fill in the form
   await page.getByLabel(/Email address/i).fill(testEmail);
+  await page.getByLabel(/Phone Number/i).fill('9876543210');
   await page.getByLabel(/^Password$/i).first().fill(testPassword);
   await page.getByLabel(/Confirm Password/i).fill(testPassword);
 
