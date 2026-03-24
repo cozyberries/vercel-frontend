@@ -1,4 +1,5 @@
 import type React from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -6,6 +7,7 @@ import ConditionalLayout from "@/components/ConditionalLayout";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
+import { AuthGateProvider } from "@/components/auth-gate-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
@@ -16,11 +18,44 @@ import { QueryProvider } from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Must be the public URL of this app (frontend). Required for link preview on WhatsApp, Google Chat, Slack, etc.
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+  process.env.NEXT_PUBLIC_FRONTEND_URL?.replace(/\/$/, "") ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
+// Default share image: direct URL (no _next/image) so all platforms/crawlers can fetch it reliably.
+const defaultOgImageUrl =
+  "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/hero/gentle-at-home/mobile-1.webp";
+const defaultOgImageWidth = 1020;
+const defaultOgImageHeight = 1815;
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: "CozyBerries | Premium Baby Clothing",
   description: "Adorable, high-quality clothing for your little ones",
   generator: "v0.dev",
   manifest: "/site.webmanifest",
+  openGraph: {
+    url: siteUrl ? `${siteUrl}/` : undefined,
+    title: "CozyBerries | Premium Baby Clothing",
+    description: "Adorable, high-quality clothing for your little ones",
+    type: "website",
+    images: [
+      {
+        url: defaultOgImageUrl,
+        width: defaultOgImageWidth,
+        height: defaultOgImageHeight,
+        alt: "CozyBerries",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CozyBerries | Premium Baby Clothing",
+    description: "Adorable, high-quality clothing for your little ones",
+    images: [defaultOgImageUrl],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -68,24 +103,28 @@ export default function RootLayout({
             <DataPreloader>
               <WishlistProvider>
                 <CartProvider>
-                  <RatingProvider>
-                  <ThemeProvider
-                    attribute="class"
-                    defaultTheme="light"
-                    enableSystem={false}
-                    disableTransitionOnChange
-                  >
-                    <ConditionalLayout>
-                      {children}
-                    </ConditionalLayout>
-                    <PwaUpdateHandler />
-                    <ScrollToTopButton />
-                    <Toaster
-                      closeButton
-                      duration={2000}
-                    />
-                  </ThemeProvider>
-                  </RatingProvider>
+                  <Suspense fallback={null}>
+                    <AuthGateProvider>
+                      <RatingProvider>
+                        <ThemeProvider
+                          attribute="class"
+                          defaultTheme="light"
+                          enableSystem={false}
+                          disableTransitionOnChange
+                        >
+                          <ConditionalLayout>
+                            {children}
+                          </ConditionalLayout>
+                          <PwaUpdateHandler />
+                          <ScrollToTopButton />
+                          <Toaster
+                            closeButton
+                            duration={2000}
+                          />
+                        </ThemeProvider>
+                      </RatingProvider>
+                    </AuthGateProvider>
+                  </Suspense>
                 </CartProvider>
               </WishlistProvider>
             </DataPreloader>

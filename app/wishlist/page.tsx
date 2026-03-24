@@ -6,6 +6,7 @@ import { Heart, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/components/wishlist-context";
 import { useCart, getCartItemKey } from "@/components/cart-context";
+import { useAuthGate } from "@/components/auth-gate-context";
 import { images } from "@/app/assets/images";
 import { toast } from "sonner";
 import WishlistWarningDialog from "@/components/wishlist-warning-dialog";
@@ -15,6 +16,7 @@ export default function WishlistPage() {
   const { wishlist, removeFromWishlist, clearWishlist, isLoading } =
     useWishlist();
   const { cart, updateQuantity, addToCart } = useCart();
+  const { requireAuthForIntent } = useAuthGate();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleAddToCart = (item: {
@@ -32,6 +34,16 @@ export default function WishlistPage() {
     });
     const existing = cart.find((c) => getCartItemKey(c) === itemKey);
     if (existing) {
+      const cartIntent = {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        quantity: 1,
+        ...(item.size ? { size: item.size } : {}),
+        ...(item.color ? { color: item.color } : {}),
+      };
+      if (!requireAuthForIntent({ type: "cart", item: cartIntent })) return;
       updateQuantity(
         item.id,
         existing.quantity + 1,
@@ -40,7 +52,9 @@ export default function WishlistPage() {
       );
       toast.success(`${item.name} quantity updated in cart`);
     } else {
-      addToCart({ ...item, quantity: 1 });
+      const cartIntent = { ...item, quantity: 1 as const };
+      if (!requireAuthForIntent({ type: "cart", item: cartIntent })) return;
+      addToCart(cartIntent);
       toast.success(`${item.name} added to cart!`);
     }
   };

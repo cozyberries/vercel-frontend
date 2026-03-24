@@ -68,9 +68,10 @@ test.describe('Signup Verification', () => {
     opts?: { skipGoto?: boolean }
   ): Promise<SignupSubmissionResult> {
     if (opts?.skipGoto !== true) {
-      await page.goto('/register');
+      await page.goto('/register/email');
     }
     await page.getByLabel(/Email address/i).fill(email);
+    await page.getByLabel(/Phone Number/i).fill('9876543210');
     await page.getByLabel(/^Password$/i).first().fill(testPassword);
     await page.getByLabel(/Confirm Password/i).fill(testPassword);
     await page.getByRole('button', { name: /Create account/i }).click();
@@ -190,7 +191,7 @@ test.describe('Signup Verification', () => {
 
     const testEmail = `test-e2e-${Date.now()}@example.com`;
 
-    await page.goto('/register');
+    await page.goto('/register/email');
     await expect(page.getByRole('heading', { name: /Create your account/i })).toBeVisible();
 
     const submission = await submitSignupForm(page, testEmail, { skipGoto: true });

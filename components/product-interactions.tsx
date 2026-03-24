@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Product, SizeOption } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart, getCartItemKey } from "./cart-context";
+import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import Reviews from "./reviews";
 import { RatingItem, useRating } from "./rating-context";
@@ -20,6 +21,7 @@ import RatingForm from "./rating/RatingForm";
 import { useAuth } from "./supabase-auth-provider";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
 import DiscountedPrice from '@/components/discounted-price'
+import { getDiscountedPrice } from '@/lib/utils/discount'
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -74,6 +76,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
+  const { requireAuthForIntent } = useAuthGate();
   const router = useRouter();
 
   const { data: allFeaturedData } = useFeaturedProducts(12);
@@ -245,8 +248,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     }
   }, [product, initialSize]);
 
-  // Display and cart use same price (GST-inclusive); validation checks against this
+  // Base variant price (MRP); hero + chips show payable after site offer via getDiscountedPrice
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
+  const payablePrice = getDiscountedPrice(displayPrice).discounted;
 
   const availableStock = selectedSize != null ? (selectedSize.stock_quantity ?? 0) : (product?.stock_quantity ?? 0);
   const currentVariantKey = getCartItemKey({
@@ -468,6 +472,30 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 </motion.div>
               </AnimatePresence>
 
+              {/* Preload other gallery images so switching is instant (same src = cache hit) */}
+              {product.images && product.images.length > 1 && (
+                <div
+                  className="absolute left-0 top-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none"
+                  aria-hidden
+                >
+                  {product.images.map(
+                    (img, index) =>
+                      index !== selectedImage && (
+                        <Image
+                          key={index}
+                          src={toImageSrc(img, undefined, "detail")}
+                          alt=""
+                          width={600}
+                          height={600}
+                          className="object-cover"
+                          draggable={false}
+                          fetchPriority="low"
+                        />
+                      )
+                  )}
+                </div>
+              )}
+
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
                   <Image
@@ -546,18 +574,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             </div>
           )}
 
-          {/* Price */}
-          <div className="flex items-center gap-2 flex-wrap mb-6">
-            <DiscountedPrice price={displayPrice} />
+          {/* Price: hero = MRP strikethrough + large payable + badge on one row */}
+          <div className="mb-6">
+            <DiscountedPrice price={displayPrice} variant="hero" />
           </div>
-          <p className="text-2xl font-medium mb-4">
-            ₹{displayPrice.toFixed(0)}
-            {selectedSize && selectedSize.price < product.price && (
-              <span className="text-sm text-muted-foreground line-through ml-2">
-                ₹{product.price.toFixed(0)}
-              </span>
-            )}
-          </p>
 
           <div className="space-y-4 mb-6">
             {product.sizes && product.sizes.length > 0 && (
@@ -573,6 +593,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     const isSelected = selectedSize?.name === size.name;
                     const isOutOfStock =
                       size.stock_quantity === undefined || size.stock_quantity <= 0;
+                    const sizePayable = getDiscountedPrice(size.price).discounted;
                     return (
                       <button
                         key={size.name}
@@ -595,7 +616,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                                 : "text-muted-foreground"
                             }`}
                         >
-                          ₹{size.price.toFixed(0)}
+                          ₹{sizePayable.toFixed(0)}
                         </span>
                         {isOutOfStock && (
                           <span className="absolute inset-0 flex items-center justify-center">
@@ -665,16 +686,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 if (quantity > availableStock) {
                   toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
                 }
-                addToCartTemporary({
+                const buyNowItem = {
                   id: product.id,
                   name: product.name,
-                  price: displayPrice,
+                  price: payablePrice,
                   image: product.images?.[0],
                   quantity: qty,
                   stock_quantity: availableStock,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
-                });
+                };
+                if (!requireAuthForIntent({ type: "buy_now", item: buyNowItem }))
+                  return;
+                addToCartTemporary(buyNowItem);
                 // flushSync in addToCartTemporary guarantees state is committed
                 // before this call returns, so we can navigate immediately.
                 router.push("/checkout");
@@ -714,16 +738,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     if (quantity > maxCanAdd) {
                       toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
                     }
-                    addToCart({
+                    const cartItem = {
                       id: product.id,
                       name: product.name,
-                      price: displayPrice,
+                      price: payablePrice,
                       image: product.images?.[0],
                       quantity: qtyToAdd,
                       stock_quantity: availableStock,
                       ...(selectedColor ? { color: selectedColor } : {}),
                       ...(selectedSize ? { size: selectedSize.name } : {}),
-                    });
+                    };
+                    if (!requireAuthForIntent({ type: "cart", item: cartItem }))
+                      return;
+                    addToCart(cartItem);
                     toast.success(`${product.name} added to cart!`);
                   }
                 }}
@@ -827,12 +854,15 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                                 removeFromWishlist(relatedProduct.id);
                                 toast.success(`${relatedProduct.name} removed from wishlist!`);
                               } else {
-                                addToWishlist({
+                                const wItem = {
                                   id: relatedProduct.id,
                                   name: relatedProduct.name,
                                   price: relatedProduct.price,
                                   image: relatedProduct.images?.[0],
-                                });
+                                };
+                                if (!requireAuthForIntent({ type: "wishlist", item: wItem }))
+                                  return;
+                                addToWishlist(wItem);
                                 toast.success(`${relatedProduct.name} added to wishlist!`);
                               }
                             }}
@@ -945,16 +975,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               if (quantity > availableStock) {
                 toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
               }
-              addToCartTemporary({
+              const buyNowItemMobile = {
                 id: product.id,
                 name: product.name,
-                price: displayPrice,
+                price: payablePrice,
                 image: product.images?.[0],
                 quantity: qty,
                 stock_quantity: availableStock,
                 ...(selectedColor ? { color: selectedColor } : {}),
                 ...(selectedSize ? { size: selectedSize.name } : {}),
-              });
+              };
+              if (!requireAuthForIntent({ type: "buy_now", item: buyNowItemMobile }))
+                return;
+              addToCartTemporary(buyNowItemMobile);
               // Use router navigation with small delay to ensure state update
               setTimeout(() => {
                 router.push("/checkout");
@@ -970,10 +1003,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             className="w-1/2 h-12 overflow-hidden"
             onClick={() => {
               if (isInCart) {
-              if (isInCart) {
                 removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
                 toast.success(`${product.name} removed from cart!`);
-              } else {                  toast.error("This option is out of stock");
+              } else {
+                if (availableStock <= 0) {
+                  toast.error("This option is out of stock");
                   return;
                 }
                 if (maxCanAdd <= 0) {
@@ -984,16 +1018,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 if (quantity > maxCanAdd) {
                   toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
                 }
-                addToCart({
+                const cartItemMobile = {
                   id: product.id,
                   name: product.name,
-                  price: displayPrice,
+                  price: payablePrice,
                   image: product.images?.[0],
                   quantity: qtyToAdd,
                   stock_quantity: availableStock,
                   ...(selectedColor ? { color: selectedColor } : {}),
                   ...(selectedSize ? { size: selectedSize.name } : {}),
-                });
+                };
+                if (!requireAuthForIntent({ type: "cart", item: cartItemMobile }))
+                  return;
+                addToCart(cartItemMobile);
                 toast.success(`${product.name} added to cart!`);
               }
             }}

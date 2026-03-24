@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   User,
   Phone,
+  Mail,
   Edit3,
   Check,
   X,
@@ -90,121 +91,107 @@ export default function ProfileForm({
 }: ProfileFormProps) {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
-      <div className="flex items-center justify-end gap-2 mb-8">
-        {!isEditing ? (
-          <Button onClick={onEdit} size="icon" variant="outline" className="size-10 shrink-0" aria-label="Edit profile">
-            <Edit3 className="w-4 h-4" />
-          </Button>
-        ) : (
-          <>
-            <Button
-              onClick={onSave}
-              disabled={
-                isSaving ||
-                !!validationErrors.full_name ||
-                !!validationErrors.phone
-              }
-              size="icon"
-              variant="outline"
-              className="size-10 shrink-0"
-              aria-label={isSaving ? "Saving..." : "Save changes"}
-            >
-              {isSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-            </Button>
-            {!isSaving && (
-              <Button variant="outline" onClick={onCancel} size="icon" className="size-10 shrink-0" aria-label="Cancel editing">
-                <X className="w-4 h-4" />
-              </Button>
-            )}          </>
-        )}
-      </div>
-
-      {/* Basic Information Section */}
+      {/* Basic Information: name + contact row with inline Edit / Save / Clear */}
       <div className="mb-8">
-        {isEditing ? (
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 mb-2">
-                <User className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Name
-                </span>
-              </div>
-              <Input
-                id="full_name"
-                value={editData.full_name}
-                onChange={(e) => onInputChange("full_name", e.target.value)}
-                placeholder="Enter your full name"
-                disabled={isSaving}
-                className={`w-full h-11 ${validationErrors.full_name
-                    ? "border-red-500 focus:border-red-500"
-                    : ""
-                  }`}
-              />
-              {validationErrors.full_name && (
-                <div className="flex items-center mt-1 text-sm text-red-600">
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  {validationErrors.full_name}
-                </div>
-              )}
+        <div className="flex flex-wrap items-start gap-4 mb-4">
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center space-x-2">
+              <User className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-muted-foreground">Name</span>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 mb-2">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Phone
-                </span>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-base md:text-sm font-normal text-muted-foreground">
-                    +91
-                  </span>
-                </div>
-                <IndianPhoneInput
-                  id="phone"
-                  value={editData.phone}
-                  onChange={(digits) => onInputChange("phone", digits)}
-                  placeholder="98765 43210"
+            {isEditing ? (
+              <>
+                <Input
+                  id="full_name"
+                  value={editData.full_name}
+                  onChange={(e) => onInputChange("full_name", e.target.value)}
+                  placeholder="Enter your full name"
                   disabled={isSaving}
-                  className={`w-full h-11 pl-12 ${validationErrors.phone
-                      ? "border-red-500 focus:border-red-500"
-                      : ""
-                    }`}
+                  className={`w-full h-11 ${validationErrors.full_name ? "border-red-500 focus:border-red-500" : ""}`}
                 />
-              </div>
-              {validationErrors.phone && (
-                <div className="flex items-center mt-1 text-sm text-red-600">
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  {validationErrors.phone}
+                {validationErrors.full_name && (
+                  <div className="flex items-center mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {validationErrors.full_name}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-base font-normal text-foreground">
+                {profile?.full_name || "Not provided"}
+              </p>
+            )}
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center space-x-2">
+              <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-muted-foreground">Phone</span>
+            </div>
+            {isEditing ? (
+              <>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-base md:text-sm font-normal text-muted-foreground">+91</span>
+                  </div>
+                  <IndianPhoneInput
+                    id="phone"
+                    value={editData.phone}
+                    onChange={(digits) => onInputChange("phone", digits)}
+                    placeholder="98765 43210"
+                    disabled={isSaving}
+                    className={`w-full h-11 pl-12 ${validationErrors.phone ? "border-red-500 focus:border-red-500" : ""}`}
+                  />
                 </div>
-              )}
-            </div>
+                {validationErrors.phone && (
+                  <div className="flex items-center mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {validationErrors.phone}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-base font-normal text-foreground">
+                {profile?.phone ? `+91 ${formatIndianPhoneDisplay(profile.phone)}` : "Not provided"}
+              </p>
+            )}
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
-              <User className="w-5 h-5 text-primary flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-normal text-foreground">
-                  {profile?.full_name || "Not provided"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
-              <Phone className="w-5 h-5 text-primary flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-normal text-foreground">
-                  {profile?.phone ? `+91 ${formatIndianPhoneDisplay(profile.phone)}` : "Not provided"}
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {!isEditing ? (
+              <Button onClick={onEdit} size="icon" variant="outline" className="size-10" aria-label="Edit profile">
+                <Edit3 className="w-4 h-4" />
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={onSave}
+                  disabled={isSaving || !!validationErrors.full_name || !!validationErrors.phone}
+                  size="icon"
+                  variant="outline"
+                  className="size-10"
+                  aria-label={isSaving ? "Saving..." : "Save changes"}
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                </Button>
+                {!isSaving && (
+                  <Button variant="outline" onClick={onCancel} size="icon" className="size-10" aria-label="Cancel editing">
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Email — read-only */}
+        <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
+          <Mail className="w-5 h-5 text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-muted-foreground">Email</p>
+            <p className="text-base font-normal text-foreground truncate" title={profile?.email ?? ""}>
+              {profile?.email || "Not provided"}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Addresses Section */}

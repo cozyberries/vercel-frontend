@@ -12,14 +12,11 @@ import {
 } from "@/components/ui/sheet";
 import { useWishlist } from "@/components/wishlist-context";
 import WishlistItem from "@/components/WishlistItem";
-import WishlistWarningDialog from "./wishlist-warning-dialog";
 import { useSwipeToClose } from "@/hooks/useSwipeToClose";
 
 export default function WishlistSheet() {
-  const { wishlist, removeFromWishlist, clearWishlist, isLoading } =
-    useWishlist();
+  const { wishlist, removeFromWishlist, isLoading } = useWishlist();
   const [open, setOpen] = useState(false);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const swipeRightToClose = useSwipeToClose("right", () => setOpen(false));
 
   return (
@@ -82,29 +79,9 @@ export default function WishlistSheet() {
                 </div>
               )}
             </div>
-
-            {wishlist.length > 0 && (
-              <div className="border-t p-4 space-y-2">
-                <div className="flex gap-2">
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => setShowClearConfirm(true)}
-                  >
-                    Clear All
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         </SheetContent>
       </Sheet>
-      <WishlistWarningDialog
-        wishlist={wishlist}
-        showClearConfirm={showClearConfirm}
-        setShowClearConfirm={setShowClearConfirm}
-        clearWishlist={clearWishlist}
-      />
     </>
   );
 }

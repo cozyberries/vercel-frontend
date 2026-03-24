@@ -16,7 +16,7 @@ if (!EMAIL || !PASSWORD) {
  * never needs to log in (avoiding Supabase rate limits on repeated logins).
  */
 setup("authenticate purchase test user", async ({ page }) => {
-  await page.goto("/login", { waitUntil: "networkidle" });
+  await page.goto("/login/email", { waitUntil: "networkidle" });
 
   await page.locator("#email").fill(EMAIL);
   await page.locator("#password").fill(PASSWORD);

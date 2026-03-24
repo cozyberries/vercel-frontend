@@ -14,6 +14,7 @@ import {
 import { Product, SizeOption, ProductVariant } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
 import { useCart, getCartItemKey } from "./cart-context";
+import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
@@ -34,6 +35,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
   const router = useRouter();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToCart, updateQuantity, removeFromCart, cart } = useCart();
+  const { requireAuthForIntent } = useAuthGate();
   const inWishlist = isInWishlist(product.id);
   const hasVariants =
     (product.variants?.length ?? 0) > 0 || (product.sizes?.length ?? 0) > 0;
@@ -106,21 +108,24 @@ export default function ProductCard({ product, index, currentView, locale = "en-
     if (stockQty < 3) {
       toast.warning(`Only ${stockQty} item${stockQty === 1 ? " is" : "s are"} available.`);
     }
+    const cartIntentItem = {
+      id: product.id,
+      name: product.name,
+      price: itemPrice,
+      image: product.images?.[0],
+      quantity: 1,
+      stock_quantity: stockQty,
+      ...(size ? { size } : {}),
+      ...(color ? { color } : {}),
+    };
+    if (!requireAuthForIntent({ type: "cart", item: cartIntentItem })) return;
+
     if (existing) {
       const newQty = Math.min(existing.quantity + 1, stockQty);
       updateQuantity(product.id, newQty, existing.size, existing.color);
       toast.success(newQty === stockQty ? `Maximum ${stockQty} in cart` : `${product.name} quantity updated in cart`);
     } else {
-      addToCart({
-        id: product.id,
-        name: product.name,
-        price: itemPrice,
-        image: product.images?.[0],
-        quantity: 1,
-        stock_quantity: stockQty,
-        ...(size ? { size } : {}),
-        ...(color ? { color } : {}),
-      });
+      addToCart(cartIntentItem);
       toast.success(`${product.name} added to cart!`);
     }
   };
@@ -206,14 +211,16 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                 removeFromWishlist(product.id);
                 toast.success(`${product.name} removed from wishlist!`);
               } else {
-                addToWishlist({
+                const item = {
                   id: product.id,
                   name: product.name,
                   price: product.price,
                   image: product.images?.[0],
                   size: product.sizes?.[0]?.name ?? "",
                   color: product.variants?.[0]?.color ?? "",
-                });
+                };
+                if (!requireAuthForIntent({ type: "wishlist", item })) return;
+                addToWishlist(item);
                 toast.success(`${product.name} added to wishlist!`);
               }
             }}
