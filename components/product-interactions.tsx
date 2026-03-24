@@ -21,6 +21,7 @@ import RatingForm from "./rating/RatingForm";
 import { useAuth } from "./supabase-auth-provider";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
 import DiscountedPrice from '@/components/discounted-price'
+import { getDiscountedPrice } from '@/lib/utils/discount'
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -247,8 +248,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     }
   }, [product, initialSize]);
 
-  // Display and cart use same price (GST-inclusive); validation checks against this
+  // Base variant price (MRP); hero + chips show payable after site offer via getDiscountedPrice
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
+  const payablePrice = getDiscountedPrice(displayPrice).discounted;
 
   const availableStock = selectedSize != null ? (selectedSize.stock_quantity ?? 0) : (product?.stock_quantity ?? 0);
   const currentVariantKey = getCartItemKey({
@@ -572,18 +574,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             </div>
           )}
 
-          {/* Price */}
-          <div className="flex items-center gap-2 flex-wrap mb-6">
-            <DiscountedPrice price={displayPrice} />
+          {/* Price: hero = MRP strikethrough + large payable + badge on one row */}
+          <div className="mb-6">
+            <DiscountedPrice price={displayPrice} variant="hero" />
           </div>
-          <p className="text-2xl font-medium mb-4">
-            ₹{displayPrice.toFixed(0)}
-            {selectedSize && selectedSize.price < product.price && (
-              <span className="text-sm text-muted-foreground line-through ml-2">
-                ₹{product.price.toFixed(0)}
-              </span>
-            )}
-          </p>
 
           <div className="space-y-4 mb-6">
             {product.sizes && product.sizes.length > 0 && (
@@ -599,6 +593,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     const isSelected = selectedSize?.name === size.name;
                     const isOutOfStock =
                       size.stock_quantity === undefined || size.stock_quantity <= 0;
+                    const sizePayable = getDiscountedPrice(size.price).discounted;
                     return (
                       <button
                         key={size.name}
@@ -621,7 +616,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                                 : "text-muted-foreground"
                             }`}
                         >
-                          ₹{size.price.toFixed(0)}
+                          ₹{sizePayable.toFixed(0)}
                         </span>
                         {isOutOfStock && (
                           <span className="absolute inset-0 flex items-center justify-center">
@@ -694,7 +689,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 const buyNowItem = {
                   id: product.id,
                   name: product.name,
-                  price: displayPrice,
+                  price: payablePrice,
                   image: product.images?.[0],
                   quantity: qty,
                   stock_quantity: availableStock,
@@ -746,7 +741,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     const cartItem = {
                       id: product.id,
                       name: product.name,
-                      price: displayPrice,
+                      price: payablePrice,
                       image: product.images?.[0],
                       quantity: qtyToAdd,
                       stock_quantity: availableStock,
@@ -983,7 +978,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               const buyNowItemMobile = {
                 id: product.id,
                 name: product.name,
-                price: displayPrice,
+                price: payablePrice,
                 image: product.images?.[0],
                 quantity: qty,
                 stock_quantity: availableStock,
@@ -1026,7 +1021,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 const cartItemMobile = {
                   id: product.id,
                   name: product.name,
-                  price: displayPrice,
+                  price: payablePrice,
                   image: product.images?.[0],
                   quantity: qtyToAdd,
                   stock_quantity: availableStock,
