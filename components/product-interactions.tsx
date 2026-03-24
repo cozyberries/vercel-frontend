@@ -248,7 +248,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     }
   }, [product, initialSize]);
 
-  // Base variant price (MRP); hero + chips show payable after site offer via getDiscountedPrice
+  // Base variant price (MRP). Cart always stores the original catalog price so the backend
+  // can validate against the DB and apply the coupon discount at order level.
+  // getDiscountedPrice is used only for display (hero, chips, DiscountedPrice component).
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
   const payablePrice = getDiscountedPrice(displayPrice).discounted;
 
@@ -689,7 +691,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 const buyNowItem = {
                   id: product.id,
                   name: product.name,
-                  price: payablePrice,
+                  price: displayPrice,
                   image: product.images?.[0],
                   quantity: qty,
                   stock_quantity: availableStock,
@@ -741,7 +743,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     const cartItem = {
                       id: product.id,
                       name: product.name,
-                      price: payablePrice,
+                      price: displayPrice,
                       image: product.images?.[0],
                       quantity: qtyToAdd,
                       stock_quantity: availableStock,
@@ -978,7 +980,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               const buyNowItemMobile = {
                 id: product.id,
                 name: product.name,
-                price: payablePrice,
+                price: displayPrice,
                 image: product.images?.[0],
                 quantity: qty,
                 stock_quantity: availableStock,
@@ -1021,7 +1023,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 const cartItemMobile = {
                   id: product.id,
                   name: product.name,
-                  price: payablePrice,
+                  price: displayPrice,
                   image: product.images?.[0],
                   quantity: qtyToAdd,
                   stock_quantity: availableStock,
