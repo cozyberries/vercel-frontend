@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Product, SizeOption } from "@/lib/services/api";
@@ -93,7 +93,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
         color: selectedColor || undefined,
       })
   );
-  const inWishlist = isInWishlist(product?.id ?? "");
 
   const fetchUsers = async () => {
     try {
@@ -252,7 +251,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   // can validate against the DB and apply the coupon discount at order level.
   // getDiscountedPrice is used only for display (hero, chips, DiscountedPrice component).
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
-  const payablePrice = getDiscountedPrice(displayPrice).discounted;
 
   const availableStock = selectedSize != null ? (selectedSize.stock_quantity ?? 0) : (product?.stock_quantity ?? 0);
   const currentVariantKey = getCartItemKey({
@@ -302,6 +300,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   // Swipe handlers for mobile image navigation
   const minSwipeDistance = 50;
 
+  const setSelectedImageAnimated = (nextIndex: number) => {
+    setSelectedImage(nextIndex);
+  };
+
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
@@ -330,11 +332,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     const isRightSwipe = isHorizontalSwipe && distanceX < -minSwipeDistance;
 
     if (isLeftSwipe && product?.images && selectedImage < product.images.length - 1) {
-      setSelectedImage(selectedImage + 1);
+      setSelectedImageAnimated(selectedImage + 1);
       setHasSwiped(true);
     }
     if (isRightSwipe && selectedImage > 0) {
-      setSelectedImage(selectedImage - 1);
+      setSelectedImageAnimated(selectedImage - 1);
       setHasSwiped(true);
     }
 
@@ -382,7 +384,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   key={index}
                   className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${index === selectedImage ? "ring-2 ring-primary" : ""
                     }`}
-                  onClick={() => setSelectedImage(index)}
+                  onClick={() => setSelectedImageAnimated(index)}
                 >
                   <Image
                     src={toImageSrc(image, undefined, "thumbnail")}
@@ -433,7 +435,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   {selectedImage > 0 && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setSelectedImage(selectedImage - 1); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedImageAnimated(selectedImage - 1); }}
                       className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full w-8 h-8 bg-white/80 backdrop-blur-sm flex items-center justify-center shadow active:scale-90 transition-transform"
                       aria-label="Previous image"
                     >
@@ -443,7 +445,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   {selectedImage < product.images.length - 1 && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setSelectedImage(selectedImage + 1); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedImageAnimated(selectedImage + 1); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full w-8 h-8 bg-white/80 backdrop-blur-sm flex items-center justify-center shadow active:scale-90 transition-transform"
                       aria-label="Next image"
                     >
@@ -453,26 +455,25 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 </>
               )}
 
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={selectedImage}
-                  initial={{ scale: 1.08 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0.96 }}
-                  transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
-                  className="w-full h-full"
-                >
-                  <Image
-                    src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
-                    alt={product.name}
-                    width={600}
-                    height={600}
-                    className="w-full h-full object-cover select-none"
-                    priority
-                    draggable={false}
-                  />
-                </motion.div>
-              </AnimatePresence>
+              <motion.div
+                // Key forces a re-mount so the "appear" animation runs on every change.
+                key={selectedImage}
+                initial={{ scale: isMobile ? 0.75 : 0.65, x: -42 }}
+                animate={{ scale: 1, x: 0 }}
+                transition={{ duration: 0.28, ease: "easeOut" }}
+                className="w-full h-full"
+                style={{ transformOrigin: "left center" }}
+              >
+                <Image
+                  src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
+                  alt={product.name}
+                  width={600}
+                  height={600}
+                  className="w-full h-full object-cover select-none"
+                  priority
+                  draggable={false}
+                />
+              </motion.div>
 
               {/* Preload other gallery images so switching is instant (same src = cache hit) */}
               {product.images && product.images.length > 1 && (
@@ -547,7 +548,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   key={index}
                   className={`aspect-square overflow-hidden bg-[#f5f5f5] cursor-pointer active:scale-90 transition-transform duration-100 ${index === selectedImage ? "ring-2 ring-primary" : ""
                     }`}
-                  onClick={() => setSelectedImage(index)}
+                  onClick={() => setSelectedImageAnimated(index)}
                 >
                   <Image
                     src={toImageSrc(image, undefined, "thumbnail")}
@@ -930,15 +931,23 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
             >
-              <Image
-                src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
-                alt={product.name}
-                width={400}
-                height={400}
-                className="w-full h-auto object-contain select-none"
-                priority
-                draggable={false}
-              />
+              <motion.div
+                key={selectedImage}
+                initial={{ scale: 0.75, x: -42 }}
+                animate={{ scale: 1, x: 0 }}
+                transition={{ duration: 0.28, ease: "easeOut" }}
+                style={{ transformOrigin: "left center" }}
+              >
+                <Image
+                  src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
+                  alt={product.name}
+                  width={400}
+                  height={400}
+                  className="w-full h-auto object-contain select-none"
+                  priority
+                  draggable={false}
+                />
+              </motion.div>
             </div>
             {/* Bottom row: image dots + position indicator */}
             {product.images && product.images.length > 1 && (
@@ -947,7 +956,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   {product.images.map((_, index) => (
                     <button
                       key={index}
-                      onClick={() => setSelectedImage(index)}
+                      onClick={() => setSelectedImageAnimated(index)}
                       className={`w-2 h-2 rounded-full transition-colors ${index === selectedImage ? "bg-white" : "bg-white/50"
                         }`}
                     />
