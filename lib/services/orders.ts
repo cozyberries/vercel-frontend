@@ -5,6 +5,7 @@ import type {
   CreateOrderRequest,
   CreateOrderResponse,
 } from "@/lib/types/order";
+import type { OrderShipmentTrackingData } from "@/lib/types/delhivery-tracking";
 
 class OrderService {
   private supabase: ReturnType<typeof createClient>;
@@ -123,6 +124,35 @@ class OrderService {
       return await response.json();
     } catch (error) {
       console.error("Error fetching order:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Live Delhivery tracking for an order (server proxies carrier API).
+   */
+  async getOrderShipmentTracking(
+    orderId: string
+  ): Promise<OrderShipmentTrackingData> {
+    try {
+      const headers = await this.getHeaders();
+      const params = new URLSearchParams({ orderId });
+      const response = await fetch(
+        `/api/shipping/order-tracking?${params.toString()}`,
+        { headers }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          (errorData as { error?: string }).error || "Failed to load tracking"
+        );
+      }
+
+      const data = await response.json();
+      return data.tracking as OrderShipmentTrackingData;
+    } catch (error) {
+      console.error("Error fetching shipment tracking:", error);
       throw error;
     }
   }

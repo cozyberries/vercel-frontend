@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import { toImageSrc } from "@/lib/utils/image";
+import { ShipmentTrackingSection } from "@/components/orders/ShipmentTrackingSection";
 import type {
   Order,
   Payment,
@@ -229,6 +230,13 @@ export default function OrderDetailsPage() {
                   </div>
                 </div>
               )}
+
+              {order.tracking_number ? (
+                <ShipmentTrackingSection
+                  orderId={order.id}
+                  waybill={order.tracking_number}
+                />
+              ) : null}
 
               {order.estimated_delivery_date && (
                 <div className="mt-4">
