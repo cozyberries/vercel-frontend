@@ -18,7 +18,9 @@ import {
   type GenderOptionFilter,
 } from "@/lib/services/api";
 import type { ActiveOfferResponse } from "@/lib/types/order";
+import type { OrderShipmentTrackingData } from "@/lib/types/delhivery-tracking";
 import type { ProfileCombinedResponse } from "@/lib/services/api";
+import { orderService } from "@/lib/services/orders";
 
 /**
  * Custom hook for fetching age options
@@ -168,6 +170,22 @@ export function useProfileCombined(userId: string | undefined) {
     staleTime: 1000 * 60,       // 1 minute
     gcTime: 1000 * 60 * 10,    // 10 minutes
     enabled: !!userId,
+  });
+}
+
+/**
+ * Delhivery shipment timeline for an order. Fetches only when enabled (e.g. order has a waybill).
+ */
+export function useOrderShipmentTracking(
+  orderId: string | undefined,
+  enabled: boolean
+) {
+  return useQuery<OrderShipmentTrackingData>({
+    queryKey: ["order-shipment-tracking", orderId],
+    queryFn: () => orderService.getOrderShipmentTracking(orderId!),
+    enabled: Boolean(orderId && enabled),
+    staleTime: 1000 * 60 * 3,
+    gcTime: 1000 * 60 * 15,
   });
 }
 

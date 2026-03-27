@@ -46,7 +46,8 @@ app/
   /payment/[orderId]         # Custom UPI payment flow
   /api/products/*            # Product data APIs
   /api/payments/*            # UPI link generation + confirmation
-  /api/shipping/pincode-check  # Delhivery serviceability check
+  /api/shipping/pincode-check   # Delhivery serviceability check
+  /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
   /api/auth/generate-token   # JWT generation (bypasses RLS)
 ```
 
@@ -68,8 +69,9 @@ app/
 ### Shipping Integration (Delhivery — Phase 1)
 - Pincode serviceability check on address creation/selection
 - Auto-fills city, state, country from API response
-- Env var: `DELIVERY_API_KEY`
-- Phases 2 (shipment creation) and 3 (tracking) are handled in a separate admin app
+- **Customer tracking:** `GET /api/shipping/order-tracking?orderId=<uuid>` — Supabase session required; loads `orders.tracking_number` for that user and calls Delhivery Pull API (`/api/v1/packages/json/`). Response: `{ tracking: OrderShipmentTrackingData }`. UI: `useOrderShipmentTracking` in `hooks/useApiQueries.ts`, `ShipmentTrackingSection` on `/orders/[id]`.
+- Env vars: `DELIVERY_API_KEY` (shared with pincode); `DELHIVERY_BASE_URL` / optional `DELHIVERY_TRACKING_BASE_URL` for carrier host (defaults to `https://track.delhivery.com`)
+- Shipment creation remains in the admin app; storefront only displays tracking when `tracking_number` is set
 
 ### Caching Strategy
 - Next.js cache headers set in `next.config.mjs`: 1h for reference data, 60s for products
