@@ -504,6 +504,21 @@ export default function OrdersPage() {
                         </span>
                       </Link>
                     </Button>
+                    {order.tracking_number ? (
+                      <Button
+                        variant="outline"
+                        asChild
+                        className="flex items-center justify-center gap-2 h-9 sm:h-10 text-sm"
+                        size="sm"
+                      >
+                        <Link href={`/orders/${order.id}#shipment-tracking`}>
+                          <span className="flex items-center gap-2">
+                            <Truck className="w-4 h-4" />
+                            Track shipment
+                          </span>
+                        </Link>
+                      </Button>
+                    ) : null}
 
                   </div>
                 </div>
