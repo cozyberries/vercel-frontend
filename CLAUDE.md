@@ -82,6 +82,7 @@ app/
 
 ### Key Conventions
 - API routes use server-only secrets (never expose UPI/shipping keys to client)
+- `POST|GET /api/notifications` and `PATCH /api/notifications/[id]` verify the session, then use **`SUPABASE_SERVICE_ROLE_KEY`** to read/write rows scoped by `user_id` (avoids `GRANT`/`RLS` drift across Supabase projects)
 - `AddressFormModal` accepts `enablePincodeCheck` prop to toggle Delhivery validation
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
 

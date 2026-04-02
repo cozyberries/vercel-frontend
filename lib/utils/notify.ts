@@ -3,6 +3,7 @@ export async function sendNotification(title: string, message: string, type = "i
         const response = await fetch("/api/notifications", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
             body: JSON.stringify({ title, message, type }),
         });
 

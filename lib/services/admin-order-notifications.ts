@@ -46,6 +46,7 @@ export async function notifyAdminsOrderPlacedFromCheckout(order: {
       title,
       message,
       type: "order_status",
+      is_read: false,
       read: false,
       meta,
     });
