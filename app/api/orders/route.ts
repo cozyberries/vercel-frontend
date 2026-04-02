@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { CreateOrderRequest, OrderCreate } from "@/lib/types/order";
+import type { CreateOrderRequest, OrderCreate, OrderStatus } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
 import {
   validateAndFetchAddresses,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/utils/checkout-helpers";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { notifyAdminsOrderPlacedFromCheckout } from "@/lib/services/admin-order-notifications";
 
 export async function POST(request: NextRequest) {
   try {
@@ -170,6 +171,16 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    await notifyAdminsOrderPlacedFromCheckout({
+      id: order.id,
+      order_number: order.order_number,
+      status: order.status as OrderStatus,
+      total_amount: order.total_amount,
+      currency: order.currency,
+      customer_email: email,
+      customer_name: shippingAddress.full_name,
+    });
 
     // Attach items to the response so the client can redirect immediately.
     const orderWithItems = {
