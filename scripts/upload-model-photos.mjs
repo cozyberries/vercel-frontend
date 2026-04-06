@@ -53,3 +53,21 @@ async function listProductStorageFiles(slug) {
     .filter(name => IMAGE_FILE_RE.test(name))
     .sort((a, b) => parseInt(a) - parseInt(b)); // numeric sort: 1.jpg < 2.jpg < 10.jpg
 }
+
+async function shiftStorageFilesDown(slug, files, execute) {
+  // files is sorted ascending: ['1.jpg', '2.jpg', ...]
+  // Move in reverse order to avoid collisions: highest first
+  const reversed = [...files].reverse();
+  for (const file of reversed) {
+    const n = parseInt(file);
+    const src = `products/${slug}/${n}.jpg`;
+    const dest = `products/${slug}/${n + 1}.jpg`;
+    if (!execute) {
+      console.log(`  [DRY RUN] Would move: ${src} → ${n + 1}.jpg`);
+      continue;
+    }
+    const { error } = await supabase.storage.from(BUCKET).move(src, dest);
+    if (error) throw new Error(`Storage move failed ${src} → ${dest}: ${error.message}`);
+    console.log(`  [${slug}] ✓ Moved ${n}.jpg → ${n + 1}.jpg`);
+  }
+}
