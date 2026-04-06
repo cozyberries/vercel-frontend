@@ -129,3 +129,54 @@ async function rebuildDbRows(slug, existingFiles, execute) {
 
   console.log(`  [${slug}] ✓ DB rebuilt (${totalRows} rows)`);
 }
+
+async function processProduct(slug, execute) {
+  const localPath = await validateLocalPhoto(slug);
+  if (!localPath) {
+    console.warn(`  [SKIP] ${slug}: local 1.jpg not found`);
+    return 'skipped';
+  }
+
+  const existingFiles = await listProductStorageFiles(slug);
+
+  if (!execute) {
+    console.log(`\n[DRY RUN] ${slug} (${existingFiles.length} existing → ${existingFiles.length + 1} after)`);
+    await shiftStorageFilesDown(slug, existingFiles, false);
+    await uploadModelPhoto(slug, localPath, false);
+    await rebuildDbRows(slug, existingFiles, false);
+    return 'ok';
+  }
+
+  console.log(`\n[${slug}] Shifting ${existingFiles.length} files...`);
+  await shiftStorageFilesDown(slug, existingFiles, true);
+  await uploadModelPhoto(slug, localPath, true);
+  await rebuildDbRows(slug, existingFiles, true);
+  return 'ok';
+}
+
+async function main() {
+  const slugs = await discoverSlugs();
+  console.log(`\nFound ${slugs.length} products. Mode: ${EXECUTE ? 'EXECUTE' : 'DRY RUN'}\n`);
+
+  const results = { ok: [], skipped: [], failed: [] };
+
+  for (const slug of slugs) {
+    try {
+      const status = await processProduct(slug, EXECUTE);
+      results[status].push(slug);
+    } catch (err) {
+      console.error(`  [FAIL] ${slug}: ${err.message}`);
+      results.failed.push(slug);
+    }
+  }
+
+  console.log('\n── Summary ──────────────────────────────');
+  console.log(`✓ Succeeded: ${results.ok.length}`);
+  if (results.skipped.length) console.log(`⚠ Skipped:   ${results.skipped.length} (${results.skipped.join(', ')})`);
+  if (results.failed.length) {
+    console.log(`✗ Failed:    ${results.failed.length} (${results.failed.join(', ')})`);
+    process.exit(1);
+  }
+}
+
+main().catch(err => { console.error('Fatal:', err); process.exit(1); });
