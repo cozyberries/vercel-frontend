@@ -1,0 +1,24 @@
+// scripts/upload-model-photos.mjs
+import { createClient } from '@supabase/supabase-js';
+import { config } from 'dotenv';
+import { readdir, access, readFile } from 'fs/promises';
+import { resolve, dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, '../.env.local') });
+
+const EXECUTE = process.argv.includes('--execute');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const BUCKET = 'media';
+const SOURCE_DIR = '/Users/abdul.azeez/Personal/cozyberries/Product Model Photoshoots/Finalised';
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+console.log(EXECUTE ? '🚀 EXECUTE mode' : '🔍 DRY RUN mode (pass --execute to apply changes)');
