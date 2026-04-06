@@ -40,3 +40,16 @@ async function validateLocalPhoto(slug) {
     return null;
   }
 }
+
+const IMAGE_FILE_RE = /^\d+\.jpg$/i;
+
+async function listProductStorageFiles(slug) {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .list(`products/${slug}`);
+  if (error) throw new Error(`Storage list failed for ${slug}: ${error.message}`);
+  return (data || [])
+    .map(f => f.name)
+    .filter(name => IMAGE_FILE_RE.test(name))
+    .sort((a, b) => parseInt(a) - parseInt(b)); // numeric sort: 1.jpg < 2.jpg < 10.jpg
+}
