@@ -71,3 +71,17 @@ async function shiftStorageFilesDown(slug, files, execute) {
     console.log(`  [${slug}] ✓ Moved ${n}.jpg → ${n + 1}.jpg`);
   }
 }
+
+async function uploadModelPhoto(slug, localPath, execute) {
+  const destPath = `products/${slug}/1.jpg`;
+  if (!execute) {
+    console.log(`  [DRY RUN] Would upload: ${localPath} → ${destPath}`);
+    return;
+  }
+  const fileBuffer = await readFile(localPath);
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(destPath, fileBuffer, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw new Error(`Upload failed for ${slug}: ${error.message}`);
+  console.log(`  [${slug}] ✓ Uploaded model photo → 1.jpg`);
+}
