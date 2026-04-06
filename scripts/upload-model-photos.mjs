@@ -85,3 +85,47 @@ async function uploadModelPhoto(slug, localPath, execute) {
   if (error) throw new Error(`Upload failed for ${slug}: ${error.message}`);
   console.log(`  [${slug}] ✓ Uploaded model photo → 1.jpg`);
 }
+
+function buildImageUrl(slug, n) {
+  return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/products/${slug}/${n}.jpg`;
+}
+
+async function rebuildDbRows(slug, existingFiles, execute) {
+  // existingFiles: original sorted list before any shifting, e.g. ['1.jpg', '2.jpg', '3.jpg']
+  // After shifting in storage: old 1.jpg is now 2.jpg, old 2.jpg is now 3.jpg, etc.
+  // New model photo occupies 1.jpg.
+  // Resulting display_orders: 1 (model), 2 (was 1.jpg), 3 (was 2.jpg), ...
+  const totalRows = existingFiles.length + 1;
+  const rows = [
+    {
+      product_slug: slug,
+      url: buildImageUrl(slug, 1),
+      is_primary: true,
+      display_order: 1,
+    },
+    ...existingFiles.map((_, i) => ({
+      product_slug: slug,
+      url: buildImageUrl(slug, i + 2),
+      is_primary: false,
+      display_order: i + 2,
+    })),
+  ];
+
+  if (!execute) {
+    console.log(`  [DRY RUN] Would upsert DB: ${totalRows} rows (display_order 1–${totalRows})`);
+    return;
+  }
+
+  const { error: deleteError } = await supabase
+    .from('product_images')
+    .delete()
+    .eq('product_slug', slug);
+  if (deleteError) throw new Error(`DB delete failed for ${slug}: ${deleteError.message}`);
+
+  const { error: insertError } = await supabase
+    .from('product_images')
+    .insert(rows);
+  if (insertError) throw new Error(`DB insert failed for ${slug}: ${insertError.message}`);
+
+  console.log(`  [${slug}] ✓ DB rebuilt (${totalRows} rows)`);
+}
