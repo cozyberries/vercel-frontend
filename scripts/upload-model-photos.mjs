@@ -22,3 +22,21 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 console.log(EXECUTE ? '🚀 EXECUTE mode' : '🔍 DRY RUN mode (pass --execute to apply changes)');
+
+async function discoverSlugs() {
+  const entries = await readdir(SOURCE_DIR, { withFileTypes: true });
+  return entries
+    .filter(e => e.isDirectory())
+    .map(e => e.name)
+    .sort();
+}
+
+async function validateLocalPhoto(slug) {
+  const photoPath = join(SOURCE_DIR, slug, '1.jpg');
+  try {
+    await access(photoPath);
+    return photoPath;
+  } catch {
+    return null;
+  }
+}
