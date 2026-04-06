@@ -112,7 +112,7 @@ async function rebuildDbRows(slug, existingFiles, execute) {
   ];
 
   if (!execute) {
-    console.log(`  [DRY RUN] Would upsert DB: ${totalRows} rows (display_order 1–${totalRows})`);
+    console.log(`  [DRY RUN] Would delete + reinsert DB: ${totalRows} rows (display_order 1–${totalRows})`);
     return;
   }
 
@@ -131,6 +131,10 @@ async function rebuildDbRows(slug, existingFiles, execute) {
 }
 
 async function processProduct(slug, execute) {
+  // WARNING: Steps are not atomic. If uploadModelPhoto or rebuildDbRows throws after
+  // shiftStorageFilesDown has already moved files, that product's storage will be in a
+  // partially-shifted state. Re-running will fail because 1.jpg already exists (upsert:false).
+  // Manual repair required: unshift storage files back before re-running that slug.
   const localPath = await validateLocalPhoto(slug);
   if (!localPath) {
     console.warn(`  [SKIP] ${slug}: local 1.jpg not found`);
