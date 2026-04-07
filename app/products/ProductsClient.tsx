@@ -171,10 +171,40 @@ export default function ProductsClient() {
     }
   }, [isMobile, searchParams, router]);
 
-  // Sync local search input with URL param
+  // Tracks whether the next currentSearch change came from our own debounce push.
+  // If true, skip re-syncing searchInput so typing isn't interrupted mid-word.
+  const skipSyncRef = useRef(false);
+
+  // Sync local search input with URL param (e.g. back/forward nav, external filter changes).
+  // Skipped after our own debounce push to avoid resetting the input mid-typing.
   useEffect(() => {
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
+    }
     setSearchInput(currentSearch);
   }, [currentSearch]);
+
+  // Debounced live search — push ?search= URL param 500ms after typing stops.
+  // skipSyncRef prevents the URL update from resetting the input mid-typing.
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === currentSearch) return;
+
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (trimmed) {
+        params.set("search", trimmed);
+      } else {
+        params.delete("search");
+      }
+      skipSyncRef.current = true;
+      router.replace(`/products?${params.toString()}`);
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, currentSearch, searchParams, router]);
 
   // Memoize searchParams string to create stable dependency (prevent unnecessary useEffect re-runs)
   const searchParamsString = useMemo(() => searchParams.toString(), [searchParams]);
@@ -536,7 +566,7 @@ export default function ProductsClient() {
         onSubmit={handleSearchSubmit}
         onClear={handleClearSearch}
         inputRef={searchInputRef}
-        disabled={isProductsLoading || isFiltersLoading}
+        disabled={isFiltersLoading}
         className="flex-1"
       />
       <div className="flex items-center justify-between mb-4">
@@ -730,6 +760,7 @@ export default function ProductsClient() {
             onChange={setSearchInput}
             onSubmit={handleSearchSubmit}
             onClear={handleClearSearch}
+            inputRef={searchInputRef}
             className="flex-1 max-w-sm"
           />
 
