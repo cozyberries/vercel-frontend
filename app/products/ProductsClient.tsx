@@ -157,8 +157,8 @@ export default function ProductsClient() {
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
   // Grid/list view only on mobile; desktop always uses grid. "view" query is mobile-only.
-  // Mobile default is list; "view=grid" opts into grid.
-  const currentView = searchParams.get("view") === "grid" ? "grid" : "list";
+  // Default is grid; "view=list" opts into list.
+  const currentView = searchParams.get("view") === "list" ? "list" : "grid";
   const effectiveView = isMobile === false ? "grid" : currentView;
 
   // On desktop, strip view param from URL so we don't show view=list in the query
@@ -479,7 +479,7 @@ export default function ProductsClient() {
 
   const handleViewChange = (view: "grid" | "list") => {
     const params = new URLSearchParams(searchParams.toString());
-    if (view === "list") params.delete("view");
+    if (view === "grid") params.delete("view");
     else params.set("view", view);
     router.push(`/products?${params.toString()}`);
   };
