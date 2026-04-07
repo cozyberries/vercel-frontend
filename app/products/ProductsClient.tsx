@@ -200,6 +200,7 @@ export default function ProductsClient() {
       }
       skipSyncRef.current = true;
       router.replace(`/products?${params.toString()}`);
+      requestAnimationFrame(() => searchInputRef.current?.focus());
     }, 500);
 
     return () => clearTimeout(timer);
@@ -565,7 +566,7 @@ export default function ProductsClient() {
         onSubmit={handleSearchSubmit}
         onClear={handleClearSearch}
         inputRef={searchInputRef}
-        disabled={isProductsLoading || isFiltersLoading}
+        disabled={isFiltersLoading}
         className="flex-1"
       />
       <div className="flex items-center justify-between mb-4">
@@ -759,6 +760,7 @@ export default function ProductsClient() {
             onChange={setSearchInput}
             onSubmit={handleSearchSubmit}
             onClear={handleClearSearch}
+            inputRef={searchInputRef}
             className="flex-1 max-w-sm"
           />
 
