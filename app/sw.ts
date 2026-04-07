@@ -158,7 +158,7 @@ const MANAGED_PREFIXES = [
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
+      Promise.allSettled(
         keys
           .filter(
             (key) =>
