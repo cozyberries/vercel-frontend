@@ -71,16 +71,18 @@ export default function Header() {
 
           {/* Icons + Auth */}
           <div className="flex items-center justify-end flex-1 space-x-1">
-            {/* Search — opens suggestion sheet */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors duration-200"
-              aria-label="Search products"
-              onClick={() => setSearchOpen(true)}
-            >
-              <Search className="h-5 w-5" />
-            </Button>
+            {/* Search — hidden on /products (inline search bar takes over) */}
+            {pathname !== '/products' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors duration-200"
+                aria-label="Search products"
+                onClick={() => setSearchOpen(true)}
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            )}
             <SearchResultsSheet isOpen={searchOpen} onOpenChange={setSearchOpen} />
             {/* User Icon — desktop only */}
             <div className="hidden lg:block">
