@@ -176,6 +176,26 @@ export default function ProductsClient() {
     setSearchInput(currentSearch);
   }, [currentSearch]);
 
+  // Debounced live search — push ?search= URL param 300ms after typing stops.
+  // The trimmed === currentSearch guard prevents a feedback loop when the URL
+  // update causes currentSearch to change and re-sync searchInput.
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === currentSearch) return;
+
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (trimmed) {
+        params.set("search", trimmed);
+      } else {
+        params.delete("search");
+      }
+      router.replace(`/products?${params.toString()}`);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, currentSearch, searchParams, router]);
+
   // Memoize searchParams string to create stable dependency (prevent unnecessary useEffect re-runs)
   const searchParamsString = useMemo(() => searchParams.toString(), [searchParams]);
 
