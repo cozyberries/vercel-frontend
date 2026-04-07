@@ -171,14 +171,22 @@ export default function ProductsClient() {
     }
   }, [isMobile, searchParams, router]);
 
-  // Sync local search input with URL param
+  // Tracks whether the next currentSearch change came from our own debounce push.
+  // If true, skip re-syncing searchInput so typing isn't interrupted mid-word.
+  const skipSyncRef = useRef(false);
+
+  // Sync local search input with URL param (e.g. back/forward nav, external filter changes).
+  // Skipped after our own debounce push to avoid resetting the input mid-typing.
   useEffect(() => {
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
+    }
     setSearchInput(currentSearch);
   }, [currentSearch]);
 
-  // Debounced live search — push ?search= URL param 300ms after typing stops.
-  // The trimmed === currentSearch guard prevents a feedback loop when the URL
-  // update causes currentSearch to change and re-sync searchInput.
+  // Debounced live search — push ?search= URL param 500ms after typing stops.
+  // skipSyncRef prevents the URL update from resetting the input mid-typing.
   useEffect(() => {
     const trimmed = searchInput.trim();
     if (trimmed === currentSearch) return;
@@ -190,8 +198,9 @@ export default function ProductsClient() {
       } else {
         params.delete("search");
       }
+      skipSyncRef.current = true;
       router.replace(`/products?${params.toString()}`);
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [searchInput, currentSearch, searchParams, router]);
