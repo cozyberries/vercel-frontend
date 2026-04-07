@@ -25,7 +25,7 @@ const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
   ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map((s) => s.trim())
   : DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS;
 
-// Category image overrides - use specific Cloudinary URLs for certain categories
+// Category image overrides - use specific Supabase Storage URLs for certain categories
 const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
   "sleeveless-jablas":
     "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/categories/sleeveless-jablas.webp"

@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+
+async function uploadImageToSupabase(file: File, ratingId: string): Promise<string> {
+  const supabase = createAdminSupabaseClient();
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `reviews/${ratingId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const arrayBuffer = await file.arrayBuffer();
+  const { error } = await supabase.storage
+    .from("media")
+    .upload(path, arrayBuffer, { contentType: file.type, upsert: false });
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+  const { data } = supabase.storage.from("media").getPublicUrl(path);
+  return data.publicUrl;
+}
 
 function invalidateRatingCaches(productSlug: string): void {
   UpstashService.delete("ratings:all").catch(() => {});
@@ -99,7 +111,7 @@ export async function POST(request: NextRequest) {
     if (validImages.length > 0) {
       const uploadResults = await Promise.allSettled(
         validImages.map((file) =>
-          uploadImageToCloudinary(file).then((url) => ({ file: file.name, url, status: "success" }))
+          uploadImageToSupabase(file, data.id).then((url) => ({ file: file.name, url, status: "success" }))
         )
       );
 

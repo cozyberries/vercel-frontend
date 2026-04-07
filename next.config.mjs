@@ -37,12 +37,6 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'res.cloudinary.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
         hostname: 'aqvcyyhuqcjnhohaclib.supabase.co',
         port: '',
         pathname: '/**',
@@ -67,6 +61,12 @@ const nextConfig = {
   },
   env: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  },
+  webpack: (config, { buildId, webpack: wp }) => {
+    // Inject build ID into the service worker so cache names are versioned per deployment.
+    // Old cache buckets are abandoned on activation and expire naturally via maxAgeSeconds.
+    config.plugins.push(new wp.DefinePlugin({ __BUILD_ID__: JSON.stringify(buildId) }));
+    return config;
   },
   async headers() {
     return [
