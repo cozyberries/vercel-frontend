@@ -4,7 +4,11 @@ import { UpstashService } from "@/lib/upstash";
 
 async function uploadImageToSupabase(file: File, ratingId: string): Promise<string> {
   const supabase = createAdminSupabaseClient();
-  const ext = file.name.split(".").pop() ?? "jpg";
+  const dotIdx = file.name.lastIndexOf(".");
+  const rawExt = dotIdx !== -1 ? file.name.slice(dotIdx + 1) : "";
+  const ext = /^[a-zA-Z0-9]+$/.test(rawExt)
+    ? rawExt.toLowerCase()
+    : (file.type.split("/")[1] ?? "jpg");
   const path = `reviews/${ratingId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const arrayBuffer = await file.arrayBuffer();
   const { error } = await supabase.storage

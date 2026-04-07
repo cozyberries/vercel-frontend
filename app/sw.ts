@@ -144,3 +144,29 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// On activation, delete any cache buckets from previous deployments that share our
+// known prefixes but carry a different build ID suffix.
+const MANAGED_PREFIXES = [
+  "pages-cache-",
+  "api-reference-cache-",
+  "api-products-cache-",
+  "next-static-",
+  "next-image-",
+];
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter(
+            (key) =>
+              MANAGED_PREFIXES.some((p) => key.startsWith(p)) &&
+              !key.endsWith(`-${v}`)
+          )
+          .map((key) => caches.delete(key))
+      )
+    )
+  );
+});
