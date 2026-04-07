@@ -4,12 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import SnowflakeDecoration from "@/components/SnowflakeDecoration";
-
-const ESSENTIAL_KITS_IMAGE =
-  "https://res.cloudinary.com/dxokykvty/image/upload/v1772863126/cozyberries/categories/newborn-essentials/3_47f1af.png";
+import { usePreloadedData } from "@/components/data-preloader";
+import { toImageSrc, PLACEHOLDER_DATA_URL } from "@/lib/utils/image";
 
 export default function NewbornGiftingSection() {
-  const essentialKitsUrl = ESSENTIAL_KITS_IMAGE;
+  const { categories } = usePreloadedData();
+  const newbornCategory = categories.find((c) => c.slug === "newborn-essentials");
+  const essentialKitsUrl = newbornCategory
+    ? toImageSrc(newbornCategory.image)
+    : PLACEHOLDER_DATA_URL;
 
   return (
     <section className="lg:py-14 py-8 bg-[#f9f7f4] relative overflow-hidden">

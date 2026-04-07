@@ -15,6 +15,10 @@ declare global {
 }
 
 declare const self: ServiceWorkerGlobalScope;
+// Injected at build time by DefinePlugin — unique per Vercel deployment (or Next.js buildId locally).
+// Versioning cache names causes old buckets to be abandoned on SW activation; entries expire naturally.
+declare const __BUILD_ID__: string;
+const v = __BUILD_ID__;
 
 // Only cache successful same-origin responses
 const cacheablePlugin = {
@@ -22,7 +26,7 @@ const cacheablePlugin = {
     response.status === 200 ? response : null,
 };
 
-// Accept opaque (cross-origin, status 0) and normal 200 responses — needed for Cloudinary
+// Accept opaque (cross-origin, status 0) and normal 200 responses — needed for cross-origin images
 const opaqueOrOkPlugin = {
   cacheWillUpdate: async ({ response }: { response: Response }) =>
     response.status === 0 || response.status === 200 ? response : null,
@@ -42,7 +46,7 @@ const serwist = new Serwist({
     {
       matcher: ({ request }) => request.mode === "navigate",
       handler: new NetworkFirst({
-        cacheName: "pages-cache",
+        cacheName: `pages-cache-${v}`,
         networkTimeoutSeconds: 10,
         plugins: [
           cacheablePlugin,
@@ -64,7 +68,7 @@ const serwist = new Serwist({
           "/api/categories/options",
         ].some((p) => url.pathname.startsWith(p)),
       handler: new StaleWhileRevalidate({
-        cacheName: "api-reference-cache",
+        cacheName: `api-reference-cache-${v}`,
         plugins: [
           cacheablePlugin,
           new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 3600 }),
@@ -78,28 +82,11 @@ const serwist = new Serwist({
     {
       matcher: ({ url }) => url.pathname.startsWith("/api/products"),
       handler: new NetworkFirst({
-        cacheName: "api-products-cache",
+        cacheName: `api-products-cache-${v}`,
         networkTimeoutSeconds: 6,
         plugins: [
           cacheablePlugin,
           new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 }),
-        ],
-      }),
-    },
-
-    // ── Cloudinary images ─────────────────────────────────────────────────────
-    // CacheFirst: CDN URLs are content-addressed / immutable; cache aggressively.
-    // opaqueOrOkPlugin accepts status 0 (opaque cross-origin) responses safely.
-    {
-      matcher: ({ url }) => url.hostname === "res.cloudinary.com",
-      handler: new CacheFirst({
-        cacheName: "cloudinary-images",
-        plugins: [
-          opaqueOrOkPlugin,
-          new ExpirationPlugin({
-            maxEntries: 100,
-            maxAgeSeconds: 7 * 24 * 60 * 60,
-          }),
         ],
       }),
     },
@@ -110,7 +97,7 @@ const serwist = new Serwist({
     {
       matcher: ({ url }) => url.pathname.startsWith("/_next/static/"),
       handler: new CacheFirst({
-        cacheName: "next-static",
+        cacheName: `next-static-${v}`,
         plugins: [
           cacheablePlugin,
           new ExpirationPlugin({
@@ -129,7 +116,7 @@ const serwist = new Serwist({
     {
       matcher: ({ url }) => url.pathname.startsWith("/_next/image"),
       handler: new StaleWhileRevalidate({
-        cacheName: "next-image",
+        cacheName: `next-image-${v}`,
         plugins: [
           opaqueOrOkPlugin,
           new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 3600 }),
@@ -157,3 +144,29 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// On activation, delete any cache buckets from previous deployments that share our
+// known prefixes but carry a different build ID suffix.
+const MANAGED_PREFIXES = [
+  "pages-cache-",
+  "api-reference-cache-",
+  "api-products-cache-",
+  "next-static-",
+  "next-image-",
+];
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.allSettled(
+        keys
+          .filter(
+            (key) =>
+              MANAGED_PREFIXES.some((p) => key.startsWith(p)) &&
+              !key.endsWith(`-${v}`)
+          )
+          .map((key) => caches.delete(key))
+      )
+    )
+  );
+});
