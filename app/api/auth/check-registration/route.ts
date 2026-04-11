@@ -10,12 +10,17 @@ const RATE_LIMIT_KEY_PREFIX = "check_registration";
 const RATE_LIMIT_LIMIT = 10;
 const RATE_LIMIT_WINDOW = 900; // 15 min
 
+const IP_RATE_LIMIT_KEY_PREFIX = "check_registration_ip";
+const IP_RATE_LIMIT_LIMIT = 30;
+const IP_RATE_LIMIT_WINDOW = 900; // 15 min
+
 export type CheckRegistrationStatus =
   | "none"
   | "phone_exists"
   | "email_exists_no_phone"
   | "email_exists_with_phone"
-  | "already_registered";
+  | "already_registered"
+  | "both_exist_separate_accounts";
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
@@ -30,9 +35,9 @@ export async function POST(request: NextRequest) {
   }
 
   const digits = normalizePhone(String(phone));
-  if (digits.length !== 10) {
+  if (digits.length !== 10 || !/^[6-9]/.test(digits)) {
     return NextResponse.json(
-      { error: "Invalid phone number. Must be 10 digits." },
+      { error: "Invalid phone number. Must be a valid 10-digit Indian mobile number." },
       { status: 400 }
     );
   }
@@ -43,6 +48,21 @@ export async function POST(request: NextRequest) {
     RATE_LIMIT_WINDOW
   );
   if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+  }
+
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown";
+  const ipRateLimit = await UpstashService.checkRateLimit(
+    `${IP_RATE_LIMIT_KEY_PREFIX}:${ip}`,
+    IP_RATE_LIMIT_LIMIT,
+    IP_RATE_LIMIT_WINDOW
+  );
+  if (!ipRateLimit.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429 }
@@ -68,11 +88,11 @@ export async function POST(request: NextRequest) {
             "This phone and email are already linked to the same account.",
         });
       }
-      // Phone belongs to a different account than the email — phone takes priority
+      // Phone and email belong to two separate accounts — block, don't merge silently
       return NextResponse.json({
-        status: "phone_exists" satisfies CheckRegistrationStatus,
+        status: "both_exist_separate_accounts" satisfies CheckRegistrationStatus,
         message:
-          "This phone number is already registered. Verifying will sign you into the existing account.",
+          "This phone number and email address are registered to separate accounts. Please sign in with one of them instead.",
       });
     }
 
