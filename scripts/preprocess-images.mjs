@@ -32,7 +32,8 @@ function loadEnv() {
       }
       if (key) env[key] = val;
     }
-  } catch {
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
     // .env.local not found — fall back to process.env
   }
   return env;
@@ -65,7 +66,7 @@ async function listProductFolders() {
     .from(BUCKET)
     .list("products", { limit: 1000, sortBy: { column: "name", order: "asc" } });
   if (error) throw new Error(`Failed to list products/: ${error.message}`);
-  return (data ?? []).filter((item) => !item.id); // folders have no id
+  return (data ?? []).filter((item) => !item.id && item.metadata === null); // virtual folder entries
 }
 
 async function listFolderImages(slug) {
