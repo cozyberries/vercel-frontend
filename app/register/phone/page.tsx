@@ -9,6 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type { CheckRegistrationStatus } from "@/app/api/auth/check-registration/route";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 
@@ -37,6 +48,11 @@ export default function RegisterPhonePage() {
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [conflictDialog, setConflictDialog] = useState<{
+    open: boolean;
+    status: CheckRegistrationStatus;
+    message: string;
+  }>({ open: false, status: "none", message: "" });
 
   // Already logged in: redirect to profile or intended page
   useEffect(() => {
@@ -67,26 +83,15 @@ export default function RegisterPhonePage() {
     );
   }
 
-  const handleSendOtp = async () => {
+  const doSendOtp = async () => {
     setError("");
-    setPhoneError("");
-
-    const digits = phone.replace(/\D/g, "");
-    const phoneValidation = validateRequiredPhoneNumber(digits);
-    if (!phoneValidation.isValid) {
-      setPhoneError(phoneValidation.error || "Invalid phone number");
-      return;
-    }
-
     setLoading(true);
     try {
+      const digits = phone.replace(/\D/g, "");
       const res = await fetch("/api/auth/verifynow/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: digits,
-          intent: "register",
-        }),
+        body: JSON.stringify({ phone: digits, intent: "register" }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -97,7 +102,6 @@ export default function RegisterPhonePage() {
             ? "Too many requests. Please try again later."
             : (data?.error as string) || "Something went wrong. Please try again.";
         setError(message);
-        setLoading(false);
         return;
       }
 
@@ -119,6 +123,65 @@ export default function RegisterPhonePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSendOtp = async () => {
+    setError("");
+    setPhoneError("");
+
+    const digits = phone.replace(/\D/g, "");
+    const phoneValidation = validateRequiredPhoneNumber(digits);
+    if (!phoneValidation.isValid) {
+      setPhoneError(phoneValidation.error || "Invalid phone number");
+      return;
+    }
+
+    setLoading(true);
+    // When proceeding to doSendOtp, keep loading=true to avoid a flicker.
+    // Only set it false in the branches that stop here (conflicts / errors).
+    let shouldProceed = false;
+    try {
+      const res = await fetch("/api/auth/check-registration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: digits, email: email.trim() || undefined }),
+      });
+
+      // Fail open: if check errors, proceed to send OTP anyway
+      if (res.ok) {
+        const data = await res.json().catch(() => ({ status: "none" }));
+        const status = (data?.status ?? "none") as CheckRegistrationStatus;
+
+        if (status === "already_registered") {
+          setError(
+            "This phone and email are already linked to an account. Please sign in instead."
+          );
+          return;
+        }
+
+        if (status === "both_exist_separate_accounts") {
+          setError(
+            data.message ||
+              "This phone number and email address are registered to separate accounts. Please sign in with one of them instead."
+          );
+          return;
+        }
+
+        if (status !== "none") {
+          setConflictDialog({ open: true, status, message: data.message ?? "" });
+          return;
+        }
+      }
+      shouldProceed = true;
+    } catch {
+      shouldProceed = true; // fail open
+    } finally {
+      // Only reset loading when we're NOT continuing to doSendOtp.
+      // doSendOtp manages its own loading state.
+      if (!shouldProceed) setLoading(false);
+    }
+
+    await doSendOtp();
   };
 
   const handleGoogleSignIn = async () => {
@@ -266,6 +329,34 @@ export default function RegisterPhonePage() {
             {loading ? "Sending OTP..." : "Send OTP"}
           </Button>
         </div>
+
+        <AlertDialog
+          open={conflictDialog.open}
+          onOpenChange={(open: boolean) =>
+            setConflictDialog((prev) => ({ ...prev, open }))
+          }
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Account already exists</AlertDialogTitle>
+              <AlertDialogDescription>
+                {conflictDialog.message}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={loading}
+                onClick={() => {
+                  setConflictDialog((prev) => ({ ...prev, open: false }));
+                  void doSendOtp();
+                }}
+              >
+                Proceed
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

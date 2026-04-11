@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
-import { findUserIdByPhone, createPhoneUser } from "@/lib/auth-phone";
+import { findUserIdByPhone, findAuthUserByEmail, createPhoneUser } from "@/lib/auth-phone";
 import { validateEmail } from "@/lib/utils/validation";
 import {
   getAuthTokenFromEnv,
@@ -154,11 +154,37 @@ export async function POST(request: NextRequest) {
       const rawEmail = typeof bodyEmail === "string" ? bodyEmail.trim() : undefined;
       const registerEmail =
         rawEmail && validateEmail(rawEmail).isValid ? rawEmail : undefined;
-      const created = await createPhoneUser(normalizedPhone, {
-        fullName: fullName || undefined,
-        email: registerEmail,
-      });
-      email = created.email;
+
+      // Email-first path: if user provided an email that already exists in auth,
+      // link/overwrite the phone on that account rather than creating a new one.
+      if (registerEmail) {
+        const emailUser = await findAuthUserByEmail(registerEmail);
+        if (emailUser) {
+          const supabase = createAdminSupabaseClient();
+          const profilePayload: Record<string, unknown> = {
+            id: emailUser.id,
+            phone: normalizedPhone,
+            updated_at: new Date().toISOString(),
+          };
+          if (fullName) profilePayload.full_name = fullName;
+          const { error: linkError } = await supabase
+            .from("profiles")
+            .upsert(profilePayload, { onConflict: "id" });
+          if (linkError) throw new Error(`Failed to link phone to profile: ${linkError.message}`);
+          email = emailUser.email;
+        } else {
+          const created = await createPhoneUser(normalizedPhone, {
+            fullName: fullName || undefined,
+            email: registerEmail,
+          });
+          email = created.email;
+        }
+      } else {
+        const created = await createPhoneUser(normalizedPhone, {
+          fullName: fullName || undefined,
+        });
+        email = created.email;
+      }
     }
 
     const supabase = createAdminSupabaseClient();
@@ -206,6 +232,10 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("Verify OTP user/link error:", err);
+    const errCode = (err as { code?: string }).code;
+    if (errCode === "email_registered_elsewhere") {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     const body: { error: string; details?: string } = {
       error: "Unable to complete sign in. Please try again.",
     };
