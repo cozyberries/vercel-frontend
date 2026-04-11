@@ -184,9 +184,16 @@ export async function POST(request: NextRequest) {
     });
     notifyOrderPlaced({
       orderNumber: order.order_number,
+      orderStatus: order.status,
       email,
+      phone: shippingRow.phone ?? null,
+      shippingAddress: shippingAddress as any,
       totalAmount: order.total_amount,
-      itemCount: items.length,
+      subtotal: orderSummary.subtotal,
+      deliveryCharge: serverDeliveryCharge,
+      discountCode: discountCode,
+      discountAmount: discountAmount,
+      items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
     });
 
     // Attach items to the response so the client can redirect immediately.

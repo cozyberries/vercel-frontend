@@ -319,6 +319,10 @@ async function handleSessionConfirm(
     notifyPaymentConfirmed({
         orderNumber: order.order_number,
         totalAmount: session.total_amount,
+        orderStatus: "verifying_payment",
+        paymentStatus: "processing",
+        email: session.customer_email ?? null,
+        phone: session.customer_phone ?? null,
     });
 
     return NextResponse.json({
@@ -439,6 +443,10 @@ async function handleOrderConfirm(
     notifyPaymentConfirmed({
         orderNumber: order.order_number,
         totalAmount: order.total_amount,
+        orderStatus: "verifying_payment",
+        paymentStatus: "processing",
+        email: user.email ?? null,
+        phone: order.customer_phone ?? null,
     });
 
     return NextResponse.json({ success: true });

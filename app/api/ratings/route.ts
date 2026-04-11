@@ -161,10 +161,13 @@ export async function POST(request: NextRequest) {
     }
 
     invalidateRatingCaches(product_slug);
+    const { data: raterProfile } = await supabase.from("profiles").select("phone").eq("id", authUser.id).maybeSingle();
     notifyNewRating({
       productSlug: product_slug,
       rating: ratingValue,
       comment: comment || null,
+      email: authUser.email ?? null,
+      phone: raterProfile?.phone ?? null,
     });
     if (uploadStatus !== undefined) {
       return NextResponse.json({

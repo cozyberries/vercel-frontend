@@ -57,7 +57,11 @@ export async function GET(request: Request) {
       typeof row.tracking_number === "string" ? row.tracking_number.trim() : "";
 
     if (!waybill) {
-      notifyTrackingGap({ orderId });
+      supabase.from("profiles").select("phone").eq("id", user.id).maybeSingle().then(({ data: profile }) => {
+        notifyTrackingGap({ orderId, email: user.email ?? null, phone: profile?.phone ?? null });
+      }).catch(() => {
+        notifyTrackingGap({ orderId, email: user.email ?? null, phone: null });
+      });
       return NextResponse.json(
         { error: "Tracking is not available for this order yet" },
         { status: 400 }

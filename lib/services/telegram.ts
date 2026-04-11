@@ -42,37 +42,127 @@ async function sendToTelegram(text: string): Promise<void> {
   }
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toStatusLabel(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // ─── Exported alert functions ─────────────────────────────────────────────────
 
 export function notifyCheckoutInitiated(data: {
   email: string;
+  phone: string | null;
   itemCount: number;
 }): void {
   const ts = toIST(new Date());
   void sendToTelegram(
-    `🛍️ <b>Checkout Initiated</b>\n👤 ${data.email}\n🛒 ${data.itemCount} item${data.itemCount !== 1 ? "s" : ""}\n⏰ ${ts}`
+    `🛍️ <b>Checkout Initiated</b>\n\n` +
+    `👤 ${data.email}\n` +
+    (data.phone ? `📱 ${data.phone}\n` : "") +
+    `\n🛒 ${data.itemCount} item${data.itemCount !== 1 ? "s" : ""}\n` +
+    `\n⏰ ${ts}`
   );
 }
 
 export function notifyOrderPlaced(data: {
   orderNumber: string;
+  orderStatus: string;
   email: string;
+  phone: string | null;
+  shippingAddress: {
+    full_name?: string | null;
+    address_line_1?: string | null;
+    address_line_2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+  } | null;
   totalAmount: number;
-  itemCount: number;
+  subtotal: number;
+  deliveryCharge: number;
+  discountCode: string | null;
+  discountAmount: number;
+  items: Array<{ name: string; quantity: number; size: string | null }>;
 }): void {
   const ts = toIST(new Date());
+
+  // Section: Order details
+  const orderSection =
+    `📋 <code>${data.orderNumber}</code>\n` +
+    `📊 ${toStatusLabel(data.orderStatus)}`;
+
+  // Section: Contact
+  const contactSection =
+    `👤 ${data.email}\n` +
+    (data.phone ? `📱 ${data.phone}` : "");
+
+  // Section: Full shipping address
+  const a = data.shippingAddress;
+  const addressLines = [
+    a?.full_name,
+    a?.address_line_1,
+    a?.address_line_2,
+    [a?.city, a?.state].filter(Boolean).join(", "),
+    a?.postal_code,
+    a?.country,
+  ].filter(Boolean);
+  const addressSection = addressLines.length
+    ? `📍 Deliver to:\n${addressLines.join("\n")}`
+    : null;
+
+  // Section: Items
+  const circled = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩"];
+  const itemRows = data.items.map((i, idx) => {
+    const num = circled[idx] ?? `${idx + 1}.`;
+    const sizeLine = i.size ? `\n   📐 ${i.size}  ×${i.quantity}` : `\n   ×${i.quantity}`;
+    return `${num} ${i.name}${sizeLine}`;
+  });
+
+  // Section: Pricing
+  const discountLine = data.discountCode
+    ? `🏷️ Discount (${data.discountCode}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
+    : "";
+  const deliveryLine = data.deliveryCharge > 0
+    ? `🚚 Delivery: ₹${data.deliveryCharge.toLocaleString("en-IN")}\n`
+    : `🚚 Delivery: Free\n`;
+  const pricingSection =
+    `💰 Subtotal: ₹${data.subtotal.toLocaleString("en-IN")}\n` +
+    discountLine +
+    deliveryLine +
+    `💵 Total: ₹${data.totalAmount.toLocaleString("en-IN")}`;
+
   void sendToTelegram(
-    `🛒 <b>New Order Placed</b>\n📋 Order #${data.orderNumber}\n👤 ${data.email}\n💰 ₹${data.totalAmount.toLocaleString("en-IN")}\n🛍️ ${data.itemCount} item${data.itemCount !== 1 ? "s" : ""}\n⏰ ${ts}`
+    `🛒 <b>New Order Placed</b>\n\n` +
+    orderSection + "\n\n" +
+    contactSection + "\n\n" +
+    (addressSection ? addressSection + "\n\n" : "") +
+    `📦 Items (${data.items.length}):\n\n` +
+    itemRows.join("\n\n") + "\n\n" +
+    pricingSection + "\n\n" +
+    `⏰ ${ts}`
   );
 }
 
 export function notifyPaymentConfirmed(data: {
   orderNumber: string;
   totalAmount: number;
+  orderStatus: string;
+  paymentStatus: string;
+  email: string | null;
+  phone: string | null;
 }): void {
   const ts = toIST(new Date());
   void sendToTelegram(
-    `💸 <b>Payment Confirmed</b>\n📋 Order #${data.orderNumber}\n💰 ₹${data.totalAmount.toLocaleString("en-IN")}\n⏰ ${ts}`
+    `💸 <b>Payment Confirmed</b>\n\n` +
+    `📋 <code>${data.orderNumber}</code>\n` +
+    `📊 Order: ${toStatusLabel(data.orderStatus)}\n` +
+    `💳 Payment: ${toStatusLabel(data.paymentStatus)}\n\n` +
+    (data.email ? `👤 ${data.email}\n` : "") +
+    (data.phone ? `📱 ${data.phone}\n` : "") +
+    `\n💵 ₹${data.totalAmount.toLocaleString("en-IN")}\n` +
+    `\n⏰ ${ts}`
   );
 }
 
@@ -82,10 +172,12 @@ export function notifyNewUserRegistered(data: {
   phone: string;
 }): void {
   const ts = toIST(new Date());
-  const nameLine = data.name ? `\n🙍 ${data.name}` : "";
-  const emailLine = data.email ? `\n📧 ${data.email}` : "";
   void sendToTelegram(
-    `👤 <b>New User Registered</b>${nameLine}${emailLine}\n📱 ${data.phone}\n⏰ ${ts}`
+    `👤 <b>New User Registered</b>\n\n` +
+    (data.name ? `🙍 ${data.name}\n\n` : "") +
+    (data.email ? `📧 ${data.email}\n` : "") +
+    `📱 ${data.phone}\n` +
+    `\n⏰ ${ts}`
   );
 }
 
@@ -93,15 +185,20 @@ export function notifyNewRating(data: {
   productSlug: string;
   rating: number;
   comment: string | null;
+  email: string | null;
+  phone: string | null;
 }): void {
   const ts = toIST(new Date());
   const stars = "⭐".repeat(data.rating) + "☆".repeat(5 - data.rating);
-  const commentLine =
-    data.comment && data.comment.trim()
-      ? `\n💬 "${data.comment.trim().slice(0, 80)}${data.comment.trim().length > 80 ? "…" : ""}"`
-      : "";
+  const comment = data.comment?.trim();
   void sendToTelegram(
-    `⭐ <b>New Rating</b>\n📦 ${data.productSlug}\n${stars} (${data.rating}/5)${commentLine}\n⏰ ${ts}`
+    `⭐ <b>New Rating</b>\n\n` +
+    (data.email ? `👤 ${data.email}\n` : "") +
+    (data.phone ? `📱 ${data.phone}\n` : "") +
+    `\n📦 ${data.productSlug}\n` +
+    `${stars}  (${data.rating}/5)\n` +
+    (comment ? `\n💬 "${comment.slice(0, 120)}${comment.length > 120 ? "…" : ""}"\n` : "") +
+    `\n⏰ ${ts}`
   );
 }
 
@@ -111,17 +208,26 @@ export function notifyUnserviceablePincode(data: {
   state: string | null | undefined;
 }): void {
   const ts = toIST(new Date());
-  const location = [data.district, data.state].filter(Boolean).join(", ");
-  const locationLine = location ? ` — ${location}` : "";
+  const cityState = [data.district, data.state].filter(Boolean).join(", ");
   void sendToTelegram(
-    `🚫 <b>Unserviceable Pincode</b>\n📍 ${data.pincode}${locationLine}\n⏰ ${ts}`
+    `🚫 <b>Unserviceable Pincode</b>\n\n` +
+    `📮 ${data.pincode}\n` +
+    (cityState ? `📍 ${cityState}\n` : "") +
+    `\n⏰ ${ts}`
   );
 }
 
-export function notifyTrackingGap(data: { orderId: string }): void {
+export function notifyTrackingGap(data: {
+  orderId: string;
+  email: string | null;
+  phone: string | null;
+}): void {
   const ts = toIST(new Date());
-  const shortId = `${data.orderId.slice(0, 8)}...`;
   void sendToTelegram(
-    `📦 <b>Tracking Requested — Not Set</b>\n🔖 Order ID: ${shortId}\n⏰ ${ts}`
+    `📦 <b>Tracking Requested — Not Set</b>\n\n` +
+    (data.email ? `👤 ${data.email}\n` : "") +
+    (data.phone ? `📱 ${data.phone}\n` : "") +
+    `\n🔖 <code>${data.orderId}</code>\n` +
+    `\n⏰ ${ts}`
   );
 }

@@ -60,8 +60,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    notifyCheckoutInitiated({ email, itemCount: items.length });
-
     // Validate addresses
     const addressResult = await validateAndFetchAddresses(
       supabase,
@@ -80,6 +78,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    notifyCheckoutInitiated({
+      email,
+      phone: addressResult.data.shippingRow.phone ?? null,
+      itemCount: items.length,
+    });
 
     // Server-side price validation
     const priceError = await validateItemPrices(supabase, items);
