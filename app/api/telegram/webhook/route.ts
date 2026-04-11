@@ -79,11 +79,18 @@ export async function POST(request: NextRequest) {
       affectedRows: updatedPayment?.length ?? 0,
     });
     // Revert order so admin can retry
-    await supabase
+    const { error: revertError } = await supabase
       .from("orders")
       .update({ status: "verifying_payment" })
       .eq("id", orderId)
       .eq("status", "processing");
+    if (revertError) {
+      console.error("[Webhook] Failed to revert order status after payment update failure — manual cleanup required:", {
+        revertError,
+        orderId,
+        callbackId,
+      });
+    }
     await answerCallbackQuery(callbackId, "❌ Payment update failed — please retry");
     return NextResponse.json({ ok: true });
   }
