@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
-import { toImageSrc } from "@/lib/utils/image";
 import { ShipmentTrackingSection } from "@/components/orders/ShipmentTrackingSection";
 import type {
   Order,
@@ -271,8 +270,9 @@ export default function OrderDetailsPage() {
                   >
                     <div className="relative w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
                       {item.image && (
-                        <Image
-                          src={toImageSrc(item.image)}
+                        <SupabaseImage
+                          src={item.image}
+                          preset="list"
                           alt={item.name}
                           fill
                           className="object-cover"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import {
   ShoppingBag,
@@ -28,7 +28,6 @@ import type { Order, OrderStatus } from "@/lib/types/order";
 import RatingForm from "@/components/rating/RatingForm";
 import { useRating } from "@/components/rating-context";
 import { sendNotification } from "@/lib/utils/notify";
-import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
 import { sendActivity } from "@/lib/utils/activities";
 
@@ -396,8 +395,9 @@ export default function OrdersPage() {
                     >
                       <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         {item.image && (
-                          <Image
-                            src={toImageSrc(item.image)}
+                          <SupabaseImage
+                            src={item.image}
+                            preset="list"
                             alt={item.name}
                             fill
                             className="object-cover"

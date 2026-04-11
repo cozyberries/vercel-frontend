@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -17,7 +17,6 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
 import type { Order } from "@/lib/types/order";
-import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -382,8 +381,9 @@ export default function PaymentPage() {
                   <div key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}`} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
-                        <Image
-                          src={toImageSrc(item.image)}
+                        <SupabaseImage
+                          src={item.image}
+                          preset="list"
                           alt={item.name}
                           fill
                           className="object-cover"
