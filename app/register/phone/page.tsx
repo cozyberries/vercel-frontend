@@ -137,6 +137,9 @@ export default function RegisterPhonePage() {
     }
 
     setLoading(true);
+    // When proceeding to doSendOtp, keep loading=true to avoid a flicker.
+    // Only set it false in the branches that stop here (conflicts / errors).
+    let shouldProceed = false;
     try {
       const res = await fetch("/api/auth/check-registration", {
         method: "POST",
@@ -169,10 +172,13 @@ export default function RegisterPhonePage() {
           return;
         }
       }
+      shouldProceed = true;
     } catch {
-      // Ignore — fail open
+      shouldProceed = true; // fail open
     } finally {
-      setLoading(false);
+      // Only reset loading when we're NOT continuing to doSendOtp.
+      // doSendOtp manages its own loading state.
+      if (!shouldProceed) setLoading(false);
     }
 
     await doSendOtp();

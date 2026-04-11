@@ -44,8 +44,14 @@ export async function POST(request: NextRequest) {
 
   // 1. IP-based rate limit (enumeration defence — must run first)
   const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown";
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    (() => {
+      console.warn(
+        "[check-registration] Could not determine client IP — x-forwarded-for and x-real-ip both absent. Falling back to shared bucket 'unknown'."
+      );
+      return "unknown";
+    })();
   const ipRateLimit = await UpstashService.checkRateLimit(
     `${IP_RATE_LIMIT_KEY_PREFIX}:${ip}`,
     IP_RATE_LIMIT_LIMIT,

@@ -44,8 +44,37 @@ export default function ProfilePage() {
 
   if (!mounted || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="flex flex-col animate-pulse">
+        {/* Profile header skeleton */}
+        <section className="py-20 bg-[#f9f7f4]">
+          <div className="max-w-4xl mx-auto px-4">
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-full bg-gray-200 h-24 w-24" />
+              <div className="h-6 w-40 bg-gray-200 rounded" />
+              <div className="h-4 w-56 bg-gray-200 rounded" />
+            </div>
+          </div>
+        </section>
+        {/* Content cards skeleton */}
+        <section className="py-10 bg-white">
+          <div className="max-w-4xl mx-auto px-4 space-y-6">
+            <div className="h-5 w-32 bg-gray-200 rounded" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-12 bg-gray-100 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        </section>
+        {/* Addresses skeleton */}
+        <section className="py-10 bg-[#f9f7f4]">
+          <div className="max-w-4xl mx-auto px-4 space-y-4">
+            <div className="h-5 w-40 bg-gray-200 rounded" />
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-100 rounded-xl" />
+            ))}
+          </div>
+        </section>
       </div>
     );
   }

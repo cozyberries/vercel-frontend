@@ -161,15 +161,15 @@ export async function POST(request: NextRequest) {
         const emailUser = await findAuthUserByEmail(registerEmail);
         if (emailUser) {
           const supabase = createAdminSupabaseClient();
-          const { error: linkError } = await supabase.from("profiles").upsert(
-            {
-              id: emailUser.id,
-              phone: normalizedPhone,
-              full_name: fullName || undefined,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "id" }
-          );
+          const profilePayload: Record<string, unknown> = {
+            id: emailUser.id,
+            phone: normalizedPhone,
+            updated_at: new Date().toISOString(),
+          };
+          if (fullName) profilePayload.full_name = fullName;
+          const { error: linkError } = await supabase
+            .from("profiles")
+            .upsert(profilePayload, { onConflict: "id" });
           if (linkError) throw new Error(`Failed to link phone to profile: ${linkError.message}`);
           email = emailUser.email;
         } else {
