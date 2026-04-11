@@ -30,18 +30,8 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    formats: ['image/avif', 'image/webp'],
-    deviceSizes: [390, 640, 750, 828, 1080, 1200, 1920],
-    imageSizes: [32, 48, 64, 128, 192, 256, 384],
+    unoptimized: true,
     minimumCacheTTL: 604800,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'aqvcyyhuqcjnhohaclib.supabase.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
   },
   experimental: {
     webpackBuildWorker: true,
