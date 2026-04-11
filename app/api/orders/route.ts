@@ -11,6 +11,7 @@ import {
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 import { notifyAdminsOrderPlacedFromCheckout } from "@/lib/services/admin-order-notifications";
+import { notifyOrderPlaced } from "@/lib/services/telegram";
 
 export async function POST(request: NextRequest) {
   try {
@@ -180,6 +181,12 @@ export async function POST(request: NextRequest) {
       currency: order.currency,
       customer_email: email,
       customer_name: shippingAddress.full_name,
+    });
+    notifyOrderPlaced({
+      orderNumber: order.order_number,
+      email,
+      totalAmount: order.total_amount,
+      itemCount: items.length,
     });
 
     // Attach items to the response so the client can redirect immediately.

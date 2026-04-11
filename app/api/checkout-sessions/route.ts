@@ -8,6 +8,7 @@ import {
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import { notifyCheckoutInitiated } from "@/lib/services/telegram";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    notifyCheckoutInitiated({ email, itemCount: items.length });
 
     // Validate addresses
     const addressResult = await validateAndFetchAddresses(

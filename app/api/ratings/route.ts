@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { notifyNewRating } from "@/lib/services/telegram";
 
 async function uploadImageToSupabase(file: File, ratingId: string): Promise<string> {
   const supabase = createAdminSupabaseClient();
@@ -160,6 +161,11 @@ export async function POST(request: NextRequest) {
     }
 
     invalidateRatingCaches(product_slug);
+    notifyNewRating({
+      productSlug: product_slug,
+      rating: ratingValue,
+      comment: comment || null,
+    });
     if (uploadStatus !== undefined) {
       return NextResponse.json({
         success: true,

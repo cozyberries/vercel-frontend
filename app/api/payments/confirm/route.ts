@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import { notifyPaymentConfirmed } from "@/lib/services/telegram";
 
 // Schema for validating cart items
 const OrderItemSchema = z.object({
@@ -315,6 +316,10 @@ async function handleSessionConfirm(
         order_id: order.id,
         payment_ref: paymentReference,
     });
+    notifyPaymentConfirmed({
+        orderNumber: order.order_number,
+        totalAmount: session.total_amount,
+    });
 
     return NextResponse.json({
         success: true,
@@ -430,6 +435,10 @@ async function handleOrderConfirm(
         order_id: orderId,
         payment_ref: paymentReference,
         legacy_flow: true,
+    });
+    notifyPaymentConfirmed({
+        orderNumber: order.order_number,
+        totalAmount: order.total_amount,
     });
 
     return NextResponse.json({ success: true });
