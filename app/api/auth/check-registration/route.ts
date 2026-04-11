@@ -42,18 +42,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const rateLimit = await UpstashService.checkRateLimit(
-    `${RATE_LIMIT_KEY_PREFIX}:${digits}`,
-    RATE_LIMIT_LIMIT,
-    RATE_LIMIT_WINDOW
-  );
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429 }
-    );
-  }
-
+  // 1. IP-based rate limit (enumeration defence — must run first)
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     "unknown";
@@ -63,6 +52,19 @@ export async function POST(request: NextRequest) {
     IP_RATE_LIMIT_WINDOW
   );
   if (!ipRateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+  }
+
+  // 2. Per-phone rate limit
+  const rateLimit = await UpstashService.checkRateLimit(
+    `${RATE_LIMIT_KEY_PREFIX}:${digits}`,
+    RATE_LIMIT_LIMIT,
+    RATE_LIMIT_WINDOW
+  );
+  if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429 }
