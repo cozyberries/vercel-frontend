@@ -41,6 +41,28 @@ export type CreatePhoneUserOptions = {
 };
 
 /**
+ * Find a Supabase auth user by email using admin listUsers.
+ * Used both as error recovery in createPhoneUser and as an explicit lookup
+ * in the verify route when a user provides an email that already exists.
+ */
+export async function findAuthUserByEmail(
+  email: string
+): Promise<{ id: string; email: string } | null> {
+  const supabase = createAdminSupabaseClient();
+  let page = 1;
+  const perPage = 1000;
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error || !data?.users?.length) break;
+    const user = data.users.find((u) => u.email === email);
+    if (user?.email) return { id: user.id, email: user.email };
+    if (data.users.length < perPage) break;
+    page++;
+  }
+  return null;
+}
+
+/**
  * Create a new user for phone-only auth (register flow). This is the single place
  * we create the Supabase user + profiles + user_profiles for phone signup.
  * Optional fullName and email (from register form) are saved to profiles and auth.
@@ -62,13 +84,39 @@ export async function createPhoneUser(
   });
 
   if (createError) {
+    const code = (createError as { code?: string }).code;
     const isDuplicate =
+      code === "email_exists" ||
+      code === "user_already_exists" ||
       createError.message?.toLowerCase().includes("already") ||
-      createError.message?.toLowerCase().includes("duplicate") ||
-      createError.code === "user_already_exists";
+      createError.message?.toLowerCase().includes("duplicate");
+
     if (isDuplicate) {
+      // 1. Phone-based lookup (happy path: returning user)
       const existing = await findUserIdByPhone(phone);
       if (existing) return existing;
+
+      // 2. Email-based lookup — covers two recovery scenarios:
+      //    a) placeholder email: auth user exists but profiles row is missing
+      //    b) user-provided email: belongs to an account that has no phone on file
+      const authUser = await findAuthUserByEmail(authEmail);
+      if (authUser) {
+        if (!preferredEmail) {
+          // Placeholder email: recover by writing the phone back to profiles
+          await supabase.from("profiles").upsert(
+            { id: authUser.id, phone: digits, updated_at: new Date().toISOString() },
+            { onConflict: "id" }
+          );
+        } else {
+          // User-provided email exists in a different account — surface a clear error
+          const conflict = new Error(
+            "This email is already registered with another account. Please sign in instead, or register without an email."
+          );
+          Object.assign(conflict, { code: "email_registered_elsewhere", status: 409 });
+          throw conflict;
+        }
+        return { userId: authUser.id, email: authUser.email };
+      }
     }
     throw createError;
   }
