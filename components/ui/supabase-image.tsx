@@ -76,7 +76,7 @@ export default function SupabaseImage({
           src={fallbackSrc}
           alt={alt}
           sizes={sizes}
-          className={`w-full h-full${className ? ` ${className}` : ""}`}
+          className={`w-full h-full object-cover${className ? ` ${className}` : ""}`}
           loading={loading}
           fetchPriority={resolvedFetchPriority}
           draggable={draggable}

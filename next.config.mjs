@@ -31,7 +31,8 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-    minimumCacheTTL: 604800,
+    // minimumCacheTTL has no effect when unoptimized: true (/_next/image is bypassed).
+    // Cache lifetime for pre-generated variants is controlled by Supabase Storage CDN headers.
   },
   experimental: {
     webpackBuildWorker: true,
