@@ -65,11 +65,28 @@ export async function POST(request: NextRequest) {
   }
 
   // Update payment: processing → completed
-  await supabase
+  const { error: paymentError, data: updatedPayment } = await supabase
     .from("payments")
     .update({ status: "completed" })
     .eq("order_id", orderId)
-    .eq("status", "processing");
+    .eq("status", "processing")
+    .select("id");
+
+  if (paymentError || !updatedPayment?.length) {
+    console.error("[Webhook] Failed to update payment status — reverting order:", {
+      paymentError,
+      orderId,
+      affectedRows: updatedPayment?.length ?? 0,
+    });
+    // Revert order so admin can retry
+    await supabase
+      .from("orders")
+      .update({ status: "verifying_payment" })
+      .eq("id", orderId)
+      .eq("status", "processing");
+    await answerCallbackQuery(callbackId, "❌ Payment update failed — please retry");
+    return NextResponse.json({ ok: true });
+  }
 
   // Answer callback (clears button loading state)
   const adminName = from.username ? `@${from.username}` : from.first_name;

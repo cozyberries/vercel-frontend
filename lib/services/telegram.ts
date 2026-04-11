@@ -18,6 +18,12 @@ function toIST(date: Date): string {
   });
 }
 
+/** Escape user-controlled strings for Telegram HTML parse mode. */
+function escapeHtml(val: string | null | undefined): string {
+  if (!val) return "";
+  return val.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /** Raw HTTP POST to Telegram Bot API. Never throws. */
 async function sendToTelegram(text: string, replyMarkup?: object): Promise<void> {
   if (!BOT_TOKEN || !CHAT_ID) {
@@ -57,7 +63,7 @@ function toStatusLabel(s: string): string {
 export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
   if (!BOT_TOKEN) return;
   try {
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -66,6 +72,10 @@ export async function answerCallbackQuery(callbackQueryId: string, text?: string
       }),
       signal: AbortSignal.timeout(5000),
     });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("[Telegram] answerCallbackQuery failed:", res.status, res.statusText, body);
+    }
   } catch (err) {
     console.error("[Telegram] Error answering callback query:", err);
   }
@@ -104,8 +114,8 @@ export function notifyCheckoutInitiated(data: {
   const ts = toIST(new Date());
   void sendToTelegram(
     `🛍️ <b>Checkout Initiated</b>\n\n` +
-    `👤 ${data.email}\n` +
-    (data.phone ? `📱 ${data.phone}\n` : "") +
+    `👤 ${escapeHtml(data.email)}\n` +
+    (data.phone ? `📱 ${escapeHtml(data.phone)}\n` : "") +
     `\n🛒 ${data.itemCount} item${data.itemCount !== 1 ? "s" : ""}\n` +
     `\n⏰ ${ts}`
   );
@@ -138,17 +148,18 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
   const timestamp = ts ?? toIST(new Date());
 
   const contactSection =
-    `👤 ${data.email}\n` +
-    (data.phone ? `📱 ${data.phone}` : "");
+    `👤 ${escapeHtml(data.email)}\n` +
+    (data.phone ? `📱 ${escapeHtml(data.phone)}` : "");
 
   const a = data.shippingAddress;
+  const cityState = [escapeHtml(a?.city), escapeHtml(a?.state)].filter(Boolean).join(", ");
   const addressLines = [
-    a?.full_name,
-    a?.address_line_1,
-    a?.address_line_2,
-    [a?.city, a?.state].filter(Boolean).join(", "),
-    a?.postal_code,
-    a?.country,
+    escapeHtml(a?.full_name),
+    escapeHtml(a?.address_line_1),
+    escapeHtml(a?.address_line_2),
+    cityState,
+    escapeHtml(a?.postal_code),
+    escapeHtml(a?.country),
   ].filter(Boolean);
   const addressSection = addressLines.length
     ? `📍 Deliver to:\n${addressLines.join("\n")}`
@@ -157,12 +168,12 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
   const circled = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩"];
   const itemRows = data.items.map((i, idx) => {
     const num = circled[idx] ?? `${idx + 1}.`;
-    const sizeLine = i.size ? `\n   📐 ${i.size}  ×${i.quantity}` : `\n   ×${i.quantity}`;
-    return `${num} ${i.name}${sizeLine}`;
+    const sizeLine = i.size ? `\n   📐 ${escapeHtml(i.size)}  ×${i.quantity}` : `\n   ×${i.quantity}`;
+    return `${num} ${escapeHtml(i.name)}${sizeLine}`;
   });
 
   const discountLine = data.discountCode
-    ? `🏷️ Discount (${data.discountCode}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
+    ? `🏷️ Discount (${escapeHtml(data.discountCode)}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
     : "";
   const deliveryLine = data.deliveryCharge > 0
     ? `🚚 Delivery: ₹${data.deliveryCharge.toLocaleString("en-IN")}\n`
@@ -175,13 +186,13 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
 
   return (
     `${header}\n\n` +
-    `📋 <code>${data.orderNumber}</code>\n\n` +
+    `📋 <code>${escapeHtml(data.orderNumber)}</code>\n\n` +
     contactSection + "\n\n" +
     (addressSection ? addressSection + "\n\n" : "") +
     `📦 Items (${data.items.length}):\n\n` +
     itemRows.join("\n\n") + "\n\n" +
     pricingSection + "\n\n" +
-    `📌 Order ID: <code>${data.orderId}</code>\n\n` +
+    `📌 Order ID: <code>${escapeHtml(data.orderId)}</code>\n\n` +
     `⏰ ${timestamp}`
   );
 }
@@ -224,41 +235,37 @@ export function notifyOrderPlaced(data: {
 }): void {
   const ts = toIST(new Date());
 
-  // Section: Order details
   const orderSection =
-    `📋 <code>${data.orderNumber}</code>\n` +
+    `📋 <code>${escapeHtml(data.orderNumber)}</code>\n` +
     `📊 ${toStatusLabel(data.orderStatus)}`;
 
-  // Section: Contact
   const contactSection =
-    `👤 ${data.email}\n` +
-    (data.phone ? `📱 ${data.phone}` : "");
+    `👤 ${escapeHtml(data.email)}\n` +
+    (data.phone ? `📱 ${escapeHtml(data.phone)}` : "");
 
-  // Section: Full shipping address
   const a = data.shippingAddress;
+  const cityState = [escapeHtml(a?.city), escapeHtml(a?.state)].filter(Boolean).join(", ");
   const addressLines = [
-    a?.full_name,
-    a?.address_line_1,
-    a?.address_line_2,
-    [a?.city, a?.state].filter(Boolean).join(", "),
-    a?.postal_code,
-    a?.country,
+    escapeHtml(a?.full_name),
+    escapeHtml(a?.address_line_1),
+    escapeHtml(a?.address_line_2),
+    cityState,
+    escapeHtml(a?.postal_code),
+    escapeHtml(a?.country),
   ].filter(Boolean);
   const addressSection = addressLines.length
     ? `📍 Deliver to:\n${addressLines.join("\n")}`
     : null;
 
-  // Section: Items
   const circled = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩"];
   const itemRows = data.items.map((i, idx) => {
     const num = circled[idx] ?? `${idx + 1}.`;
-    const sizeLine = i.size ? `\n   📐 ${i.size}  ×${i.quantity}` : `\n   ×${i.quantity}`;
-    return `${num} ${i.name}${sizeLine}`;
+    const sizeLine = i.size ? `\n   📐 ${escapeHtml(i.size)}  ×${i.quantity}` : `\n   ×${i.quantity}`;
+    return `${num} ${escapeHtml(i.name)}${sizeLine}`;
   });
 
-  // Section: Pricing
   const discountLine = data.discountCode
-    ? `🏷️ Discount (${data.discountCode}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
+    ? `🏷️ Discount (${escapeHtml(data.discountCode)}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
     : "";
   const deliveryLine = data.deliveryCharge > 0
     ? `🚚 Delivery: ₹${data.deliveryCharge.toLocaleString("en-IN")}\n`
@@ -292,11 +299,11 @@ export function notifyPaymentConfirmed(data: {
   const ts = toIST(new Date());
   void sendToTelegram(
     `💸 <b>Payment Confirmed</b>\n\n` +
-    `📋 <code>${data.orderNumber}</code>\n` +
+    `📋 <code>${escapeHtml(data.orderNumber)}</code>\n` +
     `📊 Order: ${toStatusLabel(data.orderStatus)}\n` +
     `💳 Payment: ${toStatusLabel(data.paymentStatus)}\n\n` +
-    (data.email ? `👤 ${data.email}\n` : "") +
-    (data.phone ? `📱 ${data.phone}\n` : "") +
+    (data.email ? `👤 ${escapeHtml(data.email)}\n` : "") +
+    (data.phone ? `📱 ${escapeHtml(data.phone)}\n` : "") +
     `\n💵 ₹${data.totalAmount.toLocaleString("en-IN")}\n` +
     `\n⏰ ${ts}`
   );
@@ -310,9 +317,9 @@ export function notifyNewUserRegistered(data: {
   const ts = toIST(new Date());
   void sendToTelegram(
     `👤 <b>New User Registered</b>\n\n` +
-    (data.name ? `🙍 ${data.name}\n\n` : "") +
-    (data.email ? `📧 ${data.email}\n` : "") +
-    `📱 ${data.phone}\n` +
+    (data.name ? `🙍 ${escapeHtml(data.name)}\n\n` : "") +
+    (data.email ? `📧 ${escapeHtml(data.email)}\n` : "") +
+    `📱 ${escapeHtml(data.phone)}\n` +
     `\n⏰ ${ts}`
   );
 }
@@ -330,11 +337,11 @@ export function notifyNewRating(data: {
   const comment = data.comment?.trim();
   void sendToTelegram(
     `⭐ <b>New Rating</b>\n\n` +
-    (data.email ? `👤 ${data.email}\n` : "") +
-    (data.phone ? `📱 ${data.phone}\n` : "") +
-    `\n📦 ${data.productSlug}\n` +
-    `${stars}  (${data.rating}/5)\n` +
-    (comment ? `\n💬 "${comment.slice(0, 120)}${comment.length > 120 ? "…" : ""}"\n` : "") +
+    (data.email ? `👤 ${escapeHtml(data.email)}\n` : "") +
+    (data.phone ? `📱 ${escapeHtml(data.phone)}\n` : "") +
+    `\n📦 ${escapeHtml(data.productSlug)}\n` +
+    `${stars}  (${safeRating}/5)\n` +
+    (comment ? `\n💬 "${escapeHtml(comment.slice(0, 120))}${comment.length > 120 ? "…" : ""}"\n` : "") +
     `\n⏰ ${ts}`
   );
 }
@@ -345,10 +352,10 @@ export function notifyUnserviceablePincode(data: {
   state: string | null | undefined;
 }): void {
   const ts = toIST(new Date());
-  const cityState = [data.district, data.state].filter(Boolean).join(", ");
+  const cityState = [escapeHtml(data.district), escapeHtml(data.state)].filter(Boolean).join(", ");
   void sendToTelegram(
     `🚫 <b>Unserviceable Pincode</b>\n\n` +
-    `📮 ${data.pincode}\n` +
+    `📮 ${escapeHtml(data.pincode)}\n` +
     (cityState ? `📍 ${cityState}\n` : "") +
     `\n⏰ ${ts}`
   );
@@ -362,9 +369,9 @@ export function notifyTrackingGap(data: {
   const ts = toIST(new Date());
   void sendToTelegram(
     `📦 <b>Tracking Requested — Not Set</b>\n\n` +
-    (data.email ? `👤 ${data.email}\n` : "") +
-    (data.phone ? `📱 ${data.phone}\n` : "") +
-    `\n🔖 <code>${data.orderId}</code>\n` +
+    (data.email ? `👤 ${escapeHtml(data.email)}\n` : "") +
+    (data.phone ? `📱 ${escapeHtml(data.phone)}\n` : "") +
+    `\n🔖 <code>${escapeHtml(data.orderId)}</code>\n` +
     `\n⏰ ${ts}`
   );
 }
