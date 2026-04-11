@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
@@ -25,7 +25,6 @@ import { getDiscountedPrice } from '@/lib/utils/discount'
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
-import { toImageSrc } from "@/lib/utils/image";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
 interface ReviewItem {
@@ -386,8 +385,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     }`}
                   onClick={() => setSelectedImageAnimated(index)}
                 >
-                  <Image
-                    src={toImageSrc(image, undefined, "thumbnail")}
+                  <SupabaseImage
+                    src={image}
+                    preset="thumbnail"
                     alt={`${product.name} - View ${index + 1}`}
                     width={80}
                     height={80}
@@ -464,8 +464,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 className="w-full h-full"
                 style={{ transformOrigin: "left center" }}
               >
-                <Image
-                  src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
+                <SupabaseImage
+                  src={product.images?.[selectedImage]}
+                  preset="detail"
                   alt={product.name}
                   width={600}
                   height={600}
@@ -484,9 +485,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                   {product.images.map(
                     (img, index) =>
                       index !== selectedImage && (
-                        <Image
+                        <SupabaseImage
                           key={index}
-                          src={toImageSrc(img, undefined, "detail")}
+                          src={img}
+                          preset="detail"
                           alt=""
                           width={600}
                           height={600}
@@ -501,8 +503,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
 
               {showZoomModal && !isMobile && (
                 <div className="absolute top-0 -right-[100%] w-[35rem] h-96 bg-white shadow-2xl overflow-hidden rounded-xl animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
-                  <Image
-                    src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
+                  <SupabaseImage
+                    src={product.images?.[selectedImage]}
+                    preset="detail"
                     alt={product.name}
                     width={800}
                     height={800}
@@ -550,8 +553,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     }`}
                   onClick={() => setSelectedImageAnimated(index)}
                 >
-                  <Image
-                    src={toImageSrc(image, undefined, "thumbnail")}
+                  <SupabaseImage
+                    src={image}
+                    preset="thumbnail"
                     alt={`${product.name} - View ${index + 1}`}
                     width={100}
                     height={100}
@@ -838,9 +842,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                       <div key={relatedProduct?.id} className="group">
                         <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
                           <Link href={`/products/${relatedProduct.slug}`}>
-                            <Image
-                              src={toImageSrc(relatedProduct?.images?.[0], undefined, "list")}
-                              alt={relatedProduct?.name}
+                            <SupabaseImage
+                              src={relatedProduct?.images?.[0]}
+                              preset="list"
+                              alt={relatedProduct?.name ?? ""}
                               width={400}
                               height={400}
                               className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
@@ -938,8 +943,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 transition={{ duration: 0.28, ease: "easeOut" }}
                 style={{ transformOrigin: "left center" }}
               >
-                <Image
-                  src={toImageSrc(product.images?.[selectedImage], undefined, "detail")}
+                <SupabaseImage
+                  src={product.images?.[selectedImage]}
+                  preset="detail"
                   alt={product.name}
                   width={400}
                   height={400}

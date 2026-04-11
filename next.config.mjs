@@ -30,18 +30,9 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    formats: ['image/avif', 'image/webp'],
-    deviceSizes: [390, 640, 750, 828, 1080, 1200, 1920],
-    imageSizes: [32, 48, 64, 128, 192, 256, 384],
-    minimumCacheTTL: 604800,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'aqvcyyhuqcjnhohaclib.supabase.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
+    unoptimized: true,
+    // minimumCacheTTL has no effect when unoptimized: true (/_next/image is bypassed).
+    // Cache lifetime for pre-generated variants is controlled by Supabase Storage CDN headers.
   },
   experimental: {
     webpackBuildWorker: true,
@@ -70,12 +61,6 @@ const nextConfig = {
   },
   async headers() {
     return [
-      {
-        source: '/_next/image',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' },
-        ],
-      },
       // Only in production: dev chunks change on every compile; immutable caching
       // causes ChunkLoadError when the browser keeps stale chunk URLs after a restart.
       ...(process.env.NODE_ENV === 'production'

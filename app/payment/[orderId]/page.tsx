@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -17,7 +17,6 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
 import type { Order } from "@/lib/types/order";
-import { toImageSrc } from "@/lib/utils/image";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -269,7 +268,8 @@ export default function PaymentPage() {
                     }}
                     className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors"
                   >
-                    <Image src="/phonepe.png" alt="PhonePe" width={40} height={40} className="rounded-lg" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/phonepe.png" alt="PhonePe" width={40} height={40} className="rounded-lg" />
                     <span className="text-xs font-medium">PhonePe</span>
                   </button>
                   <button
@@ -279,7 +279,8 @@ export default function PaymentPage() {
                     }}
                     className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
                   >
-                    <Image src="/gpay.png" alt="GPay" width={40} height={40} className="rounded-lg" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/gpay.png" alt="GPay" width={40} height={40} className="rounded-lg" />
                     <span className="text-xs font-medium">GPay</span>
                   </button>
                   <button
@@ -289,7 +290,8 @@ export default function PaymentPage() {
                     }}
                     className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:border-sky-400 hover:bg-sky-50 transition-colors"
                   >
-                    <Image src="/paytm.png" alt="Paytm" width={40} height={40} className="rounded-lg" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/paytm.png" alt="Paytm" width={40} height={40} className="rounded-lg" />
                     <span className="text-xs font-medium">Paytm</span>
                   </button>
                 </div>
@@ -382,8 +384,9 @@ export default function PaymentPage() {
                   <div key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}`} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
-                        <Image
-                          src={toImageSrc(item.image)}
+                        <SupabaseImage
+                          src={item.image}
+                          preset="list"
                           alt={item.name}
                           fill
                           className="object-cover"

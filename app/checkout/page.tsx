@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -27,7 +27,6 @@ import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { logEvent } from "@/lib/services/event-logger";
-import { toImageSrc } from "@/lib/utils/image";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 import { getActiveOffer } from '@/lib/utils/discount'
 
@@ -512,8 +511,9 @@ export default function CheckoutPage() {
                   <div key={getCartItemKey(item)} className="flex gap-3">
                     <div className="relative w-16 h-16 bg-muted rounded-md overflow-hidden">
                       {item.image && (
-                        <Image
-                          src={toImageSrc(item.image)}
+                        <SupabaseImage
+                          src={item.image}
+                          preset="list"
                           alt={item.name}
                           fill
                           className="object-cover"

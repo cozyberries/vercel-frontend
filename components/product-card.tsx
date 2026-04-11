@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import SupabaseImage from "@/components/ui/supabase-image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingCart, Heart } from "lucide-react";
@@ -18,7 +18,6 @@ import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { formatPrice, getMinPrice } from "@/lib/utils";
-import { toImageSrc } from "@/lib/utils/image";
 import DiscountedPrice from '@/components/discounted-price';
 
 interface ProductCardProps {
@@ -181,9 +180,10 @@ export default function ProductCard({ product, index, currentView, locale = "en-
         )}
         <Link href={`/products/${product.id}`}>
           {/* First Image — text/content renders first; image loads lazily (except first 3) */}
-          <Image
-            src={toImageSrc(product.images?.[0], images.staticProductImage, "list")}
+          <SupabaseImage
+            src={product.images?.[0] ?? images.staticProductImage}
             alt={product.name}
+            preset="list"
             width={600}
             height={750}
             sizes={
@@ -192,8 +192,6 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                 : "(max-width: 1023px) 50vw, 25vw"
             }
             priority={index < 4}
-            loading={index < 4 ? "eager" : "lazy"}
-            decoding="async"
             className="w-full h-full object-cover"
           />
         </Link>
