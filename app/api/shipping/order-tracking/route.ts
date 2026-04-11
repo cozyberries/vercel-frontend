@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       typeof row.tracking_number === "string" ? row.tracking_number.trim() : "";
 
     if (!waybill) {
-      supabase.from("profiles").select("phone").eq("id", user.id).maybeSingle().then(({ data: profile }) => {
+      void Promise.resolve(supabase.from("profiles").select("phone").eq("id", user.id).maybeSingle()).then(({ data: profile }) => {
         notifyTrackingGap({ orderId, email: user.email ?? null, phone: profile?.phone ?? null });
       }).catch(() => {
         notifyTrackingGap({ orderId, email: user.email ?? null, phone: null });
