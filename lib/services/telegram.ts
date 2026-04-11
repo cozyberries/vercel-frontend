@@ -33,6 +33,7 @@ async function sendToTelegram(text: string, replyMarkup?: object): Promise<void>
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
       }
     );
     if (!res.ok) {
@@ -63,6 +64,7 @@ export async function answerCallbackQuery(callbackQueryId: string, text?: string
         callback_query_id: callbackQueryId,
         ...(text ? { text, show_alert: false } : {}),
       }),
+      signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
     console.error("[Telegram] Error answering callback query:", err);
@@ -81,6 +83,7 @@ export async function editTelegramMessage(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: "HTML" }),
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
       const body = await res.text();
@@ -322,7 +325,8 @@ export function notifyNewRating(data: {
   phone: string | null;
 }): void {
   const ts = toIST(new Date());
-  const stars = "⭐".repeat(data.rating) + "☆".repeat(5 - data.rating);
+  const safeRating = Math.max(0, Math.min(5, Math.round(Number(data.rating) || 0)));
+  const stars = "⭐".repeat(safeRating) + "☆".repeat(5 - safeRating);
   const comment = data.comment?.trim();
   void sendToTelegram(
     `⭐ <b>New Rating</b>\n\n` +

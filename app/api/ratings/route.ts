@@ -161,13 +161,19 @@ export async function POST(request: NextRequest) {
     }
 
     invalidateRatingCaches(product_slug);
-    const { data: raterProfile } = await supabase.from("profiles").select("phone").eq("id", authUser.id).maybeSingle();
-    notifyNewRating({
-      productSlug: product_slug,
-      rating: ratingValue,
-      comment: comment || null,
-      email: authUser.email ?? null,
-      phone: raterProfile?.phone ?? null,
+    // fire-and-forget — don't block the response waiting for a profile fetch
+    void Promise.resolve(
+      supabase.from("profiles").select("phone").eq("id", authUser.id).maybeSingle()
+    ).then(({ data: raterProfile }) => {
+      notifyNewRating({
+        productSlug: product_slug,
+        rating: ratingValue,
+        comment: comment || null,
+        email: authUser.email ?? null,
+        phone: raterProfile?.phone ?? null,
+      });
+    }).catch((err) => {
+      console.error("[Telegram] Failed to notify new rating:", err);
     });
     if (uploadStatus !== undefined) {
       return NextResponse.json({

@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       orderStatus: order.status,
       email,
       phone: shippingRow.phone ?? null,
-      shippingAddress: shippingAddress as any,
+      shippingAddress,
       totalAmount: order.total_amount,
       subtotal: orderSummary.subtotal,
       deliveryCharge: serverDeliveryCharge,

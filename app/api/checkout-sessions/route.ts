@@ -79,12 +79,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    notifyCheckoutInitiated({
-      email,
-      phone: addressResult.data.shippingRow.phone ?? null,
-      itemCount: items.length,
-    });
-
     // Server-side price validation
     const priceError = await validateItemPrices(supabase, items);
     if (priceError) {
@@ -159,6 +153,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    notifyCheckoutInitiated({
+      email,
+      phone: shippingRow.phone ?? null,
+      itemCount: items.length,
+    });
 
     // Log event (fire-and-forget)
     logServerEvent(supabase, user.id, "checkout_session_created", {

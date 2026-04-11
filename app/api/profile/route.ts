@@ -210,7 +210,10 @@ export async function PUT(request: NextRequest) {
     // whose profile was created in auth callback; middleware/GET use same profiles table)
     const adminSupabase = createAdminSupabaseClient();
 
-    // Check existing phone before upsert to detect first-time registration
+    // Check existing phone before upsert to detect first-time registration.
+    // Minor TOCTOU: another concurrent request could set the phone between this select
+    // and the upsert below, causing a duplicate notification. Acceptable here — the
+    // impact is a single extra Telegram alert. A DB trigger would eliminate it entirely.
     const { data: existingProfile } = await adminSupabase
       .from("profiles")
       .select("phone")
