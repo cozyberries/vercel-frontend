@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
 import CacheService from "@/lib/services/cache";
+import { notifyNewUserRegistered } from "@/lib/services/telegram";
 
 export async function GET() {
   try {
@@ -208,6 +209,18 @@ export async function PUT(request: NextRequest) {
     // Use admin client so the write always succeeds (avoids RLS blocking new users
     // whose profile was created in auth callback; middleware/GET use same profiles table)
     const adminSupabase = createAdminSupabaseClient();
+
+    // Check existing phone before upsert to detect first-time registration.
+    // Minor TOCTOU: another concurrent request could set the phone between this select
+    // and the upsert below, causing a duplicate notification. Acceptable here — the
+    // impact is a single extra Telegram alert. A DB trigger would eliminate it entirely.
+    const { data: existingProfile } = await adminSupabase
+      .from("profiles")
+      .select("phone")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isFirstPhone = !existingProfile?.phone && !!phone;
+
     const { data, error } = await adminSupabase
       .from("profiles")
       .upsert([profileData], { onConflict: "id" })
@@ -256,6 +269,13 @@ export async function PUT(request: NextRequest) {
       await CacheService.setProfile(user.id, updatedUserData);
     } catch (error) {
       console.error(`Failed to update profile cache for user ${user.id}:`, error);
+    }
+    if (isFirstPhone && updatedUserData.phone) {
+      notifyNewUserRegistered({
+        name: updatedUserData.full_name,
+        email: updatedUserData.email ?? null,
+        phone: updatedUserData.phone,
+      });
     }
     return NextResponse.json(updatedUserData);
   } catch (error) {

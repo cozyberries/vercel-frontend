@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import { notifyPaymentConfirmed, notifyNewOrder } from "@/lib/services/telegram";
 
 // Schema for validating cart items
 const OrderItemSchema = z.object({
@@ -249,6 +250,7 @@ async function handleSessionConfirm(
         );
     }
 
+
     // 6. Create payment record
     const paymentReference = `upi_manual_${crypto.randomUUID()}`;
     const { data: insertedPayment, error: paymentInsertError } = await supabase
@@ -314,6 +316,19 @@ async function handleSessionConfirm(
     logServerEvent(supabase, user.id, "payment_confirmed", {
         order_id: order.id,
         payment_ref: paymentReference,
+    });
+    notifyNewOrder({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        email: session.customer_email,
+        phone: session.customer_phone ?? null,
+        shippingAddress: session.shipping_address as any,
+        totalAmount: session.total_amount,
+        subtotal: session.subtotal,
+        deliveryCharge: session.delivery_charge ?? 0,
+        discountCode: session.discount_code ?? null,
+        discountAmount: session.discount_amount ?? 0,
+        items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: (i as any).size ?? null })),
     });
 
     return NextResponse.json({
@@ -430,6 +445,14 @@ async function handleOrderConfirm(
         order_id: orderId,
         payment_ref: paymentReference,
         legacy_flow: true,
+    });
+    notifyPaymentConfirmed({
+        orderNumber: order.order_number,
+        totalAmount: order.total_amount,
+        orderStatus: "verifying_payment",
+        paymentStatus: "processing",
+        email: user.email ?? null,
+        phone: order.customer_phone ?? null,
     });
 
     return NextResponse.json({ success: true });

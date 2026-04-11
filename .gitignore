@@ -43,6 +43,10 @@ public/sw.js.map
 # Brainstorming mockups
 .superpowers/
 
+# Superpowers plans/specs and prompts
+docs/superpowers/
+prompts/
+
 # IDE specific files
 .idea
 .vscode

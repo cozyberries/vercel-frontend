@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { notifyNewRating } from "@/lib/services/telegram";
 
 async function uploadImageToSupabase(file: File, ratingId: string): Promise<string> {
   const supabase = createAdminSupabaseClient();
@@ -160,6 +161,20 @@ export async function POST(request: NextRequest) {
     }
 
     invalidateRatingCaches(product_slug);
+    // fire-and-forget — don't block the response waiting for a profile fetch
+    void Promise.resolve(
+      supabase.from("profiles").select("phone").eq("id", authUser.id).maybeSingle()
+    ).then(({ data: raterProfile }) => {
+      notifyNewRating({
+        productSlug: product_slug,
+        rating: ratingValue,
+        comment: comment || null,
+        email: authUser.email ?? null,
+        phone: raterProfile?.phone ?? null,
+      });
+    }).catch((err) => {
+      console.error("[Telegram] Failed to notify new rating:", err);
+    });
     if (uploadStatus !== undefined) {
       return NextResponse.json({
         success: true,

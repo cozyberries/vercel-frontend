@@ -8,6 +8,7 @@ import {
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import { notifyCheckoutInitiated } from "@/lib/services/telegram";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
@@ -152,6 +153,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    notifyCheckoutInitiated({
+      email,
+      phone: shippingRow.phone ?? null,
+      itemCount: items.length,
+    });
 
     // Log event (fire-and-forget)
     logServerEvent(supabase, user.id, "checkout_session_created", {
