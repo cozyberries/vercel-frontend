@@ -84,6 +84,7 @@ export default function RegisterPhonePage() {
   }
 
   const doSendOtp = async () => {
+    setError("");
     setLoading(true);
     try {
       const digits = phone.replace(/\D/g, "");
@@ -339,6 +340,7 @@ export default function RegisterPhonePage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
+                disabled={loading}
                 onClick={() => {
                   setConflictDialog((prev) => ({ ...prev, open: false }));
                   void doSendOtp();
