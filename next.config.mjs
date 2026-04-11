@@ -61,12 +61,6 @@ const nextConfig = {
   },
   async headers() {
     return [
-      {
-        source: '/_next/image',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' },
-        ],
-      },
       // Only in production: dev chunks change on every compile; immutable caching
       // causes ChunkLoadError when the browser keeps stale chunk URLs after a restart.
       ...(process.env.NODE_ENV === 'production'

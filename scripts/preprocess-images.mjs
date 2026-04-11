@@ -60,21 +60,35 @@ const FORMATS = ["webp", "avif"];
 const PRESET_SUFFIX_RE = /_(list|detail|thumbnail)\.(webp|avif)$/i;
 const SOURCE_EXT_RE = /\.(jpg|jpeg|png)$/i;
 
+// --- Paginate through a storage path, returning all items ---
+async function listAll(prefix) {
+  const PAGE_SIZE = 100;
+  const all = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .list(prefix, { limit: PAGE_SIZE, offset, sortBy: { column: "name", order: "asc" } });
+    if (error) throw new Error(`Failed to list ${prefix}: ${error.message}`);
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+  return all;
+}
+
 // --- List all product image objects ---
 async function listProductFolders() {
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .list("products", { limit: 1000, sortBy: { column: "name", order: "asc" } });
-  if (error) throw new Error(`Failed to list products/: ${error.message}`);
-  return (data ?? []).filter((item) => !item.id && item.metadata === null); // virtual folder entries
+  const items = await listAll("products");
+  // Supabase represents virtual folder entries as objects with no id and null metadata.
+  // Real file objects always have a non-null id and a metadata object.
+  return items.filter((item) => !item.id && item.metadata === null);
 }
 
 async function listFolderImages(slug) {
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .list(`products/${slug}`, { limit: 1000, sortBy: { column: "name", order: "asc" } });
-  if (error) throw new Error(`Failed to list products/${slug}: ${error.message}`);
-  return (data ?? []).filter(
+  const items = await listAll(`products/${slug}`);
+  return items.filter(
     (item) => SOURCE_EXT_RE.test(item.name) && !PRESET_SUFFIX_RE.test(item.name)
   );
 }
@@ -138,11 +152,15 @@ async function main() {
       try {
         const buffer = await downloadImage(sourcePath);
         for (const [preset, { width, height, quality }] of Object.entries(PRESETS)) {
-          for (const format of FORMATS) {
-            const variantBuffer = await generateVariant(buffer, width, height, quality, format);
-            const vPath = variantPath(sourcePath, preset, format);
-            await uploadVariant(vPath, variantBuffer, format);
-          }
+          // Generate and upload both formats for this preset in parallel.
+          // Presets are still processed sequentially to avoid unbounded memory growth.
+          await Promise.all(
+            FORMATS.map(async (format) => {
+              const variantBuffer = await generateVariant(buffer, width, height, quality, format);
+              const vPath = variantPath(sourcePath, preset, format);
+              await uploadVariant(vPath, variantBuffer, format);
+            })
+          );
         }
         process.stdout.write("done\n");
         totalProcessed++;

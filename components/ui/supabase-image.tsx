@@ -70,8 +70,8 @@ export default function SupabaseImage({
           height: "100%",
         }}
       >
-        {avifSrc && <source type="image/avif" srcSet={avifSrc} />}
-        {webpSrc && <source type="image/webp" srcSet={webpSrc} />}
+        {avifSrc && <source type="image/avif" srcSet={avifSrc} sizes={sizes} />}
+        {webpSrc && <source type="image/webp" srcSet={webpSrc} sizes={sizes} />}
         <img
           src={fallbackSrc}
           alt={alt}
@@ -88,8 +88,8 @@ export default function SupabaseImage({
 
   return (
     <picture>
-      {avifSrc && <source type="image/avif" srcSet={avifSrc} />}
-      {webpSrc && <source type="image/webp" srcSet={webpSrc} />}
+      {avifSrc && <source type="image/avif" srcSet={avifSrc} sizes={sizes} />}
+      {webpSrc && <source type="image/webp" srcSet={webpSrc} sizes={sizes} />}
       <img
         src={fallbackSrc}
         alt={alt}
