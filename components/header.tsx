@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/app/assets/data";
@@ -19,6 +19,8 @@ export default function Header() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
@@ -47,8 +49,10 @@ export default function Header() {
           <nav className="hidden lg:flex items-center justify-center flex-1">
             <ul className="flex space-x-8">
               {navigation.map((item) => {
-                // Skip orders link if user is not authenticated
-                if (item.href === "/orders" && !user) {
+                // Skip orders link if user is not authenticated.
+                // Guard with `mounted` so SSR and initial hydration agree (no user),
+                // then reveal after mount — prevents hydration mismatch.
+                if (item.href === "/orders" && !(mounted && user)) {
                   return null;
                 }
 
@@ -86,12 +90,12 @@ export default function Header() {
             <SearchResultsSheet isOpen={searchOpen} onOpenChange={setSearchOpen} />
             {/* User Icon — desktop only */}
             <div className="hidden lg:block">
-              <Link href={user ? "/profile" : "/login"}>
+              <Link href={mounted && user ? "/profile" : "/login"}>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors duration-200"
-                  aria-label={user ? "Go to profile" : "Go to login"}
+                  aria-label={mounted && user ? "Go to profile" : "Go to login"}
                 >
                   <User />
                 </Button>

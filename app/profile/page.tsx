@@ -12,6 +12,8 @@ import { useProfile } from "@/hooks/useProfile";
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
   const {
     profile,
     addresses,
@@ -40,6 +42,14 @@ export default function ProfilePage() {
     setAddressValidationErrors,
   } = useProfile(user);
 
+  if (!mounted || isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -55,16 +65,6 @@ export default function ProfilePage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col">
