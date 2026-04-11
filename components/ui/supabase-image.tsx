@@ -1,3 +1,6 @@
+"use client";
+
+import type { CSSProperties } from "react";
 import { toImageSrc, getVariantUrl, PLACEHOLDER_DATA_URL, SupabaseImagePreset, normalizeAbsoluteUrl } from "@/lib/utils/image";
 
 interface SupabaseImageProps {
@@ -15,7 +18,7 @@ interface SupabaseImageProps {
   /** fetchpriority override (e.g. "low" for preload hints) */
   fetchPriority?: "high" | "low" | "auto";
   sizes?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   draggable?: boolean;
 }
 
@@ -72,7 +75,8 @@ export default function SupabaseImage({
         <img
           src={fallbackSrc}
           alt={alt}
-          className={`w-full h-full object-cover${className ? ` ${className}` : ""}`}
+          sizes={sizes}
+          className={`w-full h-full${className ? ` ${className}` : ""}`}
           loading={loading}
           fetchPriority={resolvedFetchPriority}
           draggable={draggable}
