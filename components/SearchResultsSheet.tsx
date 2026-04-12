@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Product } from "@/lib/services/api";
+import { useProducts } from "@/hooks/useApiQueries";
 import { images } from "@/app/assets/images";
 import { toImageSrc } from "@/lib/utils/image";
 import { useWishlist } from "./wishlist-context";
@@ -67,7 +68,9 @@ export default function SearchResultsSheet({
   const [topProducts, setTopProducts] = useState<Product[]>([]);
   const [recentSearchItems, setRecentSearchItems] = useState<(Product | null)[]>([]);
   const [recentSearchItemsLoading, setRecentSearchItemsLoading] = useState(false);
-  const [topProductsLoading, setTopProductsLoading] = useState(true);
+
+  // Use React Query to fetch top products — deduplicates with other callers, cached 30s.
+  const { data: topProductsData, isLoading: topProductsLoading } = useProducts({ limit: 6, page: 1 });
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -278,35 +281,20 @@ export default function SearchResultsSheet({
     }
   };
 
-  // On mount: show cached top products immediately, then fetch fresh and persist
+  // Seed from localStorage immediately so products show before React Query resolves
   useEffect(() => {
     const cached = loadTopProductsFromStorage();
-    if (cached.length > 0) {
-      setTopProducts(cached);
-      setTopProductsLoading(false);
-    }
-
-    let mounted = true;
-    const loadTop = async () => {
-      try {
-        const res = await fetch("/api/products?limit=6&page=1");
-        if (!res.ok) return;
-        const data = await res.json();
-        const products = data.products || [];
-        if (!mounted) return;
-        setTopProducts(products);
-        saveTopProducts(products);
-      } catch {
-        // ignore
-      } finally {
-        if (mounted) setTopProductsLoading(false);
-      }
-    };
-    loadTop();
-    return () => {
-      mounted = false;
-    };
+    if (cached.length > 0) setTopProducts(cached);
   }, []);
+
+  // Sync top products from React Query into local state and persist to localStorage
+  useEffect(() => {
+    const products = topProductsData?.products;
+    if (products && products.length > 0) {
+      setTopProducts(products);
+      saveTopProducts(products);
+    }
+  }, [topProductsData]);
 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
