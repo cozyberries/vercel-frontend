@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: profiles, error } = await supabase
-      .from("user_profiles")
-      .select("id, full_name");
+    const adminSupabase = createAdminSupabaseClient();
+    const { data: { users }, error } = await adminSupabase.auth.admin.listUsers();
 
     if (error) {
-      console.error("Error fetching user profile:", error);
+      console.error("Error fetching users:", error);
       return NextResponse.json(
         { error: "Failed to fetch users" },
-        { status: 404 }
+        { status: 500 }
       );
     }
 
-    const users = profiles?.map((profile) => ({
-      id: profile.id,
-      name: profile.full_name,
-    })) || [];
-    return NextResponse.json(users);
+    const result = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      phone: u.phone ?? null,
+      role: u.app_metadata?.role ?? "customer",
+      full_name: u.user_metadata?.full_name ?? null,
+      created_at: u.created_at,
+    }));
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error("Error fetching users:", error);
