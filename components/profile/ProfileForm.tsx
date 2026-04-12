@@ -107,8 +107,9 @@ export default function ProfileForm({
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
       {/* Basic Information: name + contact row with inline Edit / Save / Clear */}
       <div className="mb-8">
-        <div className="flex flex-wrap items-start gap-4 mb-4">
-          <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="flex-1 min-w-0 space-y-4">
+          <div className="space-y-1">
             <div className="flex items-center space-x-2">
               <User className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium text-muted-foreground">Name</span>
@@ -136,7 +137,7 @@ export default function ProfileForm({
               </p>
             )}
           </div>
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="space-y-1">
             <div className="flex items-center space-x-2">
               <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium text-muted-foreground">Phone</span>
@@ -168,6 +169,7 @@ export default function ProfileForm({
                 {profile?.phone ? `+91 ${formatIndianPhoneDisplay(profile.phone)}` : "Not provided"}
               </p>
             )}
+          </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {!isEditing ? (
