@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { User } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
 
@@ -94,11 +95,9 @@ export async function GET() {
       );
     }
 
-    // No cache or cache miss - fetch from database in parallel
-    const [profileData, addressesData] = await Promise.all([
-      buildProfileFromUser(user),
-      fetchAddressesFromDatabase(user.id, supabase),
-    ]);
+    // No cache or cache miss - fetch from database
+    const profileData = buildProfileFromUser(user);
+    const addressesData = await fetchAddressesFromDatabase(user.id, supabase);
 
     // Cache results asynchronously (non-blocking)
     Promise.all([
@@ -134,7 +133,7 @@ export async function GET() {
 /**
  * Fetch profile data from auth user object
  */
-function buildProfileFromUser(user: any) {
+function buildProfileFromUser(user: User) {
   // All user fields come from the auth user object
   const profileData = {
     id: user.id,
@@ -184,10 +183,8 @@ async function refreshDataInBackground(
   supabase: any
 ): Promise<void> {
   try {
-    const [profileData, addressesData] = await Promise.all([
-      buildProfileFromUser(user),
-      fetchAddressesFromDatabase(userId, supabase),
-    ]);
+    const profileData = buildProfileFromUser(user);
+    const addressesData = await fetchAddressesFromDatabase(userId, supabase);
 
     await Promise.all([
       CacheService.setProfile(userId, profileData),
