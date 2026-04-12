@@ -10,7 +10,7 @@ import AddressFormModal from "@/components/profile/AddressFormModal";
 import { useProfile } from "@/hooks/useProfile";
 
 export default function ProfilePage() {
-  const { user, signOut, updateEmail } = useAuth();
+  const { user, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -40,9 +40,7 @@ export default function ProfilePage() {
     setShowAddAddress,
     setAddressData,
     setAddressValidationErrors,
-    emailConfirmationPending,
-    emailConfirmationAddress,
-  } = useProfile(user, updateEmail);
+  } = useProfile(user);
 
   if (!mounted || isLoading) {
     return (
@@ -115,8 +113,6 @@ export default function ProfilePage() {
               isSaving={isSaving}
               validationErrors={validationErrors}
               editData={editData}
-              emailConfirmationPending={emailConfirmationPending}
-              emailConfirmationAddress={emailConfirmationAddress}
               onEdit={handleEdit}
               onSave={handleSave}
               onCancel={handleCancel}

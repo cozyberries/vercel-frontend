@@ -30,7 +30,6 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<{ success: boolean; error?: any }>;
   refreshProfile: () => Promise<void>;
-  updateEmail: (email: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -377,11 +376,6 @@ export function SupabaseAuthProvider({
     }
   }, [session, updateUserProfile]);
 
-  const updateEmail = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.updateUser({ email });
-    return { error };
-  }, [supabase]);
-
   // Computed values
   const isAuthenticated = !!user;
   const isAdmin = userProfile
@@ -403,7 +397,6 @@ export function SupabaseAuthProvider({
     signInWithGoogle,
     signOut,
     refreshProfile,
-    updateEmail,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

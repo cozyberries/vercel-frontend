@@ -47,7 +47,7 @@ function isPlaceholderEmail(email: string | null | undefined): boolean {
     (email.startsWith("phone+") && email.includes("@phone."));
 }
 
-export function useProfile(user: any, updateEmail?: (email: string) => Promise<{ error: any }>) {
+export function useProfile(user: any) {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery<ProfileCombinedResponse>({
     queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id],
@@ -78,8 +78,6 @@ export function useProfile(user: any, updateEmail?: (email: string) => Promise<{
     email: "",
   });
 
-  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
-  const [emailConfirmationAddress, setEmailConfirmationAddress] = useState("");
 
   const [addressData, setAddressData] = useState({
     address_type: "home" as const,
@@ -169,27 +167,20 @@ export function useProfile(user: any, updateEmail?: (email: string) => Promise<{
     }
     setIsSaving(true);
     try {
-      // Handle email update separately (Supabase sends confirmation email)
       const currentEmail = data?.profile?.email ?? "";
       const emailChanged =
         editData.email &&
         !isPlaceholderEmail(editData.email) &&
         editData.email !== currentEmail;
 
-      if (emailChanged && updateEmail) {
-        const { error: emailError } = await updateEmail(editData.email);
-        if (emailError) {
-          setValidationErrors({ ...validationErrors, email: emailError.message || "Failed to update email" });
-          return;
-        }
-        setEmailConfirmationPending(true);
-        setEmailConfirmationAddress(editData.email);
-      }
-
       const response = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ full_name: editData.full_name, phone: editData.phone }),
+        body: JSON.stringify({
+          full_name: editData.full_name,
+          phone: editData.phone,
+          ...(emailChanged ? { email: editData.email } : {}),
+        }),
       });
 
       if (response.ok) {
@@ -197,6 +188,10 @@ export function useProfile(user: any, updateEmail?: (email: string) => Promise<{
         await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         setIsEditing(false);
         setValidationErrors({ full_name: "", phone: "", email: "" });
+        // Sync editData email to reflect new value immediately
+        if (emailChanged) {
+          setEditData((prev) => ({ ...prev, email: editData.email }));
+        }
       } else {
         const errorData = await response.json();
         alert(`Failed to update profile: ${errorData.error}`);
@@ -595,8 +590,6 @@ export function useProfile(user: any, updateEmail?: (email: string) => Promise<{
     editingAddress,
     editData,
     validationErrors,
-    emailConfirmationPending,
-    emailConfirmationAddress,
     addressData,
     addressValidationErrors,
     handleInputChange,

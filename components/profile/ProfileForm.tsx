@@ -70,8 +70,6 @@ interface ProfileFormProps {
     phone: string;
     email: string;
   };
-  emailConfirmationPending: boolean;
-  emailConfirmationAddress: string;
   onEdit: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -90,8 +88,6 @@ export default function ProfileForm({
   isSaving,
   validationErrors,
   editData,
-  emailConfirmationPending,
-  emailConfirmationAddress,
   onEdit,
   onSave,
   onCancel,
@@ -236,15 +232,6 @@ export default function ProfileForm({
           )}
         </div>
 
-        {/* Email confirmation pending banner */}
-        {emailConfirmationPending && (
-          <div className="flex items-start space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-            <Mail className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" />
-            <p>
-              Confirmation email sent to <strong>{emailConfirmationAddress}</strong>. Please check your inbox to verify the new address.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Addresses Section */}
