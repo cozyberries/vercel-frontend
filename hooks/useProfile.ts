@@ -39,7 +39,12 @@ interface UserAddress {
   updated_at: string;
 }
 
-export function useProfile(user: any) {
+function isPlaceholderEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.startsWith("phone+") && email.includes("@phone.");
+}
+
+export function useProfile(user: any, updateEmail?: (email: string) => Promise<{ error: any }>) {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery<ProfileCombinedResponse>({
     queryKey: [...PROFILE_COMBINED_QUERY_KEY, user?.id],
@@ -61,12 +66,17 @@ export function useProfile(user: any) {
   const [editData, setEditData] = useState({
     full_name: "",
     phone: "",
+    email: "",
   });
 
   const [validationErrors, setValidationErrors] = useState({
     full_name: "",
     phone: "",
+    email: "",
   });
+
+  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
+  const [emailConfirmationAddress, setEmailConfirmationAddress] = useState("");
 
   const [addressData, setAddressData] = useState({
     address_type: "home" as const,
@@ -100,6 +110,7 @@ export function useProfile(user: any) {
       setEditData({
         full_name: data.profile.full_name || "",
         phone: data.profile.phone || "",
+        email: isPlaceholderEmail(data.profile.email) ? "" : (data.profile.email || ""),
       });
     }
   }, [data?.profile]);
@@ -121,6 +132,12 @@ export function useProfile(user: any) {
       }
     }
 
+    if (field === "email" && value) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        error = "Please enter a valid email address";
+      }
+    }
+
     setValidationErrors((prev) => ({
       ...prev,
       [field]: error,
@@ -139,25 +156,44 @@ export function useProfile(user: any) {
   const handleSave = async () => {
     if (!user) return;
     const phoneValidation = validateRequiredPhoneNumber(editData.phone);
-    if(!phoneValidation.isValid) {
+    if (!phoneValidation.isValid) {
       setValidationErrors({ ...validationErrors, phone: phoneValidation.error || "" });
+      return;
+    }
+    if (editData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editData.email)) {
+      setValidationErrors({ ...validationErrors, email: "Please enter a valid email address" });
       return;
     }
     setIsSaving(true);
     try {
+      // Handle email update separately (Supabase sends confirmation email)
+      const currentEmail = data?.profile?.email ?? "";
+      const emailChanged =
+        editData.email &&
+        !isPlaceholderEmail(editData.email) &&
+        editData.email !== currentEmail;
+
+      if (emailChanged && updateEmail) {
+        const { error: emailError } = await updateEmail(editData.email);
+        if (emailError) {
+          setValidationErrors({ ...validationErrors, email: emailError.message || "Failed to update email" });
+          return;
+        }
+        setEmailConfirmationPending(true);
+        setEmailConfirmationAddress(editData.email);
+      }
+
       const response = await fetch("/api/profile", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(editData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: editData.full_name, phone: editData.phone }),
       });
 
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         setIsEditing(false);
-        setValidationErrors({ full_name: "", phone: "" });
+        setValidationErrors({ full_name: "", phone: "", email: "" });
       } else {
         const errorData = await response.json();
         alert(`Failed to update profile: ${errorData.error}`);
@@ -175,9 +211,10 @@ export function useProfile(user: any) {
       setEditData({
         full_name: profile.full_name || "",
         phone: profile.phone || "",
+        email: isPlaceholderEmail(profile.email) ? "" : (profile.email || ""),
       });
     }
-    setValidationErrors({ full_name: "", phone: "" });
+    setValidationErrors({ full_name: "", phone: "", email: "" });
     setIsEditing(false);
   };
 
@@ -555,6 +592,8 @@ export function useProfile(user: any) {
     editingAddress,
     editData,
     validationErrors,
+    emailConfirmationPending,
+    emailConfirmationAddress,
     addressData,
     addressValidationErrors,
     handleInputChange,

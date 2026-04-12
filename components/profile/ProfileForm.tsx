@@ -48,6 +48,11 @@ interface UserAddress {
   updated_at: string;
 }
 
+function isPlaceholderEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.startsWith("phone+") && email.includes("@phone.");
+}
+
 interface ProfileFormProps {
   profile: UserProfile | null;
   isEditing: boolean;
@@ -55,11 +60,15 @@ interface ProfileFormProps {
   validationErrors: {
     full_name: string;
     phone: string;
+    email: string;
   };
   editData: {
     full_name: string;
     phone: string;
+    email: string;
   };
+  emailConfirmationPending: boolean;
+  emailConfirmationAddress: string;
   onEdit: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -78,6 +87,8 @@ export default function ProfileForm({
   isSaving,
   validationErrors,
   editData,
+  emailConfirmationPending,
+  emailConfirmationAddress,
   onEdit,
   onSave,
   onCancel,
@@ -182,16 +193,53 @@ export default function ProfileForm({
           </div>
         </div>
 
-        {/* Email — read-only */}
-        <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
-          <Mail className="w-5 h-5 text-primary flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-muted-foreground">Email</p>
-            <p className="text-base font-normal text-foreground truncate" title={profile?.email ?? ""}>
-              {profile?.email || "Not provided"}
+        {/* Email — read-only when not editing, editable when editing */}
+        <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+          <div className="flex items-center space-x-2">
+            <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-muted-foreground">Email</span>
+            <span className="text-xs text-muted-foreground">(optional)</span>
+          </div>
+          {isEditing ? (
+            <>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={editData.email}
+                onChange={(e) => onInputChange("email", e.target.value)}
+                disabled={isSaving}
+                className={`w-full h-11 ${validationErrors.email ? "border-red-500 focus:border-red-500" : ""}`}
+              />
+              {validationErrors.email && (
+                <div className="flex items-center text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                  {validationErrors.email}
+                </div>
+              )}
+              {!validationErrors.email && (
+                <p className="text-xs text-muted-foreground">
+                  A confirmation link will be sent to the new address.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-base font-normal text-foreground">
+              {isPlaceholderEmail(profile?.email) ? "Not provided" : (profile?.email || "Not provided")}
+            </p>
+          )}
+        </div>
+
+        {/* Email confirmation pending banner */}
+        {emailConfirmationPending && (
+          <div className="flex items-start space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+            <Mail className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" />
+            <p>
+              Confirmation email sent to <strong>{emailConfirmationAddress}</strong>. Please check your inbox to verify the new address.
             </p>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Addresses Section */}
