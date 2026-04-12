@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 export interface RatingItem {
     product_slug: string;
     user_id: string;
+    user_name: string | null;
     rating: number;
     comment: string;
     images: string[];

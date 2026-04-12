@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
     const cacheKey = productSlug ? `ratings:product:${productSlug}` : "ratings:all";
 
     const cached = await UpstashService.get(cacheKey).catch(() => null);
-    if (cached) {
+    if (cached && Array.isArray(cached) && (cached.length === 0 || "user_name" in cached[0])) {
       return NextResponse.json(cached, {
         status: 200,
         headers: {
@@ -211,7 +211,28 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const payload = data ?? [];
+    const rows = data ?? [];
+
+    // Enrich with reviewer display names server-side so the client
+    // doesn't need to call the admin-only /api/users endpoint.
+    const userIds = [...new Set(rows.map((r: any) => r.user_id).filter(Boolean))] as string[];
+    const userMap: Record<string, string | null> = {};
+    if (userIds.length > 0) {
+      try {
+        const adminSupabase = createAdminSupabaseClient();
+        // Fetch only the specific users who left reviews — avoids paginating all users.
+        await Promise.all(userIds.map(async (id) => {
+          const { data } = await adminSupabase.auth.admin.getUserById(id);
+          if (data?.user) {
+            userMap[id] = (data.user.user_metadata?.full_name as string) ?? null;
+          }
+        }));
+      } catch (err) {
+        console.error("[ratings GET] Failed to enrich user names:", err);
+      }
+    }
+
+    const payload = rows.map((r: any) => ({ ...r, user_name: userMap[r.user_id] ?? null }));
     UpstashService.set(cacheKey, payload, 900).catch(() => {});
 
     return NextResponse.json(payload, {

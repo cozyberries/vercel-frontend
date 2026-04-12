@@ -51,7 +51,19 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // If the refresh token is invalid/rotated, clear the broken session and
+  // redirect to login so the user gets a clean state instead of a stuck loop.
+  if (
+    authError?.code === "refresh_token_not_found" ||
+    authError?.code === "refresh_token_already_used"
+  ) {
+    await supabase.auth.signOut({ scope: "local" });
+    const loginUrl = new URL("/login", request.url);
+    return redirectWithCookies(loginUrl, supabaseResponse);
+  }
 
   // Protect routes that require authentication
   const isProtectedRoute =

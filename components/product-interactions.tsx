@@ -34,11 +34,6 @@ interface ReviewItem {
   images?: string[];
 }
 
-interface User {
-  id: string;
-  name: string;
-}
-
 interface ProductInteractionsProps {
   product: Product;
   initialSize?: string;
@@ -69,7 +64,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const touchEndYRef = useRef<number>(0);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
   const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
-  const [users, setUsers] = useState<User[]>([]);
   const [productRating, setProductRating] = useState<number>(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const { user } = useAuth();
@@ -93,25 +87,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       })
   );
 
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch("/api/users");
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data || []);
-      } else {
-        const errorData = await response.text();
-        console.error("Failed to fetch users:", response.status, response.statusText, errorData);
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    }
-  };
-
-  // Fetch users
-  useEffect(() => {
-    fetchUsers();
-  }, []);
 
   const handleWriteReview = () => {
     if (!user) {
@@ -203,12 +178,12 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   // Fetch all reviews
   useEffect(() => {
     const fetchReviewsLocal = async () => {
-      if (!productSlug || !reviews || reviews.length === 0 || !users || users.length === 0) return;
+      if (!productSlug || !reviews || reviews.length === 0) return;
       try {
         const productReviews = reviews.filter((rev) => rev.product_slug === productSlug);
         setAllReviews(
           productReviews.map((rev: RatingItem) => ({
-            userName: users?.find((u) => u?.id === rev?.user_id)?.name || "Unknown User",
+            userName: rev.user_name || "Unknown User",
             review: rev.comment,
             rating: rev.rating,
             images: rev.images,
@@ -228,7 +203,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       }
     };
     fetchReviewsLocal();
-  }, [reviews, productSlug, users]);
+  }, [reviews, productSlug]);
 
   useEffect(() => {
     // Set default selections if product is loaded
