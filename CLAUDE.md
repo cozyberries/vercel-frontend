@@ -36,7 +36,7 @@ npx playwright test tests/foo.spec.ts   # Single test file
 1. **TanStack Query** (`hooks/useApiQueries.ts`) — server state, API caching (1min staleTime), deduplication
 2. **Axios deduplication** (`lib/services/api.ts`) — in-flight request deduplication (50ms cleanup window) catches requests from providers that bypass React Query
 3. **Context API** — local state: `CartContext`, `WishlistContext`, `SupabaseAuthContext`, `RatingContext`, `ThemeContext`
-4. **Supabase** — real-time auth via `onAuthStateChange()`
+4. **Supabase** — real-time auth via `onAuthStateChange()`, user data via `auth.users` (no custom profile tables)
 
 ### Route Structure
 ```
@@ -54,9 +54,16 @@ app/
 ### Auth Flow
 - Supabase SSR auth with middleware at `middleware.ts`
 - Protected routes: `/profile`, `/checkout`, `/complete-profile`
-- Phone number required before checkout (enforced by middleware)
+- Phone number required before checkout (enforced by middleware — reads `user.phone` from `getUser()`, no extra DB query)
 - Roles: `customer`, `admin`, `super_admin`
-- Profile auto-created on signup via API route (bypasses RLS)
+- **All user data lives in `auth.users`** — no custom `profiles` or `user_profiles` tables:
+  - `auth.users.phone` — contact phone (set via admin API)
+  - `auth.users.app_metadata.role` — user role (admin-write-only, not user-writable)
+  - `auth.users.user_metadata.full_name` / `.avatar_url` — display name and avatar
+- Role checked client-side via `session.user.app_metadata.role` (from JWT, zero DB queries)
+- Role checked in RLS via `auth.jwt() -> 'app_metadata' -> 'role'` (zero DB lookups)
+- All profile writes go through `supabase.auth.admin.updateUserById()` (server-side only)
+- Profile auto-created on signup via API route (`/api/users/create-profile`)
 - **Email confirmation**: To send "Check your email" confirmation links, enable **Confirm email** in Supabase Dashboard → Authentication → Providers → Email, and add your site URL (e.g. `http://localhost:3000/auth/callback`) to Redirect URLs. For reliable delivery, configure SMTP in Project Settings → Auth.
 
 ### Payment System (Custom UPI)
