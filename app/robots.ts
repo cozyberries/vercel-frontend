@@ -5,7 +5,20 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/checkout", "/profile", "/complete-profile", "/payment/"],
+      disallow: [
+      "/api/",
+      "/checkout",
+      "/profile",
+      "/complete-profile",
+      "/payment/",
+      "/login",
+      "/register",
+      "/cart",
+      "/wishlist",
+      "/offline",
+      "/orders",
+      "/track-order",
+    ],
     },
     sitemap: "https://cozyberries.in/sitemap.xml",
   };
