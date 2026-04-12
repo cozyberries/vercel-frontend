@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { validatePhoneNumber, validateFullName, formatIndianPhoneDisplay } from "@/lib/utils/validation";
+import { isPlaceholderEmail } from "@/lib/utils/auth";
 import IndianPhoneInput from "@/components/IndianPhoneInput";
 import AddressCard from "./AddressCard";
 
@@ -55,10 +56,12 @@ interface ProfileFormProps {
   validationErrors: {
     full_name: string;
     phone: string;
+    email: string;
   };
   editData: {
     full_name: string;
     phone: string;
+    email: string;
   };
   onEdit: () => void;
   onSave: () => void;
@@ -93,8 +96,9 @@ export default function ProfileForm({
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
       {/* Basic Information: name + contact row with inline Edit / Save / Clear */}
       <div className="mb-8">
-        <div className="flex flex-wrap items-start gap-4 mb-4">
-          <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="flex-1 min-w-0 space-y-4">
+          <div className="space-y-1">
             <div className="flex items-center space-x-2">
               <User className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium text-muted-foreground">Name</span>
@@ -122,7 +126,7 @@ export default function ProfileForm({
               </p>
             )}
           </div>
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="space-y-1">
             <div className="flex items-center space-x-2">
               <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium text-muted-foreground">Phone</span>
@@ -155,6 +159,7 @@ export default function ProfileForm({
               </p>
             )}
           </div>
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             {!isEditing ? (
               <Button onClick={onEdit} size="icon" variant="outline" className="size-10" aria-label="Edit profile">
@@ -182,16 +187,44 @@ export default function ProfileForm({
           </div>
         </div>
 
-        {/* Email — read-only */}
-        <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
-          <Mail className="w-5 h-5 text-primary flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-muted-foreground">Email</p>
-            <p className="text-base font-normal text-foreground truncate" title={profile?.email ?? ""}>
-              {profile?.email || "Not provided"}
-            </p>
+        {/* Email — read-only when not editing, editable when editing */}
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-muted-foreground">Email</span>
+            <span className="text-xs text-muted-foreground">(optional)</span>
           </div>
+          {isEditing ? (
+            <>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={editData.email}
+                onChange={(e) => onInputChange("email", e.target.value)}
+                disabled={isSaving}
+                className={`w-full h-11 ${validationErrors.email ? "border-red-500 focus:border-red-500" : ""}`}
+              />
+              {validationErrors.email && (
+                <div className="flex items-center text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
+                  {validationErrors.email}
+                </div>
+              )}
+              {!validationErrors.email && (
+                <p className="text-xs text-muted-foreground">
+                  Your email will be updated immediately.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-base font-normal text-foreground">
+              {isPlaceholderEmail(profile?.email) ? "Not provided" : (profile?.email || "Not provided")}
+            </p>
+          )}
         </div>
+
       </div>
 
       {/* Addresses Section */}

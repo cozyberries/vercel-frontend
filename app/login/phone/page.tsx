@@ -9,16 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import { isSafeRedirect } from "@/lib/utils/redirect";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
-
-function isSafeRedirect(path: string | null): path is string {
-  if (!path || typeof path !== "string") return false;
-  if (!path.startsWith("/") || path.startsWith("//")) return false;
-  if (path.includes(":")) return false;
-  return true;
-}
 
 export default function LoginPhonePage() {
   const router = useRouter();
@@ -31,7 +25,6 @@ export default function LoginPhonePage() {
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-  const [noAccount, setNoAccount] = useState(false);
 
   // Already logged in: redirect to profile or intended page
   useEffect(() => {
@@ -65,7 +58,6 @@ export default function LoginPhonePage() {
   const handleSendOtp = async () => {
     setError("");
     setPhoneError("");
-    setNoAccount(false);
 
     const digits = phone.replace(/\D/g, "");
     const phoneValidation = validateRequiredPhoneNumber(digits);
@@ -89,8 +81,11 @@ export default function LoginPhonePage() {
 
       if (!res.ok) {
         if (res.status === 404) {
-          setNoAccount(true);
-          setError((data?.error as string) || "No account with this number. Please register first.");
+          const registerUrl = isSafeRedirect(redirectTo)
+            ? `/register/phone?phone=${digits}&redirect=${encodeURIComponent(redirectTo)}`
+            : `/register/phone?phone=${digits}`;
+          router.push(registerUrl);
+          return;
         } else {
           const message =
             res.status === 429
@@ -220,14 +215,6 @@ export default function LoginPhonePage() {
               {error}
             </p>
           )}
-          {noAccount && (
-            <p className="text-sm text-center">
-              <Link href={registerHref} className="font-medium text-primary hover:text-primary/80">
-                Register with this number
-              </Link>
-            </p>
-          )}
-
           <Button
             type="button"
             className="w-full relative z-10"

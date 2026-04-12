@@ -8,6 +8,7 @@ import {
   validateRequiredPhoneNumber,
   validateAddress,
 } from "@/lib/utils/validation";
+import { isPlaceholderEmail } from "@/lib/utils/auth";
 import { getProfileCombined, type ProfileCombinedResponse } from "@/lib/services/api";
 
 const PROFILE_COMBINED_QUERY_KEY = ["profile", "combined"] as const;
@@ -61,12 +62,15 @@ export function useProfile(user: any) {
   const [editData, setEditData] = useState({
     full_name: "",
     phone: "",
+    email: "",
   });
 
   const [validationErrors, setValidationErrors] = useState({
     full_name: "",
     phone: "",
+    email: "",
   });
+
 
   const [addressData, setAddressData] = useState({
     address_type: "home" as const,
@@ -100,6 +104,7 @@ export function useProfile(user: any) {
       setEditData({
         full_name: data.profile.full_name || "",
         phone: data.profile.phone || "",
+        email: isPlaceholderEmail(data.profile.email) ? "" : (data.profile.email || ""),
       });
     }
   }, [data?.profile]);
@@ -121,6 +126,12 @@ export function useProfile(user: any) {
       }
     }
 
+    if (field === "email" && value) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        error = "Please enter a valid email address";
+      }
+    }
+
     setValidationErrors((prev) => ({
       ...prev,
       [field]: error,
@@ -139,25 +150,37 @@ export function useProfile(user: any) {
   const handleSave = async () => {
     if (!user) return;
     const phoneValidation = validateRequiredPhoneNumber(editData.phone);
-    if(!phoneValidation.isValid) {
+    if (!phoneValidation.isValid) {
       setValidationErrors({ ...validationErrors, phone: phoneValidation.error || "" });
+      return;
+    }
+    if (editData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editData.email)) {
+      setValidationErrors({ ...validationErrors, email: "Please enter a valid email address" });
       return;
     }
     setIsSaving(true);
     try {
+      const currentEmail = data?.profile?.email ?? "";
+      const emailChanged =
+        editData.email &&
+        !isPlaceholderEmail(editData.email) &&
+        editData.email !== currentEmail;
+
       const response = await fetch("/api/profile", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(editData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: editData.full_name,
+          phone: editData.phone,
+          ...(emailChanged ? { email: editData.email } : {}),
+        }),
       });
 
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         setIsEditing(false);
-        setValidationErrors({ full_name: "", phone: "" });
+        setValidationErrors({ full_name: "", phone: "", email: "" });
       } else {
         const errorData = await response.json();
         alert(`Failed to update profile: ${errorData.error}`);
@@ -175,9 +198,10 @@ export function useProfile(user: any) {
       setEditData({
         full_name: profile.full_name || "",
         phone: profile.phone || "",
+        email: isPlaceholderEmail(profile.email) ? "" : (profile.email || ""),
       });
     }
-    setValidationErrors({ full_name: "", phone: "" });
+    setValidationErrors({ full_name: "", phone: "", email: "" });
     setIsEditing(false);
   };
 

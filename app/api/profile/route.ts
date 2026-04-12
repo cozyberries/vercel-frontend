@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
+import { findAuthUserByEmail } from "@/lib/auth-phone";
 import CacheService from "@/lib/services/cache";
 import { notifyNewUserRegistered } from "@/lib/services/telegram";
 
@@ -163,7 +164,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { full_name, phone } = body;
+    const { full_name, phone, email } = body;
 
     // Validate input data
     if (full_name) {
@@ -183,6 +184,13 @@ export async function PUT(request: NextRequest) {
           { error: phoneValidation.error },
           { status: 400 }
         );
+      }
+    }
+
+    if (email !== undefined && email !== "") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
       }
     }
 
@@ -209,6 +217,29 @@ export async function PUT(request: NextRequest) {
     // Use admin client so the write always succeeds (avoids RLS blocking new users
     // whose profile was created in auth callback; middleware/GET use same profiles table)
     const adminSupabase = createAdminSupabaseClient();
+
+    // Update email immediately via admin (no confirmation email sent)
+    if (email !== undefined && email !== "") {
+      // Check if email is already taken by a different account
+      const existingUser = await findAuthUserByEmail(email);
+      if (existingUser && existingUser.id !== user.id) {
+        return NextResponse.json(
+          { error: "This email address is already associated with another account." },
+          { status: 409 }
+        );
+      }
+
+      const { error: emailError } = await adminSupabase.auth.admin.updateUserById(
+        user.id,
+        { email, email_confirm: true }
+      );
+      if (emailError) {
+        return NextResponse.json(
+          { error: emailError.message || "Failed to update email" },
+          { status: 400 }
+        );
+      }
+    }
 
     // Check existing phone before upsert to detect first-time registration.
     // Minor TOCTOU: another concurrent request could set the phone between this select
@@ -255,7 +286,7 @@ export async function PUT(request: NextRequest) {
     // Build response shape for client/cache (Supabase returns snake_case)
     const updatedUserData = {
       id: user.id,
-      email: user.email,
+      email: (email !== undefined && email !== "") ? email : user.email,
       full_name: data.full_name ?? user.user_metadata?.full_name ?? null,
       avatar_url: user.user_metadata?.avatar_url ?? data.avatar_url ?? null,
       phone: data.phone ?? null,

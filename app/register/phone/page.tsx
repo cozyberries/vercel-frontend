@@ -22,27 +22,23 @@ import {
 import type { CheckRegistrationStatus } from "@/app/api/auth/check-registration/route";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import { isSafeRedirect } from "@/lib/utils/redirect";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
 const OTP_REGISTER_FULL_NAME_KEY = "otp_register_full_name";
 const OTP_REGISTER_EMAIL_KEY = "otp_register_email";
 
-function isSafeRedirect(path: string | null): path is string {
-  if (!path || typeof path !== "string") return false;
-  if (!path.startsWith("/") || path.startsWith("//")) return false;
-  if (path.includes(":")) return false;
-  return true;
-}
-
 export default function RegisterPhonePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, signInWithGoogle } = useAuth();
   const redirectTo = searchParams.get("redirect");
+  const phoneParam = (searchParams.get("phone") ?? "").replace(/\D/g, "");
 
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(phoneParam);
   const [phoneError, setPhoneError] = useState("");
+  const [fullNameError, setFullNameError] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -128,6 +124,11 @@ export default function RegisterPhonePage() {
   const handleSendOtp = async () => {
     setError("");
     setPhoneError("");
+    setFullNameError("");
+    if (!fullName.trim()) {
+      setFullNameError("Full name is required");
+      return;
+    }
 
     const digits = phone.replace(/\D/g, "");
     const phoneValidation = validateRequiredPhoneNumber(digits);
@@ -278,7 +279,7 @@ export default function RegisterPhonePage() {
             />
             <div>
               <Label htmlFor="register-full-name">
-                Full name <span className="text-muted-foreground font-normal">(optional)</span>
+                Full name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="register-full-name"
@@ -289,6 +290,11 @@ export default function RegisterPhonePage() {
                 onChange={(e) => setFullName(e.target.value)}
                 className="mt-1"
               />
+              {fullNameError && (
+                <p className="text-sm text-destructive mt-1" role="alert">
+                  {fullNameError}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="register-email">
