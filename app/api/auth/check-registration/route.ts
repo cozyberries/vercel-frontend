@@ -115,14 +115,11 @@ export async function POST(request: NextRequest) {
 
     // Only email found — check whether that account already has a phone
     if (emailUser) {
-      const supabase = createAdminSupabaseClient();
-      const { data: profileRow } = await supabase
-        .from("profiles")
-        .select("phone")
-        .eq("id", emailUser.id)
-        .maybeSingle();
+      const adminSupabase = createAdminSupabaseClient();
+      const { data: authUserData } = await adminSupabase.auth.admin.getUserById(emailUser.id);
+      const hasPhone = !!authUserData?.user?.phone;
 
-      if (profileRow?.phone) {
+      if (hasPhone) {
         return NextResponse.json({
           status: "email_exists_with_phone" satisfies CheckRegistrationStatus,
           message:
