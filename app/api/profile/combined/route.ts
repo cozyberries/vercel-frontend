@@ -96,7 +96,7 @@ export async function GET() {
 
     // No cache or cache miss - fetch from database in parallel
     const [profileData, addressesData] = await Promise.all([
-      fetchProfileFromDatabase(user),
+      buildProfileFromUser(user),
       fetchAddressesFromDatabase(user.id, supabase),
     ]);
 
@@ -134,7 +134,7 @@ export async function GET() {
 /**
  * Fetch profile data from auth user object
  */
-async function fetchProfileFromDatabase(user: any) {
+function buildProfileFromUser(user: any) {
   // All user fields come from the auth user object
   const profileData = {
     id: user.id,
@@ -185,7 +185,7 @@ async function refreshDataInBackground(
 ): Promise<void> {
   try {
     const [profileData, addressesData] = await Promise.all([
-      fetchProfileFromDatabase(user),
+      buildProfileFromUser(user),
       fetchAddressesFromDatabase(userId, supabase),
     ]);
 

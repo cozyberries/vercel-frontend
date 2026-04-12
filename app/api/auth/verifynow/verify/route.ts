@@ -161,9 +161,12 @@ export async function POST(request: NextRequest) {
         const emailUser = await findAuthUserByEmail(registerEmail);
         if (emailUser) {
           const adminSupabase = createAdminSupabaseClient();
+          // Fetch current user to preserve existing role (avoid demoting admins)
+          const { data: existingAuthUser } = await adminSupabase.auth.admin.getUserById(emailUser.id);
+          const existingRole = existingAuthUser?.user?.app_metadata?.role;
           const updatePayload: Parameters<typeof adminSupabase.auth.admin.updateUserById>[1] = {
             phone: normalizedPhone,
-            app_metadata: { role: "customer" },
+            ...(existingRole ? {} : { app_metadata: { role: "customer" } }),
           };
           const { error: linkError } = await adminSupabase.auth.admin.updateUserById(
             emailUser.id,

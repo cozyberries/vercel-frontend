@@ -158,7 +158,7 @@ export async function PUT(request: NextRequest) {
 
     const adminSupabase = createAdminSupabaseClient();
 
-    // Update email if changed
+    // Check email uniqueness before updating
     if (email !== undefined && email !== "") {
       const existingUser = await findAuthUserByEmail(email);
       if (existingUser && existingUser.id !== user.id) {
@@ -167,39 +167,41 @@ export async function PUT(request: NextRequest) {
           { status: 409 }
         );
       }
-      const { error: emailError } = await adminSupabase.auth.admin.updateUserById(user.id, {
-        email,
-        email_confirm: true,
-      });
-      if (emailError) {
-        return NextResponse.json({ error: emailError.message || "Failed to update email" }, { status: 400 });
-      }
     }
 
     // Detect first-time phone for Telegram notification
     const { data: currentAuthUser } = await adminSupabase.auth.admin.getUserById(user.id);
     const isFirstPhone = !currentAuthUser?.user?.phone && !!phone;
 
-    // Update user_metadata (full_name)
+    // Build a single update payload
+    const updatePayload: Record<string, any> = {};
+
+    if (email !== undefined && email !== "") {
+      updatePayload.email = email;
+      updatePayload.email_confirm = true;
+    }
+
+    // user_metadata (full_name)
     const userMetaUpdate: Record<string, string> = {};
     if (full_name !== undefined) {
       userMetaUpdate.full_name = full_name || user.user_metadata?.full_name || "";
     } else if (user.user_metadata?.full_name) {
       userMetaUpdate.full_name = user.user_metadata.full_name;
     }
-
     if (Object.keys(userMetaUpdate).length > 0) {
-      await adminSupabase.auth.admin.updateUserById(user.id, { user_metadata: userMetaUpdate });
+      updatePayload.user_metadata = userMetaUpdate;
     }
 
-    // Update phone
     if (phone !== undefined) {
-      const { error: phoneError } = await adminSupabase.auth.admin.updateUserById(user.id, {
-        phone: phone || "",
-      });
-      if (phoneError) {
-        console.error("Error updating phone:", phoneError);
-        return NextResponse.json({ error: "Failed to update phone" }, { status: 500 });
+      updatePayload.phone = phone || "";
+    }
+
+    // Single updateUserById call
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await adminSupabase.auth.admin.updateUserById(user.id, updatePayload);
+      if (updateError) {
+        console.error("Error updating profile:", updateError);
+        return NextResponse.json({ error: updateError.message || "Failed to update profile" }, { status: 500 });
       }
     }
 

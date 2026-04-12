@@ -63,17 +63,16 @@ export async function POST(request: NextRequest) {
     // Generate name from email
     const generatedName = generateNameFromEmail(email);
 
-    // Set role + name in a single admin API call (no custom tables)
-    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+    // Set role, name, and phone in a single admin API call
+    const updatePayload: Record<string, any> = {
       user_metadata: { full_name: generatedName },
       app_metadata: { role: "customer" },
-    });
-
-    // Set phone if provided
-    if (phone && !updateError) {
-      const cleanPhone = phone.replace(/\D/g, "");
-      await supabase.auth.admin.updateUserById(userId, { phone: cleanPhone });
+    };
+    if (phone) {
+      updatePayload.phone = phone.replace(/\D/g, "");
     }
+
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, updatePayload);
 
     if (updateError) {
       console.error("Error creating user profile:", updateError);

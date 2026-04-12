@@ -66,10 +66,13 @@ export async function GET(request: NextRequest) {
             data.user.user_metadata?.name ||
             generateNameFromEmail(data.user.email);
 
-          await adminSupabase.auth.admin.updateUserById(data.user.id, {
+          const { error: updateError } = await adminSupabase.auth.admin.updateUserById(data.user.id, {
             user_metadata: { full_name: fullName },
             app_metadata: { role: "customer" },
           });
+          if (updateError) {
+            console.error("Failed to set role for new OAuth user:", updateError);
+          }
 
           // New user — redirect to complete profile (phone required)
           const completeUrl = new URL("/complete-profile", base);
