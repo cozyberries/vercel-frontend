@@ -47,7 +47,7 @@ export async function GET() {
         if (cacheResult.isStale) {
           (async () => {
             try {
-              await refreshProfileInBackground(user.id, user, supabase);
+              await refreshProfileInBackground(user.id, user);
             } catch (error) {
               console.error(`Background profile refresh failed for user ${user.id}:`, error);
             }
@@ -61,8 +61,8 @@ export async function GET() {
       console.log("Cache timeout or error, fetching from database");
     }
 
-    // No cache hit, fetch from database
-    const userData = await fetchProfileFromDatabase(user, supabase);
+    // No cache hit, build from auth user
+    const userData = buildProfileFromUser(user);
     
     // Cache the result asynchronously (non-blocking) - don't wait for it
     CacheService.setProfile(user.id, userData).catch((error) => {
@@ -87,62 +87,24 @@ export async function GET() {
   }
 }
 
-/**
- * Fetch profile data from database
- */
-async function fetchProfileFromDatabase(user: any, supabase: any) {
-  // Get user profile data from profiles table - only select needed fields
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("full_name, phone, avatar_url, updated_at")
-    .eq("id", user.id)
-    .single();
-
-  // If table doesn't exist or no profile found, create a default profile
-  if (profileError) {
-    if (
-      profileError.code === "PGRST116" ||
-      profileError.message?.includes("relation") ||
-      profileError.message?.includes("does not exist")
-    ) {
-      // Table doesn't exist or no profile found, return user data only
-      return {
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        phone: null,
-        address: null,
-        city: null,
-        state: null,
-        postal_code: null,
-        country: null,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-      };
-    } else {
-      throw new Error(`Failed to retrieve profile: ${profileError.message}`);
-    }
-  }
-
-  // Return user data with profile information
+function buildProfileFromUser(user: any) {
   return {
     id: user.id,
     email: user.email,
-    full_name: user.user_metadata?.full_name || profile?.full_name || null,
-    avatar_url: user.user_metadata?.avatar_url || profile?.avatar_url || null,
-    phone: profile?.phone || null,
+    phone: user.phone ?? null,
+    full_name: user.user_metadata?.full_name ?? null,
+    avatar_url: user.user_metadata?.avatar_url ?? null,
     created_at: user.created_at,
-    updated_at: profile?.updated_at || user.updated_at,
+    updated_at: user.updated_at,
   };
 }
 
 /**
  * Background refresh function for profile stale-while-revalidate pattern
  */
-async function refreshProfileInBackground(userId: string, user: any, supabase: any): Promise<void> {
+async function refreshProfileInBackground(userId: string, user: any): Promise<void> {
   try {
-    const userData = await fetchProfileFromDatabase(user, supabase);
+    const userData = buildProfileFromUser(user);
     await CacheService.setProfile(userId, userData);
   } catch (error) {
     console.error("Error in background profile refresh:", error);
@@ -194,33 +156,10 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Build the payload dynamically so that omitted fields are never overwritten.
-    // upsert merges by primary key — only the columns present in the object are touched.
-    const profileData: Record<string, string | null> = {
-      id: user.id,
-      updated_at: new Date().toISOString(),
-    };
-
-    // Only set full_name when explicitly provided so existing names are preserved
-    // (e.g. complete-profile sends only phone, must not wipe the name set by create-profile)
-    if (full_name !== undefined) {
-      profileData.full_name = full_name || user.user_metadata?.full_name || null;
-    } else if (user.user_metadata?.full_name) {
-      // Carry forward metadata name on first-ever upsert (no-op if row already exists)
-      profileData.full_name = user.user_metadata.full_name;
-    }
-
-    if (phone !== undefined) {
-      profileData.phone = phone || null;
-    }
-
-    // Use admin client so the write always succeeds (avoids RLS blocking new users
-    // whose profile was created in auth callback; middleware/GET use same profiles table)
     const adminSupabase = createAdminSupabaseClient();
 
-    // Update email immediately via admin (no confirmation email sent)
+    // Check email uniqueness before updating
     if (email !== undefined && email !== "") {
-      // Check if email is already taken by a different account
       const existingUser = await findAuthUserByEmail(email);
       if (existingUser && existingUser.id !== user.id) {
         return NextResponse.json(
@@ -228,70 +167,56 @@ export async function PUT(request: NextRequest) {
           { status: 409 }
         );
       }
+    }
 
-      const { error: emailError } = await adminSupabase.auth.admin.updateUserById(
-        user.id,
-        { email, email_confirm: true }
-      );
-      if (emailError) {
-        return NextResponse.json(
-          { error: emailError.message || "Failed to update email" },
-          { status: 400 }
-        );
+    // Detect first-time phone for Telegram notification
+    const { data: currentAuthUser } = await adminSupabase.auth.admin.getUserById(user.id);
+    const isFirstPhone = !currentAuthUser?.user?.phone && !!phone;
+
+    // Build a single update payload
+    const updatePayload: Record<string, any> = {};
+
+    if (email !== undefined && email !== "") {
+      updatePayload.email = email;
+      updatePayload.email_confirm = true;
+    }
+
+    // user_metadata (full_name)
+    const userMetaUpdate: Record<string, string> = {};
+    if (full_name !== undefined) {
+      userMetaUpdate.full_name = full_name || user.user_metadata?.full_name || "";
+    } else if (user.user_metadata?.full_name) {
+      userMetaUpdate.full_name = user.user_metadata.full_name;
+    }
+    if (Object.keys(userMetaUpdate).length > 0) {
+      updatePayload.user_metadata = userMetaUpdate;
+    }
+
+    if (phone !== undefined) {
+      updatePayload.phone = phone || "";
+    }
+
+    // Single updateUserById call
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await adminSupabase.auth.admin.updateUserById(user.id, updatePayload);
+      if (updateError) {
+        console.error("Error updating profile:", updateError);
+        return NextResponse.json({ error: updateError.message || "Failed to update profile" }, { status: 500 });
       }
     }
 
-    // Check existing phone before upsert to detect first-time registration.
-    // Minor TOCTOU: another concurrent request could set the phone between this select
-    // and the upsert below, causing a duplicate notification. Acceptable here — the
-    // impact is a single extra Telegram alert. A DB trigger would eliminate it entirely.
-    const { data: existingProfile } = await adminSupabase
-      .from("profiles")
-      .select("phone")
-      .eq("id", user.id)
-      .maybeSingle();
-    const isFirstPhone = !existingProfile?.phone && !!phone;
+    // Fetch fresh user for response
+    const { data: updatedAuthUser } = await adminSupabase.auth.admin.getUserById(user.id);
+    const updatedUser = updatedAuthUser?.user;
 
-    const { data, error } = await adminSupabase
-      .from("profiles")
-      .upsert([profileData], { onConflict: "id" })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error updating profile:", error);
-
-      // If table doesn't exist, provide helpful error message
-      if (
-        error.message?.includes("relation") ||
-        error.message?.includes("does not exist")
-      ) {
-        return NextResponse.json(
-          {
-            error: "Profiles table not found",
-            details:
-              "Please run the database migration to create the profiles table. See PROFILE_SETUP.md for instructions.",
-            migration_needed: true,
-          },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json(
-        { error: "Failed to update profile", details: error.message },
-        { status: 500 }
-      );
-    }
-
-    // Build response shape for client/cache (Supabase returns snake_case)
     const updatedUserData = {
       id: user.id,
       email: (email !== undefined && email !== "") ? email : user.email,
-      full_name: data.full_name ?? user.user_metadata?.full_name ?? null,
-      avatar_url: user.user_metadata?.avatar_url ?? data.avatar_url ?? null,
-      phone: data.phone ?? null,
+      full_name: updatedUser?.user_metadata?.full_name ?? null,
+      avatar_url: updatedUser?.user_metadata?.avatar_url ?? null,
+      phone: updatedUser?.phone ?? null,
       created_at: user.created_at,
-      updated_at: data.updated_at,
+      updated_at: new Date().toISOString(),
     };
 
     // Clear then set profile cache before responding so /api/profile/combined refetch gets fresh data

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 
 // Helper: copy Supabase session cookies to a redirect response
 function redirectWithCookies(url: URL, supabaseResponse: NextResponse) {
@@ -77,67 +76,9 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/checkout")) &&
     !request.nextUrl.pathname.startsWith("/complete-profile")
   ) {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    let profile: { phone?: string | null } | null = null;
-    let profileError: { code?: string } | null = null;
-
-    if (serviceRoleKey) {
-      const adminSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        serviceRoleKey,
-        { auth: { autoRefreshToken: false, persistSession: false } }
-      );
-      const result = await adminSupabase
-        .from("profiles")
-        .select("phone")
-        .eq("id", user.id)
-        .single();
-      profile = result.data;
-      profileError = result.error;
-      if (profileError) {
-        console.error("Failed to fetch profile in middleware:", profileError);
-      }
-    } else {
-      const result = await supabase
-        .from("profiles")
-        .select("phone")
-        .eq("id", user.id)
-        .single();
-      profile = result.data;
-      profileError = result.error;
-      if (profileError) {
-        console.error("Failed to fetch profile in middleware:", profileError);
-      }
-    }
-
-    const hasPhone = !profileError && profile?.phone;
-    const noProfileRow = profileError?.code === "PGRST116";
-    const unexpectedError = profileError && !noProfileRow;
+    const hasPhone = !!user.phone;
 
     if (hasPhone) {
-      // Phone on file: allow through and clear the "just saved" cookie if set
-      if (profilePhoneJustSaved) {
-        const res = NextResponse.next({ request });
-        supabaseResponse.cookies.getAll().forEach((cookie) => {
-          res.cookies.set(cookie.name, cookie.value, cookie);
-        });
-        res.cookies.set("profile_phone_just_saved", "", {
-          path: "/",
-          maxAge: 0,
-        });
-        return res;
-      }
-      return supabaseResponse;
-    }
-
-    // On unexpected DB errors, allow through rather than redirect
-    if (unexpectedError) {
-      console.warn("Allowing request through due to unexpected profile fetch error");
-      return supabaseResponse;
-    }
-
-    if (noProfileRow || !profile?.phone) {
-      // No phone: redirect to complete-profile unless they just saved (cookie set)
       if (profilePhoneJustSaved) {
         const res = NextResponse.next({ request });
         supabaseResponse.cookies.getAll().forEach((cookie) => {
@@ -146,10 +87,21 @@ export async function middleware(request: NextRequest) {
         res.cookies.set("profile_phone_just_saved", "", { path: "/", maxAge: 0 });
         return res;
       }
-      const completeProfileUrl = new URL("/complete-profile", request.url);
-      completeProfileUrl.searchParams.set("redirect", request.nextUrl.pathname);
-      return redirectWithCookies(completeProfileUrl, supabaseResponse);
+      return supabaseResponse;
     }
+
+    // No phone — redirect to complete-profile
+    if (profilePhoneJustSaved) {
+      const res = NextResponse.next({ request });
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        res.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      res.cookies.set("profile_phone_just_saved", "", { path: "/", maxAge: 0 });
+      return res;
+    }
+    const completeProfileUrl = new URL("/complete-profile", request.url);
+    completeProfileUrl.searchParams.set("redirect", request.nextUrl.pathname);
+    return redirectWithCookies(completeProfileUrl, supabaseResponse);
   }
 
   return supabaseResponse;

@@ -10,29 +10,26 @@ function normalizePhone(phone: string): string {
 export type PhoneUserResult = { userId: string; email: string };
 
 /**
- * Find a user by phone number. Queries profiles by normalized phone, then
- * fetches email from auth. Returns null if no profile found.
+ * Find a user by phone number. Scans auth users by normalized phone number.
+ * Returns null if no matching user found.
  */
 export async function findUserIdByPhone(phone: string): Promise<PhoneUserResult | null> {
   const supabase = createAdminSupabaseClient();
   const digits = normalizePhone(phone);
 
-  const { data: row, error: profileError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("phone", digits)
-    .maybeSingle();
-
-  if (profileError || !row) {
-    return null;
+  let page = 1;
+  const perPage = 1000;
+  const maxPages = 20;
+  while (page <= maxPages) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) return null;
+    if (!data?.users?.length) break;
+    const user = data.users.find((u) => normalizePhone(u.phone ?? "") === digits);
+    if (user?.email) return { userId: user.id, email: user.email };
+    if (data.users.length < perPage) break;
+    page++;
   }
-
-  const { data: authData, error: authError } = await supabase.auth.admin.getUserById(row.id);
-  if (authError || !authData?.user?.email) {
-    return null;
-  }
-
-  return { userId: row.id, email: authData.user.email };
+  return null;
 }
 
 export type CreatePhoneUserOptions = {
@@ -105,11 +102,10 @@ export async function createPhoneUser(
       const authUser = await findAuthUserByEmail(authEmail);
       if (authUser) {
         if (!preferredEmail) {
-          // Placeholder email: recover by writing the phone back to profiles
-          await supabase.from("profiles").upsert(
-            { id: authUser.id, phone: digits, updated_at: new Date().toISOString() },
-            { onConflict: "id" }
-          );
+          // Placeholder email: recover by writing the phone back via admin API
+          await supabase.auth.admin.updateUserById(authUser.id, {
+            phone: digits,
+          });
         } else {
           // User-provided email exists in a different account — surface a clear error
           const conflict = new Error(
@@ -125,35 +121,14 @@ export async function createPhoneUser(
   }
 
   const userId = createData.user.id;
-  const now = new Date().toISOString();
 
-  const { error: profilesError } = await supabase.from("profiles").upsert(
-    {
-      id: userId,
-      phone: digits,
-      full_name: fullName,
-      updated_at: now,
-    },
-    { onConflict: "id" }
-  );
-  if (profilesError) {
-    throw new Error(`Failed to create profile: ${profilesError.message}`);
-  }
-
-  const { error: userProfilesError } = await supabase
-    .from("user_profiles")
-    .upsert(
-      {
-        id: userId,
-        full_name: fullName,
-        role: "customer",
-        is_active: true,
-        updated_at: now,
-      },
-      { onConflict: "id", ignoreDuplicates: false }
-    );
-  if (userProfilesError) {
-    throw new Error(`Failed to create user profile: ${userProfilesError.message}`);
+  const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+    app_metadata: { role: "customer" },
+    phone: digits,
+    user_metadata: { full_name: fullName },
+  });
+  if (updateError) {
+    throw new Error(`Failed to set user metadata: ${updateError.message}`);
   }
 
   return { userId, email: authEmail };

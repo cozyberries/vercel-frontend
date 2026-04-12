@@ -160,16 +160,18 @@ export async function POST(request: NextRequest) {
       if (registerEmail) {
         const emailUser = await findAuthUserByEmail(registerEmail);
         if (emailUser) {
-          const supabase = createAdminSupabaseClient();
-          const profilePayload: Record<string, unknown> = {
-            id: emailUser.id,
+          const adminSupabase = createAdminSupabaseClient();
+          // Fetch current user to preserve existing role (avoid demoting admins)
+          const { data: existingAuthUser } = await adminSupabase.auth.admin.getUserById(emailUser.id);
+          const existingRole = existingAuthUser?.user?.app_metadata?.role;
+          const updatePayload: Parameters<typeof adminSupabase.auth.admin.updateUserById>[1] = {
             phone: normalizedPhone,
-            updated_at: new Date().toISOString(),
+            ...(existingRole ? {} : { app_metadata: { role: "customer" } }),
           };
-          if (fullName) profilePayload.full_name = fullName;
-          const { error: linkError } = await supabase
-            .from("profiles")
-            .upsert(profilePayload, { onConflict: "id" });
+          const { error: linkError } = await adminSupabase.auth.admin.updateUserById(
+            emailUser.id,
+            updatePayload
+          );
           if (linkError) throw new Error(`Failed to link phone to profile: ${linkError.message}`);
           email = emailUser.email;
         } else {

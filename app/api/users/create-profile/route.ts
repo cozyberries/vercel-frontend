@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PostgrestError } from "@supabase/supabase-js";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { generateNameFromEmail, validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { UpstashService } from "@/lib/upstash";
@@ -64,82 +63,28 @@ export async function POST(request: NextRequest) {
     // Generate name from email
     const generatedName = generateNameFromEmail(email);
 
-    // Try to create profile in both tables (profiles and user_profiles)
-    // First try user_profiles (used by admin routes)
-    const now = new Date().toISOString();
-    let profileData = null;
-    let hasError = false;
-    let errorDetails: Record<string, PostgrestError> = {};
-
-    // Try user_profiles first
-    const { data: userProfileData, error: userProfileError } = await supabase
-      .from("user_profiles")
-      .upsert(
-        {
-          id: userId,
-          full_name: generatedName,
-          role: "customer",
-          is_active: true,
-          updated_at: now,
-        },
-        {
-          onConflict: "id",
-          ignoreDuplicates: false,
-        }
-      )
-      .select()
-      .single();
-
-    if (!userProfileError && userProfileData) {
-      profileData = userProfileData;
-    } else if (userProfileError) {
-      errorDetails.user_profiles = userProfileError;
-      hasError = true;
-    }
-
-    // Also try profiles table (used by profile routes)
-    const profilesPayload: Record<string, string> = {
-      id: userId,
-      full_name: generatedName,
-      updated_at: now,
+    // Set role, name, and phone in a single admin API call
+    const updatePayload: Record<string, any> = {
+      user_metadata: { full_name: generatedName },
+      app_metadata: { role: "customer" },
     };
     if (phone) {
-      profilesPayload.phone = phone.replace(/\D/g, "");
-    }
-    const { data: profileDataAlt, error: profileErrorAlt } = await supabase
-      .from("profiles")
-      .upsert(profilesPayload, {
-        onConflict: "id",
-      })
-      .select()
-      .single();
-
-    // If user_profiles failed but profiles succeeded, that's okay
-    if (userProfileError && !profileErrorAlt && profileDataAlt) {
-      profileData = profileDataAlt;
-      hasError = false; // Success in profiles table
-    } else if (profileErrorAlt && !profileData) {
-      // Only mark as error if we don't have profileData from user_profiles
-      errorDetails.profiles = profileErrorAlt;
-      hasError = true;
+      updatePayload.phone = phone.replace(/\D/g, "");
     }
 
-    // If both failed, return error
-    if (hasError && !profileData) {
-      console.error("Error creating user profile:", errorDetails);
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, updatePayload);
 
+    if (updateError) {
+      console.error("Error creating user profile:", updateError);
       return NextResponse.json(
-        {
-          error: "Failed to create user profile",
-          details: errorDetails.user_profiles?.message || errorDetails.profiles?.message || "Unknown error",
-        },
+        { error: "Failed to create user profile", details: updateError.message },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      profile: profileData || { id: userId, full_name: generatedName },
+      profile: { id: userId, full_name: generatedName },
       generatedName,
     });
   } catch (error) {
