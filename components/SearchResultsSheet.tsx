@@ -287,7 +287,9 @@ export default function SearchResultsSheet({
     if (cached.length > 0) setTopProducts(cached);
   }, []);
 
-  // Sync top products from React Query into local state and persist to localStorage
+  // Sync top products from React Query into local state and persist to localStorage.
+  // Guard (products.length > 0) is intentional: avoids wiping localStorage-seeded data
+  // when the API transiently returns empty (e.g. during loading or a fluke empty response).
   useEffect(() => {
     const products = topProductsData?.products;
     if (products && products.length > 0) {
@@ -766,7 +768,7 @@ export default function SearchResultsSheet({
                   <h4 className="text-sm font-medium mb-2">Top products</h4>
                   <div className="space-y-2">
                     {topProductsLoading ? (
-                      Array.from({ length: 4 }).map((_, i) => (
+                      Array.from({ length: 6 }).map((_, i) => (
                         <div key={`top-skeleton-${i}`} className="flex items-center gap-4 p-3 border rounded-lg animate-pulse">
                           <div className="w-14 h-14 rounded bg-muted flex-shrink-0" />
                           <div className="flex-1 min-w-0 space-y-2">
@@ -776,7 +778,7 @@ export default function SearchResultsSheet({
                         </div>
                       ))
                     ) : (
-                    topProducts.slice(0, 6).map((p) => {
+                    topProducts.map((p) => {
                       const img = (p.images?.[0] ?? null) as any;
                       const productImageSrc =
                         (img as any)?.url ?? (img as any) ?? null;

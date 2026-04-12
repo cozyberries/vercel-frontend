@@ -220,12 +220,13 @@ export async function GET(request: NextRequest) {
     if (userIds.length > 0) {
       try {
         const adminSupabase = createAdminSupabaseClient();
-        const { data: { users } } = await adminSupabase.auth.admin.listUsers({ perPage: 1000 });
-        for (const u of users) {
-          if (userIds.includes(u.id)) {
-            userMap[u.id] = (u.user_metadata?.full_name as string) ?? null;
+        // Fetch only the specific users who left reviews — avoids paginating all users.
+        await Promise.all(userIds.map(async (id) => {
+          const { data } = await adminSupabase.auth.admin.getUserById(id);
+          if (data?.user) {
+            userMap[id] = (data.user.user_metadata?.full_name as string) ?? null;
           }
-        }
+        }));
       } catch (err) {
         console.error("[ratings GET] Failed to enrich user names:", err);
       }
