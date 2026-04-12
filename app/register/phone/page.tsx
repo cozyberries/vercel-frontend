@@ -40,9 +40,11 @@ export default function RegisterPhonePage() {
   const searchParams = useSearchParams();
   const { user, signInWithGoogle } = useAuth();
   const redirectTo = searchParams.get("redirect");
+  const phoneParam = searchParams.get("phone") ?? "";
 
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(phoneParam);
   const [phoneError, setPhoneError] = useState("");
+  const [fullNameError, setFullNameError] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -128,6 +130,11 @@ export default function RegisterPhonePage() {
   const handleSendOtp = async () => {
     setError("");
     setPhoneError("");
+    setFullNameError("");
+    if (!fullName.trim()) {
+      setFullNameError("Full name is required");
+      return;
+    }
 
     const digits = phone.replace(/\D/g, "");
     const phoneValidation = validateRequiredPhoneNumber(digits);
@@ -278,7 +285,7 @@ export default function RegisterPhonePage() {
             />
             <div>
               <Label htmlFor="register-full-name">
-                Full name <span className="text-muted-foreground font-normal">(optional)</span>
+                Full name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="register-full-name"
@@ -289,6 +296,11 @@ export default function RegisterPhonePage() {
                 onChange={(e) => setFullName(e.target.value)}
                 className="mt-1"
               />
+              {fullNameError && (
+                <p className="text-sm text-destructive mt-1" role="alert">
+                  {fullNameError}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="register-email">
