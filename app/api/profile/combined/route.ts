@@ -96,7 +96,7 @@ export async function GET() {
 
     // No cache or cache miss - fetch from database in parallel
     const [profileData, addressesData] = await Promise.all([
-      fetchProfileFromDatabase(user, supabase),
+      fetchProfileFromDatabase(user),
       fetchAddressesFromDatabase(user.id, supabase),
     ]);
 
@@ -132,47 +132,21 @@ export async function GET() {
 }
 
 /**
- * Fetch profile data from database
+ * Fetch profile data from auth user object
  */
-async function fetchProfileFromDatabase(user: any, supabase: any) {
-  // Get user profile data from profiles table - only select needed fields
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("full_name, phone, avatar_url, updated_at")
-    .eq("id", user.id)
-    .single();
-
-  // If table doesn't exist or no profile found, return user data only
-  if (profileError) {
-    if (
-      profileError.code === "PGRST116" ||
-      profileError.message?.includes("relation") ||
-      profileError.message?.includes("does not exist")
-    ) {
-      return {
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        phone: null,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-      };
-    } else {
-      throw new Error(`Failed to retrieve profile: ${profileError.message}`);
-    }
-  }
-
-  // Return user data with profile information
-  return {
+async function fetchProfileFromDatabase(user: any) {
+  // All user fields come from the auth user object
+  const profileData = {
     id: user.id,
     email: user.email,
-    full_name: user.user_metadata?.full_name || profile?.full_name || null,
-    avatar_url: user.user_metadata?.avatar_url || profile?.avatar_url || null,
-    phone: profile?.phone || null,
+    phone: user.phone ?? null,
+    full_name: user.user_metadata?.full_name ?? null,
+    avatar_url: user.user_metadata?.avatar_url ?? null,
     created_at: user.created_at,
-    updated_at: profile?.updated_at || user.updated_at,
+    updated_at: user.updated_at,
   };
+
+  return profileData;
 }
 
 /**
@@ -211,7 +185,7 @@ async function refreshDataInBackground(
 ): Promise<void> {
   try {
     const [profileData, addressesData] = await Promise.all([
-      fetchProfileFromDatabase(user, supabase),
+      fetchProfileFromDatabase(user),
       fetchAddressesFromDatabase(userId, supabase),
     ]);
 
