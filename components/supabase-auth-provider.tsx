@@ -111,45 +111,13 @@ export function SupabaseAuthProvider({
   const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
-        // First, ensure profile exists (create if it doesn't)
+        // Ensure role is set in app_metadata (safety net for first login)
         await ensureUserProfile(currentSession.user.id);
 
-        // Get user profile with role (deduplicated — prevents double query from
-        // concurrent getInitialSession + onAuthStateChange INITIAL_SESSION calls)
-        const roleKey = `role:${currentSession.user.id}`;
-        let rolePromise = inflightRef.current.get(roleKey);
-        if (!rolePromise) {
-          // Use try/finally inside async IIFE — no .finally() method required
-          // (Supabase query builder is a custom thenable without .finally)
-          rolePromise = (async () => {
-            try {
-              return await supabase
-                .from("user_profiles")
-                .select("role")
-                .eq("id", currentSession.user.id)
-                .single();
-            } finally {
-              inflightRef.current.delete(roleKey);
-            }
-          })();
-          inflightRef.current.set(roleKey, rolePromise);
-        }
-        const { data: profile, error } = await rolePromise;
-
-        if (!error && profile) {
-          const userProfile: UserProfile = {
-            id: currentSession.user.id,
-            role: profile.role,
-          };
-          setUserProfile(userProfile);
-        } else {
-          // Fallback for users without profile
-          const userProfile: UserProfile = {
-            id: currentSession.user.id,
-            role: "customer",
-          };
-          setUserProfile(userProfile);
-        }
+        // Role comes from JWT app_metadata — no DB query needed.
+        // New users fall back to 'customer' (correct); role appears in JWT on next refresh.
+        const role = (currentSession.user.app_metadata?.role as UserProfile['role']) ?? 'customer';
+        setUserProfile({ id: currentSession.user.id, role });
 
         // Generate JWT token for API authentication
         const token = await generateJwtToken(
@@ -160,13 +128,7 @@ export function SupabaseAuthProvider({
       } catch (error) {
         console.error("Error updating user profile:", error);
         // Set default customer profile on error
-        const userProfile: UserProfile = {
-          id: currentSession.user.id,
-          role: "customer",
-        };
-        setUserProfile(userProfile);
-
-        // Generate JWT token for API authentication
+        setUserProfile({ id: currentSession.user.id, role: "customer" });
         const token = await generateJwtToken(
           currentSession.user.id,
           currentSession.user.email
@@ -174,11 +136,10 @@ export function SupabaseAuthProvider({
         setJwtToken(token);
       }
     } else {
-      // No session, clear profile and token
       setUserProfile(null);
       setJwtToken(null);
     }
-  }, [supabase, generateJwtToken, ensureUserProfile]);
+  }, [generateJwtToken, ensureUserProfile]);
 
   useEffect(() => {
     let isMounted = true;
