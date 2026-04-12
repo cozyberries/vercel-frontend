@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { validatePhoneNumber, validateFullName, formatIndianPhoneDisplay } from "@/lib/utils/validation";
+import { isPlaceholderEmail } from "@/lib/utils/auth";
 import IndianPhoneInput from "@/components/IndianPhoneInput";
 import AddressCard from "./AddressCard";
 
@@ -46,14 +47,6 @@ interface UserAddress {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-}
-
-function isPlaceholderEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  // New format: {digits}@phone.cozyberries.in
-  // Old format: phone+91{digits}@phone.cozyburry.local (existing users)
-  return email.endsWith("@phone.cozyberries.in") ||
-    (email.startsWith("phone+") && email.includes("@phone."));
 }
 
 interface ProfileFormProps {
@@ -221,7 +214,7 @@ export default function ProfileForm({
               )}
               {!validationErrors.email && (
                 <p className="text-xs text-muted-foreground">
-                  A confirmation link will be sent to the new address.
+                  Your email will be updated immediately.
                 </p>
               )}
             </>

@@ -22,18 +22,12 @@ import {
 import type { CheckRegistrationStatus } from "@/app/api/auth/check-registration/route";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
+import { isSafeRedirect } from "@/lib/utils/redirect";
 
 const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
 const OTP_PHONE_KEY = "otp_phone";
 const OTP_REGISTER_FULL_NAME_KEY = "otp_register_full_name";
 const OTP_REGISTER_EMAIL_KEY = "otp_register_email";
-
-function isSafeRedirect(path: string | null): path is string {
-  if (!path || typeof path !== "string") return false;
-  if (!path.startsWith("/") || path.startsWith("//")) return false;
-  if (path.includes(":")) return false;
-  return true;
-}
 
 export default function RegisterPhonePage() {
   const router = useRouter();

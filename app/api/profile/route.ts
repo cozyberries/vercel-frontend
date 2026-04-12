@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
+import { findAuthUserByEmail } from "@/lib/auth-phone";
 import CacheService from "@/lib/services/cache";
 import { notifyNewUserRegistered } from "@/lib/services/telegram";
 
@@ -219,6 +220,15 @@ export async function PUT(request: NextRequest) {
 
     // Update email immediately via admin (no confirmation email sent)
     if (email !== undefined && email !== "") {
+      // Check if email is already taken by a different account
+      const existingUser = await findAuthUserByEmail(email);
+      if (existingUser && existingUser.id !== user.id) {
+        return NextResponse.json(
+          { error: "This email address is already associated with another account." },
+          { status: 409 }
+        );
+      }
+
       const { error: emailError } = await adminSupabase.auth.admin.updateUserById(
         user.id,
         { email, email_confirm: true }

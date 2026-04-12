@@ -1,7 +1,7 @@
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 
 const PHONE_PLACEHOLDER_DOMAIN =
-  process.env.VERIFYNOW_PHONE_PLACEHOLDER_EMAIL_DOMAIN || "phone.cozyberries.in";
+  process.env.VERIFYNOW_PHONE_PLACEHOLDER_EMAIL_DOMAIN || "phone.cozyberries.local";
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");

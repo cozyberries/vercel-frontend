@@ -8,6 +8,7 @@ import {
   validateRequiredPhoneNumber,
   validateAddress,
 } from "@/lib/utils/validation";
+import { isPlaceholderEmail } from "@/lib/utils/auth";
 import { getProfileCombined, type ProfileCombinedResponse } from "@/lib/services/api";
 
 const PROFILE_COMBINED_QUERY_KEY = ["profile", "combined"] as const;
@@ -37,14 +38,6 @@ interface UserAddress {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-}
-
-function isPlaceholderEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  // New format: {digits}@phone.cozyberries.in
-  // Old format: phone+91{digits}@phone.cozyburry.local (existing users)
-  return email.endsWith("@phone.cozyberries.in") ||
-    (email.startsWith("phone+") && email.includes("@phone."));
 }
 
 export function useProfile(user: any) {
@@ -188,10 +181,6 @@ export function useProfile(user: any) {
         await queryClient.refetchQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
         setIsEditing(false);
         setValidationErrors({ full_name: "", phone: "", email: "" });
-        // Sync editData email to reflect new value immediately
-        if (emailChanged) {
-          setEditData((prev) => ({ ...prev, email: editData.email }));
-        }
       } else {
         const errorData = await response.json();
         alert(`Failed to update profile: ${errorData.error}`);
