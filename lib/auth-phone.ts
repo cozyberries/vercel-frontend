@@ -1,7 +1,7 @@
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 
 const PHONE_PLACEHOLDER_DOMAIN =
-  process.env.VERIFYNOW_PHONE_PLACEHOLDER_EMAIL_DOMAIN || "phone.cozyburry.local";
+  process.env.VERIFYNOW_PHONE_PLACEHOLDER_EMAIL_DOMAIN || "phone.cozyberries.in";
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
@@ -79,7 +79,7 @@ export async function createPhoneUser(
   const digits = normalizePhone(phone);
   const fullName = options?.fullName?.trim() || "User";
   const preferredEmail = options?.email?.trim();
-  const authEmail = preferredEmail || `phone+91${digits}@${PHONE_PLACEHOLDER_DOMAIN}`;
+  const authEmail = preferredEmail || `${digits}@${PHONE_PLACEHOLDER_DOMAIN}`;
 
   const { data: createData, error: createError } = await supabase.auth.admin.createUser({
     email: authEmail,

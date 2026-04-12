@@ -41,7 +41,10 @@ interface UserAddress {
 
 function isPlaceholderEmail(email: string | null | undefined): boolean {
   if (!email) return false;
-  return email.startsWith("phone+") && email.includes("@phone.");
+  // New format: {digits}@phone.cozyberries.in
+  // Old format: phone+91{digits}@phone.cozyburry.local (existing users)
+  return email.endsWith("@phone.cozyberries.in") ||
+    (email.startsWith("phone+") && email.includes("@phone."));
 }
 
 export function useProfile(user: any, updateEmail?: (email: string) => Promise<{ error: any }>) {
