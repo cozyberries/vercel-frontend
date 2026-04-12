@@ -199,7 +199,7 @@ export default function ProfileForm({
         </div>
 
         {/* Email — read-only when not editing, editable when editing */}
-        <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+        <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-sm font-medium text-muted-foreground">Email</span>
