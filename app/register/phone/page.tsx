@@ -40,7 +40,7 @@ export default function RegisterPhonePage() {
   const searchParams = useSearchParams();
   const { user, signInWithGoogle } = useAuth();
   const redirectTo = searchParams.get("redirect");
-  const phoneParam = searchParams.get("phone") ?? "";
+  const phoneParam = (searchParams.get("phone") ?? "").replace(/\D/g, "");
 
   const [phone, setPhone] = useState(phoneParam);
   const [phoneError, setPhoneError] = useState("");
