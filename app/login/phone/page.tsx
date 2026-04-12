@@ -31,7 +31,6 @@ export default function LoginPhonePage() {
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-  const [noAccount, setNoAccount] = useState(false);
 
   // Already logged in: redirect to profile or intended page
   useEffect(() => {
@@ -65,7 +64,6 @@ export default function LoginPhonePage() {
   const handleSendOtp = async () => {
     setError("");
     setPhoneError("");
-    setNoAccount(false);
 
     const digits = phone.replace(/\D/g, "");
     const phoneValidation = validateRequiredPhoneNumber(digits);
@@ -89,8 +87,11 @@ export default function LoginPhonePage() {
 
       if (!res.ok) {
         if (res.status === 404) {
-          setNoAccount(true);
-          setError((data?.error as string) || "No account with this number. Please register first.");
+          const registerUrl = isSafeRedirect(redirectTo)
+            ? `/register/phone?phone=${digits}&redirect=${encodeURIComponent(redirectTo)}`
+            : `/register/phone?phone=${digits}`;
+          router.push(registerUrl);
+          return;
         } else {
           const message =
             res.status === 429
@@ -220,14 +221,6 @@ export default function LoginPhonePage() {
               {error}
             </p>
           )}
-          {noAccount && (
-            <p className="text-sm text-center">
-              <Link href={registerHref} className="font-medium text-primary hover:text-primary/80">
-                Register with this number
-              </Link>
-            </p>
-          )}
-
           <Button
             type="button"
             className="w-full relative z-10"
