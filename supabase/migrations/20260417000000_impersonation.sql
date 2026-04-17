@@ -2,7 +2,7 @@
 -- Phase 1 foundation. See docs/superpowers/specs/2026-04-17-admin-order-on-behalf-design.md
 
 ALTER TABLE orders
-  ADD COLUMN placed_by_admin_id uuid NULL REFERENCES auth.users(id);
+  ADD COLUMN placed_by_admin_id uuid NULL REFERENCES auth.users(id) ON DELETE SET NULL;
 
 CREATE INDEX orders_placed_by_admin_id_idx
   ON orders (placed_by_admin_id)
@@ -13,7 +13,7 @@ CREATE TABLE impersonation_events (
   actor_id     uuid NOT NULL REFERENCES auth.users(id),
   target_id    uuid NOT NULL REFERENCES auth.users(id),
   event_type   text NOT NULL CHECK (event_type IN ('start','stop','order_placed','expired')),
-  order_id     uuid NULL REFERENCES orders(id),
+  order_id     uuid NULL REFERENCES orders(id) ON DELETE SET NULL,
   ip           inet NULL,
   user_agent   text NULL,
   metadata     jsonb NOT NULL DEFAULT '{}'::jsonb,

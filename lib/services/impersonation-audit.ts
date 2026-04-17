@@ -54,10 +54,7 @@ export function extractRequestMetadata(req: Request): {
   const forwardedFor = req.headers.get('x-forwarded-for');
   const userAgent = req.headers.get('user-agent');
 
-  const ip =
-    typeof forwardedFor === 'string' && forwardedFor.length > 0
-      ? (forwardedFor.split(',')[0]?.trim() ?? null) || null
-      : null;
+  const ip = forwardedFor?.split(',')[0]?.trim() || null;
 
   return {
     ip,

@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const insertMock = vi.fn();
-const fromMock = vi.fn(() => ({ insert: insertMock }));
-const mockAdminClient = { from: fromMock };
+const {
+  insertMock,
+  fromMock,
+  mockAdminClient,
+  createAdminSupabaseClientMock,
+} = vi.hoisted(() => {
+  const insertMock = vi.fn();
+  const fromMock = vi.fn(() => ({ insert: insertMock }));
+  const mockAdminClient = { from: fromMock };
+  const createAdminSupabaseClientMock = vi.fn(() => mockAdminClient);
+  return { insertMock, fromMock, mockAdminClient, createAdminSupabaseClientMock };
+});
 
 vi.mock('@/lib/supabase-server', () => ({
-  createAdminSupabaseClient: vi.fn(() => mockAdminClient),
+  createAdminSupabaseClient: createAdminSupabaseClientMock,
 }));
 
 import {
@@ -17,6 +26,7 @@ describe('logImpersonationEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     insertMock.mockResolvedValue({ error: null });
+    createAdminSupabaseClientMock.mockReturnValue(mockAdminClient);
   });
 
   it('inserts an impersonation event with the expected shape', async () => {
@@ -77,6 +87,26 @@ describe('logImpersonationEvent', () => {
     const firstArg = spy.mock.calls[0]?.[0];
     expect(typeof firstArg).toBe('string');
     expect(firstArg as string).toContain('[impersonation]');
+
+    spy.mockRestore();
+  });
+
+  it('resolves without throwing when the admin client factory itself throws', async () => {
+    createAdminSupabaseClientMock.mockImplementation(() => {
+      throw new Error('env missing');
+    });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(
+      logImpersonationEvent({
+        actor_id: 'admin-1',
+        target_id: 'user-2',
+        event_type: 'start',
+      })
+    ).resolves.toBeUndefined();
+
+    expect(spy).toHaveBeenCalled();
+    expect(spy.mock.calls[0]?.[0]).toContain('[impersonation]');
 
     spy.mockRestore();
   });
