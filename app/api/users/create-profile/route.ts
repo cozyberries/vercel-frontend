@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { generateNameFromEmail, validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { UpstashService } from "@/lib/upstash";
+import { blockIfImpersonating } from "@/lib/utils/impersonation-guard";
 
 // Initialize user profile after signup.
 // Called by the client immediately after signUp(); no session is available yet when
@@ -9,6 +10,9 @@ import { UpstashService } from "@/lib/upstash";
 // the user exists in auth.users and email matches, plus rate limit per userId.
 export async function POST(request: NextRequest) {
   try {
+    const blocked = await blockIfImpersonating();
+    if (blocked) return blocked;
+
     const body = await request.json();
     const { userId, email, phone } = body;
 

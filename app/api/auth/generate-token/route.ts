@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAuthToken } from "@/lib/jwt-auth";
+import { blockIfImpersonating } from "@/lib/utils/impersonation-guard";
 
 export async function POST(request: NextRequest) {
   try {
+    const blocked = await blockIfImpersonating();
+    if (blocked) return blocked;
+
     const { userId, userEmail } = await request.json();
 
     if (!userId) {
