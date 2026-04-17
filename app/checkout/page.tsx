@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { useCart, getCartItemKey } from "@/components/cart-context";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
@@ -35,9 +36,12 @@ interface CheckoutFormData {
   notes?: string;
 }
 
+const ADMIN_OVERRIDE_NOTE_MIN_LEN = 3;
+const ADMIN_OVERRIDE_NOTE_MAX_LEN = 500;
+
 export default function CheckoutPage() {
   const { cart } = useCart();
-  const { user, loading } = useAuth();
+  const { user, loading, impersonation } = useAuth();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
@@ -47,6 +51,9 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: "",
   });
+  const [adminOverrideEnabled, setAdminOverrideEnabled] = useState(false);
+  const [adminOverrideAmount, setAdminOverrideAmount] = useState("");
+  const [adminOverrideNote, setAdminOverrideNote] = useState("");
   const [pincodeStatus, setPincodeStatus] = useState<
     "idle" | "checking" | "serviceable" | "not_serviceable" | "error"
   >("idle");
@@ -74,15 +81,48 @@ export default function CheckoutPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const offer = getActiveOffer()
-  const couponCode = offer?.code ?? ''
-  const discountAmount = offer ? Math.floor(subtotal * offer.discountRate) : 0
-  const discountedSubtotal = subtotal - discountAmount
+
+  const overrideActive = impersonation.active && adminOverrideEnabled;
+
+  // Parse + validate override amount once. Treat empty string as 0 so the
+  // validity check below can flag the missing-amount case separately.
+  const parsedOverrideAmount = (() => {
+    const trimmed = adminOverrideAmount.trim();
+    if (trimmed.length === 0) return NaN;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : NaN;
+  })();
+
+  const overrideAmountValid =
+    Number.isFinite(parsedOverrideAmount) &&
+    Number.isInteger(parsedOverrideAmount) &&
+    parsedOverrideAmount >= 0 &&
+    parsedOverrideAmount <= subtotal;
+
+  const trimmedOverrideNote = adminOverrideNote.trim();
+  const overrideNoteValid =
+    trimmedOverrideNote.length >= ADMIN_OVERRIDE_NOTE_MIN_LEN &&
+    trimmedOverrideNote.length <= ADMIN_OVERRIDE_NOTE_MAX_LEN;
+
+  const overrideValid = overrideAmountValid && overrideNoteValid;
+  const overrideAmountInt = overrideAmountValid ? parsedOverrideAmount : 0;
+
+  const offer = overrideActive ? null : getActiveOffer();
+  const couponCode = offer?.code ?? "";
+  const organicDiscount = offer ? Math.floor(subtotal * offer.discountRate) : 0;
+
+  const discountAmount = overrideActive ? overrideAmountInt : organicDiscount;
+  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
   const deliveryCharge =
     cart.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
       ? DELIVERY_CHARGE_INR
-      : 0
-  const total = discountedSubtotal + deliveryCharge
+      : 0;
+  const total = discountedSubtotal + deliveryCharge;
+
+  const truncatedOverrideNote =
+    trimmedOverrideNote.length > 40
+      ? `${trimmedOverrideNote.slice(0, 40)}…`
+      : trimmedOverrideNote;
 
   // Redirect if user is not authenticated; preserve redirect so post-login returns to checkout
   useEffect(() => {
@@ -201,7 +241,16 @@ export default function CheckoutPage() {
             ...(item.color ? { color: item.color } : {}),
           })),
           shipping_address_id: selectedAddressId,
-          ...(couponCode ? { coupon_code: couponCode } : {}),
+          ...(overrideActive
+            ? {
+                admin_override: {
+                  discount_amount: overrideAmountInt,
+                  note: trimmedOverrideNote,
+                },
+              }
+            : couponCode
+              ? { coupon_code: couponCode }
+              : {}),
           notes: formData.notes || undefined,
         }),
       });
@@ -467,6 +516,95 @@ export default function CheckoutPage() {
                 />
               </div>
 
+              {/* Admin tools — only in shadow mode */}
+              {impersonation.active && (
+                <div className="rounded-lg border border-amber-300 bg-yellow-50 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-amber-900">
+                      Admin tools — Shadow mode
+                    </h3>
+                  </div>
+                  <p className="text-xs text-amber-800 mb-3">
+                    Overrides apply only to this order. Customer coupons are
+                    ignored when override is active.
+                  </p>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={adminOverrideEnabled}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setAdminOverrideEnabled(next);
+                        if (!next) {
+                          setAdminOverrideAmount("");
+                          setAdminOverrideNote("");
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-amber-900">
+                      Apply custom discount override
+                    </span>
+                  </label>
+
+                  {adminOverrideEnabled && (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <Label
+                          htmlFor="admin-override-amount"
+                          className="text-sm text-amber-900"
+                        >
+                          Discount amount (₹)
+                        </Label>
+                        <Input
+                          id="admin-override-amount"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={subtotal}
+                          step={1}
+                          value={adminOverrideAmount}
+                          onChange={(e) => setAdminOverrideAmount(e.target.value)}
+                          placeholder="0"
+                          className="bg-white"
+                        />
+                        {!overrideAmountValid && adminOverrideAmount.length > 0 && (
+                          <p className="mt-1 text-xs text-red-600">
+                            Amount must be a non-negative integer no greater
+                            than the subtotal (₹{subtotal.toFixed(0)}).
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label
+                          htmlFor="admin-override-note"
+                          className="text-sm text-amber-900"
+                        >
+                          Reason (required)
+                        </Label>
+                        <Textarea
+                          id="admin-override-note"
+                          rows={2}
+                          value={adminOverrideNote}
+                          maxLength={ADMIN_OVERRIDE_NOTE_MAX_LEN}
+                          onChange={(e) => setAdminOverrideNote(e.target.value)}
+                          placeholder="e.g. Wholesale, phone-order negotiated price — min 3 chars"
+                          className="bg-white"
+                        />
+                        {!overrideNoteValid && adminOverrideNote.length > 0 && (
+                          <p className="mt-1 text-xs text-red-600">
+                            Reason must be {ADMIN_OVERRIDE_NOTE_MIN_LEN}–
+                            {ADMIN_OVERRIDE_NOTE_MAX_LEN} characters.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Submit Button */}
               <Button
                 type="submit"
@@ -475,7 +613,8 @@ export default function CheckoutPage() {
                 disabled={
                   isProcessing ||
                   !selectedAddressId ||
-                  pincodeStatus !== "serviceable"
+                  pincodeStatus !== "serviceable" ||
+                  (overrideActive && !overrideValid)
                 }
               >
                 {isProcessing ? (
@@ -548,7 +687,7 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>₹{subtotal.toFixed(0)}</span>
                 </div>
-                {offer && discountAmount > 0 && (
+                {!overrideActive && offer && organicDiscount > 0 && (
                   <>
                     <div className="flex justify-between text-sm items-center">
                       <span className="text-muted-foreground">Promo Code</span>
@@ -561,9 +700,23 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex justify-between text-sm text-green-600">
                       <span>Discount ({offer.badgeText})</span>
-                      <span>-₹{discountAmount.toFixed(0)}</span>
+                      <span>-₹{organicDiscount.toFixed(0)}</span>
                     </div>
                   </>
+                )}
+                {overrideActive && overrideAmountInt > 0 && (
+                  <div className="flex justify-between text-sm text-amber-700">
+                    <span>
+                      Admin Discount
+                      {truncatedOverrideNote.length > 0 && (
+                        <>
+                          {" "}
+                          — <span className="italic">{truncatedOverrideNote}</span>
+                        </>
+                      )}
+                    </span>
+                    <span>-₹{overrideAmountInt.toFixed(0)}</span>
+                  </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span>Delivery</span>
@@ -587,7 +740,9 @@ export default function CheckoutPage() {
                   <span className="font-medium text-sm">
                     {deliveryCharge === 0
                       ? "Free Delivery"
-                      : `Spend ₹${(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} more for free delivery`}
+                      : overrideActive
+                        ? "Delivery"
+                        : `Spend ₹${(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} more for free delivery`}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">

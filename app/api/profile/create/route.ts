@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
+import { blockIfImpersonating } from "@/lib/utils/impersonation-guard";
 
 /**
  * Ensures the authenticated user has a role set in app_metadata.
@@ -7,6 +8,9 @@ import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/sup
  */
 export async function POST() {
   try {
+    const blocked = await blockIfImpersonating();
+    if (blocked) return blocked;
+
     const supabase = await createServerSupabaseClient();
 
     const {

@@ -1,6 +1,22 @@
-import { createClient } from "@/lib/supabase";
+/**
+ * Browser-side cart client.
+ *
+ * All remote reads and writes go through the `/api/cart` server route so that
+ * impersonation (admin-order-on-behalf, a.k.a. shadow mode) works correctly:
+ * the server derives the effective user from the session + `acting_as`
+ * cookie, and the browser never needs to know whose cart it is. `localStorage`
+ * is used purely as an instant-UI / guest-mode cache.
+ *
+ * The persistence hook (`useCartPersistence`) controls localStorage gating
+ * based on `useAuth().impersonation.active`: while impersonating, the hook
+ * bypasses localStorage entirely and reads/writes only via this service.
+ * The service itself remains pure: the `getLocalCart`/`saveLocalCart`
+ * methods stay intact so guest-mode continues to work.
+ */
+
 import type { CartItem } from "@/components/cart-context";
 import { getCartItemKey } from "@/components/cart-context";
+import { extractErrorMessage } from "@/lib/utils/http-errors";
 
 export interface UserCart {
   id: string;
@@ -11,106 +27,77 @@ export interface UserCart {
 }
 
 class CartService {
-  private supabase = createClient();
+  // Key: userId passed by the caller. Used only as a dedup bucket; the server
+  // ignores it and scopes by the effective user.
   private cacheRequests = new Map<string, Promise<CartItem[]>>();
 
-  /**
-   * Fetch user's cart from Supabase with Upstash caching
-   */
   async getUserCart(userId: string): Promise<CartItem[]> {
+    const existing = this.cacheRequests.get(userId);
+    if (existing) return existing;
+
+    const requestPromise = this._getUserCartInternal();
+    this.cacheRequests.set(userId, requestPromise);
     try {
-      // Check if we already have a pending request for this user
-      if (this.cacheRequests.has(userId)) {
-        return await this.cacheRequests.get(userId)!;
-      }
-
-      // Create a new request promise
-      const requestPromise = this._getUserCartInternal(userId);
-      this.cacheRequests.set(userId, requestPromise);
-
-      try {
-        const result = await requestPromise;
-        return result;
-      } finally {
-        // Clean up the request after completion
-        this.cacheRequests.delete(userId);
-      }
-    } catch (error) {
-      console.error("Error fetching user cart:", error);
-      return [];
+      return await requestPromise;
+    } finally {
+      this.cacheRequests.delete(userId);
     }
   }
 
-  /**
-   * Internal method to fetch cart data
-   */
-  private async _getUserCartInternal(userId: string): Promise<CartItem[]> {
+  private async _getUserCartInternal(): Promise<CartItem[]> {
     try {
-      // If not in cache, fetch from Supabase
-      const { data, error } = await this.supabase
-        .from("user_carts")
-        .select("items")
-        .eq("user_id", userId)
-        .single();
+      const response = await fetch("/api/cart", {
+        method: "GET",
+        credentials: "include",
+      });
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 is "not found" error - expected for new users
-        console.error("Error fetching user cart:", error);
+      if (!response.ok) {
+        // 401 (not signed in) and other errors collapse to an empty cart.
+        if (response.status !== 401) {
+          console.error(
+            "Error fetching user cart: non-OK response",
+            response.status
+          );
+        }
         return [];
       }
 
-      const cartItems = data?.items || [];
-
-      return cartItems;
+      const body = (await response.json()) as { cart?: CartItem[] };
+      return body.cart ?? [];
     } catch (error) {
       console.error("Error fetching user cart:", error);
       return [];
     }
   }
 
-  /**
-   * Save cart to Supabase (upsert operation) with Upstash caching
-   */
-  async saveUserCart(userId: string, items: CartItem[]): Promise<void> {
-    try {
-      const { error } = await this.supabase.from("user_carts").upsert(
-        {
-          user_id: userId,
-          items: items,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "user_id",
-        }
-      );
+  async saveUserCart(_userId: string, items: CartItem[]): Promise<void> {
+    const response = await fetch("/api/cart", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
 
-      if (error) {
-        console.error("Error saving user cart:", error);
-        throw error;
-      }
-    } catch (error) {
-      console.error("Error saving user cart:", error);
-      throw error;
+    if (!response.ok) {
+      const message = await extractErrorMessage(response, "Failed to save cart");
+      console.error("Error saving user cart:", message);
+      throw new Error(message);
     }
   }
 
-  /**
-   * Delete user's cart from Supabase and clear cache
-   */
-  async clearUserCart(userId: string): Promise<void> {
-    try {
-      const { error } = await this.supabase
-        .from("user_carts")
-        .delete()
-        .eq("user_id", userId);
+  async clearUserCart(_userId: string): Promise<void> {
+    const response = await fetch("/api/cart", {
+      method: "DELETE",
+      credentials: "include",
+    });
 
-      if (error) {
-        console.error("Error clearing user cart:", error);
-        throw error;
-      }
-    } catch (error) {
-      console.error("Error clearing user cart:", error);
-      throw error;
+    if (!response.ok) {
+      const message = await extractErrorMessage(
+        response,
+        "Failed to clear cart"
+      );
+      console.error("Error clearing user cart:", message);
+      throw new Error(message);
     }
   }
 
@@ -121,32 +108,28 @@ class CartService {
   mergeCartItems(localItems: CartItem[], remoteItems: CartItem[]): CartItem[] {
     const mergedItems = new Map<string, CartItem>();
 
-    // Add remote items first (keyed by id+size+color)
     remoteItems.forEach((item) => {
       mergedItems.set(getCartItemKey(item), item);
     });
 
-    // Add or merge local items
     localItems.forEach((localItem) => {
       const key = getCartItemKey(localItem);
       const existingItem = mergedItems.get(key);
       if (existingItem) {
-        // Check if this looks like a refresh scenario (same items with same quantities)
-        // If so, prefer remote data to avoid doubling
+        // If local and remote look identical (same items + quantities), this
+        // is a refresh scenario rather than a cross-device merge: prefer
+        // remote so we don't double counts.
         const isLikelyRefresh = this.areSimilarCarts(localItems, remoteItems);
 
         if (isLikelyRefresh) {
-          // Prefer remote data on refresh scenarios
           // mergedItems already has the remote item, so do nothing
         } else {
-          // True merge scenario - add quantities
           mergedItems.set(key, {
             ...existingItem,
             quantity: existingItem.quantity + localItem.quantity,
           });
         }
       } else {
-        // Add new local items that don't exist remotely
         mergedItems.set(key, localItem);
       }
     });
@@ -154,10 +137,6 @@ class CartService {
     return Array.from(mergedItems.values());
   }
 
-  /**
-   * Check if local and remote carts are similar (indicating a refresh scenario)
-   * rather than a true cross-device merge scenario
-   */
   private areSimilarCarts(
     localItems: CartItem[],
     remoteItems: CartItem[]
@@ -166,8 +145,6 @@ class CartService {
       return false;
     }
 
-    // If both carts have the same items with the same quantities,
-    // it's likely a refresh scenario where data was just synced
     const localMap = new Map(
       localItems.map((item) => [getCartItemKey(item), item.quantity])
     );
@@ -184,9 +161,6 @@ class CartService {
     return true;
   }
 
-  /**
-   * Get cart from localStorage
-   */
   getLocalCart(): CartItem[] {
     try {
       if (typeof window === "undefined") return [];
@@ -198,9 +172,6 @@ class CartService {
     }
   }
 
-  /**
-   * Save cart to localStorage
-   */
   saveLocalCart(items: CartItem[]): void {
     try {
       if (typeof window === "undefined") return;
@@ -210,9 +181,6 @@ class CartService {
     }
   }
 
-  /**
-   * Clear cart from localStorage
-   */
   clearLocalCart(): void {
     try {
       if (typeof window === "undefined") return;

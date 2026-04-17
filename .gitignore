@@ -50,6 +50,7 @@ prompts/
 # IDE specific files
 .idea
 .vscode
+.cursor/settings.json
 *.swp
 *.swo
 

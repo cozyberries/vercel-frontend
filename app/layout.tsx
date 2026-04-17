@@ -9,6 +9,7 @@ import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { AuthGateProvider } from "@/components/auth-gate-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
+import ImpersonationBanner from "@/components/ImpersonationBannerClient";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import PwaUpdateHandler from "@/components/PwaUpdateHandlerClient";
@@ -112,6 +113,7 @@ export default function RootLayout({
                           enableSystem={false}
                           disableTransitionOnChange
                         >
+                          <ImpersonationBanner />
                           <ConditionalLayout>
                             {children}
                           </ConditionalLayout>

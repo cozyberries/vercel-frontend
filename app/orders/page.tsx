@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { orderService } from "@/lib/services/orders";
 import type { Order, OrderStatus } from "@/lib/types/order";
+import { ORDER_STATUS_COLORS } from "@/lib/utils/order-status";
 import RatingForm from "@/components/rating/RatingForm";
 import { useRating } from "@/components/rating-context";
 import { sendNotification } from "@/lib/utils/notify";
@@ -51,16 +52,7 @@ const statusIcons: Record<OrderStatus, React.ReactNode> = {
   refunded: <XCircle className="w-4 h-4 text-gray-500" />,
 };
 
-const statusColors: Record<OrderStatus, string> = {
-  payment_pending: "bg-orange-100 text-orange-800",
-  verifying_payment: "bg-amber-100 text-amber-800",
-  payment_confirmed: "bg-blue-100 text-blue-800",
-  processing: "bg-blue-100 text-blue-800",
-  shipped: "bg-purple-100 text-purple-800",
-  delivered: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-  refunded: "bg-gray-100 text-gray-800",
-};
+const statusColors = ORDER_STATUS_COLORS;
 
 export default function OrdersPage() {
   const { user, loading } = useAuth();

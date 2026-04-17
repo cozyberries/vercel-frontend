@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  AdminOverride,
   OrderItemInput,
   OrderSummary,
   ShippingAddress,
@@ -239,6 +240,101 @@ export function calculateOrderSummary(items: OrderItemInput[]): OrderSummary {
     tax_amount: 0,
     total_amount: round2(total_paise / 100),
     currency: "INR",
+  };
+}
+
+// ─── Admin Override ───────────────────────────────────────────────────────────
+
+export const ADMIN_OVERRIDE_DISCOUNT_CODE = "ADMIN_OVERRIDE";
+export const ADMIN_OVERRIDE_NOTE_MIN = 3;
+export const ADMIN_OVERRIDE_NOTE_MAX = 500;
+
+export interface ApplyAdminOverrideInput {
+  override: AdminOverride;
+  subtotal: number;
+  actingAdminEmail?: string | null;
+  existingNotes?: string | null;
+}
+
+export interface ApplyAdminOverrideSuccess {
+  ok: true;
+  discountCode: typeof ADMIN_OVERRIDE_DISCOUNT_CODE;
+  discountAmount: number;
+  notes: string;
+}
+
+export interface ApplyAdminOverrideFailure {
+  ok: false;
+  error: string;
+}
+
+export type ApplyAdminOverrideResult =
+  | ApplyAdminOverrideSuccess
+  | ApplyAdminOverrideFailure;
+
+/**
+ * Pure validator / applier for the admin price-override at checkout.
+ *
+ * - Clamps `override.discount_amount` to `[0, subtotal]` and floors it so the
+ *   server always persists integer rupees.
+ * - Requires `override.note` (trimmed) to be 3..500 chars.
+ * - Prefixes `orders.notes` with `[ADMIN OVERRIDE by <email>]: <note>` so the
+ *   audit trail is preserved alongside any existing customer note.
+ *
+ * NO side effects — safe to unit-test and to call from any route handler.
+ */
+export function applyAdminOverride(
+  input: ApplyAdminOverrideInput
+): ApplyAdminOverrideResult {
+  const { override, subtotal, actingAdminEmail, existingNotes } = input;
+
+  const rawAmount = Number(override?.discount_amount);
+  if (!Number.isFinite(rawAmount)) {
+    return { ok: false, error: "Invalid override discount amount" };
+  }
+
+  const safeSubtotal = Number.isFinite(subtotal) && subtotal > 0 ? subtotal : 0;
+  const discountAmount = Math.max(
+    0,
+    Math.min(safeSubtotal, Math.floor(rawAmount))
+  );
+
+  const trimmedNote = (override?.note ?? "").trim();
+  if (trimmedNote.length < ADMIN_OVERRIDE_NOTE_MIN) {
+    return {
+      ok: false,
+      error: `Override reason must be at least ${ADMIN_OVERRIDE_NOTE_MIN} characters`,
+    };
+  }
+  if (trimmedNote.length > ADMIN_OVERRIDE_NOTE_MAX) {
+    return {
+      ok: false,
+      error: `Override reason must be at most ${ADMIN_OVERRIDE_NOTE_MAX} characters`,
+    };
+  }
+
+  // Collapse any embedded CR/LF sequences so the caller can't forge a second
+  // audit-looking line by smuggling a newline into the note.
+  const sanitizedNote = trimmedNote.replace(/[\r\n]+/g, " ");
+
+  const adminEmail =
+    typeof actingAdminEmail === "string" && actingAdminEmail.trim().length > 0
+      ? actingAdminEmail.trim()
+      : "unknown";
+
+  // Whitespace-only existing notes are treated as absent so the persisted
+  // value is clean regardless of whether the caller pre-trims.
+  const existing =
+    typeof existingNotes === "string" ? existingNotes.trim() : "";
+
+  const prefix = `[ADMIN OVERRIDE by ${adminEmail}]: ${sanitizedNote}`;
+  const notes = existing.length > 0 ? `${prefix}\n${existing}` : prefix;
+
+  return {
+    ok: true,
+    discountCode: ADMIN_OVERRIDE_DISCOUNT_CODE,
+    discountAmount,
+    notes,
   };
 }
 

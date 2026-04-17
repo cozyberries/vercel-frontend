@@ -13,7 +13,10 @@ import {
   Plus,
   LogOut,
   Loader2,
+  UserPlus,
+  ClipboardList,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +24,8 @@ import { validatePhoneNumber, validateFullName, formatIndianPhoneDisplay } from 
 import { isPlaceholderEmail } from "@/lib/utils/auth";
 import IndianPhoneInput from "@/components/IndianPhoneInput";
 import AddressCard from "./AddressCard";
+import { useAuth } from "@/components/supabase-auth-provider";
+import UserPickerModal from "@/components/admin/UserPickerModal";
 
 interface UserProfile {
   id: string;
@@ -92,6 +97,8 @@ export default function ProfileForm({
   onDeleteAddress,
   onSignOut,
 }: ProfileFormProps) {
+  const { isAdmin } = useAuth();
+  const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 lg:p-8">
       {/* Basic Information: name + contact row with inline Edit / Save / Clear */}
@@ -267,6 +274,26 @@ export default function ProfileForm({
         </div>
       </div>
 
+      {isAdmin && (
+        <div className="mt-8 pt-6 border-t border-border space-y-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Admin</h3>
+          <Button
+            variant="outline"
+            onClick={() => setPickerOpen(true)}
+            className="w-full"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Impersonate user
+          </Button>
+          <Button variant="outline" asChild className="w-full">
+            <Link href="/admin/on-behalf-orders">
+              <ClipboardList className="w-4 h-4 mr-2" />
+              On-behalf orders
+            </Link>
+          </Button>
+        </div>
+      )}
+
       {/* Mobile Logout Button - appears at bottom for mobile */}
       <div className="mt-8 pt-6 border-t border-border">
         <Button
@@ -278,6 +305,10 @@ export default function ProfileForm({
           Logout
         </Button>
       </div>
+
+      {isAdmin && (
+        <UserPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
+      )}
     </div>
   );
 }

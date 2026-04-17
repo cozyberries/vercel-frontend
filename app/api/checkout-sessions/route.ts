@@ -1,35 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest } from "@/lib/types/order";
 import {
   validateAndFetchAddresses,
   validateItemPrices,
   calculateOrderSummary,
+  applyAdminOverride,
 } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
 import { notifyCheckoutInitiated } from "@/lib/services/telegram";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createServerSupabaseClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId, actingAdminId, client, effectiveUser, sessionUser } = result;
 
-    const email = user.email?.trim();
+    const email = effectiveUser.email?.trim();
     if (!email) {
       return NextResponse.json(
         { error: "Account email is required for checkout" },
@@ -38,9 +34,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateOrderRequest = await request.json();
-    const { items, shipping_address_id, billing_address_id, coupon_code, notes } = body;
+    const {
+      items,
+      shipping_address_id,
+      billing_address_id,
+      coupon_code,
+      notes,
+      admin_override,
+    } = body;
 
-    await logServerEvent(supabase, user.id, "checkout_request_received", {
+    await logServerEvent(client, userId, "checkout_request_received", {
       items_count: items?.length ?? 0,
       shipping_address_id: shipping_address_id ?? null,
       billing_address_id: billing_address_id ?? null,
@@ -60,10 +63,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate addresses
+    // Admin override is only allowed under shadow mode.
+    if (admin_override && !actingAdminId) {
+      return NextResponse.json(
+        { error: "Admin override not allowed outside shadow mode" },
+        { status: 403 }
+      );
+    }
+
     const addressResult = await validateAndFetchAddresses(
-      supabase,
-      user.id,
+      client,
+      userId,
       shipping_address_id,
       billing_address_id
     );
@@ -71,7 +81,7 @@ export async function POST(request: NextRequest) {
     if ("error" in addressResult) {
       console.error("Address validation error:", addressResult.error, {
         addressId: shipping_address_id,
-        userId: user.id,
+        userId,
       });
       return NextResponse.json(
         { error: addressResult.error },
@@ -79,8 +89,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Server-side price validation
-    const priceError = await validateItemPrices(supabase, items);
+    const priceError = await validateItemPrices(client, items);
     if (priceError) {
       return NextResponse.json(
         { error: priceError },
@@ -90,44 +99,64 @@ export async function POST(request: NextRequest) {
 
     const orderSummary = calculateOrderSummary(items);
 
-    // Validate coupon and compute server-side discount
-    let discountCode: string | null = null
-    let discountAmount = 0
+    let discountCode: string | null = null;
+    let discountAmount = 0;
+    const trimmedCustomerNotes = notes?.trim();
+    let sessionNotes: string | null =
+      trimmedCustomerNotes && trimmedCustomerNotes.length > 0
+        ? trimmedCustomerNotes
+        : null;
 
-    if (coupon_code) {
-      const result = validateAndApplyOffer(coupon_code, orderSummary.subtotal)
-      if (!result.ok) {
+    if (admin_override && actingAdminId) {
+      const overrideResult = applyAdminOverride({
+        override: admin_override,
+        subtotal: orderSummary.subtotal,
+        actingAdminEmail: sessionUser.email ?? null,
+        existingNotes: sessionNotes,
+      });
+
+      if (!overrideResult.ok) {
         return NextResponse.json(
-          { error: 'invalid_coupon', message: result.error },
-          { status: 422 }
-        )
+          { error: overrideResult.error },
+          { status: 400 }
+        );
       }
-      discountCode = result.data.discountCode
-      discountAmount = result.data.discountAmount
+
+      discountCode = overrideResult.discountCode;
+      discountAmount = overrideResult.discountAmount;
+      sessionNotes = overrideResult.notes;
+      // coupon_code is intentionally ignored when admin override is applied.
+    } else if (coupon_code) {
+      const offerResult = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
+      if (!offerResult.ok) {
+        return NextResponse.json(
+          { error: "invalid_coupon", message: offerResult.error },
+          { status: 422 }
+        );
+      }
+      discountCode = offerResult.data.discountCode;
+      discountAmount = offerResult.data.discountAmount;
     }
 
-    // Recompute total with discount applied
-    const discountedSubtotal = orderSummary.subtotal - discountAmount
+    const discountedSubtotal = orderSummary.subtotal - discountAmount;
     const serverDeliveryCharge =
       items.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
         ? DELIVERY_CHARGE_INR
-        : 0
-    const finalTotal = discountedSubtotal + serverDeliveryCharge
+        : 0;
+    const finalTotal = discountedSubtotal + serverDeliveryCharge;
 
     const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
-    // Expire any existing pending sessions for this user
-    await supabase
+    await client
       .from("checkout_sessions")
       .update({ status: "expired", updated_at: new Date().toISOString() })
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("status", "pending");
 
-    // Create new checkout session
-    const { data: session, error: sessionError } = await supabase
+    const { data: session, error: sessionError } = await client
       .from("checkout_sessions")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         customer_email: email,
         customer_phone: shippingRow.phone,
         shipping_address: shippingAddress,
@@ -140,8 +169,9 @@ export async function POST(request: NextRequest) {
         tax_amount: orderSummary.tax_amount,
         total_amount: finalTotal,
         currency: orderSummary.currency,
-        notes: notes || null,
+        notes: sessionNotes,
         status: "pending",
+        placed_by_admin_id: actingAdminId ?? null,
       })
       .select("id")
       .single();
@@ -160,12 +190,19 @@ export async function POST(request: NextRequest) {
       itemCount: items.length,
     });
 
-    // Log event (fire-and-forget)
-    logServerEvent(supabase, user.id, "checkout_session_created", {
+    logServerEvent(client, userId, "checkout_session_created", {
       session_id: session.id,
       total_amount: finalTotal,
       item_count: items.length,
     });
+
+    if (admin_override && actingAdminId) {
+      logServerEvent(client, userId, "admin_override_applied", {
+        session_id: session.id,
+        discount_amount: discountAmount,
+        actor_id: actingAdminId,
+      });
+    }
 
     return NextResponse.json({
       session_id: session.id,

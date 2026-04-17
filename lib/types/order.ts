@@ -82,6 +82,9 @@ export interface OrderBase {
   notes?: string;
   discount_code?: string;
   discount_amount?: number;
+  /** Admin user id when the order was placed on behalf of the customer by an
+   *  admin (impersonation / shadow mode). Null for all direct customer orders. */
+  placed_by_admin_id?: string | null;
 }
 
 /** Shape inserted into the orders table (no items — stored separately). */
@@ -140,12 +143,21 @@ export interface Payment extends PaymentBase {
   updated_at: string;
 }
 
+/** Admin-only price override applied at checkout during shadow mode. */
+export interface AdminOverride {
+  /** Rupees. Server clamps to [0, subtotal] and floors to an integer. */
+  discount_amount: number;
+  /** Required reason — trimmed length must be 3..500. */
+  note: string;
+}
+
 export interface CreateOrderRequest {
   items: OrderItemInput[];
   shipping_address_id: string;
   billing_address_id?: string;
   coupon_code?: string;
   notes?: string;
+  admin_override?: AdminOverride;
 }
 
 export interface CreateOrderResponse {
@@ -183,6 +195,9 @@ export interface CheckoutSession {
   discount_amount?: number;
   status: CheckoutSessionStatus;
   order_id?: string;
+  /** Admin user id when the session was created on behalf of the customer
+   *  under impersonation. Null for normal customer sessions. */
+  placed_by_admin_id?: string | null;
   created_at: string;
   updated_at: string;
 }

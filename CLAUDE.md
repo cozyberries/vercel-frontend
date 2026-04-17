@@ -11,6 +11,7 @@ The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.coz
 That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
 Do not add admin-only operations here. Do not use `JWT_SECRET` in this repo.
 `SUPABASE_SERVICE_ROLE_KEY` is allowed **only** in server-side API routes that (1) verify the user session with `getUser()` first and (2) scope every query by `user_id` — the notifications API (`/api/notifications`) follows this pattern to avoid RLS/GRANT drift. Do not use it for any other purpose in this repo.
+`IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
 
 ## Commands
 
@@ -102,6 +103,12 @@ app/
 - `POST|GET /api/notifications` and `PATCH /api/notifications/[id]` verify the session, then use **`SUPABASE_SERVICE_ROLE_KEY`** to read/write rows scoped by `user_id` (avoids `GRANT`/`RLS` drift across Supabase projects)
 - `AddressFormModal` accepts `enablePincodeCheck` prop to toggle Delhivery validation
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
+
+### Admin impersonation E2E
+- Run: `npm run test:admin-impersonation` (Desktop Chrome, reuses `purchase-auth-setup`).
+- Env vars: `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` (same as other e2e specs); the user must have `user_metadata.role = 'admin'` in Supabase.
+- Flow: create new user → impersonate → checkout with admin override → "I Have Paid" → Exit → verify row on `/admin/on-behalf-orders`.
+- By design the test leaves the newly-created Supabase auth user behind (timestamped email, no auto-cleanup — parallel runs must not race on deletion). Clean up manually in Supabase Dashboard → Auth → Users if the list gets noisy.
 
 ### Playwright MCP (Cursor)
 - Project-level MCP is in `.cursor/mcp.json` and runs `@playwright/mcp` with this repo’s `playwright.config.ts`.
