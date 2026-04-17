@@ -25,6 +25,7 @@
     "test:payment": "playwright test --project=payment",
     "test:payment:headed": "playwright test --project=payment --headed",
     "test:payment:debug": "playwright test --project=payment --headed --debug",
+    "test:admin-impersonation": "playwright test --project=admin-impersonation",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
   },

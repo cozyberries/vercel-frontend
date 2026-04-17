@@ -104,6 +104,12 @@ app/
 - `AddressFormModal` accepts `enablePincodeCheck` prop to toggle Delhivery validation
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
 
+### Admin impersonation E2E
+- Run: `npm run test:admin-impersonation` (Desktop Chrome, reuses `purchase-auth-setup`).
+- Env vars: `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` (same as other e2e specs); the user must have `user_metadata.role = 'admin'` in Supabase.
+- Flow: create new user → impersonate → checkout with admin override → "I Have Paid" → Exit → verify row on `/admin/on-behalf-orders`.
+- By design the test leaves the newly-created Supabase auth user behind (timestamped email, no auto-cleanup — parallel runs must not race on deletion). Clean up manually in Supabase Dashboard → Auth → Users if the list gets noisy.
+
 ### Playwright MCP (Cursor)
 - Project-level MCP is in `.cursor/mcp.json` and runs `@playwright/mcp` with this repo’s `playwright.config.ts`.
 - If the Playwright MCP shows "errored" in Cursor: **fully quit and restart Cursor** (MCP servers load at startup). Ensure Node 20+ and run `npx playwright install chromium` in the project. If you use the Cursor Playwright plugin, you can disable it and rely on the project MCP to avoid duplicate/conflict.
