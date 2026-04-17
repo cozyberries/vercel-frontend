@@ -167,6 +167,9 @@ describe('POST /api/orders', () => {
     expect(inserted.user_id).toBe(TARGET_ID);
     expect(inserted.placed_by_admin_id).toBe(ADMIN_ID);
     expect(inserted.customer_email).toBe('target@example.com');
+
+    const body = await res.json();
+    expect(JSON.stringify(body)).not.toContain('admin@example.com');
   });
 
   it('logs order_placed impersonation event when acting under shadow mode', async () => {

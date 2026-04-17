@@ -173,6 +173,9 @@ describe('POST /api/checkout-sessions — shadow path without override', () => {
     expect(inserted.user_id).toBe(TARGET_ID);
     expect(inserted.customer_email).toBe('target@example.com');
     expect(inserted.placed_by_admin_id).toBe(ADMIN_ID);
+
+    const body = await res.json();
+    expect(JSON.stringify(body)).not.toContain('admin@example.com');
   });
 });
 

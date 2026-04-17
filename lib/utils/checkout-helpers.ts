@@ -313,17 +313,21 @@ export function applyAdminOverride(
     };
   }
 
+  // Collapse any embedded CR/LF sequences so the caller can't forge a second
+  // audit-looking line by smuggling a newline into the note.
+  const sanitizedNote = trimmedNote.replace(/[\r\n]+/g, " ");
+
   const adminEmail =
     typeof actingAdminEmail === "string" && actingAdminEmail.trim().length > 0
       ? actingAdminEmail.trim()
       : "unknown";
 
+  // Whitespace-only existing notes are treated as absent so the persisted
+  // value is clean regardless of whether the caller pre-trims.
   const existing =
-    typeof existingNotes === "string" && existingNotes.length > 0
-      ? existingNotes
-      : "";
+    typeof existingNotes === "string" ? existingNotes.trim() : "";
 
-  const prefix = `[ADMIN OVERRIDE by ${adminEmail}]: ${trimmedNote}`;
+  const prefix = `[ADMIN OVERRIDE by ${adminEmail}]: ${sanitizedNote}`;
   const notes = existing.length > 0 ? `${prefix}\n${existing}` : prefix;
 
   return {

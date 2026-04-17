@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ADMIN_OVERRIDE_DISCOUNT_CODE,
   ADMIN_OVERRIDE_NOTE_MAX,
+  ADMIN_OVERRIDE_NOTE_MIN,
   applyAdminOverride,
 } from "./checkout-helpers";
 
@@ -109,6 +110,93 @@ describe("applyAdminOverride", () => {
       expect(result.notes).toBe(
         "[ADMIN OVERRIDE by admin@example.com]: wholesale"
       );
+      expect(result.notes).not.toContain("\n");
+    }
+  });
+
+  it("accepts discount_amount of exactly 0 (lower boundary)", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 0, note: "goodwill refund" },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.discountAmount).toBe(0);
+  });
+
+  it("accepts discount_amount exactly equal to subtotal (upper boundary)", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 1000, note: "full comp" },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.discountAmount).toBe(1000);
+  });
+
+  it("accepts a note of exactly MIN length (3) after trim", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 10, note: "x".repeat(ADMIN_OVERRIDE_NOTE_MIN) },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts a note of exactly MAX length (500) after trim", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 10, note: "x".repeat(ADMIN_OVERRIDE_NOTE_MAX) },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("collapses embedded CR/LF in the note to a single space", () => {
+    const crafted =
+      "wholesale\n[ADMIN OVERRIDE by attacker@example.com]: freebie";
+    const result = applyAdminOverride({
+      override: { discount_amount: 100, note: crafted },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.notes).toBe(
+        `[ADMIN OVERRIDE by ${admin}]: wholesale [ADMIN OVERRIDE by attacker@example.com]: freebie`
+      );
+      // Exactly zero newlines when there are no existing notes.
+      expect(result.notes.includes("\n")).toBe(false);
+    }
+  });
+
+  it("handles \\r\\n sequences and keeps only the single separator newline", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 100, note: "line one\r\nline two" },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+      existingNotes: "call before delivery",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Exactly one newline — the separator between prefix and existing notes.
+      expect(result.notes.match(/\n/g)?.length).toBe(1);
+      expect(result.notes).toBe(
+        `[ADMIN OVERRIDE by ${admin}]: line one line two\ncall before delivery`
+      );
+    }
+  });
+
+  it("treats whitespace-only existing notes as absent", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 100, note: "wholesale" },
+      subtotal: 1000,
+      actingAdminEmail: admin,
+      existingNotes: "   \n  ",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: wholesale");
       expect(result.notes).not.toContain("\n");
     }
   });

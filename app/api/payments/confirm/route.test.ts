@@ -274,6 +274,77 @@ describe('POST /api/payments/confirm — session path', () => {
         user_agent: 'ua',
       })
     );
+
+    const body = await res.json();
+    expect(JSON.stringify(body)).not.toContain('admin@example.com');
+  });
+
+  it('returns 409 with existing order_id when the session is already completed (idempotency)', async () => {
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: null,
+      client: clientMock,
+      sessionUser: { id: TARGET_ID, email: 'customer@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'customer@example.com' },
+    });
+
+    sessionRowMock.current = {
+      id: SESSION_ID,
+      user_id: TARGET_ID,
+      status: 'completed',
+      created_at: new Date().toISOString(),
+      order_id: 'prior-order-id',
+      items: validSessionItems,
+      placed_by_admin_id: null,
+    };
+
+    const res = await POST(makeRequest({ sessionId: SESSION_ID }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body).toEqual({
+      error: 'Payment already confirmed',
+      order_id: 'prior-order-id',
+    });
+    expect(logImpersonationEventMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 when the pending → processing reserve affects zero rows (race)', async () => {
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: null,
+      client: clientMock,
+      sessionUser: { id: TARGET_ID, email: 'customer@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'customer@example.com' },
+    });
+
+    sessionRowMock.current = {
+      id: SESSION_ID,
+      user_id: TARGET_ID,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      customer_email: 'customer@example.com',
+      customer_phone: '+91999',
+      shipping_address: {},
+      billing_address: {},
+      items: validSessionItems,
+      subtotal: 1000,
+      delivery_charge: 0,
+      tax_amount: 0,
+      total_amount: 1000,
+      currency: 'INR',
+      placed_by_admin_id: null,
+    };
+
+    // Simulate a concurrent request having already reserved the session.
+    sessionReserveRowsMock.current = [];
+
+    const res = await POST(makeRequest({ sessionId: SESSION_ID }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/being processed/i);
+    expect(logImpersonationEventMock).not.toHaveBeenCalled();
   });
 
   it('still logs order_placed when customer (not admin) confirms a session created by admin', async () => {

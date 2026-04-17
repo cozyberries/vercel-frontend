@@ -101,7 +101,11 @@ export async function POST(request: NextRequest) {
 
     let discountCode: string | null = null;
     let discountAmount = 0;
-    let sessionNotes: string | null = notes?.trim() ? notes : null;
+    const trimmedCustomerNotes = notes?.trim();
+    let sessionNotes: string | null =
+      trimmedCustomerNotes && trimmedCustomerNotes.length > 0
+        ? trimmedCustomerNotes
+        : null;
 
     if (admin_override && actingAdminId) {
       const overrideResult = applyAdminOverride({

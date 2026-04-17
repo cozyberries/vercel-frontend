@@ -95,14 +95,19 @@ export async function POST(request: NextRequest) {
 
     let discountCode: string | null = null;
     let discountAmount = 0;
-    let orderNotes: string | undefined = notes;
+    const trimmedCustomerNotes = notes?.trim();
+    const normalizedCustomerNotes =
+      trimmedCustomerNotes && trimmedCustomerNotes.length > 0
+        ? trimmedCustomerNotes
+        : null;
+    let orderNotes: string | null = normalizedCustomerNotes;
 
     if (admin_override && actingAdminId) {
       const overrideResult = applyAdminOverride({
         override: admin_override,
         subtotal: orderSummary.subtotal,
         actingAdminEmail: sessionUser.email ?? null,
-        existingNotes: notes ?? null,
+        existingNotes: normalizedCustomerNotes,
       });
 
       if (!overrideResult.ok) {
@@ -150,7 +155,7 @@ export async function POST(request: NextRequest) {
       tax_amount: orderSummary.tax_amount,
       total_amount: finalTotal,
       currency: orderSummary.currency,
-      notes: orderNotes,
+      notes: orderNotes ?? undefined,
       placed_by_admin_id: actingAdminId,
     };
 

@@ -380,7 +380,7 @@ async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
 // ─── Legacy flow: order-based confirmation ────────────────────────────────────
 
 async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
-  const { client, userId, sessionUser } = ctx;
+  const { client, userId } = ctx;
 
   // Fetch order and verify ownership (already scoped to the effective user)
   const { data: order, error: orderError } = await client
@@ -487,10 +487,10 @@ async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
     totalAmount: order.total_amount,
     orderStatus: "verifying_payment",
     paymentStatus: "processing",
-    // Customer-facing channel: never leak actor email. Fall back to the
-    // order's customer_email (set from the target) rather than the session
-    // user (who might be the admin).
-    email: order.customer_email ?? sessionUser.email ?? null,
+    // Customer-facing channel: never leak actor email. Use the order's
+    // customer_email only; if absent, send null — never fall back to the
+    // session user, which may be the admin under shadow mode.
+    email: order.customer_email ?? null,
     phone: order.customer_phone ?? null,
   });
 

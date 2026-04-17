@@ -740,7 +740,9 @@ export default function CheckoutPage() {
                   <span className="font-medium text-sm">
                     {deliveryCharge === 0
                       ? "Free Delivery"
-                      : `Spend ₹${(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} more for free delivery`}
+                      : overrideActive
+                        ? "Delivery"
+                        : `Spend ₹${(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} more for free delivery`}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
