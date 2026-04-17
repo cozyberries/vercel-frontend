@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -183,12 +182,7 @@ export default function OnBehalfOrdersClient() {
             {orders.map((order) => (
               <TableRow key={order.id}>
                 <TableCell className="font-medium">
-                  <Link
-                    href={`/orders/${order.id}`}
-                    className="text-primary hover:underline"
-                  >
-                    #{order.order_number}
-                  </Link>
+                  <span className="text-foreground">#{order.order_number}</span>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
@@ -241,12 +235,9 @@ export default function OnBehalfOrdersClient() {
             className="border border-gray-200 rounded-lg bg-white p-4 space-y-2"
           >
             <div className="flex items-center justify-between">
-              <Link
-                href={`/orders/${order.id}`}
-                className="text-sm font-medium text-primary hover:underline"
-              >
+              <span className="text-sm font-medium text-foreground">
                 #{order.order_number}
-              </Link>
+              </span>
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusPillClass(order.status)}`}
               >
