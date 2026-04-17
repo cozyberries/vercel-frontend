@@ -266,7 +266,7 @@ export async function DELETE(
     const { userId, client } = result;
 
     const resolvedParams = await params;
-    const { data, error } = await client
+    const { error } = await client
       .from("user_addresses")
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("id", resolvedParams.id)

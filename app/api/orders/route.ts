@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
-    const orderData: OrderCreate & { placed_by_admin_id: string | null } = {
+    const orderData: OrderCreate = {
       user_id: userId,
       customer_email: email,
       customer_phone: shippingRow.phone,

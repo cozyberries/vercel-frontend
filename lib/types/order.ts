@@ -82,6 +82,9 @@ export interface OrderBase {
   notes?: string;
   discount_code?: string;
   discount_amount?: number;
+  /** Admin user id when the order was placed on behalf of the customer by an
+   *  admin (impersonation / shadow mode). Null for all direct customer orders. */
+  placed_by_admin_id?: string | null;
 }
 
 /** Shape inserted into the orders table (no items — stored separately). */

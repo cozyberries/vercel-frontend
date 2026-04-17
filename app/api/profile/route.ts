@@ -166,8 +166,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Detect first-time phone for Telegram notification against the target.
-    const { data: currentAuthUser } = await adminSupabase.auth.admin.getUserById(userId);
-    const isFirstPhone = !currentAuthUser?.user?.phone && !!phone;
+    // `effectiveUser` already reflects the target when impersonating (and the
+    // session user otherwise) — no need for a second getUserById round-trip.
+    const isFirstPhone = !effectiveUser.phone && !!phone;
 
     const updatePayload: Record<string, any> = {};
 
