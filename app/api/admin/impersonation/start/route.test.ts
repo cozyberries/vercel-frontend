@@ -178,6 +178,26 @@ describe('POST /api/admin/impersonation/start', () => {
     expect(body).toEqual({ error: 'Cannot impersonate yourself' });
   });
 
+  it('still rejects self-impersonation when caller is super_admin (no privilege escalation)', async () => {
+    getUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: ADMIN_ID,
+          email: 'super@example.com',
+          app_metadata: { role: 'super_admin' },
+        },
+      },
+      error: null,
+    });
+    const res = await POST(makeRequest({ target_user_id: ADMIN_ID }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Cannot impersonate yourself' });
+    expect(signActingAsMock).not.toHaveBeenCalled();
+    expect(cookieStoreMock.set).not.toHaveBeenCalled();
+    expect(logImpersonationEventMock).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when target user does not exist', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
     getUserByIdMock.mockResolvedValue({ data: null, error: { message: 'not found' } });
