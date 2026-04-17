@@ -110,7 +110,7 @@ describe('POST /api/profile/addresses', () => {
     const res = await POST(req);
     expect(res.status).toBe(201);
     expect(insertMock).toHaveBeenCalledTimes(1);
-    const inserted = insertMock.mock.calls[0][0];
+    const inserted = (insertMock.mock.calls[0] as any[])[0];
     expect(Array.isArray(inserted) ? inserted[0].user_id : inserted.user_id).toBe(TARGET_ID);
     expect(existingEqUser).toHaveBeenCalledWith('user_id', TARGET_ID);
   });

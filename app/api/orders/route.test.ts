@@ -153,7 +153,7 @@ describe('POST /api/orders', () => {
 
     expect(fromMock).toHaveBeenCalledWith('orders');
     expect(insertOrdersMock).toHaveBeenCalledTimes(1);
-    const inserted = insertOrdersMock.mock.calls[0][0];
+    const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
     expect(inserted.user_id).toBe(TARGET_ID);
     expect(inserted.placed_by_admin_id).toBe(ADMIN_ID);
     expect(inserted.customer_email).toBe('target@example.com');
