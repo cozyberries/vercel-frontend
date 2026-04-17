@@ -5,6 +5,7 @@ import {
   validateAndFetchAddresses,
   validateItemPrices,
   calculateOrderSummary,
+  applyAdminOverride,
 } from "@/lib/utils/checkout-helpers";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
@@ -14,6 +15,10 @@ import {
   effectiveUserErrorResponse,
   getEffectiveUser,
 } from "@/lib/services/effective-user";
+import {
+  extractRequestMetadata,
+  logImpersonationEvent,
+} from "@/lib/services/impersonation-audit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
         unauthenticatedMessage: "Authentication required",
       });
     }
-    const { userId, actingAdminId, client, effectiveUser } = result;
+    const { userId, actingAdminId, client, effectiveUser, sessionUser } = result;
 
     const email = effectiveUser.email?.trim();
     if (!email) {
@@ -34,7 +39,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateOrderRequest = await request.json();
-    const { items, shipping_address_id, billing_address_id, coupon_code, notes } = body;
+    const {
+      items,
+      shipping_address_id,
+      billing_address_id,
+      coupon_code,
+      notes,
+      admin_override,
+    } = body;
+
+    if (admin_override && !actingAdminId) {
+      return NextResponse.json(
+        { error: "Admin override not allowed outside shadow mode" },
+        { status: 403 }
+      );
+    }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -76,8 +95,28 @@ export async function POST(request: NextRequest) {
 
     let discountCode: string | null = null;
     let discountAmount = 0;
+    let orderNotes: string | undefined = notes;
 
-    if (coupon_code) {
+    if (admin_override && actingAdminId) {
+      const overrideResult = applyAdminOverride({
+        override: admin_override,
+        subtotal: orderSummary.subtotal,
+        actingAdminEmail: sessionUser.email ?? null,
+        existingNotes: notes ?? null,
+      });
+
+      if (!overrideResult.ok) {
+        return NextResponse.json(
+          { error: overrideResult.error },
+          { status: 400 }
+        );
+      }
+
+      discountCode = overrideResult.discountCode;
+      discountAmount = overrideResult.discountAmount;
+      orderNotes = overrideResult.notes;
+      // coupon_code is intentionally ignored when admin_override is applied.
+    } else if (coupon_code) {
       const offerResult = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
       if (!offerResult.ok) {
         return NextResponse.json(
@@ -111,7 +150,7 @@ export async function POST(request: NextRequest) {
       tax_amount: orderSummary.tax_amount,
       total_amount: finalTotal,
       currency: orderSummary.currency,
-      notes,
+      notes: orderNotes,
       placed_by_admin_id: actingAdminId,
     };
 
@@ -164,6 +203,22 @@ export async function POST(request: NextRequest) {
         { error: "Failed to save order items" },
         { status: 500 }
       );
+    }
+
+    if (actingAdminId) {
+      const { ip, user_agent } = extractRequestMetadata(request);
+      logImpersonationEvent({
+        actor_id: actingAdminId,
+        target_id: userId,
+        event_type: "order_placed",
+        order_id: order.id,
+        ip,
+        user_agent,
+        metadata: {
+          order_number: order.order_number,
+          override_applied: Boolean(admin_override),
+        },
+      });
     }
 
     await notifyAdminsOrderPlacedFromCheckout({

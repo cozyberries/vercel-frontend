@@ -9,9 +9,12 @@ const {
   validateAndFetchAddressesMock,
   validateItemPricesMock,
   calculateOrderSummaryMock,
+  applyAdminOverrideMock,
   validateAndApplyOfferMock,
   notifyAdminsOrderPlacedFromCheckoutMock,
   notifyOrderPlacedMock,
+  logImpersonationEventMock,
+  extractRequestMetadataMock,
   insertOrdersMock,
   insertItemsMock,
   singleOrdersMock,
@@ -49,9 +52,12 @@ const {
     validateAndFetchAddressesMock: vi.fn(),
     validateItemPricesMock: vi.fn(),
     calculateOrderSummaryMock: vi.fn(),
+    applyAdminOverrideMock: vi.fn(),
     validateAndApplyOfferMock: vi.fn(),
     notifyAdminsOrderPlacedFromCheckoutMock: vi.fn(),
     notifyOrderPlacedMock: vi.fn(),
+    logImpersonationEventMock: vi.fn().mockResolvedValue(undefined),
+    extractRequestMetadataMock: vi.fn(() => ({ ip: '1.2.3.4', user_agent: 'ua' })),
     insertOrdersMock,
     insertItemsMock,
     singleOrdersMock,
@@ -69,6 +75,12 @@ vi.mock('@/lib/utils/checkout-helpers', () => ({
   validateAndFetchAddresses: validateAndFetchAddressesMock,
   validateItemPrices: validateItemPricesMock,
   calculateOrderSummary: calculateOrderSummaryMock,
+  applyAdminOverride: applyAdminOverrideMock,
+}));
+
+vi.mock('@/lib/services/impersonation-audit', () => ({
+  logImpersonationEvent: logImpersonationEventMock,
+  extractRequestMetadata: extractRequestMetadataMock,
 }));
 
 vi.mock('@/lib/utils/offers-server', () => ({
@@ -155,6 +167,100 @@ describe('POST /api/orders', () => {
     expect(inserted.user_id).toBe(TARGET_ID);
     expect(inserted.placed_by_admin_id).toBe(ADMIN_ID);
     expect(inserted.customer_email).toBe('target@example.com');
+  });
+
+  it('logs order_placed impersonation event when acting under shadow mode', async () => {
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: ADMIN_ID,
+      client: clientMock,
+      sessionUser: { id: ADMIN_ID, email: 'admin@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'target@example.com' },
+    });
+
+    const res = await POST(makeRequest({
+      items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }],
+      shipping_address_id: 'addr-1',
+    }));
+    expect(res.status).toBe(200);
+
+    expect(logImpersonationEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor_id: ADMIN_ID,
+        target_id: TARGET_ID,
+        event_type: 'order_placed',
+        order_id: 'order-1',
+      })
+    );
+  });
+
+  it('applies admin_override: ignores coupon, uses helper output, passes override metadata to audit', async () => {
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: ADMIN_ID,
+      client: clientMock,
+      sessionUser: { id: ADMIN_ID, email: 'admin@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'target@example.com' },
+    });
+
+    applyAdminOverrideMock.mockReturnValue({
+      ok: true,
+      discountCode: 'ADMIN_OVERRIDE',
+      discountAmount: 250,
+      notes: '[ADMIN OVERRIDE by admin@example.com]: phone-order',
+    });
+
+    const res = await POST(makeRequest({
+      items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }],
+      shipping_address_id: 'addr-1',
+      coupon_code: 'IGNORED',
+      admin_override: { discount_amount: 250, note: 'phone-order' },
+    }));
+    expect(res.status).toBe(200);
+
+    expect(applyAdminOverrideMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        override: { discount_amount: 250, note: 'phone-order' },
+        subtotal: 1000,
+        actingAdminEmail: 'admin@example.com',
+      })
+    );
+    expect(validateAndApplyOfferMock).not.toHaveBeenCalled();
+
+    const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+    expect(inserted.discount_code).toBe('ADMIN_OVERRIDE');
+    expect(inserted.discount_amount).toBe(250);
+    expect(inserted.notes).toBe('[ADMIN OVERRIDE by admin@example.com]: phone-order');
+
+    expect(logImpersonationEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor_id: ADMIN_ID,
+        event_type: 'order_placed',
+        metadata: expect.objectContaining({ override_applied: true }),
+      })
+    );
+  });
+
+  it('returns 403 when admin_override is sent outside shadow mode', async () => {
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: null,
+      client: clientMock,
+      sessionUser: { id: TARGET_ID, email: 'customer@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'customer@example.com' },
+    });
+
+    const res = await POST(makeRequest({
+      items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }],
+      shipping_address_id: 'addr-1',
+      admin_override: { discount_amount: 100, note: 'sneaky' },
+    }));
+    expect(res.status).toBe(403);
+    expect(insertOrdersMock).not.toHaveBeenCalled();
+    expect(applyAdminOverrideMock).not.toHaveBeenCalled();
   });
 
   it('returns error response via helper when getEffectiveUser rejects with forbidden_not_admin', async () => {
