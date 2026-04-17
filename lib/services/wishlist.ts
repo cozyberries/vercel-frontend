@@ -15,6 +15,7 @@
  */
 
 import type { WishlistItem } from "@/components/wishlist-context";
+import { extractErrorMessage } from "@/lib/utils/http-errors";
 
 export interface UserWishlist {
   id: string;
@@ -155,21 +156,6 @@ class WishlistService {
       console.error("Error clearing local wishlist:", error);
     }
   }
-}
-
-async function extractErrorMessage(
-  response: Response,
-  fallback: string
-): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: unknown };
-    if (typeof body?.error === "string" && body.error.trim()) {
-      return body.error;
-    }
-  } catch {
-    // Body was empty or not JSON; fall through to default.
-  }
-  return `${fallback} (HTTP ${response.status})`;
 }
 
 export const wishlistService = new WishlistService();

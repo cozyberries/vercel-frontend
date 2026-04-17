@@ -16,6 +16,7 @@
 
 import type { CartItem } from "@/components/cart-context";
 import { getCartItemKey } from "@/components/cart-context";
+import { extractErrorMessage } from "@/lib/utils/http-errors";
 
 export interface UserCart {
   id: string;
@@ -188,21 +189,6 @@ class CartService {
       console.error("Error clearing local cart:", error);
     }
   }
-}
-
-async function extractErrorMessage(
-  response: Response,
-  fallback: string
-): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: unknown };
-    if (typeof body?.error === "string" && body.error.trim()) {
-      return body.error;
-    }
-  } catch {
-    // Body was empty or not JSON; fall through to default.
-  }
-  return `${fallback} (HTTP ${response.status})`;
 }
 
 export const cartService = new CartService();

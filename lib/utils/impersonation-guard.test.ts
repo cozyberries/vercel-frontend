@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { cookiesMock } = vi.hoisted(() => {
-  const getMock = vi.fn();
-  const cookiesMock = vi.fn(async () => ({ get: getMock }));
-  return { cookiesMock, getMock };
-});
+const { cookiesMock } = vi.hoisted(() => ({
+  cookiesMock: vi.fn(async () => ({ get: vi.fn() })),
+}));
 
 vi.mock('next/headers', () => ({
   cookies: cookiesMock,

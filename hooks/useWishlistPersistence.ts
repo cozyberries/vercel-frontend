@@ -72,8 +72,19 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
       const userId = userIdRef.current;
 
       if (isImpersonating) {
+        if (!userId) {
+          // Defensive guard: impersonation implies a session, but if the
+          // effective user id hasn't propagated yet, skip the network call
+          // rather than fetching with an empty id.
+          console.warn(
+            "Wishlist init skipped: impersonation active but effective userId is empty"
+          );
+          currentSetWishlist([]);
+          hasInitializedRef.current = true;
+          return;
+        }
         try {
-          const remoteWishlist = await wishlistService.getUserWishlist(userId ?? "");
+          const remoteWishlist = await wishlistService.getUserWishlist(userId);
           currentSetWishlist(remoteWishlist);
         } catch (error) {
           console.error("Error fetching remote wishlist under impersonation:", error);

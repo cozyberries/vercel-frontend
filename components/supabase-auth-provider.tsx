@@ -314,7 +314,7 @@ export function SupabaseAuthProvider({
       isMountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [supabase, updateUserProfile, ensureUserProfile]);
+  }, [supabase, updateUserProfile]);
 
   // Hydrate impersonation state on mount and whenever the session user id
   // changes (login/logout). The endpoint is cheap and self-healing — it will

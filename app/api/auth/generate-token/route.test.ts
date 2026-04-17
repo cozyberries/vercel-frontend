@@ -24,11 +24,11 @@ function makeRequest(body: unknown) {
   });
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
 describe('POST /api/auth/generate-token impersonation guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('returns 403 from guard when acting_as cookie is present', async () => {
     blockIfImpersonatingMock.mockResolvedValue(
       NextResponse.json({ error: 'Forbidden while impersonating' }, { status: 403 })

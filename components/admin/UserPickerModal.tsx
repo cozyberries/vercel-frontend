@@ -290,7 +290,7 @@ export default function UserPickerModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Place order on behalf</DialogTitle>
+          <DialogTitle>Impersonate user</DialogTitle>
           <DialogDescription>
             Find an existing user or create a new one, then continue in their
             session.

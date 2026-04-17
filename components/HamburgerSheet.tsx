@@ -292,7 +292,7 @@ export const HamburgerSheet = () => {
                   >
                     <div className="flex items-center">
                       <UserPlus className="h-4 w-4 mr-2" />
-                      Place order on behalf
+                      Impersonate user
                     </div>
                   </MenuItem>
                   <MenuItem href="/admin/on-behalf-orders">

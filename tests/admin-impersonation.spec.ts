@@ -81,22 +81,22 @@ test("admin impersonation: create user and place order on behalf", async ({
   }
   console.log("✅ Admin session ok →", page.url());
 
-  // ── 2. Open "Place order on behalf" from profile admin block ──────────────
+  // ── 2. Open "Impersonate user" from profile admin block ──────────────────
   console.log("Step 2: Open UserPickerModal");
-  const placeOnBehalfBtn = page.getByRole("button", {
-    name: /place order on behalf/i,
+  const impersonateBtn = page.getByRole("button", {
+    name: /impersonate user/i,
   });
-  const visible = await placeOnBehalfBtn
+  const visible = await impersonateBtn
     .isVisible({ timeout: 5_000 })
     .catch(() => false);
   expect(
     visible,
-    "'Place order on behalf' button must be visible on /profile — TEST_ADMIN_EMAIL likely missing admin role (check Supabase user_metadata.role)"
+    "'Impersonate user' button must be visible on /profile — TEST_ADMIN_EMAIL likely missing admin role (check Supabase user_metadata.role)"
   ).toBe(true);
-  await placeOnBehalfBtn.click();
+  await impersonateBtn.click();
 
   // Modal (role=dialog) is rendered by Radix Dialog
-  const modal = page.getByRole("dialog", { name: /place order on behalf/i });
+  const modal = page.getByRole("dialog", { name: /impersonate user/i });
   await expect(
     modal,
     "UserPickerModal dialog must open when the admin button is clicked"
@@ -151,7 +151,7 @@ test("admin impersonation: create user and place order on behalf", async ({
   await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
   await page.waitForLoadState("domcontentloaded");
 
-  const banner = page.getByRole("status").filter({ hasText: /acting as/i });
+  const banner = page.getByRole("status").filter({ hasText: /impersonating as/i });
   let bannerVisible = await banner
     .isVisible({ timeout: 8_000 })
     .catch(() => false);
@@ -172,7 +172,7 @@ test("admin impersonation: create user and place order on behalf", async ({
   }
   expect(
     bannerVisible,
-    "ImpersonationBanner (role=status, 'Acting as …') must be visible after impersonation starts"
+    "ImpersonationBanner (role=status, 'Impersonating as …') must be visible after impersonation starts"
   ).toBe(true);
   await expect(
     banner,
@@ -371,8 +371,8 @@ test("admin impersonation: create user and place order on behalf", async ({
 
   await page.goto("/profile", { waitUntil: "domcontentloaded" });
   await expect(
-    page.getByRole("button", { name: /place order on behalf/i }),
-    "Admin menu ('Place order on behalf') must still be visible on /profile after stopping impersonation — admin session must survive"
+    page.getByRole("button", { name: /impersonate user/i }),
+    "Admin menu ('Impersonate user') must still be visible on /profile after stopping impersonation — admin session must survive"
   ).toBeVisible({ timeout: 8_000 });
 
   // ── 13. Verify audit row on /admin/on-behalf-orders ───────────────────────
@@ -388,19 +388,51 @@ test("admin impersonation: create user and place order on behalf", async ({
   ).toBeVisible({ timeout: 15_000 });
   console.log("✅ Audit row visible for", targetEmail);
 
-  // ── 14. Assert no browser errors (same allowlist as e2e-purchase-flow) ────
-  const realErrors = errors.filter(
-    (e) =>
-      !e.includes("favicon") &&
-      !e.includes("supabase-js") &&
-      !e.includes("Error saving user cart") &&
-      !e.includes("Error saving user wishlist") &&
-      !e.includes("Error syncing cart") &&
-      !e.includes("Error syncing wishlist") &&
-      !e.includes("406") &&
-      !e.includes("Error fetching profile data") &&
-      !e.includes("Invalid or unexpected token")
-  );
+  // ── 14. Assert no browser errors ──────────────────────────────────────────
+  //
+  // Allowlist notes:
+  //   - Entries are anchored regexes so they match exact error signatures,
+  //     not arbitrary substrings.
+  //   - We split `errors` into `realErrors` (fails the test) and
+  //     `filteredOut` (surfaced as debug output) so silenced messages are
+  //     still reviewable without breaking the assertion.
+  //
+  // If any of these allowlisted signatures changes upstream, this regex
+  // list must be updated — don't fall back to loose `includes()` checks
+  // which can hide genuine regressions.
+  const ALLOWED_ERROR_PATTERNS: readonly RegExp[] = [
+    // Browsers request /favicon.ico even when the page doesn't expose one.
+    /(?:CONSOLE|PAGE): .*favicon/i,
+    // supabase-js logs auth/profile 4xx responses on expected flows
+    // (e.g. the 406 it emits while waiting for a row to exist).
+    /(?:CONSOLE|PAGE): .*(?:@supabase\/supabase-js|supabase-js|profiles\?.* 406)/i,
+    // Known service console.error prefixes — see lib/services/{cart,wishlist}.ts.
+    /^CONSOLE: Error saving user cart:/,
+    /^CONSOLE: Error saving user wishlist:/,
+    /^CONSOLE: Error syncing cart:/,
+    /^CONSOLE: Error syncing wishlist:/,
+    /^CONSOLE: Error fetching profile data:/,
+    // Known transient during target-user hydration immediately after create.
+    /^CONSOLE: .*Invalid or unexpected token/,
+  ];
+
+  const filteredOut: string[] = [];
+  const realErrors = errors.filter((e) => {
+    const matchedPattern = ALLOWED_ERROR_PATTERNS.find((re) => re.test(e));
+    if (matchedPattern) {
+      filteredOut.push(e);
+      return false;
+    }
+    return true;
+  });
+
+  if (filteredOut.length > 0) {
+    console.debug(
+      `ℹ️  ${filteredOut.length} allowlisted console error(s) suppressed:`
+    );
+    filteredOut.forEach((e) => console.debug("  ", e));
+  }
+
   if (realErrors.length > 0) {
     console.log("❌ Browser errors:");
     realErrors.forEach((e) => console.log("  ", e));

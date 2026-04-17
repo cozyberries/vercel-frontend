@@ -9,14 +9,13 @@ const {
 } = vi.hoisted(() => {
   const getUserMock = vi.fn();
   const getUserByIdMock = vi.fn();
-  const updateUserByIdMock = vi.fn();
   return {
     blockIfImpersonatingMock: vi.fn(),
     createServerSupabaseClientMock: vi.fn(async () => ({
       auth: { getUser: getUserMock },
     })),
     createAdminSupabaseClientMock: vi.fn(() => ({
-      auth: { admin: { getUserById: getUserByIdMock, updateUserById: updateUserByIdMock } },
+      auth: { admin: { getUserById: getUserByIdMock, updateUserById: vi.fn() } },
     })),
     getUserMock,
     getUserByIdMock,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/supabase-auth-provider";
 
 /**
@@ -14,7 +13,6 @@ import { useAuth } from "@/components/supabase-auth-provider";
  */
 export function ImpersonationBanner() {
   const { impersonation, stopImpersonation } = useAuth();
-  const router = useRouter();
   const [isExiting, setIsExiting] = useState(false);
 
   const target = impersonation.active ? impersonation.target : null;
@@ -22,7 +20,7 @@ export function ImpersonationBanner() {
   useEffect(() => {
     if (!target || typeof document === "undefined") return;
     const originalTitle = document.title;
-    const prefix = `[Acting as ${target.full_name ?? "user"}] `;
+    const prefix = `[Impersonating as ${target.full_name ?? "user"}] `;
     if (!originalTitle.startsWith(prefix)) {
       document.title = `${prefix}${originalTitle}`;
     }
@@ -43,9 +41,17 @@ export function ImpersonationBanner() {
     setIsExiting(true);
     try {
       await stopImpersonation();
+      // Hard reload so every client hook (cart, wishlist, profile) refetches
+      // against the admin's own session instead of reusing state that was
+      // cached while impersonating. `router.refresh()` only re-runs Server
+      // Components and leaves client caches untouched, which would keep
+      // showing the target user's data after exit.
+      if (typeof window !== "undefined") {
+        window.location.reload();
+        return;
+      }
     } finally {
       setIsExiting(false);
-      router.refresh();
     }
   };
 
@@ -60,7 +66,7 @@ export function ImpersonationBanner() {
     >
       <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between gap-3 px-4 py-2 text-sm font-medium">
         <span className="truncate">
-          Acting as {displayName} ({displayEmail})
+          Impersonating as {displayName} ({displayEmail})
         </span>
         <button
           type="button"

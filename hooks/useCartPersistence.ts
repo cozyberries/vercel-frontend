@@ -89,8 +89,19 @@ export function useCartPersistence({
         // Shadow mode: never touch localStorage. Go straight to the server.
         // An admin acting on behalf of a customer must not see or write their
         // own device-local cart.
+        if (!userId) {
+          // Defensive guard: impersonation implies a session, but if the
+          // effective user id hasn't propagated yet, skip the network call
+          // rather than fetching with an empty id.
+          console.warn(
+            "Cart init skipped: impersonation active but effective userId is empty"
+          );
+          currentSetCart([]);
+          hasInitializedRef.current = true;
+          return;
+        }
         try {
-          const remoteCart = await cartService.getUserCart(userId ?? "");
+          const remoteCart = await cartService.getUserCart(userId);
           currentSetCart(remoteCart);
         } catch (error) {
           console.error("Error fetching remote cart under impersonation:", error);

@@ -588,7 +588,7 @@ export default function CheckoutPage() {
                           id="admin-override-note"
                           rows={2}
                           value={adminOverrideNote}
-                          maxLength={ADMIN_OVERRIDE_NOTE_MAX_LEN + 1}
+                          maxLength={ADMIN_OVERRIDE_NOTE_MAX_LEN}
                           onChange={(e) => setAdminOverrideNote(e.target.value)}
                           placeholder="e.g. Wholesale, phone-order negotiated price — min 3 chars"
                           className="bg-white"

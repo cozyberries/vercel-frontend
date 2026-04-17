@@ -10,6 +10,7 @@ const {
   upsertSingleMock,
   deleteEqMock,
   selectChainMock,
+  eqSelectMock,
   upsertMock,
   fromMock,
   clientMock,
@@ -38,6 +39,7 @@ const {
     upsertSingleMock,
     deleteEqMock,
     selectChainMock,
+    eqSelectMock,
     upsertMock,
     fromMock,
     clientMock: { from: fromMock },
@@ -83,9 +85,7 @@ describe('GET /api/wishlist', () => {
       user_id: TARGET_ID,
     });
     expect(fromMock).toHaveBeenCalledWith('user_wishlists');
-    const eqArgs = (selectChainMock.mock.results[0]?.value as any).eq.mock
-      .calls[0];
-    expect(eqArgs).toEqual(['user_id', TARGET_ID]);
+    expect(eqSelectMock.mock.calls[0]).toEqual(['user_id', TARGET_ID]);
   });
 
   it('returns 403 via helper on forbidden_not_admin', async () => {

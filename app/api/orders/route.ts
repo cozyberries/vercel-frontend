@@ -212,18 +212,30 @@ export async function POST(request: NextRequest) {
 
     if (actingAdminId) {
       const { ip, user_agent } = extractRequestMetadata(request);
-      logImpersonationEvent({
-        actor_id: actingAdminId,
-        target_id: userId,
-        event_type: "order_placed",
-        order_id: order.id,
-        ip,
-        user_agent,
-        metadata: {
-          order_number: order.order_number,
-          override_applied: Boolean(admin_override),
-        },
-      });
+      try {
+        await logImpersonationEvent({
+          actor_id: actingAdminId,
+          target_id: userId,
+          event_type: "order_placed",
+          order_id: order.id,
+          ip,
+          user_agent,
+          metadata: {
+            order_number: order.order_number,
+            override_applied: Boolean(admin_override),
+          },
+        });
+      } catch (auditError) {
+        console.error(
+          "Failed to record impersonation audit for order_placed:",
+          {
+            auditError,
+            actor_id: actingAdminId,
+            target_id: userId,
+            order_id: order.id,
+          }
+        );
+      }
     }
 
     await notifyAdminsOrderPlacedFromCheckout({

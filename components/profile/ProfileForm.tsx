@@ -283,7 +283,7 @@ export default function ProfileForm({
             className="w-full"
           >
             <UserPlus className="w-4 h-4 mr-2" />
-            Place order on behalf
+            Impersonate user
           </Button>
           <Button variant="outline" asChild className="w-full">
             <Link href="/admin/on-behalf-orders">

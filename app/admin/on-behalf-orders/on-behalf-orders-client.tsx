@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,62 +12,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatPrice } from '@/lib/utils';
-
-interface AdminProfile {
-  user_id: string;
-  email: string | null;
-  full_name: string | null;
-}
-
-interface CustomerProfile {
-  user_id: string;
-  email: string | null;
-  full_name: string | null;
-}
-
-interface OnBehalfOrder {
-  id: string;
-  order_number: string;
-  status: string;
-  total_amount: number;
-  currency: string;
-  created_at: string;
-  customer: CustomerProfile;
-  placed_by_admin: AdminProfile | null;
-}
-
-interface ListResponse {
-  orders: OnBehalfOrder[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-const PAGE_SIZE = 25;
-
-// Keep in sync with statusColors in app/orders/page.tsx — this is a read-only
-// admin surface and we don't want a shared module churn in v1.
-const STATUS_COLORS: Record<string, string> = {
-  payment_pending: 'bg-orange-100 text-orange-800',
-  verifying_payment: 'bg-amber-100 text-amber-800',
-  payment_confirmed: 'bg-blue-100 text-blue-800',
-  processing: 'bg-blue-100 text-blue-800',
-  shipped: 'bg-purple-100 text-purple-800',
-  delivered: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-  refunded: 'bg-gray-100 text-gray-800',
-};
-
-function statusPillClass(status: string): string {
-  return STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-800';
-}
-
-function formatStatus(status: string): string {
-  return status
-    .split('_')
-    .map((part) => (part.length > 0 ? part[0].toUpperCase() + part.slice(1) : part))
-    .join(' ');
-}
+import {
+  formatOrderStatus,
+  getOrderStatusColor,
+} from '@/lib/utils/order-status';
+import {
+  useOnBehalfOrders,
+  ON_BEHALF_ORDERS_PAGE_SIZE,
+} from '@/hooks/useApiQueries';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -80,47 +32,29 @@ function formatDate(iso: string): string {
 }
 
 export default function OnBehalfOrdersClient() {
-  const [orders, setOrders] = useState<OnBehalfOrder[]>([]);
-  const [total, setTotal] = useState(0);
+  // Keep offset in local component state so TanStack Query can cache each
+  // page independently via its query key.
   const [offset, setOffset] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (nextOffset: number) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/admin/on-behalf-orders?limit=${PAGE_SIZE}&offset=${nextOffset}`,
-        { credentials: 'include', cache: 'no-store' }
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body?.error || `Request failed (${res.status})`);
-      }
-      const body = (await res.json()) as ListResponse;
-      setOrders(body.orders);
-      setTotal(body.total);
-      setOffset(body.offset);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to load orders';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load(0);
-  }, [load]);
+  const query = useOnBehalfOrders(offset, ON_BEHALF_ORDERS_PAGE_SIZE);
+  const orders = query.data?.orders ?? [];
+  const total = query.data?.total ?? 0;
+  const error = query.error
+    ? query.error instanceof Error
+      ? query.error.message
+      : 'Failed to load orders'
+    : null;
+  // Initial fetch (no cached data) shows the skeleton; subsequent refetches
+  // keep the stale page visible and use the inline spinner in the retry CTA.
+  const isLoading = query.isPending;
+  const isRefetching = query.isFetching && !query.isPending;
 
   const canPrev = offset > 0;
   const canNext = offset + orders.length < total;
   const showingFrom = total === 0 ? 0 : offset + 1;
   const showingTo = offset + orders.length;
 
-  if (isLoading && orders.length === 0) {
+  if (isLoading) {
     return <SkeletonRows />;
   }
 
@@ -135,10 +69,10 @@ export default function OnBehalfOrdersClient() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void load(offset)}
-          disabled={isLoading}
+          onClick={() => void query.refetch()}
+          disabled={isRefetching}
         >
-          {isLoading ? (
+          {isRefetching ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Retrying…
@@ -156,8 +90,8 @@ export default function OnBehalfOrdersClient() {
       <div className="border border-dashed border-gray-200 rounded-lg p-8 text-center">
         <p className="text-sm text-muted-foreground">
           No orders placed on behalf yet. Start by clicking{' '}
-          <span className="font-medium">Place order on behalf</span> in the
-          Admin menu.
+          <span className="font-medium">Impersonate user</span> in the Admin
+          menu and place an order in that user&apos;s session.
         </p>
       </div>
     );
@@ -216,9 +150,9 @@ export default function OnBehalfOrdersClient() {
                 </TableCell>
                 <TableCell>
                   <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusPillClass(order.status)}`}
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getOrderStatusColor(order.status)}`}
                   >
-                    {formatStatus(order.status)}
+                    {formatOrderStatus(order.status)}
                   </span>
                 </TableCell>
               </TableRow>
@@ -239,9 +173,9 @@ export default function OnBehalfOrdersClient() {
                 #{order.order_number}
               </span>
               <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusPillClass(order.status)}`}
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getOrderStatusColor(order.status)}`}
               >
-                {formatStatus(order.status)}
+                {formatOrderStatus(order.status)}
               </span>
             </div>
             <dl className="text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
@@ -285,8 +219,10 @@ export default function OnBehalfOrdersClient() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void load(Math.max(0, offset - PAGE_SIZE))}
-            disabled={!canPrev || isLoading}
+            onClick={() =>
+              setOffset((prev) => Math.max(0, prev - ON_BEHALF_ORDERS_PAGE_SIZE))
+            }
+            disabled={!canPrev || isRefetching}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Previous
@@ -294,8 +230,8 @@ export default function OnBehalfOrdersClient() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void load(offset + PAGE_SIZE)}
-            disabled={!canNext || isLoading}
+            onClick={() => setOffset((prev) => prev + ON_BEHALF_ORDERS_PAGE_SIZE)}
+            disabled={!canNext || isRefetching}
           >
             Next
             <ChevronRight className="h-4 w-4 ml-1" />
