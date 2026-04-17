@@ -14,7 +14,9 @@ import {
   LogOut,
   Loader2,
   UserPlus,
+  ClipboardList,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -273,7 +275,7 @@ export default function ProfileForm({
       </div>
 
       {isAdmin && (
-        <div className="mt-8 pt-6 border-t border-border">
+        <div className="mt-8 pt-6 border-t border-border space-y-2">
           <h3 className="text-sm font-semibold text-foreground mb-3">Admin</h3>
           <Button
             variant="outline"
@@ -282,6 +284,12 @@ export default function ProfileForm({
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Place order on behalf
+          </Button>
+          <Button variant="outline" asChild className="w-full">
+            <Link href="/admin/on-behalf-orders">
+              <ClipboardList className="w-4 h-4 mr-2" />
+              On-behalf orders
+            </Link>
           </Button>
         </div>
       )}
