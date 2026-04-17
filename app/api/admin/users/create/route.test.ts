@@ -5,41 +5,33 @@ const NEW_USER_ID = '00000000-0000-0000-0000-000000000099';
 
 const {
   getUserMock,
-  createServerSupabaseClientMock,
   listUsersMock,
   createUserMock,
   generateLinkMock,
-  createAdminSupabaseClientMock,
   checkRateLimitMock,
 } = vi.hoisted(() => {
-  const getUserMock = vi.fn();
-  const listUsersMock = vi.fn();
-  const createUserMock = vi.fn();
-  const generateLinkMock = vi.fn();
   return {
-    getUserMock,
-    createServerSupabaseClientMock: vi.fn(async () => ({
-      auth: { getUser: getUserMock },
-    })),
-    listUsersMock,
-    createUserMock,
-    generateLinkMock,
-    createAdminSupabaseClientMock: vi.fn(() => ({
-      auth: {
-        admin: {
-          listUsers: listUsersMock,
-          createUser: createUserMock,
-          generateLink: generateLinkMock,
-        },
-      },
-    })),
+    getUserMock: vi.fn(),
+    listUsersMock: vi.fn(),
+    createUserMock: vi.fn(),
+    generateLinkMock: vi.fn(),
     checkRateLimitMock: vi.fn(),
   };
 });
 
 vi.mock('@/lib/supabase-server', () => ({
-  createServerSupabaseClient: createServerSupabaseClientMock,
-  createAdminSupabaseClient: createAdminSupabaseClientMock,
+  createServerSupabaseClient: vi.fn(async () => ({
+    auth: { getUser: getUserMock },
+  })),
+  createAdminSupabaseClient: vi.fn(() => ({
+    auth: {
+      admin: {
+        listUsers: listUsersMock,
+        createUser: createUserMock,
+        generateLink: generateLinkMock,
+      },
+    },
+  })),
 }));
 
 vi.mock('@/lib/upstash', () => ({
@@ -49,11 +41,11 @@ vi.mock('@/lib/upstash', () => ({
 import { POST } from './route';
 import { NextRequest } from 'next/server';
 
-function makeRequest(body: unknown) {
+function makeRequest(body: unknown, opts: { raw?: string } = {}) {
   return new NextRequest('http://localhost/api/admin/users/create', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: opts.raw ?? JSON.stringify(body),
   });
 }
 
@@ -89,8 +81,26 @@ function createdUserRow() {
       email: 'new.user@example.com',
       phone: '+919876543210',
       user_metadata: { full_name: 'New User' },
+      created_at: '2026-04-17T10:00:00.000Z',
     },
   };
+}
+
+function containsForbiddenField(
+  value: unknown,
+  forbidden: Set<string>
+): boolean {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) {
+    return value.some((v) => containsForbiddenField(v, forbidden));
+  }
+  if (typeof value === 'object') {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (forbidden.has(k)) return true;
+      if (containsForbiddenField(v, forbidden)) return true;
+    }
+  }
+  return false;
 }
 
 beforeEach(() => {
@@ -125,6 +135,14 @@ describe('POST /api/admin/users/create', () => {
     expect(createUserMock).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for invalid JSON body', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    const res = await POST(makeRequest({}, { raw: 'not json' }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/JSON/i);
+  });
+
   it('returns 400 for an invalid email', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
     const res = await POST(
@@ -155,6 +173,16 @@ describe('POST /api/admin/users/create', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 when full_name exceeds 120 characters', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    const res = await POST(
+      makeRequest(validBody({ full_name: 'a'.repeat(121) }))
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/120/);
+  });
+
   it('returns 409 when the email already exists', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
     listUsersMock.mockResolvedValue({
@@ -179,7 +207,7 @@ describe('POST /api/admin/users/create', () => {
     expect(createUserMock).not.toHaveBeenCalled();
   });
 
-  it('returns 409 when the phone already exists', async () => {
+  it('returns 409 when the phone already exists in +E.164 format', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
     listUsersMock.mockResolvedValue({
       data: {
@@ -199,7 +227,28 @@ describe('POST /api/admin/users/create', () => {
     expect(body.existing_user_id).toBe('existing-2');
   });
 
-  it('happy path: creates user, sends magic link, returns 201', async () => {
+  it('returns 409 when the phone is stored as Supabase E.164 without leading + (e.g. 919876543210)', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    listUsersMock.mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: 'existing-otp',
+            email: 'otp@example.com',
+            phone: '919876543210',
+          },
+        ],
+      },
+      error: null,
+    });
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.existing_user_id).toBe('existing-otp');
+    expect(createUserMock).not.toHaveBeenCalled();
+  });
+
+  it('happy path: creates user, sends magic link, returns 201 with created_at', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
     const res = await POST(makeRequest(validBody()));
     expect(res.status).toBe(201);
@@ -210,6 +259,7 @@ describe('POST /api/admin/users/create', () => {
         email: 'new.user@example.com',
         phone: '+919876543210',
         full_name: 'New User',
+        created_at: '2026-04-17T10:00:00.000Z',
       },
       magic_link_sent: true,
     });
@@ -230,7 +280,24 @@ describe('POST /api/admin/users/create', () => {
     );
   });
 
-  it('returns 201 with magic_link_sent=false when generateLink fails', async () => {
+  it('response body never contains action_link or password fields', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    generateLinkMock.mockResolvedValue({
+      data: {
+        properties: {
+          action_link: 'https://example.com/recovery?token=SECRET',
+        },
+      },
+      error: null,
+    });
+    const res = await POST(makeRequest(validBody()));
+    const body = await res.json();
+    expect(
+      containsForbiddenField(body, new Set(['action_link', 'password']))
+    ).toBe(false);
+  });
+
+  it('returns 201 with magic_link_sent=false when generateLink returns an error', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
     generateLinkMock.mockResolvedValue({
       data: null,
@@ -242,5 +309,41 @@ describe('POST /api/admin/users/create', () => {
     expect(body.user.id).toBe(NEW_USER_ID);
     expect(body.magic_link_sent).toBe(false);
     expect(typeof body.warning).toBe('string');
+  });
+
+  it('returns 201 with magic_link_sent=false when generateLink throws synchronously', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    generateLinkMock.mockRejectedValue(new Error('network kaboom'));
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.id).toBe(NEW_USER_ID);
+    expect(body.magic_link_sent).toBe(false);
+    expect(typeof body.warning).toBe('string');
+  });
+
+  it('returns 500 when listUsers errors during duplicate detection', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    listUsersMock.mockResolvedValue({
+      data: null,
+      error: { message: 'list failed' },
+    });
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('Failed to verify duplicate users');
+    expect(createUserMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when createUser errors', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    createUserMock.mockResolvedValue({
+      data: null,
+      error: { message: 'could not insert' },
+    });
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toMatch(/could not insert|Failed to create user/);
   });
 });

@@ -1,3 +1,18 @@
+/**
+ * Admin user search.
+ *
+ * Implementation note: we page through `supabase.auth.admin.listUsers` with a
+ * hard cap rather than querying `auth.users` directly. Direct SELECTs on the
+ * `auth` schema are not exposed via PostgREST in this project and would
+ * require custom schema access. Paging keeps the route correct for small
+ * user bases and avoids silently dropping users past the first 1000 rows
+ * (previous single-page implementation lost data). If we hit the cap, we
+ * log a warning and stop — callers can narrow the query.
+ *
+ * TODO(perf): swap to a direct SQL query (admin client with `.schema('auth')`
+ * + ilike filters) once `auth.users` SELECT is confirmed available in this
+ * Supabase project.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import {
   createServerSupabaseClient,
@@ -13,6 +28,7 @@ const MIN_LIMIT = 1;
 const MAX_LIMIT = 25;
 const MIN_QUERY_LENGTH = 2;
 const LIST_PER_PAGE = 1000;
+const MAX_PAGES = 5;
 const RATE_LIMIT = 60;
 const RATE_WINDOW_SECONDS = 60;
 
@@ -67,7 +83,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!isAdmin(sessionUser as any)) {
+    if (!isAdmin(sessionUser)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -94,22 +110,40 @@ export async function GET(request: NextRequest) {
     const needle = rawQuery.toLowerCase();
 
     const adminClient = createAdminSupabaseClient();
-    const { data, error } = await adminClient.auth.admin.listUsers({
-      page: 1,
-      perPage: LIST_PER_PAGE,
-    });
+    const collected: MatchableUser[] = [];
 
-    if (error) {
-      console.error(`${LOG_PREFIX} listUsers error`, error);
-      return NextResponse.json(
-        { error: 'Failed to search users' },
-        { status: 500 }
-      );
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const { data, error } = await adminClient.auth.admin.listUsers({
+        page,
+        perPage: LIST_PER_PAGE,
+      });
+
+      if (error) {
+        console.error(`${LOG_PREFIX} listUsers error`, error);
+        return NextResponse.json(
+          { error: 'Failed to search users' },
+          { status: 500 }
+        );
+      }
+
+      const batch = (data?.users ?? []) as MatchableUser[];
+      for (const user of batch) {
+        if (matchesQuery(user, needle)) {
+          collected.push(user);
+        }
+      }
+
+      if (batch.length < LIST_PER_PAGE) {
+        break; // last page reached
+      }
+      if (page === MAX_PAGES) {
+        console.warn(
+          `${LOG_PREFIX} hit MAX_PAGES=${MAX_PAGES} for q="${rawQuery}"; results may be incomplete`
+        );
+      }
     }
 
-    const users = (data?.users ?? []) as MatchableUser[];
-    const filtered = users
-      .filter((u) => matchesQuery(u, needle))
+    const filtered = collected
       .sort((a, b) => {
         const ta = Date.parse(a.created_at ?? '') || 0;
         const tb = Date.parse(b.created_at ?? '') || 0;

@@ -91,6 +91,14 @@ export default function UserPickerModal({
     }
   }, [open, resetAll]);
 
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    },
+    []
+  );
+
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
@@ -103,53 +111,58 @@ export default function UserPickerModal({
     return () => clearTimeout(t);
   }, [open, activeTab]);
 
-  useEffect(() => {
-    if (!open || activeTab !== "search") return;
-    const trimmed = query.trim();
+  const runSearch = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setResults([]);
       setSearching(false);
       setSearchError(null);
       return;
     }
 
-    const handle = setTimeout(async () => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      setSearching(true);
-      setSearchError(null);
-      try {
-        const res = await fetch(
-          `/api/admin/users/search?q=${encodeURIComponent(trimmed)}&limit=10`,
-          { signal: controller.signal, credentials: "same-origin" }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/users/search?q=${encodeURIComponent(trimmed)}&limit=10`,
+        { signal: controller.signal, credentials: "same-origin" }
+      );
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof errBody?.error === "string"
+            ? errBody.error
+            : `Search failed (${res.status})`
         );
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(
-            typeof errBody?.error === "string"
-              ? errBody.error
-              : `Search failed (${res.status})`
-          );
-        }
-        const data = (await res.json()) as { users?: SearchResult[] };
-        setResults(Array.isArray(data.users) ? data.users : []);
-      } catch (err) {
-        if ((err as Error).name === "AbortError") return;
-        setResults([]);
-        setSearchError(
-          err instanceof Error ? err.message : "Search failed"
-        );
-      } finally {
-        if (abortRef.current === controller) {
-          setSearching(false);
-          abortRef.current = null;
-        }
       }
-    }, SEARCH_DEBOUNCE_MS);
+      const data = (await res.json()) as { users?: SearchResult[] };
+      setResults(Array.isArray(data.users) ? data.users : []);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setResults([]);
+      setSearchError(
+        err instanceof Error ? err.message : "Search failed"
+      );
+    } finally {
+      if (abortRef.current === controller) {
+        setSearching(false);
+        abortRef.current = null;
+      }
+    }
+  }, []);
 
+  useEffect(() => {
+    if (!open || activeTab !== "search") return;
+    const handle = setTimeout(() => {
+      void runSearch(query);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [query, open, activeTab]);
+  }, [query, open, activeTab, runSearch]);
 
   const startImpersonation = useCallback(
     async (userId: string) => {
@@ -170,6 +183,8 @@ export default function UserPickerModal({
               : `Failed to start impersonation (${res.status})`
           );
         }
+        abortRef.current?.abort();
+        abortRef.current = null;
         await refreshImpersonation();
         onOpenChange(false);
         window.location.href = "/";
@@ -302,6 +317,12 @@ export default function UserPickerModal({
                   ref={searchInputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void runSearch(query);
+                    }
+                  }}
                   placeholder="Email, phone, or name (min 2 chars)"
                   autoComplete="off"
                   className="pl-9"

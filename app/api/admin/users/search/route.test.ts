@@ -4,29 +4,25 @@ const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
 
 const {
   getUserMock,
-  createServerSupabaseClientMock,
   listUsersMock,
-  createAdminSupabaseClientMock,
   checkRateLimitMock,
 } = vi.hoisted(() => {
   const getUserMock = vi.fn();
   const listUsersMock = vi.fn();
   return {
     getUserMock,
-    createServerSupabaseClientMock: vi.fn(async () => ({
-      auth: { getUser: getUserMock },
-    })),
     listUsersMock,
-    createAdminSupabaseClientMock: vi.fn(() => ({
-      auth: { admin: { listUsers: listUsersMock } },
-    })),
     checkRateLimitMock: vi.fn(),
   };
 });
 
 vi.mock('@/lib/supabase-server', () => ({
-  createServerSupabaseClient: createServerSupabaseClientMock,
-  createAdminSupabaseClient: createAdminSupabaseClientMock,
+  createServerSupabaseClient: vi.fn(async () => ({
+    auth: { getUser: getUserMock },
+  })),
+  createAdminSupabaseClient: vi.fn(() => ({
+    auth: { admin: { listUsers: listUsersMock } },
+  })),
 }));
 
 vi.mock('@/lib/upstash', () => ({
@@ -96,6 +92,12 @@ function sampleUsers() {
 beforeEach(() => {
   vi.clearAllMocks();
   checkRateLimitMock.mockResolvedValue({ allowed: true, remaining: 59 });
+  // By default, return one page with fewer than LIST_PER_PAGE users so the
+  // paging loop terminates after a single call.
+  listUsersMock.mockResolvedValue({
+    data: { users: sampleUsers() },
+    error: null,
+  });
 });
 
 describe('GET /api/admin/users/search', () => {
@@ -131,12 +133,17 @@ describe('GET /api/admin/users/search', () => {
     expect(listUsersMock).not.toHaveBeenCalled();
   });
 
+  it('returns empty users array for whitespace-only q', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    const res = await GET(makeRequest({ q: '   ' }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ users: [] });
+    expect(listUsersMock).not.toHaveBeenCalled();
+  });
+
   it('matches by email (case-insensitive)', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
-    listUsersMock.mockResolvedValue({
-      data: { users: sampleUsers() },
-      error: null,
-    });
     const res = await GET(makeRequest({ q: 'JANE' }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -153,10 +160,6 @@ describe('GET /api/admin/users/search', () => {
 
   it('matches by phone substring', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
-    listUsersMock.mockResolvedValue({
-      data: { users: sampleUsers() },
-      error: null,
-    });
     const res = await GET(makeRequest({ q: '8888' }));
     const body = await res.json();
     expect(body.users).toHaveLength(1);
@@ -165,10 +168,6 @@ describe('GET /api/admin/users/search', () => {
 
   it('matches by full_name substring', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
-    listUsersMock.mockResolvedValue({
-      data: { users: sampleUsers() },
-      error: null,
-    });
     const res = await GET(makeRequest({ q: 'wonder' }));
     const body = await res.json();
     expect(body.users).toHaveLength(1);
@@ -177,24 +176,46 @@ describe('GET /api/admin/users/search', () => {
 
   it('orders by created_at DESC and clamps limit', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
-    listUsersMock.mockResolvedValue({
-      data: { users: sampleUsers() },
-      error: null,
-    });
     const res = await GET(makeRequest({ q: 'example.com', limit: '2' }));
     const body = await res.json();
     expect(body.users.map((u: { id: string }) => u.id)).toEqual(['u2', 'u1']);
   });
 
-  it('clamps limit into [1, 25] range', async () => {
+  it('clamps limit below 1 to 1', async () => {
     getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
-    listUsersMock.mockResolvedValue({
-      data: { users: sampleUsers() },
-      error: null,
-    });
     const res = await GET(makeRequest({ q: 'example', limit: '0' }));
     const body = await res.json();
-    // limit clamped to 1
     expect(body.users).toHaveLength(1);
+  });
+
+  it('clamps limit above 25 to 25', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    // Build 30 matching users to verify the cap.
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      id: `big-${i}`,
+      email: `match-${i}@example.com`,
+      phone: null,
+      user_metadata: { full_name: `User ${i}` },
+      created_at: new Date(2026, 0, i + 1).toISOString(),
+    }));
+    listUsersMock.mockResolvedValueOnce({
+      data: { users: many },
+      error: null,
+    });
+    const res = await GET(makeRequest({ q: 'match', limit: '100' }));
+    const body = await res.json();
+    expect(body.users).toHaveLength(25);
+  });
+
+  it('returns 500 when listUsers errors', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    listUsersMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'boom' },
+    });
+    const res = await GET(makeRequest({ q: 'jane' }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('Failed to search users');
   });
 });
