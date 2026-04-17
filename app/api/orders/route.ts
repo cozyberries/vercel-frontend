@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest, OrderCreate, OrderStatus } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
 import {
@@ -12,25 +10,22 @@ import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 import { notifyAdminsOrderPlacedFromCheckout } from "@/lib/services/admin-order-notifications";
 import { notifyOrderPlaced } from "@/lib/services/telegram";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createServerSupabaseClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId, actingAdminId, client, effectiveUser } = result;
 
-    const email = user.email?.trim();
+    const email = effectiveUser.email?.trim();
     if (!email) {
       return NextResponse.json(
         { error: "Account email is required for checkout" },
@@ -55,10 +50,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate addresses
     const addressResult = await validateAndFetchAddresses(
-      supabase,
-      user.id,
+      client,
+      userId,
       shipping_address_id,
       billing_address_id
     );
@@ -70,8 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Server-side price validation
-    const priceError = await validateItemPrices(supabase, items);
+    const priceError = await validateItemPrices(client, items);
     if (priceError) {
       return NextResponse.json(
         { error: priceError },
@@ -85,15 +78,15 @@ export async function POST(request: NextRequest) {
     let discountAmount = 0;
 
     if (coupon_code) {
-      const result = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
-      if (!result.ok) {
+      const offerResult = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
+      if (!offerResult.ok) {
         return NextResponse.json(
-          { error: "invalid_coupon", message: result.error },
+          { error: "invalid_coupon", message: offerResult.error },
           { status: 422 }
         );
       }
-      discountCode = result.data.discountCode;
-      discountAmount = result.data.discountAmount;
+      discountCode = offerResult.data.discountCode;
+      discountAmount = offerResult.data.discountAmount;
     }
 
     const discountedSubtotal = orderSummary.subtotal - discountAmount;
@@ -105,8 +98,8 @@ export async function POST(request: NextRequest) {
 
     const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
-    const orderData: OrderCreate = {
-      user_id: user.id,
+    const orderData: OrderCreate & { placed_by_admin_id: string | null } = {
+      user_id: userId,
       customer_email: email,
       customer_phone: shippingRow.phone,
       shipping_address: shippingAddress,
@@ -119,9 +112,10 @@ export async function POST(request: NextRequest) {
       total_amount: finalTotal,
       currency: orderSummary.currency,
       notes,
+      placed_by_admin_id: actingAdminId,
     };
 
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await client
       .from("orders")
       .insert(orderData)
       .select()
@@ -135,7 +129,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert each line-item into the normalised order_items table
     const itemRows = items.map((item) => ({
       order_id: order.id,
       product_id: item.id,
@@ -148,7 +141,7 @@ export async function POST(request: NextRequest) {
       sku: item.sku ?? null,
     }));
 
-    const { error: itemsError } = await supabase
+    const { error: itemsError } = await client
       .from("order_items")
       .insert(itemRows);
 
@@ -156,7 +149,7 @@ export async function POST(request: NextRequest) {
       // Compensate: delete the orphaned order so the DB stays consistent.
       // NOTE: this is not atomic — a Supabase RPC wrapping both inserts in a
       // Postgres transaction would be strictly more robust.
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await client
         .from("orders")
         .delete()
         .eq("id", order.id);
@@ -196,7 +189,6 @@ export async function POST(request: NextRequest) {
       items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
     });
 
-    // Attach items to the response so the client can redirect immediately.
     const orderWithItems = {
       ...order,
       items: mapOrderItemInputs(items),
@@ -217,29 +209,22 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createServerSupabaseClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId, client } = result;
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    const { data: orders, error: ordersError } = await supabase
+    const { data: orders, error: ordersError } = await client
       .from("orders")
       .select("*, order_items(*)")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -265,4 +250,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
