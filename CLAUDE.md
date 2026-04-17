@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## This Repo's Role
+
+This is the **public-facing storefront** for CozyBerries (cozyberries.com, port 3000).
+Customers browse products, manage their cart, checkout, pay via UPI, and track orders here.
+
+The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.cozyberries.com, port 4000).
+That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
+Do not add admin-only operations here. Do not use `SUPABASE_SERVICE_ROLE_KEY` or `JWT_SECRET` in this repo.
+
 ## Commands
 
 ```bash
