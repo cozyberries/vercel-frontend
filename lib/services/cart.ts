@@ -7,9 +7,11 @@
  * cookie, and the browser never needs to know whose cart it is. `localStorage`
  * is used purely as an instant-UI / guest-mode cache.
  *
- * TODO(phase-4): when `useAuth().impersonation` is set, bypass the
- * `localStorage` fallback entirely so an admin shopping on behalf of a
- * customer never sees or writes their own device-local data.
+ * The persistence hook (`useCartPersistence`) controls localStorage gating
+ * based on `useAuth().impersonation.active`: while impersonating, the hook
+ * bypasses localStorage entirely and reads/writes only via this service.
+ * The service itself remains pure: the `getLocalCart`/`saveLocalCart`
+ * methods stay intact so guest-mode continues to work.
  */
 
 import type { CartItem } from "@/components/cart-context";

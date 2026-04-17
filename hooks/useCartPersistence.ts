@@ -14,17 +14,20 @@ export function useCartPersistence({
   setCart,
   isTemporaryCart = false,
 }: UseCartPersistenceProps) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, impersonation } = useAuth();
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
+  // Tracks the id currently being shadowed (target.id). Used to detect a
+  // change of impersonation target and force a re-init.
+  const previousImpersonationTargetRef = useRef<string | null>(null);
   const isInitializingRef = useRef(false);
   const isSyncingRef = useRef(false);
   const lastSyncedCartRef = useRef<string>("");
   const userIdRef = useRef<string | undefined>(user?.id);
   const setCartRef = useRef(setCart);
+  const impersonationActiveRef = useRef(impersonation.active);
 
-  // Update refs when props change
   useEffect(() => {
     userIdRef.current = user?.id;
   }, [user?.id]);
@@ -33,26 +36,29 @@ export function useCartPersistence({
     setCartRef.current = setCart;
   }, [setCart]);
 
+  useEffect(() => {
+    impersonationActiveRef.current = impersonation.active;
+  }, [impersonation.active]);
+
   /**
-   * Debounced sync to Supabase to avoid excessive API calls
+   * Debounced sync to the server. When impersonating we skip localStorage
+   * entirely — the hook never touches the admin's device cache while acting
+   * on behalf of a customer.
    */
   const debouncedSyncToSupabase = useCallback(
     (items: CartItem[], userId: string) => {
-      // Skip if already syncing the same cart
       const cartHash = JSON.stringify(items);
       if (isSyncingRef.current && lastSyncedCartRef.current === cartHash) {
         return;
       }
 
-      // Clear previous timeout
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
 
-      // Set new timeout for background sync
       syncTimeoutRef.current = setTimeout(async () => {
         if (isSyncingRef.current) return;
-        
+
         try {
           isSyncingRef.current = true;
           lastSyncedCartRef.current = cartHash;
@@ -62,38 +68,50 @@ export function useCartPersistence({
         } finally {
           isSyncingRef.current = false;
         }
-      }, 1000); // 1 second debounce
+      }, 1000);
     },
     []
   );
 
-  /**
-   * Load initial cart data with faster local-first approach
-   */
   const loadInitialCart = useCallback(async () => {
     if (authLoading || hasInitializedRef.current || isTemporaryCart) {
       return;
     }
 
+    const isImpersonating = impersonationActiveRef.current;
+
     isInitializingRef.current = true;
     try {
-      // Always load local cart immediately for instant UI
-      const localCart = cartService.getLocalCart();
       const currentSetCart = setCartRef.current;
+      const userId = userIdRef.current;
+
+      if (isImpersonating) {
+        // Shadow mode: never touch localStorage. Go straight to the server.
+        // An admin acting on behalf of a customer must not see or write their
+        // own device-local cart.
+        try {
+          const remoteCart = await cartService.getUserCart(userId ?? "");
+          currentSetCart(remoteCart);
+        } catch (error) {
+          console.error("Error fetching remote cart under impersonation:", error);
+          currentSetCart([]);
+        }
+        hasInitializedRef.current = true;
+        return;
+      }
+
+      const localCart = cartService.getLocalCart();
       currentSetCart(localCart);
       hasInitializedRef.current = true;
 
-      const userId = userIdRef.current;
       if (userId) {
-        // User is authenticated - merge with remote cart in background
         try {
           const remoteCart = await cartService.getUserCart(userId);
           const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
 
-          // Only update if there's a difference
           const localHash = JSON.stringify(localCart);
           const mergedHash = JSON.stringify(mergedCart);
-          
+
           if (localHash !== mergedHash) {
             currentSetCart(mergedCart);
             cartService.saveLocalCart(mergedCart);
@@ -103,12 +121,10 @@ export function useCartPersistence({
           }
         } catch (error) {
           console.error("Error syncing remote cart:", error);
-          // Continue with local cart - no need to show error to user
         }
       }
     } catch (error) {
       console.error("Error loading initial cart:", error);
-      // Fallback to empty cart
       setCartRef.current([]);
       hasInitializedRef.current = true;
     } finally {
@@ -117,50 +133,62 @@ export function useCartPersistence({
   }, [authLoading, isTemporaryCart]);
 
   /**
-   * Handle user authentication changes
+   * Re-initialize from scratch. Used when the effective user changes
+   * (login, logout, or impersonation target swap).
    */
+  const reinitialize = useCallback(async () => {
+    hasInitializedRef.current = false;
+    lastSyncedCartRef.current = "";
+    await loadInitialCart();
+  }, [loadInitialCart]);
+
   const handleAuthChange = useCallback(async () => {
     if (authLoading || isTemporaryCart) return;
 
     const currentUserId = userIdRef.current || null;
     const previousUserId = previousUserIdRef.current;
 
-    // Skip if user hasn't changed
     if (currentUserId === previousUserId) return;
 
     if (currentUserId && !previousUserId) {
-      // User just signed in - merge carts
-      try {
-        const localCart = cartService.getLocalCart();
-        const remoteCart = await cartService.getUserCart(currentUserId);
-        const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
+      if (impersonationActiveRef.current) {
+        // Under impersonation: fetch fresh server cart, no local merge.
+        try {
+          const remoteCart = await cartService.getUserCart(currentUserId);
+          setCartRef.current(remoteCart);
+        } catch (error) {
+          console.error("Error fetching remote cart on sign-in (impersonation):", error);
+        }
+      } else {
+        try {
+          const localCart = cartService.getLocalCart();
+          const remoteCart = await cartService.getUserCart(currentUserId);
+          const mergedCart = cartService.mergeCartItems(localCart, remoteCart);
 
-        setCartRef.current(mergedCart);
-        cartService.saveLocalCart(mergedCart);
-        // Note: persistence effect will handle saving merged cart
-      } catch (error) {
-        console.error("Error merging carts on sign in:", error);
+          setCartRef.current(mergedCart);
+          cartService.saveLocalCart(mergedCart);
+        } catch (error) {
+          console.error("Error merging carts on sign in:", error);
+        }
       }
     } else if (!currentUserId && previousUserId) {
-      // User just signed out - keep local cart only
-      const localCart = cartService.getLocalCart();
+      const localCart = impersonationActiveRef.current
+        ? []
+        : cartService.getLocalCart();
       setCartRef.current(localCart);
     }
 
     previousUserIdRef.current = currentUserId;
   }, [authLoading, isTemporaryCart]);
 
-  /**
-   * Persist cart changes.
-   * Always save to localStorage (including temporary cart) so that after OAuth
-   * full-page redirect we can restore and merge with the user's remote cart.
-   */
   const persistCart = useCallback(
     (items: CartItem[]) => {
-      // Always save to localStorage so temporary cart survives OAuth redirect
-      cartService.saveLocalCart(items);
+      const isImpersonating = impersonationActiveRef.current;
 
-      // Skip Supabase sync for temporary cart; merge happens on sign-in via loadInitialCart/handleAuthChange
+      if (!isImpersonating) {
+        cartService.saveLocalCart(items);
+      }
+
       if (isTemporaryCart) return;
 
       const userId = userIdRef.current;
@@ -172,10 +200,14 @@ export function useCartPersistence({
   );
 
   /**
-   * Clear cart from all storage locations
+   * Clear cart from storage. While impersonating, only clear the server
+   * side — do NOT blow away the admin's own local cache.
    */
   const clearAllCart = useCallback(async () => {
-    cartService.clearLocalCart();
+    const isImpersonating = impersonationActiveRef.current;
+    if (!isImpersonating) {
+      cartService.clearLocalCart();
+    }
 
     const userId = userIdRef.current;
     if (userId) {
@@ -187,23 +219,35 @@ export function useCartPersistence({
     }
   }, []);
 
-  // Load initial cart on mount only (skip if temporary cart)
   useEffect(() => {
     if (!authLoading && !hasInitializedRef.current && !isTemporaryCart) {
       loadInitialCart();
     }
   }, [authLoading, loadInitialCart, isTemporaryCart]);
 
-  // Handle auth changes separately (only when user ID actually changes, skip if temporary cart)
   useEffect(() => {
     if (!authLoading && hasInitializedRef.current && !isTemporaryCart) {
       handleAuthChange();
     }
   }, [user?.id, authLoading, isTemporaryCart, handleAuthChange]);
 
-  // Persist cart changes (but skip during initialization to avoid duplicate saves)
+  // React to impersonation target changes: re-fetch from server and reset
+  // local dedup refs. Treat target swap as an auth change.
   useEffect(() => {
-    // Only persist if initialized, not currently loading, and not initializing
+    if (isTemporaryCart) return;
+    const currentTarget = impersonation.active
+      ? impersonation.target?.id ?? null
+      : null;
+    const previousTarget = previousImpersonationTargetRef.current;
+    if (currentTarget === previousTarget) return;
+    previousImpersonationTargetRef.current = currentTarget;
+
+    if (hasInitializedRef.current) {
+      reinitialize();
+    }
+  }, [impersonation.active, impersonation.target?.id, isTemporaryCart, reinitialize]);
+
+  useEffect(() => {
     if (
       hasInitializedRef.current &&
       cart.length >= 0 &&
@@ -214,7 +258,6 @@ export function useCartPersistence({
     }
   }, [cart, persistCart, authLoading]);
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (syncTimeoutRef.current) {
