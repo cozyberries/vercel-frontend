@@ -9,7 +9,8 @@ Customers browse products, manage their cart, checkout, pay via UPI, and track o
 
 The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.cozyberries.com, port 4000).
 That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
-Do not add admin-only operations here. Do not use `SUPABASE_SERVICE_ROLE_KEY` or `JWT_SECRET` in this repo.
+Do not add admin-only operations here. Do not use `JWT_SECRET` in this repo.
+`SUPABASE_SERVICE_ROLE_KEY` is allowed **only** in server-side API routes that (1) verify the user session with `getUser()` first and (2) scope every query by `user_id` — the notifications API (`/api/notifications`) follows this pattern to avoid RLS/GRANT drift. Do not use it for any other purpose in this repo.
 
 ## Commands
 
