@@ -34,6 +34,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (!sessionUserId) {
+      // No session: nobody to attribute the cookie to. Clear it defensively
+      // so a stale/stolen cookie doesn't linger across sign-outs.
+      if (cookieValue) {
+        cookieStore.delete(ACTING_AS_COOKIE_NAME);
+      }
       return inactive();
     }
 

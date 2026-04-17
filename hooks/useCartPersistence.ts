@@ -14,7 +14,7 @@ export function useCartPersistence({
   setCart,
   isTemporaryCart = false,
 }: UseCartPersistenceProps) {
-  const { user, loading: authLoading, impersonation } = useAuth();
+  const { user, loading: authLoading, impersonation, impersonationReady } = useAuth();
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
@@ -74,7 +74,7 @@ export function useCartPersistence({
   );
 
   const loadInitialCart = useCallback(async () => {
-    if (authLoading || hasInitializedRef.current || isTemporaryCart) {
+    if (authLoading || !impersonationReady || hasInitializedRef.current || isTemporaryCart) {
       return;
     }
 
@@ -130,7 +130,7 @@ export function useCartPersistence({
     } finally {
       isInitializingRef.current = false;
     }
-  }, [authLoading, isTemporaryCart]);
+  }, [authLoading, impersonationReady, isTemporaryCart]);
 
   /**
    * Re-initialize from scratch. Used when the effective user changes
@@ -143,7 +143,7 @@ export function useCartPersistence({
   }, [loadInitialCart]);
 
   const handleAuthChange = useCallback(async () => {
-    if (authLoading || isTemporaryCart) return;
+    if (authLoading || !impersonationReady || isTemporaryCart) return;
 
     const currentUserId = userIdRef.current || null;
     const previousUserId = previousUserIdRef.current;
@@ -179,7 +179,7 @@ export function useCartPersistence({
     }
 
     previousUserIdRef.current = currentUserId;
-  }, [authLoading, isTemporaryCart]);
+  }, [authLoading, impersonationReady, isTemporaryCart]);
 
   const persistCart = useCallback(
     (items: CartItem[]) => {
@@ -220,16 +220,16 @@ export function useCartPersistence({
   }, []);
 
   useEffect(() => {
-    if (!authLoading && !hasInitializedRef.current && !isTemporaryCart) {
+    if (!authLoading && impersonationReady && !hasInitializedRef.current && !isTemporaryCart) {
       loadInitialCart();
     }
-  }, [authLoading, loadInitialCart, isTemporaryCart]);
+  }, [authLoading, impersonationReady, loadInitialCart, isTemporaryCart]);
 
   useEffect(() => {
-    if (!authLoading && hasInitializedRef.current && !isTemporaryCart) {
+    if (!authLoading && impersonationReady && hasInitializedRef.current && !isTemporaryCart) {
       handleAuthChange();
     }
-  }, [user?.id, authLoading, isTemporaryCart, handleAuthChange]);
+  }, [user?.id, authLoading, impersonationReady, isTemporaryCart, handleAuthChange]);
 
   // React to impersonation target changes: re-fetch from server and reset
   // local dedup refs. Treat target swap as an auth change.
@@ -267,7 +267,7 @@ export function useCartPersistence({
   }, []);
 
   return {
-    isLoading: authLoading || !hasInitializedRef.current,
+    isLoading: authLoading || !impersonationReady || !hasInitializedRef.current,
     clearAllCart,
   };
 }

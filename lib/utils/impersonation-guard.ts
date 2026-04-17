@@ -26,7 +26,13 @@ export async function blockIfImpersonating(): Promise<NextResponse | undefined> 
     }
     return undefined;
   } catch (err) {
+    // Fail-closed: if we cannot read cookies, we cannot prove the cookie is
+    // absent. For identity-mutation endpoints the safe default is to refuse
+    // the request rather than risk executing under an unobserved shadow.
     console.error('[impersonation] blockIfImpersonating cookie read failed', err);
-    return undefined;
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

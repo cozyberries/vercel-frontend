@@ -23,10 +23,13 @@ describe('blockIfImpersonating', () => {
     expect(result).toBeUndefined();
   });
 
-  it('returns undefined when cookie read throws', async () => {
+  it('fails CLOSED with 500 when cookie read throws (defense-in-depth)', async () => {
     cookiesMock.mockRejectedValue(new Error('boom'));
     const result = await blockIfImpersonating();
-    expect(result).toBeUndefined();
+    expect(result).toBeDefined();
+    expect(result!.status).toBe(500);
+    const body = await result!.json();
+    expect(body).toEqual({ error: 'Internal server error' });
   });
 
   it('returns 403 NextResponse when acting_as cookie is present with any value', async () => {

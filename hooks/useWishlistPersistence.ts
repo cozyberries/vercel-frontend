@@ -9,7 +9,7 @@ interface UseWishlistPersistenceProps {
 }
 
 export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPersistenceProps) {
-  const { user, loading: authLoading, impersonation } = useAuth();
+  const { user, loading: authLoading, impersonation, impersonationReady } = useAuth();
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
   const hasInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
@@ -62,7 +62,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   );
 
   const loadInitialWishlist = useCallback(async () => {
-    if (authLoading || hasInitializedRef.current) return;
+    if (authLoading || !impersonationReady || hasInitializedRef.current) return;
 
     const isImpersonating = impersonationActiveRef.current;
 
@@ -113,7 +113,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     } finally {
       isInitializingRef.current = false;
     }
-  }, [authLoading]);
+  }, [authLoading, impersonationReady]);
 
   const reinitialize = useCallback(async () => {
     hasInitializedRef.current = false;
@@ -122,7 +122,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   }, [loadInitialWishlist]);
 
   const handleAuthChange = useCallback(async () => {
-    if (authLoading) return;
+    if (authLoading || !impersonationReady) return;
 
     const currentUserId = userIdRef.current || null;
     const previousUserId = previousUserIdRef.current;
@@ -161,7 +161,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
     }
 
     previousUserIdRef.current = currentUserId;
-  }, [authLoading]);
+  }, [authLoading, impersonationReady]);
 
   const persistWishlist = useCallback(
     (items: WishlistItem[]) => {
@@ -200,16 +200,16 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   }, []);
 
   useEffect(() => {
-    if (!authLoading && !hasInitializedRef.current) {
+    if (!authLoading && impersonationReady && !hasInitializedRef.current) {
       loadInitialWishlist();
     }
-  }, [authLoading, loadInitialWishlist]);
+  }, [authLoading, impersonationReady, loadInitialWishlist]);
 
   useEffect(() => {
-    if (!authLoading && hasInitializedRef.current) {
+    if (!authLoading && impersonationReady && hasInitializedRef.current) {
       handleAuthChange();
     }
-  }, [user?.id, authLoading, handleAuthChange]);
+  }, [user?.id, authLoading, impersonationReady, handleAuthChange]);
 
   useEffect(() => {
     const currentTarget = impersonation.active
@@ -239,7 +239,7 @@ export function useWishlistPersistence({ wishlist, setWishlist }: UseWishlistPer
   }, []);
 
   return {
-    isLoading: authLoading || !hasInitializedRef.current,
+    isLoading: authLoading || !impersonationReady || !hasInitializedRef.current,
     clearAllWishlist,
   };
 }

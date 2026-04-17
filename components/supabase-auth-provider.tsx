@@ -37,6 +37,14 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   impersonation: ImpersonationState;
+  /**
+   * True once the client has resolved `/api/admin/impersonation/state` at
+   * least once for the current session. Hooks that read/write user-scoped
+   * data (cart, wishlist) should wait for this before their first fetch,
+   * so they don't accidentally act against the wrong effective user during
+   * the initial hydration race.
+   */
+  impersonationReady: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, phone?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
@@ -63,6 +71,7 @@ export function SupabaseAuthProvider({
   const [impersonation, setImpersonation] = useState<ImpersonationState>(
     DEFAULT_IMPERSONATION
   );
+  const [impersonationReady, setImpersonationReady] = useState(false);
 
   // Create supabase client once and reuse it
   const [supabase] = useState(() => createClient());
@@ -191,6 +200,8 @@ export function SupabaseAuthProvider({
       } catch (error) {
         console.error("Error refreshing impersonation state:", error);
         if (isMountedRef.current) setImpersonation(DEFAULT_IMPERSONATION);
+      } finally {
+        if (isMountedRef.current) setImpersonationReady(true);
       }
     })().finally(() => {
       inflightRef.current.delete(key);
@@ -307,8 +318,13 @@ export function SupabaseAuthProvider({
 
   // Hydrate impersonation state on mount and whenever the session user id
   // changes (login/logout). The endpoint is cheap and self-healing — it will
-  // clear the cookie if it's mismatched.
+  // clear the cookie if it's mismatched. We reset `impersonationReady` to
+  // false before the fetch so downstream hooks (cart, wishlist) wait for
+  // the fresh state before reading/writing against the new effective user
+  // — otherwise a stale `ready=true` from the previous session would let
+  // them run a hydration pass with the wrong context.
   useEffect(() => {
+    setImpersonationReady(false);
     refreshImpersonation();
   }, [session?.user?.id, refreshImpersonation]);
 
@@ -455,6 +471,7 @@ export function SupabaseAuthProvider({
     isAdmin,
     isSuperAdmin,
     impersonation,
+    impersonationReady,
     signIn,
     signUp,
     signInWithGoogle,

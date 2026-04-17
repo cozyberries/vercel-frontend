@@ -129,6 +129,7 @@ describe('POST /api/admin/impersonation/start', () => {
         sameSite: 'lax',
         path: '/',
         maxAge: 2 * 60 * 60,
+        secure: process.env.NODE_ENV === 'production',
       })
     );
     expect(logImpersonationEventMock).toHaveBeenCalledWith(

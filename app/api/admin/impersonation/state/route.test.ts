@@ -77,6 +77,18 @@ describe('GET /api/admin/impersonation/state', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ active: false, target: null });
+    expect(cookieDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it('no session but stale cookie → cookie cleared defensively + inactive', async () => {
+    getUserMock.mockResolvedValue({ data: { user: null } });
+    cookieGetMock.mockReturnValue({ value: 'leftover-token' });
+
+    const res = await GET(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ active: false, target: null });
+    expect(cookieDeleteMock).toHaveBeenCalledWith('acting_as');
   });
 
   it('session but no cookie → inactive 200', async () => {
