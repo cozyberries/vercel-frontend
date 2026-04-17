@@ -18,6 +18,7 @@ const mockAdminClient = {
 
 const mockCookieStore = {
   get: vi.fn(),
+  delete: vi.fn(),
 };
 
 vi.mock('@/lib/supabase-server', () => ({
@@ -29,7 +30,12 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => mockCookieStore),
 }));
 
-import { getEffectiveUser, isAdmin } from './effective-user';
+import {
+  getEffectiveUser,
+  isAdmin,
+  effectiveUserErrorResponse,
+  type EffectiveUserFailure,
+} from './effective-user';
 import { signActingAs } from '@/lib/utils/impersonation-cookie';
 
 function setSessionUser(user: unknown) {
@@ -112,6 +118,7 @@ describe('getEffectiveUser', () => {
     expect(result.userId).toBe(customerId);
     expect(result.actingAdminId).toBeNull();
     expect(result.sessionUser).toBe(customerUser);
+    expect(result.effectiveUser).toBe(customerUser);
     expect(result.client).toBe(mockSessionClient);
   });
 
@@ -199,6 +206,7 @@ describe('getEffectiveUser', () => {
     expect(result.userId).toBe(targetId);
     expect(result.actingAdminId).toBe(adminId);
     expect(result.sessionUser).toBe(adminUser);
+    expect(result.effectiveUser).toBe(targetUser);
     expect(result.client).toBe(mockAdminClient);
   });
 
@@ -274,5 +282,101 @@ describe('getEffectiveUser', () => {
       clearCookie: false,
     });
     expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe('effectiveUserErrorResponse', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 with default "Unauthorized" body when unauthenticated', async () => {
+    const failure: EffectiveUserFailure = {
+      ok: false,
+      status: 401,
+      reason: 'unauthenticated',
+      clearCookie: false,
+    };
+
+    const res = await effectiveUserErrorResponse(failure);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockCookieStore.delete).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 with custom unauthenticated message when provided', async () => {
+    const failure: EffectiveUserFailure = {
+      ok: false,
+      status: 401,
+      reason: 'unauthenticated',
+      clearCookie: false,
+    };
+
+    const res = await effectiveUserErrorResponse(failure, {
+      unauthenticatedMessage: 'Authentication required',
+    });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Authentication required' });
+  });
+
+  it('returns 403 Forbidden for forbidden_not_admin and clears cookie', async () => {
+    const failure: EffectiveUserFailure = {
+      ok: false,
+      status: 403,
+      reason: 'forbidden_not_admin',
+      clearCookie: true,
+    };
+
+    const res = await effectiveUserErrorResponse(failure);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'Forbidden' });
+    expect(mockCookieStore.delete).toHaveBeenCalledWith('acting_as');
+  });
+
+  it('returns 403 with reason for cookie_invalid and clears cookie', async () => {
+    const failure: EffectiveUserFailure = {
+      ok: false,
+      status: 403,
+      reason: 'cookie_invalid',
+      clearCookie: true,
+    };
+
+    const res = await effectiveUserErrorResponse(failure);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'Impersonation session invalid',
+      reason: 'cookie_invalid',
+    });
+    expect(mockCookieStore.delete).toHaveBeenCalledWith('acting_as');
+  });
+
+  it('returns 410 and clears cookie for target_missing', async () => {
+    const failure: EffectiveUserFailure = {
+      ok: false,
+      status: 410,
+      reason: 'target_missing',
+      clearCookie: true,
+    };
+
+    const res = await effectiveUserErrorResponse(failure);
+    expect(res.status).toBe(410);
+    expect(await res.json()).toEqual({
+      error: 'Impersonated user no longer exists',
+    });
+    expect(mockCookieStore.delete).toHaveBeenCalledWith('acting_as');
+  });
+
+  it('returns 500 Internal server error for internal_error', async () => {
+    const failure: EffectiveUserFailure = {
+      ok: false,
+      status: 500,
+      reason: 'internal_error',
+      clearCookie: false,
+    };
+
+    const res = await effectiveUserErrorResponse(failure);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'Internal server error' });
+    expect(mockCookieStore.delete).not.toHaveBeenCalled();
   });
 });

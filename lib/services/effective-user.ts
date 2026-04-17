@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import {
   createServerSupabaseClient,
@@ -19,20 +20,23 @@ export type EffectiveUserFailureReason =
   | 'target_missing'
   | 'internal_error';
 
-export type EffectiveUserResult =
-  | {
-      ok: true;
-      userId: string;
-      actingAdminId: string | null;
-      client: SupabaseClient;
-      sessionUser: User;
-    }
-  | {
-      ok: false;
-      status: 401 | 403 | 410 | 500;
-      reason: EffectiveUserFailureReason;
-      clearCookie: boolean;
-    };
+export type EffectiveUserSuccess = {
+  ok: true;
+  userId: string;
+  actingAdminId: string | null;
+  client: SupabaseClient;
+  sessionUser: User;
+  effectiveUser: User;
+};
+
+export type EffectiveUserFailure = {
+  ok: false;
+  status: 401 | 403 | 410 | 500;
+  reason: EffectiveUserFailureReason;
+  clearCookie: boolean;
+};
+
+export type EffectiveUserResult = EffectiveUserSuccess | EffectiveUserFailure;
 
 export function isAdmin(user: User): boolean {
   const role = (user.app_metadata as { role?: unknown } | undefined)?.role;
@@ -95,6 +99,7 @@ export async function getEffectiveUser(): Promise<EffectiveUserResult> {
       actingAdminId: null,
       client: sessionClient,
       sessionUser: user,
+      effectiveUser: user,
     };
   }
 
@@ -141,6 +146,7 @@ export async function getEffectiveUser(): Promise<EffectiveUserResult> {
 
   const serviceClient = createAdminSupabaseClient() as SupabaseClient;
 
+  let targetUser: User;
   try {
     const { data: targetData, error: targetError } =
       await serviceClient.auth.admin.getUserById(payload.target_id);
@@ -153,6 +159,8 @@ export async function getEffectiveUser(): Promise<EffectiveUserResult> {
         clearCookie: true,
       };
     }
+
+    targetUser = targetData.user as User;
   } catch (err) {
     console.error('[impersonation] getEffectiveUser internal error', err);
     return {
@@ -169,5 +177,56 @@ export async function getEffectiveUser(): Promise<EffectiveUserResult> {
     actingAdminId: payload.actor_id,
     client: serviceClient,
     sessionUser: user,
+    effectiveUser: targetUser,
   };
+}
+
+/**
+ * Build a NextResponse from a failure result and (if requested) clear the
+ * `acting_as` cookie. The response body matches the shape expected by
+ * Phase-2 callers so that backward compatibility is preserved.
+ *
+ * Options allow overriding the `401` body to match route-specific wording
+ * (e.g. `"Authentication required"` vs `"Unauthorized"`).
+ */
+export async function effectiveUserErrorResponse(
+  result: EffectiveUserFailure,
+  opts?: { unauthenticatedMessage?: string }
+): Promise<NextResponse> {
+  if (result.clearCookie) {
+    try {
+      const cookieStore = await cookies();
+      cookieStore.delete(ACTING_AS_COOKIE_NAME);
+    } catch (err) {
+      console.error('[impersonation] failed to clear acting_as cookie', err);
+    }
+  }
+
+  switch (result.reason) {
+    case 'unauthenticated':
+      return NextResponse.json(
+        { error: opts?.unauthenticatedMessage ?? 'Unauthorized' },
+        { status: 401 }
+      );
+    case 'forbidden_not_admin':
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    case 'cookie_invalid':
+    case 'cookie_expired':
+    case 'actor_mismatch':
+      return NextResponse.json(
+        { error: 'Impersonation session invalid', reason: result.reason },
+        { status: 403 }
+      );
+    case 'target_missing':
+      return NextResponse.json(
+        { error: 'Impersonated user no longer exists' },
+        { status: 410 }
+      );
+    case 'internal_error':
+    default:
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+  }
 }
