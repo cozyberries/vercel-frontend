@@ -11,8 +11,7 @@ The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.coz
 That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
 Do not add admin-only operations here. Do not use `JWT_SECRET` in this repo.
 `SUPABASE_SERVICE_ROLE_KEY` is allowed **only** in server-side API routes that (1) verify the user session with `getUser()` first and (2) scope every query by `user_id` — the notifications API (`/api/notifications`) follows this pattern to avoid RLS/GRANT drift. Do not use it for any other purpose in this repo.
-
-`IMPERSONATION_SIGNING_SECRET` — HS256 secret for the `acting_as` impersonation cookie (server-only, 32+ random bytes).
+`IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
 
 ## Commands
 
