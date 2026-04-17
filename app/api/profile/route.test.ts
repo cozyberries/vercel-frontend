@@ -7,7 +7,6 @@ const {
   getEffectiveUserMock,
   effectiveUserErrorResponseMock,
   createAdminSupabaseClientMock,
-  adminClientMock,
   updateUserByIdMock,
   getUserByIdMock,
   cacheServiceMock,
@@ -28,7 +27,6 @@ const {
     getEffectiveUserMock: vi.fn(),
     effectiveUserErrorResponseMock: vi.fn(),
     createAdminSupabaseClientMock: vi.fn(() => adminClientMock),
-    adminClientMock,
     updateUserByIdMock,
     getUserByIdMock,
     cacheServiceMock: {

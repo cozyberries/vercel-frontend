@@ -8,11 +8,8 @@ const {
   effectiveUserErrorResponseMock,
   createAdminSupabaseClientMock,
   maybeSingleMock,
-  selectMock,
   eqUserMock,
   eqIdMock,
-  updateMock,
-  fromMock,
 } = vi.hoisted(() => {
   const maybeSingleMock = vi.fn();
   const selectMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
@@ -26,11 +23,8 @@ const {
     effectiveUserErrorResponseMock: vi.fn(),
     createAdminSupabaseClientMock: vi.fn(() => ({ from: fromMock })),
     maybeSingleMock,
-    selectMock,
     eqUserMock,
     eqIdMock,
-    updateMock,
-    fromMock,
   };
 });
 

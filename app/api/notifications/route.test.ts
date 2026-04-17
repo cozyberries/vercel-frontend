@@ -9,12 +9,9 @@ const {
   createAdminSupabaseClientMock,
   insertMock,
   insertSingleMock,
-  insertSelectMock,
   selectOrderMock,
   selectEqMock,
-  selectMock,
   fromMock,
-  adminClientMock,
 } = vi.hoisted(() => {
   const insertSingleMock = vi.fn();
   const insertSelectMock = vi.fn(() => ({ single: insertSingleMock }));
@@ -32,12 +29,9 @@ const {
     createAdminSupabaseClientMock: vi.fn(() => adminClientMock),
     insertMock,
     insertSingleMock,
-    insertSelectMock,
     selectOrderMock,
     selectEqMock,
-    selectMock,
     fromMock,
-    adminClientMock,
   };
 });
 
