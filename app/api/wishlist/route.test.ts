@@ -11,7 +11,6 @@ const {
   deleteEqMock,
   selectChainMock,
   upsertMock,
-  deleteMock,
   fromMock,
   clientMock,
 } = vi.hoisted(() => {
@@ -40,7 +39,6 @@ const {
     deleteEqMock,
     selectChainMock,
     upsertMock,
-    deleteMock,
     fromMock,
     clientMock: { from: fromMock },
   };
