@@ -1,30 +1,24 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import {
-  createServerSupabaseClient,
-  createAdminSupabaseClient,
-} from "@/lib/supabase-server";
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 /**
- * Auth with the user-scoped client; read/write notifications with the admin client
- * scoped by `user_id`. Avoids `GRANT ... TO authenticated` drift across Supabase projects.
+ * Auth via getEffectiveUser; read/write notifications with the admin client
+ * scoped by `user_id`. Avoids `GRANT ... TO authenticated` drift across
+ * Supabase projects.
  */
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createServerSupabaseClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId } = result;
 
     const body = await req.json();
     const { title, message, type } = body;
@@ -47,7 +41,7 @@ export async function POST(req: Request) {
       .from("notifications")
       .insert([
         {
-          user_id: user.id,
+          user_id: userId,
           title: title.trim(),
           message: message.trim(),
           type: typeof type === "string" && type.trim() ? type.trim() : "info",
@@ -88,24 +82,25 @@ export async function POST(req: Request) {
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createServerSupabaseClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ notifications: [] });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      // Preserve existing behaviour: when no session at all, respond with
+      // an empty notification list rather than an auth error.
+      if (result.reason === "unauthenticated") {
+        return NextResponse.json({ notifications: [] });
+      }
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId } = result;
 
     const admin = createAdminSupabaseClient();
 
     const { data, error } = await admin
       .from("notifications")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (error) {

@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import {
-  createServerSupabaseClient,
-  createAdminSupabaseClient,
-} from "@/lib/supabase-server";
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = await cookies();
-    const supabase = await createServerSupabaseClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId } = result;
 
     const { id } = await params;
 
@@ -33,7 +26,7 @@ export async function PATCH(
       .from("notifications")
       .update({ is_read: true })
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .select()
       .maybeSingle();
 
