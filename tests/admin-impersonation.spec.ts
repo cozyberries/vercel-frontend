@@ -67,6 +67,23 @@ test("admin impersonation: create user and place order on behalf", async ({
   });
   page.on("pageerror", (err) => errors.push(`PAGE: ${err.message}`));
 
+  // Track any 4xx/5xx responses from `/api/auth/generate-token`. The client
+  // MUST NOT call this endpoint while the admin is impersonating — the
+  // server route is fronted by `blockIfImpersonating` (identity-mutation
+  // surface) and will reject with 403 "Forbidden while impersonating"
+  // whenever the `acting_as` cookie is present. This assertion guards
+  // against a regression where the auth provider re-introduces the
+  // unconditional mint on every auth state change.
+  const generateTokenFailures: string[] = [];
+  page.on("response", (resp) => {
+    const url = resp.url();
+    if (!url.includes("/api/auth/generate-token")) return;
+    const status = resp.status();
+    if (status >= 400) {
+      generateTokenFailures.push(`${resp.request().method()} ${status} ${url}`);
+    }
+  });
+
   const targetEmailFirst = uniqueTargetEmail();
   const targetPhone = randomIndianMobile();
   const targetName = "Impersonation Test User";
@@ -442,6 +459,23 @@ test("admin impersonation: create user and place order on behalf", async ({
   expect(
     realErrors,
     `Browser/page errors detected during impersonation flow:\n${realErrors.join("\n")}`
+  ).toHaveLength(0);
+
+  // Regression guard: /api/auth/generate-token must never 4xx/5xx during a
+  // full impersonation lifecycle. A 403 here means the auth provider tried
+  // to mint the admin's JWT while the `acting_as` cookie was set — the
+  // symptom that triggered the client-side gating in
+  // components/supabase-auth-provider.tsx (token mint deferred until
+  // impersonation state is resolved AND inactive).
+  if (generateTokenFailures.length > 0) {
+    console.log("❌ /api/auth/generate-token failures:");
+    generateTokenFailures.forEach((e) => console.log("  ", e));
+  } else {
+    console.log("✅ No /api/auth/generate-token failures");
+  }
+  expect(
+    generateTokenFailures,
+    `/api/auth/generate-token returned an error status during the impersonation flow — the client must not call this endpoint while impersonation is active:\n${generateTokenFailures.join("\n")}`
   ).toHaveLength(0);
 
   // Cleanup placeholder — see top-of-file comment. The test deliberately
