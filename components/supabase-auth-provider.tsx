@@ -10,6 +10,11 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
+import {
+  requestAuthToken,
+  resolveAuthToken,
+  type ResolveAuthTokenResult,
+} from "@/lib/auth/generate-jwt-token";
 
 interface UserProfile {
   id: string;
@@ -80,32 +85,46 @@ export function SupabaseAuthProvider({
   const inflightRef = useRef<Map<string, Promise<any>>>(new Map());
   const isMountedRef = useRef(true);
 
-  // Helper function to generate JWT token (deduplicated)
-  const generateJwtToken = useCallback(async (userId: string, userEmail?: string) => {
-    const key = `token:${userId}`;
-    const existing = inflightRef.current.get(key);
-    if (existing) return existing;
+  // Refs mirroring state that the token-mint flow needs to read without
+  // re-subscribing. `impersonationActiveRef` lets `mintAuthToken` gate the
+  // HTTP call on the latest impersonation state even when invoked from a
+  // memoised callback; `jwtTokenRef` exposes the previously-minted token so
+  // `resolveAuthToken` can preserve it across impersonation and transient
+  // network errors instead of silently wiping a still-valid JWT.
+  const impersonationActiveRef = useRef(false);
+  const jwtTokenRef = useRef<string | null>(null);
 
-    const promise = (async () => {
-      try {
-        const response = await fetch("/api/auth/generate-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, userEmail }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.token;
-        }
-      } catch (error) {
-        console.error("Error generating JWT token:", error);
-      }
-      return null;
-    })().finally(() => { inflightRef.current.delete(key); });
+  // Mint a JWT for the given session user, gated on impersonation state.
+  // Returns the resolved `{ token, action }` so callers can decide whether
+  // to commit the token to state (unchanged values short-circuit the
+  // downstream render). Deduplicated per userId + impersonation state so
+  // concurrent callers don't double-post to `/api/auth/generate-token`.
+  const mintAuthToken = useCallback(
+    async (
+      userId: string,
+      userEmail: string | undefined
+    ): Promise<ResolveAuthTokenResult> => {
+      const key = `token:${userId}:${impersonationActiveRef.current ? "imp" : "normal"}`;
+      const existing = inflightRef.current.get(key) as
+        | Promise<ResolveAuthTokenResult>
+        | undefined;
+      if (existing) return existing;
 
-    inflightRef.current.set(key, promise);
-    return promise;
-  }, []);
+      const promise = resolveAuthToken({
+        userId,
+        userEmail,
+        impersonationActive: impersonationActiveRef.current,
+        previousToken: jwtTokenRef.current,
+        request: requestAuthToken,
+      }).finally(() => {
+        inflightRef.current.delete(key);
+      });
+
+      inflightRef.current.set(key, promise);
+      return promise;
+    },
+    []
+  );
 
   // Helper function to create user profile if it doesn't exist (deduplicated)
   const ensureUserProfile = useCallback(async (userId: string) => {
@@ -136,7 +155,13 @@ export function SupabaseAuthProvider({
     return promise;
   }, []);
 
-  // Helper function to update user profile
+  // Helper function to update user profile.
+  //
+  // Token lifecycle is deliberately NOT handled here — it lives in a
+  // dedicated effect below that waits for impersonation state to resolve
+  // before minting. Doing it here would race the impersonation probe and
+  // fire `/api/auth/generate-token` with the `acting_as` cookie still in
+  // flight, which the server (correctly) refuses with 403.
   const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
@@ -147,28 +172,15 @@ export function SupabaseAuthProvider({
         // New users fall back to 'customer' (correct); role appears in JWT on next refresh.
         const role = (currentSession.user.app_metadata?.role as UserProfile['role']) ?? 'customer';
         setUserProfile({ id: currentSession.user.id, role });
-
-        // Generate JWT token for API authentication
-        const token = await generateJwtToken(
-          currentSession.user.id,
-          currentSession.user.email
-        );
-        setJwtToken(token);
       } catch (error) {
         console.error("Error updating user profile:", error);
         // Set default customer profile on error
         setUserProfile({ id: currentSession.user.id, role: "customer" });
-        const token = await generateJwtToken(
-          currentSession.user.id,
-          currentSession.user.email
-        );
-        setJwtToken(token);
       }
     } else {
       setUserProfile(null);
-      setJwtToken(null);
     }
-  }, [generateJwtToken, ensureUserProfile]);
+  }, [ensureUserProfile]);
 
   // Fetch /api/admin/impersonation/state with request dedup.
   // Safe to call often; the endpoint is explicitly designed to be poll-friendly.
@@ -340,6 +352,55 @@ export function SupabaseAuthProvider({
     document.addEventListener("visibilitychange", handler);
     return () => document.removeEventListener("visibilitychange", handler);
   }, [refreshImpersonation]);
+
+  // Keep refs consumed by `mintAuthToken` in sync with the latest state.
+  useEffect(() => {
+    impersonationActiveRef.current = impersonation.active;
+  }, [impersonation.active]);
+
+  useEffect(() => {
+    jwtTokenRef.current = jwtToken;
+  }, [jwtToken]);
+
+  // Session JWT lifecycle.
+  //
+  // The token MUST only be minted when impersonation is known to be
+  // inactive — `/api/auth/generate-token` is an identity-mutation endpoint
+  // that `blockIfImpersonating` refuses whenever the `acting_as` cookie is
+  // present (it would be a privilege-escalation surface otherwise). So we
+  // wait for `impersonationReady` before the first mint and skip the HTTP
+  // call entirely whenever `impersonation.active` is true.
+  //
+  // When impersonation ends (active: true → false) this effect re-runs and
+  // mints a fresh token automatically.
+  //
+  // When the user signs out (no session), we clear the token synchronously
+  // without hitting the network.
+  useEffect(() => {
+    if (!session?.user) {
+      setJwtToken(null);
+      return;
+    }
+    if (!impersonationReady) return;
+    if (impersonation.active) return;
+
+    let cancelled = false;
+    const { id, email } = session.user;
+    (async () => {
+      const { token } = await mintAuthToken(id, email);
+      if (cancelled || !isMountedRef.current) return;
+      setJwtToken((prev) => (prev === token ? prev : token));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    session?.user?.id,
+    session?.user?.email,
+    impersonationReady,
+    impersonation.active,
+    mintAuthToken,
+  ]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
