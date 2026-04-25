@@ -19,6 +19,7 @@ import { getProducts, type Product } from "@/lib/services/api";
 import { useCategoryOptions, useSizeOptions, useGenderOptions } from "@/hooks/useApiQueries";
 import { Loader, Search, X, RotateCcw, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { trackSearch } from '@/lib/analytics/meta-pixel';
 
 const PAGE_SIZE = 12;
 // Max pages to re-fetch for scroll restore (prevents 4+ sequential API calls on back-nav)
@@ -424,6 +425,13 @@ export default function ProductsClient() {
       window.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [isLoading, allProducts.length, hasMoreProducts, isLoadingMore, loadMoreProducts]);
+
+  // Meta Pixel — Search
+  useEffect(() => {
+    if (currentSearch.trim()) {
+      trackSearch({ query: currentSearch });
+    }
+  }, [currentSearch]);
 
   // Submit search — updates URL param which triggers server-side fetch
   const handleSearchSubmit = (e: React.FormEvent) => {
