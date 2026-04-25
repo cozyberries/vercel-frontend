@@ -16,6 +16,7 @@ import PwaUpdateHandler from "@/components/PwaUpdateHandlerClient";
 import { Toaster } from "sonner";
 import { RatingProvider } from "@/components/rating-context";
 import { QueryProvider } from "@/components/query-provider";
+import MetaPixelScript from "@/components/MetaPixelScript";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -99,6 +100,7 @@ export default function RootLayout({
       </head>
       {/* suppressHydrationWarning on body helps when a browser extension (e.g. Cursor) injects data-cursor-ref into the DOM after server render */}
       <body className={inter.className} suppressHydrationWarning>
+        <MetaPixelScript />
         <QueryProvider>
           <SupabaseAuthProvider>
             <DataPreloader>
