@@ -380,7 +380,7 @@ async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
   sendConversionsEvent({
     eventName: 'Purchase',
     eventId: pixelEventId,
-    eventSourceUrl: `${request.headers.get('origin') ?? ''}/payment/${order.id}`,
+    eventSourceUrl: `${request.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? ''}/payment/${order.id}`,
     userEmail: sessionUser.email ?? undefined,
     userPhone: sessionUser.phone ?? undefined,
     clientIp: sessionClientIp ?? undefined,
@@ -525,7 +525,7 @@ async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
   sendConversionsEvent({
     eventName: 'Purchase',
     eventId: pixelEventId,
-    eventSourceUrl: `${request.headers.get('origin') ?? ''}/payment/${orderId}`,
+    eventSourceUrl: `${request.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? ''}/payment/${orderId}`,
     userEmail: sessionUser.email ?? undefined,
     userPhone: sessionUser.phone ?? undefined,
     clientIp: orderClientIp ?? undefined,
@@ -533,7 +533,7 @@ async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
     customData: {
       value: order.total_amount,
       currency: order.currency ?? 'INR',
-      content_ids: [orderId],
+      content_ids: [],
       content_type: 'product',
       order_id: orderId,
     },
