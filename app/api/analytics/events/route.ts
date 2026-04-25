@@ -25,7 +25,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const { eventName, eventId, eventSourceUrl, customData } = body;
-  if (!eventName || !eventId || !eventSourceUrl) {
+  const VALID_EVENTS = ['AddToCart', 'InitiateCheckout'] as const;
+  if (!eventName || !VALID_EVENTS.includes(eventName) || !eventId || !eventSourceUrl) {
     return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
   }
 
