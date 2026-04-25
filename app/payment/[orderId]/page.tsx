@@ -20,6 +20,7 @@ import type { Order } from "@/lib/types/order";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
+import { trackPurchase } from "@/lib/analytics/meta-pixel";
 
 interface UpiLinks {
   phonepe: string;
@@ -111,6 +112,20 @@ export default function PaymentPage() {
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to confirm payment");
+      }
+
+      const data = await res.json();
+
+      // Meta Pixel — Purchase browser event (deduplicates with server event via pixel_event_id)
+      if (data.pixel_event_id && order) {
+        trackPurchase(
+          {
+            orderId: data.order_id ?? orderId,
+            total: order.total_amount,
+            itemIds: [],
+          },
+          data.pixel_event_id
+        );
       }
 
       toast.success("Order Placed Successfully!");
