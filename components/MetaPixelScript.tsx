@@ -2,19 +2,24 @@
 
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { trackPageView } from '@/lib/analytics/meta-pixel';
 
 export default function MetaPixelScript() {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const pathname = usePathname();
+  const isFirstRender = useRef(true);
 
-  // Fire PageView on every SPA navigation (initial load is handled by the inline script)
+  // Fire PageView on SPA navigations — skip first mount (inline script handles initial load)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     trackPageView();
   }, [pathname]);
 
-  if (!pixelId) return null;
+  if (!pixelId || !/^\d+$/.test(pixelId)) return null;
 
   const initScript = `
     !function(f,b,e,v,n,t,s)
