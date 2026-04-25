@@ -33,8 +33,7 @@ export async function sendConversionsEvent(params: ConversionsEventParams): Prom
   const userData: Record<string, unknown> = {};
   if (params.userEmail) userData.em = [sha256(params.userEmail)];
   if (params.userPhone) {
-    const hashed = hashPhone(params.userPhone);
-    if (hashed) userData.ph = [hashed];
+    userData.ph = [hashPhone(params.userPhone)];
   }
   if (params.clientIp) userData.client_ip_address = params.clientIp;
   if (params.userAgent) userData.client_user_agent = params.userAgent;
@@ -55,10 +54,13 @@ export async function sendConversionsEvent(params: ConversionsEventParams): Prom
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${token}`,
+      `https://graph.facebook.com/v19.0/${pixelId}/events`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       }
     );
