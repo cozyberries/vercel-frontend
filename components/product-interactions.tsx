@@ -26,6 +26,7 @@ import { getDiscountedPrice } from '@/lib/utils/discount'
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { trackViewContent } from "@/lib/analytics/meta-pixel";
 
 interface ReviewItem {
   userName: string;
@@ -150,6 +151,12 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       toast.error("Something went wrong. Please try again.");
     }
   };
+
+  // Meta Pixel — ViewContent
+  useEffect(() => {
+    trackViewContent({ id: product.id, name: product.name, price: product.price });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
 
   // Scroll to top on product change (e.g. clicking a related product)
   useEffect(() => {

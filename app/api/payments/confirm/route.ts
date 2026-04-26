@@ -12,6 +12,7 @@ import {
   extractRequestMetadata,
   logImpersonationEvent,
 } from "@/lib/services/impersonation-audit";
+import { sendConversionsEvent } from "@/lib/analytics/conversions-api";
 
 // Schema for validating cart items
 const OrderItemSchema = z.object({
@@ -144,7 +145,7 @@ async function rollbackOrder(
 // ─── New flow: session-based confirmation ─────────────────────────────────────
 
 async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
-  const { client, userId, request } = ctx;
+  const { client, userId, sessionUser, request } = ctx;
 
   // 1. Load session and verify ownership + status
   const { data: session, error: sessionError } = await client
@@ -370,17 +371,41 @@ async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
     items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: (i as any).size ?? null })),
   });
 
+  // Fire Purchase server event (fire-and-forget)
+  const pixelEventId = crypto.randomUUID();
+  const sessionItemIds = Array.isArray(session.items)
+    ? (session.items as Array<{ id: string }>).map((i) => i.id).filter(Boolean)
+    : [];
+  const { ip: sessionClientIp, user_agent: sessionUserAgent } = extractRequestMetadata(request);
+  sendConversionsEvent({
+    eventName: 'Purchase',
+    eventId: pixelEventId,
+    eventSourceUrl: `${request.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? ''}/payment/${order.id}`,
+    userEmail: sessionUser.email ?? undefined,
+    userPhone: sessionUser.phone ?? undefined,
+    clientIp: sessionClientIp ?? undefined,
+    userAgent: sessionUserAgent ?? undefined,
+    customData: {
+      value: session.total_amount,
+      currency: session.currency ?? 'INR',
+      content_ids: sessionItemIds,
+      content_type: 'product',
+      order_id: order.id,
+    },
+  }).catch((err) => console.error('[Meta CAPI] Purchase event failed:', err));
+
   return NextResponse.json({
     success: true,
     order_id: order.id,
     order_number: order.order_number,
+    pixel_event_id: pixelEventId,
   });
 }
 
 // ─── Legacy flow: order-based confirmation ────────────────────────────────────
 
 async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
-  const { client, userId } = ctx;
+  const { client, userId, sessionUser, request } = ctx;
 
   // Fetch order and verify ownership (already scoped to the effective user)
   const { data: order, error: orderError } = await client
@@ -494,5 +519,29 @@ async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
     phone: order.customer_phone ?? null,
   });
 
-  return NextResponse.json({ success: true });
+  // Fire Purchase server event (fire-and-forget)
+  const pixelEventId = crypto.randomUUID();
+  const { ip: orderClientIp, user_agent: orderUserAgent } = extractRequestMetadata(request);
+  sendConversionsEvent({
+    eventName: 'Purchase',
+    eventId: pixelEventId,
+    eventSourceUrl: `${request.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? ''}/payment/${orderId}`,
+    userEmail: sessionUser.email ?? undefined,
+    userPhone: sessionUser.phone ?? undefined,
+    clientIp: orderClientIp ?? undefined,
+    userAgent: orderUserAgent ?? undefined,
+    customData: {
+      value: order.total_amount,
+      currency: order.currency ?? 'INR',
+      content_ids: [],
+      content_type: 'product',
+      order_id: orderId,
+    },
+  }).catch((err) => console.error('[Meta CAPI] Purchase event failed (legacy):', err));
+
+  return NextResponse.json({
+    success: true,
+    order_id: orderId,
+    pixel_event_id: pixelEventId,
+  });
 }
