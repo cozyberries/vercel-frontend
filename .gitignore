@@ -91,3 +91,5 @@ logs
 .env.test.local
 .env.production.local
 .worktrees/
+.claude/
+.playwright-mcp/

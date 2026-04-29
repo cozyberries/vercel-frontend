@@ -204,8 +204,11 @@ export default function UserPickerModal({
       event.preventDefault();
       const nextErrors: typeof createErrors = {};
 
-      const emailCheck = validateEmail(createEmail);
-      if (!emailCheck.isValid) nextErrors.email = emailCheck.error;
+      const trimmedEmail = createEmail.trim();
+      if (trimmedEmail) {
+        const emailCheck = validateEmail(trimmedEmail);
+        if (!emailCheck.isValid) nextErrors.email = emailCheck.error;
+      }
 
       if (createPhone.length !== 10) {
         nextErrors.phone = "Phone number must be 10 digits";
@@ -242,7 +245,7 @@ export default function UserPickerModal({
 
         if (res.status === 409) {
           setActiveTab("search");
-          setQuery(createEmail.trim());
+          setQuery(createEmail.trim() || createPhone);
           setCreateErrors({
             form:
               typeof body?.error === "string"
@@ -396,7 +399,7 @@ export default function UserPickerModal({
           <TabsContent value="create" className="space-y-3">
             <form onSubmit={handleCreate} className="space-y-3" noValidate>
               <div className="space-y-1">
-                <Label htmlFor="create-email">Email</Label>
+                <Label htmlFor="create-email">Email (optional)</Label>
                 <Input
                   id="create-email"
                   ref={createEmailRef}
