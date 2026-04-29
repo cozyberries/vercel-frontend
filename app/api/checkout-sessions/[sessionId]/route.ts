@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId, client: supabase } = result;
 
     const { sessionId } = await params;
 
@@ -28,7 +25,7 @@ export async function GET(
       .from("checkout_sessions")
       .select("*")
       .eq("id", sessionId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (sessionError || !session) {
@@ -56,7 +53,7 @@ export async function GET(
           .update({ status: "expired", updated_at: new Date().toISOString() })
           .eq("id", sessionId);
 
-        logServerEvent(supabase, user.id, "session_expired", {
+        logServerEvent(supabase, userId, "session_expired", {
           session_id: sessionId,
         });
       }

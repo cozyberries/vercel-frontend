@@ -27,6 +27,10 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 const LOG_PREFIX = '[admin-users-create]';
 
+const PHONE_PLACEHOLDER_DOMAIN =
+  process.env.VERIFYNOW_PHONE_PLACEHOLDER_EMAIL_DOMAIN ||
+  'phone.cozyberries.local';
+
 const RATE_LIMIT = 20;
 const RATE_WINDOW_SECONDS = 3600;
 const LIST_PER_PAGE = 1000;
@@ -141,12 +145,14 @@ export async function POST(request: NextRequest) {
     const rawFullName =
       typeof body.full_name === 'string' ? body.full_name.trim() : '';
 
-    const emailResult = validateEmail(rawEmail);
-    if (!emailResult.isValid) {
-      return NextResponse.json(
-        { error: emailResult.error ?? 'Invalid email' },
-        { status: 400 }
-      );
+    if (rawEmail) {
+      const emailResult = validateEmail(rawEmail);
+      if (!emailResult.isValid) {
+        return NextResponse.json(
+          { error: emailResult.error ?? 'Invalid email' },
+          { status: 400 }
+        );
+      }
     }
 
     const phoneDigits = getIndianPhoneDigits(rawPhone);
@@ -176,7 +182,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedEmail = rawEmail.toLowerCase();
+    const normalizedEmail = rawEmail
+      ? rawEmail.toLowerCase()
+      : `${phoneDigits}@${PHONE_PLACEHOLDER_DOMAIN}`;
     const normalizedPhone = `+91${phoneDigits}`;
 
     const adminClient = createAdminSupabaseClient() as SupabaseClient;
@@ -223,28 +231,31 @@ export async function POST(request: NextRequest) {
 
     const created = createData.user as User;
 
-    let magicLinkSent = true;
+    let magicLinkSent = false;
     let warning: string | undefined;
-    try {
-      const { error: linkError } =
-        await adminClient.auth.admin.generateLink({
-          type: 'recovery',
-          email: normalizedEmail,
-          options: {
-            redirectTo: `${resolveSiteUrl()}/auth/update-password`,
-          },
-        });
-      if (linkError) {
+    if (rawEmail) {
+      magicLinkSent = true;
+      try {
+        const { error: linkError } =
+          await adminClient.auth.admin.generateLink({
+            type: 'recovery',
+            email: normalizedEmail,
+            options: {
+              redirectTo: `${resolveSiteUrl()}/auth/update-password`,
+            },
+          });
+        if (linkError) {
+          magicLinkSent = false;
+          warning =
+            'User created but password-recovery email could not be generated';
+          console.error(`${LOG_PREFIX} generateLink error`, linkError);
+        }
+      } catch (linkErr) {
         magicLinkSent = false;
         warning =
           'User created but password-recovery email could not be generated';
-        console.error(`${LOG_PREFIX} generateLink error`, linkError);
+        console.error(`${LOG_PREFIX} generateLink threw`, linkErr);
       }
-    } catch (linkErr) {
-      magicLinkSent = false;
-      warning =
-        'User created but password-recovery email could not be generated';
-      console.error(`${LOG_PREFIX} generateLink threw`, linkErr);
     }
 
     console.log(
