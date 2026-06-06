@@ -122,7 +122,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
         setShowReviewForm(false);
         // Refresh reviews
         await fetchReviews(productSlug);
-        await fetchUsers();
 
         // Fire and forget notifications (non-blocking)
         sendNotification(
@@ -651,14 +650,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               </div>
             </div>
 
-            {product.description && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">Description</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {product.description}
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Desktop CTA buttons */}
