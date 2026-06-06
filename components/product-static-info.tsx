@@ -39,6 +39,18 @@ export default function ProductStaticInfo({ product }: Props) {
 
         <Separator className="my-4" />
 
+        {product.description && (
+          <>
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold text-gray-900">Description</h2>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {product.description}
+              </p>
+            </div>
+            <Separator className="my-4" />
+          </>
+        )}
+
         {product.features && product.features.length > 0 && (
           <>
             <div className="space-y-6">
