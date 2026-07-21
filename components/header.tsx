@@ -44,7 +44,7 @@ export default function Header() {
                 alt="CozyBerries"
                 width={180}
                 height={50}
-                className="h-full w-auto object-contain"
+                className="h-12 w-auto object-contain"
                 priority
               />
             </Link>
@@ -72,31 +72,28 @@ export default function Header() {
           </nav>
 
           {/* Icons + Auth */}
-          <div className="flex items-center justify-end flex-1 space-x-1">
-            {/* Search — hidden on /products (inline search bar takes over) */}
-            {pathname !== '/products' && (
-              <Link href="/products">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="flex items-center justify-center rounded-full hover:bg-cb-muted transition-colors duration-200"
-                  aria-label="Search products"
-                >
-                  <Search className="h-5 w-5" />
-                </Button>
-              </Link>
-            )}
+          <div className="flex items-center justify-end flex-1 space-x-2 lg:space-x-3">
+            <Link href="/products">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 lg:h-7 lg:w-7 flex items-center justify-center rounded-full hover:bg-transparent"
+                aria-label="Search products"
+              >
+                <Search className="!w-5 !h-5 text-cb-fg" />
+              </Button>
+            </Link>
             <NotificationCenter />
             <Link href="/wishlist">
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative lg:h-10 lg:w-10 h-12 w-12"
+                className="h-8 w-8 lg:h-7 lg:w-7 relative rounded-full hover:bg-transparent"
                 aria-label="Go to wishlist"
               >
-                <Heart className={`h-6 w-6 lg:h-5 lg:w-5 ${wishlist.length > 0 ? "fill-red-500 text-red-500" : ""}`} />
+                <Heart className="!w-5 !h-5 text-cb-fg" />
                 {wishlist.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-pink-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-cb-terracotta text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                     {wishlist.length}
                   </span>
                 )}
@@ -106,12 +103,12 @@ export default function Header() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative lg:w-10 lg:h-10 w-12 h-12"
+                className="h-8 w-8 lg:h-7 lg:w-7 relative rounded-full hover:bg-transparent"
                 aria-label="Go to cart"
               >
-                <ShoppingBag className="h-6 w-6 lg:h-5 lg:w-5" />
+                <ShoppingBag className="!w-5 !h-5 text-cb-fg" />
                 {cartQuantity > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-primary text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-cb-terracotta text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                     {cartQuantity}
                   </span>
                 )}
@@ -120,7 +117,7 @@ export default function Header() {
             <Link href="/profile">
               {user && initials ? (
                 <span
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-cb-taupe text-white text-sm font-semibold ring-2 ring-cb-terracotta/40"
+                  className="flex h-8 w-8 lg:h-7 lg:w-7 items-center justify-center rounded-full bg-cb-taupe text-white text-xs font-semibold ring-2 ring-cb-terracotta/40"
                   aria-label="Go to profile"
                 >
                   {initials}
@@ -129,10 +126,10 @@ export default function Header() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="flex items-center justify-center rounded-full bg-cb-muted hover:bg-cb-mauve-tint transition-colors duration-200"
+                  className="h-8 w-8 lg:h-7 lg:w-7 flex items-center justify-center rounded-full bg-cb-muted hover:bg-cb-muted"
                   aria-label="Go to profile"
                 >
-                  <User className="h-4 w-4" />
+                  <User className="!w-5 !h-5 text-cb-fg" />
                 </Button>
               )}
             </Link>

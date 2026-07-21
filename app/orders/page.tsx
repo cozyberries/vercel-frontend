@@ -333,9 +333,9 @@ function CompactOrderRow({ order }: { order: Order }) {
   const Icon = STAGE_ICON[stage.key];
   return (
     <Link href={`/orders/${order.id}`} className="block bg-white rounded-2xl border border-cb-border p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-bold text-cb-fg">{order.order_number}</p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="min-w-0 break-words">
+          <p className="font-bold text-cb-fg text-sm sm:text-base">{order.order_number}</p>
           <p className="text-sm text-cb-muted-fg">Placed {formatPlacedDate(order.created_at)}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -365,9 +365,9 @@ function DeliveredOrderCard({
   const Icon = STAGE_ICON[stage.key];
   return (
     <div className="bg-white rounded-2xl border border-cb-border overflow-hidden">
-      <Link href={`/orders/${order.id}`} className="flex items-center justify-between gap-3 p-4">
-        <div className="min-w-0">
-          <p className="font-bold text-cb-fg">{order.order_number}</p>
+      <Link href={`/orders/${order.id}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="min-w-0 break-words">
+          <p className="font-bold text-cb-fg text-sm sm:text-base">{order.order_number}</p>
           <p className="text-sm text-cb-muted-fg">Placed {formatPlacedDate(order.created_at)}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -403,7 +403,7 @@ function DeliveredOrderCard({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-cb-border bg-cb-linen px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-cb-border bg-cb-linen px-4 py-3">
         <p className="text-sm text-cb-muted-fg">
           {order.items.length} item{order.items.length === 1 ? "" : "s"} · Total <span className="font-bold text-cb-fg">₹{order.total_amount.toFixed(0)}</span>
         </p>

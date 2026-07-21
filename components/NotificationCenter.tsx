@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, X, LogIn } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useNotifications } from "@/hooks/useApiQueries";
 
@@ -13,7 +14,7 @@ export default function NotificationCenter() {
     const { user } = useAuth();
     const router = useRouter();
     const { data: notifications } = useNotifications(user?.id);
-    const hasUnread = (notifications ?? []).some((n) => !n.is_read);
+    const unreadCount = (notifications ?? []).filter((n) => !n.is_read).length;
     const [guestPromptOpen, setGuestPromptOpen] = useState(false);
 
     const handleClick = () => {
@@ -39,7 +40,7 @@ export default function NotificationCenter() {
                 </div>
                 <div className="flex flex-col items-center text-center">
                     <div className="mb-5 flex h-[70px] w-[70px] items-center justify-center rounded-full bg-cb-linen">
-                        <Bell className="h-7 w-7 text-cb-fg" />
+                        <Bell className=" w-5 h-5 text-cb-fg"/>
                     </div>
                     <h3 className="text-lg font-semibold text-cb-fg mb-2">
                         Log in to see notifications
@@ -62,16 +63,20 @@ export default function NotificationCenter() {
 
     return (
         <div className="relative">
-            <button
+            <Button
+                variant="ghost"
+                size="icon"
                 onClick={handleClick}
-                className="relative flex items-center justify-center rounded-full h-10 w-10 hover:bg-cb-muted transition-colors duration-200"
+                className="h-8 w-8 lg:h-7 lg:w-7 relative rounded-full hover:bg-transparent"
                 aria-label={user ? "Go to notifications" : "Toggle notifications"}
             >
-                <Bell className="h-5 w-5" />
-                {user && hasUnread && (
-                    <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full" />
+                <Bell className="!w-5 !h-5 text-cb-fg" />
+                {user && unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-cb-terracotta text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                        {unreadCount}
+                    </span>
                 )}
-            </button>
+            </Button>
 
             {typeof window !== "undefined" && guestPromptOpen && createPortal(guestPanel, document.body)}
         </div>

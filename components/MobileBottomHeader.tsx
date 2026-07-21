@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Package, Home, User, ShoppingCart } from "lucide-react";
+import { ShoppingBag, Home, User, Search } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/components/supabase-auth-provider";
 import type { LucideIcon } from "lucide-react";
@@ -29,30 +29,20 @@ export default function MobileBottomHeader() {
       isActive: pathname === "/",
     },
     {
-      name: "Products",
+      name: "Shop",
       href: "/products",
-      icon: ShoppingBag,
+      icon: Search,
       isActive: pathname.startsWith("/products"),
     },
     {
       name: "Cart",
       href: "/cart",
-      icon: ShoppingCart,
+      icon: ShoppingBag,
       isActive: pathname.startsWith("/cart"),
       badge: cartTotalQuantity > 0 ? cartTotalQuantity : null,
     },
-    ...(user
-      ? [
-          {
-            name: "Orders",
-            href: "/orders",
-            icon: Package,
-            isActive: pathname.startsWith("/orders"),
-          },
-        ]
-      : []),
     {
-      name: "Profile",
+      name: "Account",
       href: user ? "/profile" : "/login",
       icon: User,
       isActive:
@@ -81,34 +71,21 @@ export default function MobileBottomHeader() {
                   whileTap={{ scale: 0.85 }}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 >
-                  {/* Animated active indicator pill */}
-                  {item.isActive && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute inset-x-2 inset-y-1.5 bg-primary/10 rounded-xl"
-                      transition={{
-                        type: "spring",
-                        stiffness: 350,
-                        damping: 30,
-                      }}
-                    />
-                  )}
-
-                  <div className="relative z-10">
+                  <div className="relative">
                     <Icon
                       className={`h-5 w-5 transition-colors duration-200 ${
-                        item.isActive ? "text-primary" : "text-gray-400"
+                        item.isActive ? "text-cb-terracotta" : "text-gray-600"
                       }`}
                     />
                     {item.badge && (
-                      <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center font-medium">
+                      <span className="absolute -top-1.5 -right-2.5 bg-cb-terracotta text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center font-medium">
                         {item.badge}
                       </span>
                     )}
                   </div>
                   <span
-                    className={`text-[10px] font-medium mt-0.5 relative z-10 transition-colors duration-200 ${
-                      item.isActive ? "text-primary" : "text-gray-400"
+                    className={`text-[10px] font-medium mt-0.5 transition-colors duration-200 ${
+                      item.isActive ? "text-cb-terracotta" : "text-gray-600"
                     }`}
                   >
                     {item.name}

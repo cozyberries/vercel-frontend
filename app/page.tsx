@@ -21,7 +21,7 @@ export default function Home() {
       <Hero />
 
       {/* Shop by Age */}
-      <section className="lg:py-14 py-8 bg-cb-linen">
+      <section className="lg:py-14 py-8">
         <ScrollReveal className="container mx-auto px-4">
           <h2 className="text-[21px] md:text-[26px] font-light mb-4 md:mb-8">
             Shop by Age

@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { ChevronDown, Minus, Plus, Trash2 } from "lucide-react";
 import { images } from "@/app/assets/images";
-import type { CartItem } from "@/components/cart-context";
+import { useCart, getCartItemKey, type CartItem } from "@/components/cart-context";
 import DiscountedPrice from "@/components/discounted-price";
+import EditCartItemDialog from "@/components/EditCartItemDialog";
 
 interface CartItemProps {
   item: CartItem;
@@ -17,8 +19,28 @@ export default function CartItemRow({
   onQuantityChange,
   onRemove,
 }: CartItemProps) {
+  const { addToCart } = useCart();
+  const [editOpen, setEditOpen] = useState(false);
 
   const maxedOut = item.stock_quantity != null && item.quantity >= item.stock_quantity;
+
+  const handleUpdate = (newSize: string | undefined, newQty: number, newPrice: number, newStock: number) => {
+    if (getCartItemKey({ id: item.id, size: newSize, color: item.color }) === getCartItemKey(item)) {
+      onQuantityChange(item.id, newQty, item.size, item.color);
+      return;
+    }
+    onRemove(item.id, item.size, item.color);
+    addToCart({
+      id: item.id,
+      name: item.name,
+      price: newPrice,
+      image: item.image,
+      quantity: newQty,
+      stock_quantity: newStock,
+      ...(newSize ? { size: newSize } : {}),
+      ...(item.color ? { color: item.color } : {}),
+    });
+  };
 
   return (
     <div className="flex gap-4 rounded-2xl border border-cb-border p-4">
@@ -46,10 +68,14 @@ export default function CartItemRow({
           </button>
         </div>
         {(item.color || item.size) && (
-          <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-cb-border px-2.5 py-1 text-[13px] text-cb-muted-fg">
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-cb-border px-2.5 py-1 text-[13px] text-cb-muted-fg hover:border-cb-terracotta transition-colors"
+          >
             {[item.color, item.size && `Size ${item.size}`].filter(Boolean).join(" · ")}
             <ChevronDown className="h-3 w-3" />
-          </span>
+          </button>
         )}
         {maxedOut && (
           <p className="text-xs text-amber-600 font-medium mt-1">
@@ -90,6 +116,12 @@ export default function CartItemRow({
           <DiscountedPrice price={item.price} className="text-base font-bold" />
         </div>
       </div>
+      <EditCartItemDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        item={item}
+        onUpdate={handleUpdate}
+      />
     </div>
   );
 }
