@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Phone } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, User } from "lucide-react";
 import PhoneInput from "@/components/PhoneInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,23 +24,26 @@ import type { CheckRegistrationStatus } from "@/app/api/auth/check-registration/
 import { useAuth } from "@/components/supabase-auth-provider";
 import { validateRequiredPhoneNumber } from "@/lib/utils/validation";
 import { isSafeRedirect } from "@/lib/utils/redirect";
+import { images } from "@/app/assets/images";
+import {
+  OTP_VERIFICATION_ID_KEY,
+  OTP_PHONE_KEY,
+  OTP_FULL_NAME_KEY,
+  OTP_EMAIL_KEY,
+  OTP_INTENT_KEY,
+} from "@/lib/auth/otp-session";
 
-const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
-const OTP_PHONE_KEY = "otp_phone";
-const OTP_REGISTER_FULL_NAME_KEY = "otp_register_full_name";
-const OTP_REGISTER_EMAIL_KEY = "otp_register_email";
-
-export default function RegisterPhonePage() {
+export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, signInWithGoogle } = useAuth();
   const redirectTo = searchParams.get("redirect");
   const phoneParam = (searchParams.get("phone") ?? "").replace(/\D/g, "");
 
+  const [fullName, setFullName] = useState("");
+  const [fullNameError, setFullNameError] = useState("");
   const [phone, setPhone] = useState(phoneParam);
   const [phoneError, setPhoneError] = useState("");
-  const [fullNameError, setFullNameError] = useState("");
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -50,7 +54,11 @@ export default function RegisterPhonePage() {
     message: string;
   }>({ open: false, status: "none", message: "" });
 
-  // Already logged in: redirect to profile or intended page
+  const loginHref = isSafeRedirect(redirectTo)
+    ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+    : "/login";
+
+  // Already signed in: redirect to profile or intended page
   useEffect(() => {
     if (user) {
       const destination = isSafeRedirect(redirectTo) ? redirectTo : "/profile";
@@ -64,17 +72,10 @@ export default function RegisterPhonePage() {
     }
   }, [redirectTo]);
 
-  const registerEmailHref = isSafeRedirect(redirectTo)
-    ? `/register/email?redirect=${encodeURIComponent(redirectTo)}`
-    : "/register/email";
-  const loginHref = isSafeRedirect(redirectTo)
-    ? `/login?redirect=${encodeURIComponent(redirectTo)}`
-    : "/login";
-
   if (user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-        <p className="text-sm text-muted-foreground">Redirecting...</p>
+      <div className="min-h-screen flex items-center justify-center bg-cb-linen py-12 px-4">
+        <p className="text-sm text-cb-muted-fg">Redirecting...</p>
       </div>
     );
   }
@@ -105,11 +106,12 @@ export default function RegisterPhonePage() {
       if (verificationId) {
         sessionStorage.setItem(OTP_VERIFICATION_ID_KEY, verificationId);
         sessionStorage.setItem(OTP_PHONE_KEY, digits);
-        if (fullName.trim()) sessionStorage.setItem(OTP_REGISTER_FULL_NAME_KEY, fullName.trim());
-        else sessionStorage.removeItem(OTP_REGISTER_FULL_NAME_KEY);
-        if (email.trim()) sessionStorage.setItem(OTP_REGISTER_EMAIL_KEY, email.trim());
-        else sessionStorage.removeItem(OTP_REGISTER_EMAIL_KEY);
-        router.push("/register/verify");
+        sessionStorage.setItem(OTP_INTENT_KEY, "register");
+        if (fullName.trim()) sessionStorage.setItem(OTP_FULL_NAME_KEY, fullName.trim());
+        else sessionStorage.removeItem(OTP_FULL_NAME_KEY);
+        if (email.trim()) sessionStorage.setItem(OTP_EMAIL_KEY, email.trim());
+        else sessionStorage.removeItem(OTP_EMAIL_KEY);
+        router.push("/login/verify");
         return;
       }
 
@@ -121,7 +123,7 @@ export default function RegisterPhonePage() {
     }
   };
 
-  const handleSendOtp = async () => {
+  const handleContinue = async () => {
     setError("");
     setPhoneError("");
     setFullNameError("");
@@ -198,37 +200,111 @@ export default function RegisterPhonePage() {
     }
   };
 
+  const handleGuest = () => {
+    if (isSafeRedirect(redirectTo)) {
+      router.push(redirectTo);
+      return;
+    }
+    router.back();
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-light text-gray-900">
-            Register with phone
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{" "}
-            <Link href={loginHref} className="font-medium text-primary hover:text-primary/80">
-              sign in to your existing account
-            </Link>
-            {" · "}
-            <Link
-              href={registerEmailHref}
-              className="font-medium text-primary hover:text-primary/80"
-            >
-              use email instead
-            </Link>
+    <div className="min-h-screen bg-cb-linen py-12 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-md">
+        <div className="flex flex-col items-center text-center">
+          <Image src={images.logoURL} alt="CozyBerries" width={64} height={64} className="h-16 w-16" />
+          <h1 className="mt-4 text-3xl font-light text-cb-fg">Welcome to CozyBerries</h1>
+          <p className="mt-2 text-sm text-cb-muted-fg">
+            Create an account to track orders, save favourites and check out faster.
           </p>
         </div>
 
-        <div className="mt-8 space-y-3">
+        <div
+          className="mt-8 space-y-4"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void handleContinue();
+            }
+          }}
+        >
+          <div>
+            <Label htmlFor="signup-full-name">Full name</Label>
+            <Input
+              id="signup-full-name"
+              type="text"
+              autoComplete="name"
+              placeholder="Enter your full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="mt-1 h-12 rounded-xl bg-white"
+            />
+            {fullNameError && (
+              <p className="text-sm text-destructive mt-1" role="alert">
+                {fullNameError}
+              </p>
+            )}
+          </div>
+
+          <PhoneInput
+            id="signup-phone"
+            label="Mobile number"
+            value={phone}
+            onChange={setPhone}
+            error={phoneError}
+            onErrorChange={setPhoneError}
+          />
+
+          <div>
+            <Label htmlFor="signup-email">
+              Email <span className="text-cb-muted-fg font-normal">(optional)</span>
+            </Label>
+            <Input
+              id="signup-email"
+              type="email"
+              autoComplete="email"
+              placeholder="For order updates & invoices"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 h-12 rounded-xl bg-white"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive text-center" role="alert">
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="button"
+            className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
+            disabled={loading || isGoogleLoading}
+            onClick={() => void handleContinue()}
+          >
+            {loading ? "Sending..." : "Continue"}
+            {!loading && <ArrowRight className="h-4 w-4" />}
+          </Button>
+        </div>
+
+        <div className="mt-6 relative">
+          <div className="absolute inset-0 flex items-center">
+            <Separator className="w-full" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-cb-linen px-2 text-cb-muted-fg">or</span>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-3">
           <Button
             type="button"
             onClick={() => void handleGoogleSignIn()}
             disabled={isGoogleLoading || loading}
             variant="outline"
-            className="w-full gap-2"
+            className="w-full h-12 rounded-full bg-white gap-2"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>
+            <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
               <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -248,93 +324,27 @@ export default function RegisterPhonePage() {
             </svg>
             {isGoogleLoading ? "Continuing with Google..." : "Continue with Google"}
           </Button>
-        </div>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-gray-50 px-2 text-muted-foreground">Or register with phone</span>
-            </div>
-          </div>
-        </div>
-
-        <div
-          className="mt-6 space-y-6"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void handleSendOtp();
-            }
-          }}
-        >
-          <div className="space-y-4">
-            <PhoneInput
-              value={phone}
-              onChange={setPhone}
-              error={phoneError}
-              onErrorChange={setPhoneError}
-            />
-            <div>
-              <Label htmlFor="register-full-name">
-                Full name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="register-full-name"
-                type="text"
-                autoComplete="name"
-                placeholder="Your name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="mt-1"
-              />
-              {fullNameError && (
-                <p className="text-sm text-destructive mt-1" role="alert">
-                  {fullNameError}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="register-email">
-                Email <span className="text-muted-foreground font-normal">(optional)</span>
-              </Label>
-              <Input
-                id="register-email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              We&apos;ll send a one-time code via SMS.
-            </p>
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600 text-center" role="alert">
-              {error}
-            </p>
-          )}
 
           <Button
             type="button"
-            className="w-full relative z-10"
-            disabled={loading || isGoogleLoading}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!loading) handleSendOtp();
-            }}
+            variant="outline"
+            className="w-full h-12 rounded-full bg-cb-linen border-cb-border gap-2"
+            onClick={handleGuest}
           >
-            <Phone className="w-5 h-5" />
-            {loading ? "Sending OTP..." : "Send OTP"}
+            <User className="h-4 w-4" />
+            Continue as guest
           </Button>
         </div>
+
+        <p className="mt-6 text-center text-xs text-cb-muted-fg">
+          By continuing you agree to CozyBerries&apos; Terms of Use and Privacy Policy.
+        </p>
+        <p className="mt-2 text-center text-xs text-cb-muted-fg">
+          Already have an account?{" "}
+          <Link href={loginHref} className="font-medium text-cb-terracotta-deep hover:underline">
+            Sign in.
+          </Link>
+        </p>
 
         <AlertDialog
           open={conflictDialog.open}

@@ -4,6 +4,10 @@ import {
   effectiveUserErrorResponse,
   getEffectiveUser,
 } from "@/lib/services/effective-user";
+import {
+  isNotificationCategory,
+  resolveNotificationPreferences,
+} from "@/lib/notifications/preferences";
 
 /**
  * Auth via getEffectiveUser; read/write notifications with the admin client
@@ -18,10 +22,10 @@ export async function POST(req: Request) {
         unauthenticatedMessage: "Authentication required",
       });
     }
-    const { userId } = result;
+    const { userId, effectiveUser } = result;
 
     const body = await req.json();
-    const { title, message, type } = body;
+    const { title, message, type, category } = body;
 
     if (
       typeof title !== "string" ||
@@ -33,6 +37,14 @@ export async function POST(req: Request) {
         { error: "title and message are required strings" },
         { status: 400 }
       );
+    }
+
+    // Every real trigger today (checkout failures, rating confirmations) is
+    // an order-lifecycle event, so that's the safe default for untagged calls.
+    const resolvedCategory = isNotificationCategory(category) ? category : "order_updates";
+    const preferences = resolveNotificationPreferences(effectiveUser.user_metadata);
+    if (!preferences[resolvedCategory]) {
+      return NextResponse.json({ skipped: true, reason: "category_disabled" });
     }
 
     const admin = createAdminSupabaseClient();
@@ -113,6 +125,39 @@ export async function GET() {
     console.error("Error fetching notifications:", error);
     return NextResponse.json(
       { error: "Failed to fetch notifications" },
+      { status: 500 }
+    );
+  }
+}
+
+/** Mark every unread notification for this user as read (the "Mark all read" action). */
+export async function PATCH() {
+  try {
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
+    }
+    const { userId } = result;
+
+    const admin = createAdminSupabaseClient();
+    const { error } = await admin
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userId)
+      .eq("is_read", false);
+
+    if (error) {
+      console.error("Supabase mark-all-read:", error.code, error.message);
+      throw error;
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error marking all notifications read:", error);
+    return NextResponse.json(
+      { error: "Failed to mark notifications read" },
       { status: 500 }
     );
   }

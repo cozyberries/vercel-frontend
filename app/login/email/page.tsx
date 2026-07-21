@@ -31,12 +31,9 @@ export default function LoginEmailPage() {
 
   const postAuthUrl = isSafeRedirect(redirectTo) ? redirectTo : "/profile";
 
-  const phoneHref = isSafeRedirect(redirectTo)
-    ? `/login/phone?redirect=${encodeURIComponent(redirectTo)}`
-    : "/login/phone";
-  const registerEmailHref = isSafeRedirect(redirectTo)
-    ? `/register/email?redirect=${encodeURIComponent(redirectTo)}`
-    : "/register/email";
+  const loginHref = isSafeRedirect(redirectTo)
+    ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+    : "/login";
 
   useEffect(() => {
     if (user) {
@@ -91,19 +88,12 @@ export default function LoginEmailPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-light text-gray-900">
-            Sign in with email
+            Staff sign in
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{" "}
-            <Link href={phoneHref} className="font-medium text-primary hover:text-primary/80">
-              use phone instead
-            </Link>
-            {" · "}
-            <Link
-              href={registerEmailHref}
-              className="font-medium text-primary hover:text-primary/80"
-            >
-              create a new account
+            Not a team member?{" "}
+            <Link href={loginHref} className="font-medium text-primary hover:text-primary/80">
+              Go back to sign in
             </Link>
           </p>
         </div>

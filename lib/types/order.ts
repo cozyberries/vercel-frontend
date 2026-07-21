@@ -173,35 +173,6 @@ export interface OrderSummary {
   currency: string;
 }
 
-// ─── Checkout Sessions ────────────────────────────────────────────────────────
-
-export type CheckoutSessionStatus = 'pending' | 'completed' | 'expired';
-
-export interface CheckoutSession {
-  id: string;
-  user_id: string;
-  customer_email: string;
-  customer_phone?: string;
-  shipping_address: ShippingAddress;
-  billing_address?: ShippingAddress;
-  items: OrderItem[];
-  subtotal: number;
-  delivery_charge: number;
-  tax_amount: number;
-  total_amount: number;
-  currency: string;
-  notes?: string;
-  discount_code?: string;
-  discount_amount?: number;
-  status: CheckoutSessionStatus;
-  order_id?: string;
-  /** Admin user id when the session was created on behalf of the customer
-   *  under impersonation. Null for normal customer sessions. */
-  placed_by_admin_id?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 // ─── Offers ───────────────────────────────────────────────────────────────────
 
 export interface ActiveOfferResponse {

@@ -40,90 +40,59 @@ export default function SustainabilitySection() {
       />
 
       <div className="container mx-auto px-4 relative z-10">
-        {/* Main Content Layout: 40% Image, 50% Content */}
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-10 gap-8 lg:gap-12 items-stretch">
-            {/* Image Section - 40% width */}
-            <div className="lg:col-span-4 flex">
-              <div className="relative w-full min-h-[240px] lg:min-h-0 overflow-hidden rounded-lg">
-                <Image
-                  src={images.heroImages[1]}
-                  alt="Sustainable baby clothing and eco-friendly practices"
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 40vw"
-                  loading="lazy"
-                  className="object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = "/placeholder.jpg";
+        <div className="max-w-3xl mx-auto">
+          <div className="relative w-full h-[200px] md:h-[260px] overflow-hidden rounded-2xl mb-6 shadow-sm">
+            <Image
+              src={images.heroImages[1]}
+              alt="Sustainable baby clothing and eco-friendly practices"
+              fill
+              sizes="(max-width: 1024px) 100vw, 768px"
+              loading="lazy"
+              className="object-cover"
+              onError={(e) => {
+                e.currentTarget.src = "/placeholder.jpg";
+              }}
+            />
+          </div>
+
+          <h3 className="text-2xl md:text-3xl font-light mb-3">
+            Our Commitment to Sustainability
+          </h3>
+          <p className="text-muted-foreground mb-3">
+            We believe thoughtful design begins with responsible choices.
+            From materials to production, we aim to create pieces that
+            are kinder to both little ones and the environment.
+          </p>
+          <ul className="text-foreground space-y-1 mb-3 list-none">
+            <li>— Conscious material choices</li>
+            <li>— Responsible production practices</li>
+            <li>— Mindfully produced in small batches</li>
+          </ul>
+          <p className="text-muted-foreground italic mb-6">
+            Designed with longevity in mind.
+          </p>
+
+          <div className="grid grid-cols-3 gap-3 md:gap-6">
+            {sustainabilityCards.map((card, index) => (
+              <div
+                key={index}
+                className="bg-cb-linen border border-cb-border rounded-xl p-4 md:p-6 flex flex-col items-center justify-center text-center gap-2"
+              >
+                <div
+                  className="w-6 h-6 md:w-7 md:h-7"
+                  style={{
+                    maskImage: `url(${card.icon})`,
+                    maskSize: "contain",
+                    maskRepeat: "no-repeat",
+                    maskPosition: "center",
+                    backgroundColor: "var(--cb-mauve-deep)",
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                <h4 className="text-xs md:text-sm font-semibold text-cb-fg">
+                  {card.title}
+                </h4>
               </div>
-            </div>
-
-            {/* Content Section - 50% width */}
-            <div className="lg:col-span-6">
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-2xl md:text-3xl font-light mb-4">
-                    Our Commitment to Sustainability
-                  </h3>
-                  <p className="text-lg text-muted-foreground mb-3">
-                    We believe thoughtful design begins with responsible choices.
-                    From materials to production, we aim to create pieces that
-                    are kinder to both little ones and the environment.
-                  </p>
-                  <ul className="text-muted-foreground space-y-1 mb-4 list-none">
-                    <li>— Conscious material choices</li>
-                    <li>— Responsible production practices</li>
-                    <li>— Mindfully produced in small batches</li>
-                  </ul>
-                  <p className="text-muted-foreground italic mb-6">
-                    Designed with longevity in mind.
-                  </p>
-                </div>
-
-                {/* 3 Key Cards */}
-                <div className="grid grid-cols-3 gap-3 md:gap-6">
-                  {sustainabilityCards.map((card, index) => (
-                    <div
-                      key={index}
-                      className="bg-[#f9f7f4] border border-[#c8c6aa] rounded-xl p-4 md:p-8 hover:scale-105 transition-transform duration-300 flex flex-col items-center justify-center text-center min-h-[160px] md:min-h-[220px]"
-                    >
-                      <div className="text-[#a2a587] mb-3 md:mb-6">
-                        <div className="md:hidden w-8 h-8 flex items-center justify-center">
-                          <div
-                            className="w-full h-full"
-                            style={{
-                              maskImage: `url(${card.icon})`,
-                              maskSize: "contain",
-                              maskRepeat: "no-repeat",
-                              maskPosition: "center",
-                              backgroundColor: "#a2a587",
-                            }}
-                          />
-                        </div>
-                        <div className="hidden md:flex w-[52px] h-[52px] items-center justify-center">
-                          <div
-                            className="w-full h-full"
-                            style={{
-                              maskImage: `url(${card.icon})`,
-                              maskSize: "contain",
-                              maskRepeat: "no-repeat",
-                              maskPosition: "center",
-                              backgroundColor: "#a2a587",
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <h4 className="text-sm md:text-lg font-semibold text-[#a2a587]">
-                        {card.title}
-                      </h4>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>

@@ -1,190 +1,161 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { User, LogIn, ChevronRight, LogOut, UserPlus, ClipboardList } from "lucide-react";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { getIndianPhoneDigits } from "@/lib/utils/validation";
-import ProfileForm from "@/components/profile/ProfileForm";
-import AddressFormModal from "@/components/profile/AddressFormModal";
+import { formatIndianPhoneDisplay } from "@/lib/utils/validation";
+import AccountMenuList from "@/components/AccountMenuList";
+import UserPickerModal from "@/components/admin/UserPickerModal";
 import { useProfile } from "@/hooks/useProfile";
+import { SOCIAL_CONTACTS } from "@/lib/constants/social";
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
-  const {
-    profile,
-    addresses,
-    isLoading,
-    isSaving,
-    isEditing,
-    showAddAddress,
-    editingAddress,
-    editData,
-    validationErrors,
-    addressData,
-    addressValidationErrors,
-    handleInputChange,
-    handleSave,
-    handleCancel,
-    handleEdit,
-    handleAddAddress,
-    handleUpdateAddress,
-    handleDeleteAddress,
-    handleSetDefault,
-    handleEditAddress,
-    handleCloseAddressModal,
-    handleAddressInputChange,
-    setShowAddAddress,
-    setAddressData,
-    setAddressValidationErrors,
-  } = useProfile(user);
+  const { profile, isLoading } = useProfile(user);
 
-  if (!mounted || isLoading) {
+  if (!mounted || (user && isLoading)) {
     return (
-      <div className="flex flex-col animate-pulse">
-        {/* Profile header skeleton */}
-        <section className="py-20 bg-[#f9f7f4]">
-          <div className="max-w-4xl mx-auto px-4">
-            <div className="flex flex-col items-center gap-4">
-              <div className="rounded-full bg-gray-200 h-24 w-24" />
-              <div className="h-6 w-40 bg-gray-200 rounded" />
-              <div className="h-4 w-56 bg-gray-200 rounded" />
+      <div className="container mx-auto px-4 py-6 animate-pulse">
+        <div className="rounded-2xl bg-cb-linen p-5 mb-2">
+          <div className="flex items-center gap-3">
+            <div className="h-14 w-14 rounded-full bg-gray-200" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-40 bg-gray-200 rounded" />
+              <div className="h-3 w-56 bg-gray-200 rounded" />
             </div>
           </div>
-        </section>
-        {/* Content cards skeleton */}
-        <section className="py-10 bg-white">
-          <div className="max-w-4xl mx-auto px-4 space-y-6">
-            <div className="h-5 w-32 bg-gray-200 rounded" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-12 bg-gray-100 rounded-lg" />
-              ))}
-            </div>
-          </div>
-        </section>
-        {/* Addresses skeleton */}
-        <section className="py-10 bg-[#f9f7f4]">
-          <div className="max-w-4xl mx-auto px-4 space-y-4">
-            <div className="h-5 w-40 bg-gray-200 rounded" />
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-100 rounded-xl" />
-            ))}
-          </div>
-        </section>
+        </div>
+        <div className="space-y-3 mt-6">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-5 w-full bg-gray-100 rounded" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            Please log in to view your profile
-          </h1>
-          <Link href="/login">
-            <Button>Go to Login</Button>
-          </Link>
+      <div className="container mx-auto px-4 py-6">
+        <div className="rounded-2xl bg-cb-linen p-5 mb-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white">
+              <User className="h-6 w-6 text-cb-fg" />
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold text-cb-fg">Browsing as guest</p>
+              <p className="text-sm text-cb-muted-fg">
+                Log in to see your orders, addresses &amp; notifications.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            className="w-full rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white h-12 text-[15px] font-semibold gap-2"
+          >
+            <Link href="/login">
+              <LogIn className="h-4 w-4" />
+              Log in or sign up
+            </Link>
+          </Button>
         </div>
+
+        <AccountMenuList />
+
+        <p className="mt-6 text-center text-sm text-cb-muted-fg">
+          CozyBerries · RT Nagar, Bangalore – 560032
+        </p>
       </div>
     );
   }
 
+  const initials = (profile?.full_name || user.email || "?")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+
+  const handleSignOut = async () => {
+    if (isLoggingOut) return;
+    try {
+      setIsLoggingOut(true);
+      const result = await signOut();
+      if (result.success) {
+        window.location.href = "/";
+      } else {
+        console.error("Logout failed:", result.error);
+        alert("Logout failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      alert("Logout failed. Please try again.");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
-    <div className="flex flex-col">
-      {/* Personal Information Section */}
-      <section className="py-20 bg-[#f9f7f4]">
-        <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-12">
-            Personal Information
-          </h2>
-          <p className="hidden md:block text-lg text-muted-foreground text-center mb-12">
-            Manage your personal information and addresses
-          </p>
-          <div className="max-w-4xl mx-auto">
-            <ProfileForm
-              profile={profile}
-              isEditing={isEditing}
-              isSaving={isSaving}
-              validationErrors={validationErrors}
-              editData={editData}
-              onEdit={handleEdit}
-              onSave={handleSave}
-              onCancel={handleCancel}
-              onInputChange={handleInputChange}
-              addresses={addresses}
-              onAddAddress={() => {
-                setAddressData((prev) => ({
-                  ...prev,
-                  phone: getIndianPhoneDigits(profile?.phone ?? ""),
-                  full_name: profile?.full_name ?? "",
-                }));
-                setAddressValidationErrors({
-                  full_name: "",
-                  phone: "",
-                  address_line_1: "",
-                  area: "",
-                  city: "",
-                  state: "",
-                  postal_code: "",
-                });
-                setShowAddAddress(true);
-              }}
-              onEditAddress={handleEditAddress}
-              onSetDefault={handleSetDefault}
-              onDeleteAddress={handleDeleteAddress}
-              onSignOut={async () => {
-                if (isLoggingOut) return;
-
-                try {
-                  setIsLoggingOut(true);
-                  console.log("Logout button clicked from profile");
-                  const result = await signOut();
-                  console.log("Logout result:", result);
-
-                  if (result.success) {
-                    window.location.href = "/";
-                  } else {
-                    console.error("Logout failed:", result.error);
-                    alert("Logout failed. Please try again.");
-                  }
-                } catch (error) {
-                  console.error("Logout error:", error);
-                  alert("Logout failed. Please try again.");
-                } finally {
-                  setIsLoggingOut(false);
-                }
-              }}
-            />
-          </div>
+    <div className="container mx-auto max-w-lg px-4 py-6">
+      <Link
+        href="/profile/account-details"
+        className="flex items-center gap-3 rounded-2xl bg-cb-linen p-5 mb-2"
+      >
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-lg font-semibold text-cb-terracotta-deep">
+          {initials}
         </div>
-      </section>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-semibold text-cb-fg truncate">
+            {profile?.full_name || "Welcome back"}
+          </p>
+          <p className="text-sm text-cb-muted-fg truncate">
+            {profile?.phone ? `+91 ${formatIndianPhoneDisplay(profile.phone)}` : SOCIAL_CONTACTS.EMAIL}
+          </p>
+        </div>
+        <ChevronRight className="h-4 w-4 text-cb-muted-fg shrink-0" />
+      </Link>
 
-      {/* Address Form Modal */}
-      <AddressFormModal
-        enablePincodeCheck
-        profilePhone={profile?.phone ?? undefined}
-        isOpen={showAddAddress || !!editingAddress}
-        isEditing={!!editingAddress}
-        isSaving={isSaving}
-        addressData={addressData}
-        validationErrors={addressValidationErrors}
-        addresses={addresses}
-        onClose={handleCloseAddressModal}
-        onSave={async () => {
-          if (editingAddress) {
-            await handleUpdateAddress(editingAddress);
-          } else {
-            await handleAddAddress();
-          }
-        }}
-        onInputChange={handleAddressInputChange}
-      />
+      <AccountMenuList />
+
+      {isAdmin && (
+        <div className="mt-6 space-y-2">
+          <h3 className="text-sm font-bold text-cb-fg mb-3">Admin</h3>
+          <Button
+            variant="outline"
+            onClick={() => setPickerOpen(true)}
+            className="w-full rounded-full border-cb-border"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Impersonate user
+          </Button>
+          <Button variant="outline" asChild className="w-full rounded-full border-cb-border">
+            <Link href="/admin/on-behalf-orders">
+              <ClipboardList className="w-4 h-4 mr-2" />
+              On-behalf orders
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      <Button
+        variant="outline"
+        onClick={handleSignOut}
+        disabled={isLoggingOut}
+        className="w-full rounded-full border-cb-destructive text-cb-destructive hover:bg-cb-destructive/5 mt-6 h-12 font-semibold gap-2"
+      >
+        <LogOut className="h-4 w-4" />
+        {isLoggingOut ? "Logging out..." : "Log out"}
+      </Button>
+
+      <p className="mt-6 text-center text-sm text-cb-muted-fg">
+        CozyBerries · RT Nagar, Bangalore – 560032
+      </p>
+
+      {isAdmin && <UserPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />}
     </div>
   );
 }

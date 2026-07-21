@@ -12,6 +12,7 @@ import {
   getProductById,
   getActiveOfferFromApi,
   getProfileCombined,
+  getNotifications,
   type AgeOptionFilter,
   type CategoryOption,
   type SizeOptionFilter,
@@ -21,6 +22,7 @@ import type { ActiveOfferResponse } from "@/lib/types/order";
 import type { OrderShipmentTrackingData } from "@/lib/types/delhivery-tracking";
 import type { ProfileCombinedResponse } from "@/lib/services/api";
 import type { OnBehalfOrdersListResponse } from "@/lib/types/admin-on-behalf-orders";
+import type { AppNotification } from "@/lib/types/notification";
 import { orderService } from "@/lib/services/orders";
 
 /**
@@ -170,6 +172,23 @@ export function useProfileCombined(userId: string | undefined) {
     queryFn: () => getProfileCombined(),
     staleTime: 1000 * 60,       // 1 minute
     gcTime: 1000 * 60 * 10,    // 10 minutes
+    enabled: !!userId,
+  });
+}
+
+/** Query key prefix for the notifications list; append userId for invalidation. */
+export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
+
+/**
+ * Real user notifications — used for both the notifications page and the
+ * unread-count badge in the account menu. Enabled only when logged in.
+ */
+export function useNotifications(userId: string | undefined) {
+  return useQuery<AppNotification[]>({
+    queryKey: [...NOTIFICATIONS_QUERY_KEY, userId],
+    queryFn: () => getNotifications(),
+    staleTime: 1000 * 30,
+    gcTime: 1000 * 60 * 10,
     enabled: !!userId,
   });
 }

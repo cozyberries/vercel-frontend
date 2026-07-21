@@ -6,6 +6,7 @@ export interface RatingItem {
     user_id: string;
     user_name: string | null;
     rating: number;
+    title: string | null;
     comment: string;
     images: string[];
     created_at: string;

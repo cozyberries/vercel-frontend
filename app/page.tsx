@@ -1,10 +1,12 @@
 import Hero from "@/components/hero";
 import CategoryGrid from "@/components/category-grid";
 import AgeGrid from "@/components/age-grid";
-import EarlyBirdBanner from "@/components/EarlyBirdBannerClient";
+import PromoPill from "@/components/promo-pill";
+import ValuesSection from "@/components/values-section";
+import ClosingBlurb from "@/components/closing-blurb";
 import {
   FeaturedProducts,
-  SnowflakeDecoration,
+  LovedByParents,
   ContactSidebar,
   NewbornGiftingSection,
   SustainabilitySection,
@@ -15,47 +17,30 @@ import {
 export default function Home() {
   return (
     <div className="flex flex-col">
+      <PromoPill />
       <Hero />
-      <EarlyBirdBanner />
 
       {/* Shop by Age */}
-      <section className="lg:py-14 py-8 bg-[#f9f7f4] relative overflow-hidden">
-        <SnowflakeDecoration
-          position="top-left"
-          size="lg"
-          opacity={0.15}
-          rotation={-15}
-          animationType="up-down"
-          delay={0}
-        />
-        <SnowflakeDecoration
-          position="top-right"
-          size="md"
-          opacity={0.12}
-          rotation={25}
-          animationType="left-right"
-          delay={1}
-        />
-        <SnowflakeDecoration
-          position="bottom-left"
-          size="sm"
-          opacity={0.1}
-          rotation={45}
-          animationType="diagonal"
-          delay={2}
-        />
-        <ScrollReveal className="container mx-auto px-4 relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-10">
+      <section className="lg:py-14 py-8 bg-cb-linen">
+        <ScrollReveal className="container mx-auto px-4">
+          <h2 className="text-[21px] md:text-[26px] font-light mb-4 md:mb-8">
             Shop by Age
           </h2>
           <AgeGrid />
         </ScrollReveal>
       </section>
 
+      {/* Featured Products */}
+      <section className="lg:py-14 py-8 bg-background">
+        <ScrollReveal>
+          <FeaturedProducts />
+        </ScrollReveal>
+      </section>
+
       {/* Category Grid */}
       <section className="lg:py-14 py-8 bg-background">
         <ScrollReveal className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-10">
+          <h2 className="text-[21px] md:text-[26px] font-light mb-4 md:mb-8">
             Shop by Category
           </h2>
           <CategoryGrid />
@@ -65,45 +50,19 @@ export default function Home() {
       {/* New Born Gifting */}
       <NewbornGiftingSection />
 
-      {/* Featured Products */}
-      <section className="lg:py-14 py-8 bg-background relative overflow-hidden">
-        <SnowflakeDecoration
-          position="top-right"
-          size="lg"
-          opacity={0.14}
-          rotation={-30}
-          animationType="vertical-float"
-          delay={0.5}
-        />
-        <SnowflakeDecoration
-          position="bottom-right"
-          size="md"
-          opacity={0.11}
-          rotation={60}
-          animationType="left-right"
-          delay={1.5}
-        />
-        <SnowflakeDecoration
-          position="center"
-          size="sm"
-          opacity={0.08}
-          rotation={-45}
-          animationType="gentle-sway"
-          delay={3}
-        />
-        <ScrollReveal className="container mx-auto px-4 relative z-10">
-          <h2 className="text-2xl md:text-3xl font-light text-center mb-6 md:mb-10">
-            Our Featured Products
-          </h2>
-          <FeaturedProducts />
-        </ScrollReveal>
-      </section>
+      {/* Comfort Meets Conscious Living */}
+      <ValuesSection />
+
+      {/* Loved by Parents */}
+      <LovedByParents />
 
       {/* Sustainability */}
       <SustainabilitySection />
 
       {/* Why Muslin */}
       <WhyMuslinSection />
+
+      <ClosingBlurb />
 
       {/* Contact Sidebar */}
       <ContactSidebar />

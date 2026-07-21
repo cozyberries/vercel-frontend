@@ -384,7 +384,7 @@ export const HamburgerSheet = () => {
                       >
                         <Button asChild variant="outline" size="sm">
                           <Link href="/login" onClick={() => setOpen(false)}>
-                            Login
+                            Sign in
                           </Link>
                         </Button>
                       </motion.div>
@@ -393,8 +393,8 @@ export const HamburgerSheet = () => {
                         whileTap={{ scale: 0.95 }}
                       >
                         <Button asChild size="sm">
-                          <Link href="/register" onClick={() => setOpen(false)}>
-                            Register
+                          <Link href="/signup" onClick={() => setOpen(false)}>
+                            Sign up
                           </Link>
                         </Button>
                       </motion.div>

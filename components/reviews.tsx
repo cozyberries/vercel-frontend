@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { CiStar } from "react-icons/ci";
 import { toImageSrc } from "@/lib/utils/image";
 import { FaStar } from "react-icons/fa";
 import { useRating } from "./rating-context";
+import ReviewsDialog from "./rating/ReviewsDialog";
 
 interface ReviewItem {
   userName: string;
+  title?: string | null;
   rating: number;
   review: string;
   images?: string[];
@@ -27,34 +29,28 @@ interface ReviewsHeaderProps {
 
 function ReviewsHeader({ onWriteReview, isLoggedIn = true }: ReviewsHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
-      <h4 className="whitespace-pre-wrap text-xl">
-        Customer Reviews
+    <div className="flex items-center justify-between mb-6">
+      <h4 className="text-lg font-light text-cb-fg">
+        Reviews
       </h4>
       {onWriteReview && (
         <button
           onClick={onWriteReview}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition-colors"
+          className="flex items-center gap-1.5 text-sm font-semibold text-cb-terracotta"
         >
-          <CiStar size={18} />
-          {isLoggedIn ? "Write a Review" : "Login to Review"}
+          <CiStar size={16} />
+          {isLoggedIn ? "Write a review" : "Login to review"}
         </button>
       )}
     </div>
   );
 }
 
+const PREVIEW_COUNT = 2;
+
 export default function Reviews({ reviews, onWriteReview, isLoggedIn = true }: ReviewsProps) {
-  const [showReviews, setShowReviews] = useState(2);
+  const [showAllDialog, setShowAllDialog] = useState(false);
   const { setShowViewReviewModal, setSelectedImgIndex, setSelectedReviewIndex } = useRating();
-
-  const handleShowMore = () => {
-    setShowReviews((prev) => prev + reviews.length);
-  };
-
-  const handleClose = () => {
-    setShowReviews(2);
-  };
 
   const getInitials = (name: string) => {
     if (!name || !name.trim()) return "?";
@@ -67,53 +63,74 @@ export default function Reviews({ reviews, onWriteReview, isLoggedIn = true }: R
       .slice(0, 2);
   };
 
+  const average = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
+  const distribution = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: reviews.filter((r) => Math.round(r.rating) === star).length,
+  }));
+
   return (
-    <div className="bg-[#FFFBF6] p-4">
+    <div className="bg-white p-4">
       <ReviewsHeader onWriteReview={onWriteReview} isLoggedIn={isLoggedIn} />
+
+      {reviews?.length > 0 && (
+        <div className="flex items-start gap-8 mb-8">
+          <div>
+            <p className="text-4xl font-bold text-cb-fg">{average.toFixed(1)}</p>
+            <p className="flex items-center gap-0.5 text-cb-terracotta my-1">
+              {[...Array(5)].map((_, i) => (
+                <FaStar key={i} size={14} color={i < Math.round(average) ? "currentColor" : "#e5ddd3"} />
+              ))}
+            </p>
+            <p className="text-xs text-cb-muted-fg whitespace-nowrap">{reviews.length} reviews</p>
+          </div>
+          <div className="flex-1 space-y-1.5 pt-1">
+            {distribution.map(({ star, count }) => (
+              <div key={star} className="flex items-center gap-2">
+                <span className="w-2 text-xs text-cb-muted-fg">{star}</span>
+                <div className="flex-1 h-1.5 rounded-full bg-cb-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-cb-terracotta"
+                    style={{ width: reviews.length > 0 ? `${(count / reviews.length) * 100}%` : "0%" }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {reviews?.length > 0 ? (
-        <div className="space-y-10">
-          {reviews.slice(0, showReviews).map((review, reviewInd) => (
-            <div key={reviewInd} className="space-y-10">
-              <div className="flex items-start gap-4">
-                <div className="bg-primary text-primary-foreground flex items-center justify-center p-2 w-8 h-8 md:w-10 md:h-10 rounded-full text-lg md:text-xl italic">
+        <div className="space-y-6">
+          {reviews.slice(0, PREVIEW_COUNT).map((review, reviewInd) => (
+            <div key={reviewInd} className="space-y-2 border-b border-cb-border pb-6 last:border-0">
+              <div className="flex items-start gap-3">
+                <div className="bg-cb-mauve-tint text-cb-terracotta-deep flex items-center justify-center w-9 h-9 shrink-0 rounded-full text-sm font-semibold">
                   {getInitials(review?.userName)}
                 </div>
 
-                <div className="block space-y-1 border-b border-[#00000038] pb-4 w-full">
-                  <p className="text-[#414141] font-[500] text-[14px] md:text-[16px]">
-                    {review.userName}
-                  </p>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-cb-fg font-semibold text-sm">
+                      {review.userName}
+                    </p>
+                    <p className="flex items-center gap-0.5 text-cb-terracotta">
+                      {[...Array(5)].map((_, ind) => (
+                        <FaStar key={ind} size={12} color={ind < review.rating ? "currentColor" : "#e5ddd3"} />
+                      ))}
+                    </p>
+                  </div>
 
-                  <p className="flex items-center gap-1">
-                    {[...Array(5)].map((_, ind) => (
-                      <span key={ind}>
-                        {ind < review.rating ? (
-                          <FaStar
-                            size={20}
-                            className="star"
-                            color="rgba(80, 111, 34, 1)"
-                          />
-                        ) : (
-                          <CiStar
-                            size={25}
-                            className="star"
-                            color="rgba(80, 111, 34, 1)"
-                          />
-                        )}
-                      </span>
-                    ))}
-                  </p>
-
-                  <p className="text-[#414141] text-[14px] md:text-[16px] font-[400] font-RobotoFlex">
+                  <p className="text-cb-muted-fg text-sm leading-relaxed">
                     {review.review}
                   </p>
 
                   {review.images && review.images.length > 0 && (
-                    <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-2 mt-2">
                       {review.images.map((image, imgInd) => (
                         <button
                           key={imgInd}
-                          className="w-12 h-12 md:w-20 md:h-20 flex items-center justify-center"
+                          className="w-14 h-14 flex items-center justify-center rounded-lg overflow-hidden"
                           onClick={() => {
                             setShowViewReviewModal(true);
                             setSelectedReviewIndex(reviewInd);
@@ -123,9 +140,9 @@ export default function Reviews({ reviews, onWriteReview, isLoggedIn = true }: R
                           <Image
                             src={toImageSrc(image)}
                             alt={`UploadedReviewPhoto ${imgInd + 1}`}
-                            width={80}
-                            height={80}
-                            className="w-full h-full object-cover rounded cursor-pointer"
+                            width={56}
+                            height={56}
+                            className="w-full h-full object-cover cursor-pointer"
                           />
                         </button>
                       ))}
@@ -136,25 +153,22 @@ export default function Reviews({ reviews, onWriteReview, isLoggedIn = true }: R
             </div>
           ))}
 
-          {showReviews < reviews.length && (
-            <div className="flex items-center justify-start pl-16 text-headerText font-RobotoFlex text-[18px] font-[500] underline hover:scale-105 transition-all">
-              <button onClick={handleShowMore}>View all reviews</button>
-            </div>
-          )}
-
-          {showReviews > 2 && (
-            <div className="flex items-center justify-start pl-16 text-headerText font-RobotoFlex text-[18px] font-[500] underline hover:scale-105 transition-all">
-              <button onClick={handleClose}>Close reviews</button>
-            </div>
+          {reviews.length > PREVIEW_COUNT && (
+            <button
+              onClick={() => setShowAllDialog(true)}
+              className="w-full rounded-full border border-cb-border py-3 text-sm font-semibold text-cb-fg hover:border-cb-terracotta"
+            >
+              Read all {reviews.length} reviews
+            </button>
           )}
         </div>
       ) : (
-        <div className="space-y-6">
-          <p className="text-gray-500 italic flex items-center justify-center py-4">
-            No reviews yet. Be the first to leave a review!
-          </p>
-        </div>
+        <p className="text-cb-muted-fg italic text-center py-4 text-sm">
+          No reviews yet. Be the first to leave a review!
+        </p>
       )}
+
+      <ReviewsDialog isOpen={showAllDialog} onClose={() => setShowAllDialog(false)} reviews={reviews} />
     </div>
   );
 }

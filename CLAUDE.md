@@ -63,9 +63,8 @@ app/
 ```
 
 ### Auth Flow
-- Supabase SSR auth with middleware at `middleware.ts`
-- Protected routes: `/profile`, `/checkout`, `/complete-profile`
-- Phone number required before checkout (enforced by middleware — reads `user.phone` from `getUser()`, no extra DB query)
+- `middleware.ts` has been removed — there is no route-level auth enforcement. No route is middleware-protected (including `/checkout` and `/complete-profile`); the previous phone-required-before-checkout redirect is also gone.
+- Any auth gating (e.g. `/orders`, `/profile` account-editing content) is enforced client-side per-page via `useAuth()`/`requireAuthForIntent`, not centrally.
 - Roles: `customer`, `admin`, `super_admin`
 - **All user data lives in `auth.users`** — no custom `profiles` or `user_profiles` tables:
   - `auth.users.phone` — contact phone (set via admin API)

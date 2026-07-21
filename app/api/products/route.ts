@@ -191,8 +191,10 @@ async function refreshCacheInBackground(
       id: product.slug,
       images,
       sizes,
+      colors: product.color_slugs ?? [],
       product_images: undefined,
       product_variants: undefined,
+      color_slugs: undefined,
     };
   });
 
@@ -273,8 +275,10 @@ async function fetchProductsFromUpstashAndSupabase(params: {
       id: product.slug,
       images,
       sizes,
+      colors: product.color_slugs ?? [],
       product_images: undefined,
       product_variants: undefined,
+      color_slugs: undefined,
     } as Product;
   });
 
@@ -332,8 +336,10 @@ async function fetchAndCacheAllProducts(): Promise<void> {
         id: product.slug,
         images,
         sizes,
+        colors: product.color_slugs ?? [],
         product_images: undefined,
         product_variants: undefined,
+        color_slugs: undefined,
       };
     });
 
@@ -604,8 +610,10 @@ export async function GET(request: NextRequest) {
         id: product.slug,
         images,
         sizes,
+        colors: product.color_slugs ?? [],
         product_images: undefined,
         product_variants: undefined,
+        color_slugs: undefined,
       };
     });
 

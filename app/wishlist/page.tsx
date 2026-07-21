@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ShoppingCart, Trash2 } from "lucide-react";
+import { Heart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/components/wishlist-context";
 import { useCart, getCartItemKey } from "@/components/cart-context";
@@ -10,6 +10,7 @@ import { useAuthGate } from "@/components/auth-gate-context";
 import { images } from "@/app/assets/images";
 import { toast } from "sonner";
 import WishlistWarningDialog from "@/components/wishlist-warning-dialog";
+import DiscountedPrice from "@/components/discounted-price";
 import { useState } from "react";
 
 export default function WishlistPage() {
@@ -62,109 +63,98 @@ export default function WishlistPage() {
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cb-terracotta" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 pt-6 pb-24">
-      {/* Header row */}
+    <div className="container mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold">
-          My Wishlist
-          {wishlist.length > 0 && (
-            <span className="text-sm font-normal text-muted-foreground ml-2">
-              ({wishlist.length} {wishlist.length === 1 ? "item" : "items"})
-            </span>
-          )}
-        </h1>
+        <h1 className="text-2xl font-light text-cb-fg">Wishlist</h1>
         {wishlist.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+          <button
+            type="button"
             onClick={() => setShowClearConfirm(true)}
+            className="text-sm font-semibold text-cb-terracotta"
           >
-            Clear All
-          </Button>
+            Clear all
+          </button>
         )}
       </div>
 
-      {/* Empty state */}
       {wishlist.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-          <Heart className="h-20 w-20 text-gray-200 mb-6" />
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">
+          <div className="mb-6 flex h-[70px] w-[70px] items-center justify-center rounded-full bg-cb-linen">
+            <Heart className="h-7 w-7 text-cb-fg" />
+          </div>
+          <h2 className="text-xl font-light text-cb-fg mb-2">
             Your wishlist is empty
           </h2>
-          <p className="text-gray-500 text-sm mb-6 max-w-[260px]">
-            Save items you love by tapping the heart icon on any product
+          <p className="text-sm text-cb-muted-fg mb-6 max-w-[260px]">
+            Tap the heart on anything you love.
           </p>
-          <Button asChild>
-            <Link href="/products">Browse Products</Link>
+          <Button
+            asChild
+            className="rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white h-[46px] px-6 text-[15px] font-semibold"
+          >
+            <Link href="/products">Browse products</Link>
           </Button>
         </div>
       ) : (
-        /* Wishlist grid — 2 columns like product listing */
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px]">
           {wishlist.map((item) => (
             <div
               key={item.id}
-              className="group relative flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm active:scale-[0.97] transition-transform duration-150"
+              className="group relative rounded-[18px] overflow-hidden bg-white lg:hover:-translate-y-0.5 transition-transform duration-200"
             >
-              {/* Image */}
-              <Link
-                href={`/products/${item.id}`}
-                className="relative overflow-hidden aspect-[1/1]"
-              >
-                <Image
-                  src={item.image || images.staticProductImage}
-                  alt={item.name}
-                  fill
-                  sizes="(max-width: 768px) 45vw, 250px"
-                  className="object-cover w-full h-full"
-                />
-              </Link>
-
-              {/* Remove button — top right */}
-              <button
-                onClick={() => {
-                  removeFromWishlist(item.id);
-                  toast.success(`${item.name} removed from wishlist`);
-                }}
-                className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:bg-red-50 transition-colors"
-                aria-label="Remove from wishlist"
-              >
-                <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-500" />
-              </button>
-
-              {/* Content */}
-              <div className="p-2.5 flex flex-col gap-1.5">
-                <Link href={`/products/${item.id}`}>
-                  <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
-                    {item.name}
-                  </h3>
+              <div className="relative aspect-[4/5] overflow-hidden">
+                <Link href={`/products/${item.id}`} className="block h-full w-full">
+                  <Image
+                    src={item.image || images.staticProductImage}
+                    alt={item.name}
+                    fill
+                    sizes="(max-width: 768px) 45vw, 250px"
+                    className="object-cover w-full h-full transition-transform duration-500 ease-out group-hover:scale-105"
+                  />
                 </Link>
+
+                {/* Remove — always visible, top-right */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 z-10 h-[34px] w-[34px] rounded-full bg-white/90 hover:bg-white shadow-md hover:shadow-lg border-0"
+                  onClick={() => {
+                    removeFromWishlist(item.id);
+                    toast.success(`${item.name} removed from wishlist`);
+                  }}
+                  aria-label="Remove from wishlist"
+                >
+                  <Heart size={16} className="text-cb-destructive fill-cb-destructive" />
+                </Button>
+
+                {/* Add to cart — always visible, bottom-right */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute bottom-2 right-2 z-10 h-[38px] min-w-[38px] rounded-full shadow-md hover:shadow-lg border-0 bg-cb-terracotta hover:bg-cb-terracotta-deep px-2.5"
+                  onClick={() => handleAddToCart(item)}
+                  aria-label="Add to cart"
+                >
+                  <Plus className="h-[18px] w-[18px] text-white" />
+                </Button>
+              </div>
+
+              <div className="pt-[9px] px-[10px] pb-[11px] flex flex-col gap-[5px]">
+                <h3 className="text-[13.5px] font-semibold text-cb-fg leading-[1.25] line-clamp-2">
+                  <Link href={`/products/${item.id}`}>{item.name}</Link>
+                </h3>
                 {(item.size || item.color) && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11.5px] text-cb-muted-fg -mt-0.5">
                     {[item.size, item.color].filter(Boolean).join(" · ")}
                   </p>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-900">
-                    {"\u20B9"}{item.price.toFixed(0)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full bg-primary/10 hover:bg-primary/20"
-                    onClick={() => handleAddToCart(item)}
-                    aria-label="Add to cart"
-                  >
-                    <ShoppingCart className="h-4 w-4 text-primary" />
-                  </Button>
-                </div>
+                <DiscountedPrice price={item.price} />
               </div>
             </div>
           ))}

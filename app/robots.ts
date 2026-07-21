@@ -12,7 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         "/complete-profile/",
         "/payment/",
         "/login/",
-        "/register/",
+        "/signup/",
         "/cart/",
         "/wishlist/",
         "/offline/",

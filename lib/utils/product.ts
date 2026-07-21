@@ -1,6 +1,14 @@
 import { SimplifiedProduct } from "@/lib/services/api";
 import { ProductImage } from "@/lib/types/product";
 
+/** Converts a color/print slug (e.g. "petal-pops") into a display label ("Petal Pops"). */
+export function slugToTitle(slug: string): string {
+  return slug
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export type AggregatedSize = {
   name: string;
   price: number;

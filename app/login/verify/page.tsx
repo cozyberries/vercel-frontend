@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
+import { ChevronLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/supabase-auth-provider";
+import { images } from "@/app/assets/images";
+import {
+  OTP_VERIFICATION_ID_KEY,
+  OTP_PHONE_KEY,
+  OTP_FULL_NAME_KEY,
+  OTP_EMAIL_KEY,
+  OTP_INTENT_KEY,
+  type OtpIntent,
+} from "@/lib/auth/otp-session";
 
-const OTP_VERIFICATION_ID_KEY = "otp_verification_id";
-const OTP_PHONE_KEY = "otp_phone";
-
-const NO_ACCOUNT_MESSAGE = "No account with this number. Please register first.";
+const CODE_LENGTH = 4;
 
 export default function LoginVerifyPage() {
   const router = useRouter();
@@ -18,15 +24,16 @@ export default function LoginVerifyPage() {
   const [ready, setReady] = useState(false);
   const [verificationId, setVerificationId] = useState("");
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
+  const [intent, setIntent] = useState<OtpIntent>("login");
+  const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState("");
   const [resendSuccess, setResendSuccess] = useState("");
-  const [noAccount, setNoAccount] = useState(false);
   const [redirectingToProfile, setRedirectingToProfile] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Already logged in: no need to verify OTP
+  // Already signed in: no need to verify OTP
   useEffect(() => {
     if (user) {
       router.replace("/profile");
@@ -39,48 +46,77 @@ export default function LoginVerifyPage() {
     const storedPhone = sessionStorage.getItem(OTP_PHONE_KEY);
 
     if (!storedId?.trim() || !storedPhone?.trim()) {
-      router.replace("/login/phone");
+      router.replace("/login");
       return;
     }
+    const storedIntent = sessionStorage.getItem(OTP_INTENT_KEY);
+    setIntent(storedIntent === "register" ? "register" : "login");
     setVerificationId(storedId.trim());
     setPhone(storedPhone.trim());
     setReady(true);
   }, [user, router]);
 
-  const handleVerify = async (e: React.FormEvent) => {
+  const code = digits.join("");
+
+  const handleDigitChange = (index: number, raw: string) => {
+    const value = raw.replace(/\D/g, "").slice(-1);
+    setDigits((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+    if (value && index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
+    if (!pasted) return;
     e.preventDefault();
+    setDigits((prev) => {
+      const next = [...prev];
+      for (let i = 0; i < CODE_LENGTH; i++) next[i] = pasted[i] ?? "";
+      return next;
+    });
+    inputRefs.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus();
+  };
+
+  const handleVerify = async () => {
     setError("");
     setResendSuccess("");
-    setNoAccount(false);
-    const trimmedCode = code.replace(/\D/g, "");
-    if (trimmedCode.length < 4 || trimmedCode.length > 6) {
-      setError("Enter a 4–6 digit code.");
+    if (code.length !== CODE_LENGTH) {
+      setError(`Enter the ${CODE_LENGTH}-digit code.`);
       return;
     }
 
     setLoading(true);
     try {
+      const fullName = sessionStorage.getItem(OTP_FULL_NAME_KEY)?.trim() || undefined;
+      const email = sessionStorage.getItem(OTP_EMAIL_KEY)?.trim() || undefined;
       const res = await fetch("/api/auth/verifynow/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           verificationId,
-          code: trimmedCode,
-          intent: "login",
+          code,
+          intent,
           phone,
+          ...(fullName && { fullName }),
+          ...(email && { email }),
         }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        if (res.status === 404) {
-          const message = (data?.error as string) || NO_ACCOUNT_MESSAGE;
-          setNoAccount(true);
-          setError(message);
-        } else {
-          setError((data?.error as string) || "Verification failed. Please try again.");
-        }
+        setError((data?.error as string) || "Verification failed. Please try again.");
         setLoading(false);
         return;
       }
@@ -89,8 +125,10 @@ export default function LoginVerifyPage() {
       if (redirectUrl && typeof redirectUrl === "string") {
         sessionStorage.removeItem(OTP_VERIFICATION_ID_KEY);
         sessionStorage.removeItem(OTP_PHONE_KEY);
+        sessionStorage.removeItem(OTP_FULL_NAME_KEY);
+        sessionStorage.removeItem(OTP_EMAIL_KEY);
+        sessionStorage.removeItem(OTP_INTENT_KEY);
         setRedirectingToProfile(true);
-        // Allow loading screen to paint before redirect
         requestAnimationFrame(() => {
           setTimeout(() => {
             window.location.href = redirectUrl;
@@ -109,29 +147,22 @@ export default function LoginVerifyPage() {
   const handleResend = async () => {
     setError("");
     setResendSuccess("");
-    setNoAccount(false);
     setResendLoading(true);
     try {
       const res = await fetch("/api/auth/verifynow/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone,
-          intent: "login",
-        }),
+        body: JSON.stringify({ phone, intent }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        if (res.status === 429) {
-          setError("Too many requests. Please try again later.");
-        } else if (res.status === 404) {
-          setNoAccount(true);
-          setError((data?.error as string) || NO_ACCOUNT_MESSAGE);
-        } else {
-          setError((data?.error as string) || "Failed to resend OTP. Please try again.");
-        }
+        setError(
+          res.status === 429
+            ? "Too many requests. Please try again later."
+            : (data?.error as string) || "Failed to resend OTP. Please try again."
+        );
         setResendLoading(false);
         return;
       }
@@ -141,6 +172,8 @@ export default function LoginVerifyPage() {
         sessionStorage.setItem(OTP_VERIFICATION_ID_KEY, newVerificationId);
         setVerificationId(newVerificationId);
       }
+      setDigits(Array(CODE_LENGTH).fill(""));
+      inputRefs.current[0]?.focus();
       setResendSuccess("OTP sent again.");
     } catch {
       setError("Something went wrong. Please try again.");
@@ -149,112 +182,108 @@ export default function LoginVerifyPage() {
     }
   };
 
-  if (user) {
+  if (user || redirectingToProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <p className="text-sm text-muted-foreground">Redirecting...</p>
-      </div>
-    );
-  }
-
-  if (redirectingToProfile) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-        <p className="text-sm text-muted-foreground">Signing you in...</p>
-        <p className="text-xs text-muted-foreground mt-1">Taking you to your profile</p>
+      <div className="min-h-screen flex items-center justify-center bg-cb-linen py-12 px-4">
+        <p className="text-sm text-cb-muted-fg">
+          {redirectingToProfile ? "Signing you in..." : "Redirecting..."}
+        </p>
       </div>
     );
   }
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="text-sm text-gray-600">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-cb-linen py-12 px-4">
+        <p className="text-sm text-cb-muted-fg">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-light text-gray-900">
-            Verify your phone
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            We sent a code to {phone}.{" "}
-            <Link
-              href="/login/phone"
-              className="font-medium text-primary hover:text-primary/80"
-            >
-              Change number
-            </Link>
+    <div className="min-h-screen bg-cb-linen py-12 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-md">
+        <div className="flex flex-col items-center text-center">
+          <Image src={images.logoURL} alt="CozyBerries" width={64} height={64} className="h-16 w-16" />
+          <h1 className="mt-4 text-3xl font-light text-cb-fg">Verify your number</h1>
+          <p className="mt-2 text-sm text-cb-muted-fg">
+            We&apos;ve sent a {CODE_LENGTH}-digit code to <span className="font-bold text-cb-fg">+91 {phone}</span>
           </p>
         </div>
 
-        <form className="mt-6 space-y-6" onSubmit={handleVerify}>
-          <div className="space-y-4">
-            <Label htmlFor="otp-code">Verification code</Label>
-            <input
-              id="otp-code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Enter 4–6 digit code"
-              disabled={loading}
-              aria-describedby={error ? "otp-error" : undefined}
-            />
+        <form
+          className="mt-8 space-y-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleVerify();
+          }}
+        >
+          <div className="flex justify-center gap-3">
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => {
+                  inputRefs.current[index] = el;
+                }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigitChange(index, e.target.value)}
+                onKeyDown={(e) => handleDigitKeyDown(index, e)}
+                onPaste={handlePaste}
+                disabled={loading}
+                aria-label={`Digit ${index + 1}`}
+                className="h-16 w-16 rounded-xl border-none bg-white text-center text-xl font-semibold text-cb-fg shadow-sm focus:outline-none focus:ring-2 focus:ring-cb-terracotta disabled:opacity-50"
+              />
+            ))}
           </div>
 
+          <p className="text-center text-sm text-cb-muted-fg">
+            Didn&apos;t get it?{" "}
+            <button
+              type="button"
+              onClick={() => void handleResend()}
+              disabled={resendLoading || loading}
+              className="font-semibold text-cb-terracotta-deep hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {resendLoading ? "Sending..." : "Resend code"}
+            </button>
+          </p>
+
           {error && (
-            <p id="otp-error" className="text-sm text-red-600 text-center" role="alert">
+            <p className="text-sm text-destructive text-center" role="alert">
               {error}
             </p>
           )}
-          {noAccount && (
-            <p className="text-sm text-center">
-              <Link
-                href="/register/phone"
-                className="font-medium text-primary hover:text-primary/80"
-              >
-                Register with this number
-              </Link>
-            </p>
-          )}
           {resendSuccess && (
-            <p className="text-sm text-green-600 text-center" role="status">
+            <p className="text-sm text-cb-success text-center" role="status">
               {resendSuccess}
             </p>
           )}
 
           <Button
             type="submit"
-            disabled={loading || code.replace(/\D/g, "").length < 4}
-            className="w-full"
+            disabled={loading || code.length !== CODE_LENGTH}
+            className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
           >
-            {loading ? "Verifying..." : "Verify"}
+            <ShieldCheck className="h-4 w-4" />
+            {loading ? "Verifying..." : "Verify & log in"}
           </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
-            OTP may take 1–2 minutes to arrive.
-          </p>
-          <p className="text-center text-sm text-gray-600">
-            Didn&apos;t receive the code?{" "}
-            <button
-              type="button"
-              onClick={handleResend}
-              disabled={resendLoading || loading}
-              className="font-medium text-primary hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {resendLoading ? "Sending..." : "Resend OTP"}
-            </button>
-          </p>
+          <button
+            type="button"
+            onClick={() => router.push(intent === "register" ? "/signup" : "/login")}
+            className="flex w-full items-center justify-center gap-1 text-sm font-semibold text-cb-fg"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Change number
+          </button>
         </form>
+
+        <p className="mt-6 text-center text-xs text-cb-muted-fg">
+          By continuing you agree to CozyBerries&apos; Terms of Use and Privacy Policy.
+        </p>
       </div>
     </div>
   );
