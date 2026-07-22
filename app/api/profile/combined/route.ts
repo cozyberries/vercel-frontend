@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import CacheService from "@/lib/services/cache";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
-// Timeout for cache operations (in milliseconds)
-const CACHE_TIMEOUT = 2000; // 2s - Upstash REST API can be slow from non-edge environments
+// 2s - Upstash REST API can be slow from non-edge environments
+const CACHE_TIMEOUT = 2000;
 
 /**
  * Combined endpoint to fetch both profile and addresses in a single request
@@ -11,24 +15,17 @@ const CACHE_TIMEOUT = 2000; // 2s - Upstash REST API can be slow from non-edge e
  */
 export async function GET() {
   const startTime = Date.now();
-  
+
   try {
-    const supabase = await createServerSupabaseClient();
-
-    // Get the current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result);
     }
+    const { userId, client, effectiveUser } = result;
 
-    // Try to get both from cache with timeout
     const cachePromise = Promise.all([
-      CacheService.getProfile(user.id),
-      CacheService.getAddresses(user.id),
+      CacheService.getProfile(userId),
+      CacheService.getAddresses(userId),
     ]);
 
     let cachedProfile: any = null;
@@ -38,7 +35,6 @@ export async function GET() {
     let useCache = false;
 
     try {
-      // Wait for cache with timeout
       const cacheResult = await Promise.race([
         cachePromise,
         new Promise<never>((_, reject) =>
@@ -48,32 +44,26 @@ export async function GET() {
 
       cachedProfile = cacheResult[0];
       cachedAddresses = cacheResult[1];
-      
-      // Extract data from wrapper objects (consistent with individual endpoints)
+
       cachedProfileData = cachedProfile?.data ?? null;
       cachedAddressesData = cachedAddresses?.data ?? null;
-      
-      // Only use cache if both profile and addresses data are valid
-      // Profile data must be truthy, addresses can be empty array but not null
+
+      // Only use cache if both profile and addresses data are valid.
+      // Addresses can legitimately be an empty array but must not be null.
       useCache = !!cachedProfileData && cachedAddressesData !== null;
     } catch (error) {
-      // Cache timeout or error - proceed without cache
       console.log("Cache timeout or error, fetching from database");
     }
 
-    // If we have cached data, return it immediately
-    // Note: addresses can be an empty array, so we check if the cache result exists
     if (useCache && cachedProfile && cachedAddresses) {
-      // Check if either cache result is stale
       const isStale = cachedProfile.isStale || cachedAddresses.isStale;
-      
-      // Trigger background refresh if stale
+
       if (isStale) {
         (async () => {
           try {
-            await refreshDataInBackground(user.id, user, supabase);
+            await refreshDataInBackground(userId, effectiveUser, client);
           } catch (error) {
-            console.error(`Background refresh failed for user ${user.id}:`, error);
+            console.error(`Background refresh failed for user ${userId}:`, error);
           }
         })();
       }
@@ -94,18 +84,14 @@ export async function GET() {
       );
     }
 
-    // No cache or cache miss - fetch from database in parallel
-    const [profileData, addressesData] = await Promise.all([
-      fetchProfileFromDatabase(user, supabase),
-      fetchAddressesFromDatabase(user.id, supabase),
-    ]);
+    const profileData = buildProfileFromUser(effectiveUser);
+    const addressesData = await fetchAddressesFromDatabase(userId, client);
 
-    // Cache results asynchronously (non-blocking)
     Promise.all([
-      CacheService.setProfile(user.id, profileData),
-      CacheService.setAddresses(user.id, addressesData),
+      CacheService.setProfile(userId, profileData),
+      CacheService.setAddresses(userId, addressesData),
     ]).catch((error) => {
-      console.error(`Failed to cache data for user ${user.id}:`, error);
+      console.error(`Failed to cache data for user ${userId}:`, error);
     });
 
     const headers = {
@@ -131,54 +117,19 @@ export async function GET() {
   }
 }
 
-/**
- * Fetch profile data from database
- */
-async function fetchProfileFromDatabase(user: any, supabase: any) {
-  // Get user profile data from profiles table - only select needed fields
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("full_name, phone, avatar_url, updated_at")
-    .eq("id", user.id)
-    .single();
-
-  // If table doesn't exist or no profile found, return user data only
-  if (profileError) {
-    if (
-      profileError.code === "PGRST116" ||
-      profileError.message?.includes("relation") ||
-      profileError.message?.includes("does not exist")
-    ) {
-      return {
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        phone: null,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-      };
-    } else {
-      throw new Error(`Failed to retrieve profile: ${profileError.message}`);
-    }
-  }
-
-  // Return user data with profile information
+function buildProfileFromUser(user: User) {
   return {
     id: user.id,
     email: user.email,
-    full_name: user.user_metadata?.full_name || profile?.full_name || null,
-    avatar_url: user.user_metadata?.avatar_url || profile?.avatar_url || null,
-    phone: profile?.phone || null,
+    phone: user.phone ?? null,
+    full_name: user.user_metadata?.full_name ?? null,
+    avatar_url: user.user_metadata?.avatar_url ?? null,
     created_at: user.created_at,
-    updated_at: profile?.updated_at || user.updated_at,
+    updated_at: user.updated_at,
   };
 }
 
-/**
- * Fetch addresses from database
- */
-async function fetchAddressesFromDatabase(userId: string, supabase: any) {
+async function fetchAddressesFromDatabase(userId: string, supabase: SupabaseClient) {
   const { data: addresses, error } = await supabase
     .from("user_addresses")
     .select("*")
@@ -188,7 +139,6 @@ async function fetchAddressesFromDatabase(userId: string, supabase: any) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    // If table doesn't exist, return empty array
     if (
       error.message?.includes("relation") ||
       error.message?.includes("does not exist")
@@ -201,19 +151,14 @@ async function fetchAddressesFromDatabase(userId: string, supabase: any) {
   return addresses || [];
 }
 
-/**
- * Background refresh function for stale-while-revalidate pattern
- */
 async function refreshDataInBackground(
   userId: string,
-  user: any,
-  supabase: any
+  user: User,
+  supabase: SupabaseClient
 ): Promise<void> {
   try {
-    const [profileData, addressesData] = await Promise.all([
-      fetchProfileFromDatabase(user, supabase),
-      fetchAddressesFromDatabase(userId, supabase),
-    ]);
+    const profileData = buildProfileFromUser(user);
+    const addressesData = await fetchAddressesFromDatabase(userId, supabase);
 
     await Promise.all([
       CacheService.setProfile(userId, profileData),

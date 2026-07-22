@@ -47,6 +47,10 @@ const FeaturedProducts = dynamic(() => import("./featured-products"), {
   ssr: false,
   loading: () => <ProductSkeleton />,
 });
+const LovedByParents = dynamic(() => import("./loved-by-parents"), {
+  ssr: false,
+  loading: () => <ProductSkeleton />,
+});
 const SnowflakeDecoration = dynamic(() => import("./SnowflakeDecoration"), {
   ssr: false,
   loading: () => <DecorationPlaceholder />,
@@ -69,6 +73,7 @@ const WhyMuslinSection = dynamic(() => import("./why-muslin-section"));
 
 export {
   FeaturedProducts,
+  LovedByParents,
   SnowflakeDecoration,
   GingerbreadDecoration,
   ContactSidebar,

@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Unauthorized",
+      });
     }
+    const { userId, client } = result;
 
-    // Fetch from database
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("user_wishlists")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (error && error.code !== "PGRST116") {
@@ -29,8 +29,12 @@ export async function GET() {
     }
 
     return NextResponse.json(
-      { wishlist: data?.items || [], user_id: user.id },
-      { headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=120' } }
+      { wishlist: data?.items || [], user_id: userId },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+        },
+      }
     );
   } catch (error) {
     console.error("Unexpected error:", error);
@@ -43,15 +47,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Unauthorized",
+      });
     }
+    const { userId, client } = result;
 
     const body = await request.json();
     const { items } = body;
@@ -63,12 +65,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("user_wishlists")
       .upsert(
         {
-          user_id: user.id,
-          items: items,
+          user_id: userId,
+          items,
           updated_at: new Date().toISOString(),
         },
         {
@@ -101,20 +103,18 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Unauthorized",
+      });
     }
+    const { userId, client } = result;
 
-    const { error } = await supabase
+    const { error } = await client
       .from("user_wishlists")
       .delete()
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     if (error) {
       console.error("Error clearing wishlist:", error);

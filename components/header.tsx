@@ -1,24 +1,31 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { User, Search } from "lucide-react";
+import { User, Search, Heart, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import CartSheet from "@/components/CartSheet";
-import WishlistSheet from "@/components/WishlistSheet";
-import SearchResultsSheet from "@/components/SearchResultsSheet";
+import NotificationCenter from "@/components/NotificationCenter";
 import { images } from "@/app/assets/images";
+import { useWishlist } from "@/components/wishlist-context";
+import { useCart } from "@/components/cart-context";
 import { useAuth } from "@/components/supabase-auth-provider";
+import { useProfileCombined } from "@/hooks/useApiQueries";
 import { HamburgerSheet } from "./HamburgerSheet";
 import HeaderLinks from "./HeaderLinks";
 
 export default function Header() {
   const pathname = usePathname();
+  const { wishlist } = useWishlist();
+  const { cart } = useCart();
+  const cartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
   const { user } = useAuth();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const { data: profileData } = useProfileCombined(user?.id);
+  const initials = (profileData?.profile?.full_name || user?.email || "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
@@ -29,29 +36,24 @@ export default function Header() {
             <HamburgerSheet />
           </div>
 
-          {/* Logo — centred on mobile via absolute positioning inside the header row */}
-          <div className="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 lg:flex-1 flex items-center h-full">
+          {/* Logo — left-aligned at every breakpoint */}
+          <div className="flex items-center h-full">
             <Link href="/" className="flex items-center h-full">
               <Image
                 src={images.logoURL}
                 alt="CozyBerries"
                 width={180}
                 height={50}
-                className="h-full w-auto object-contain"
+                className="h-12 w-auto object-contain"
                 priority
               />
             </Link>
           </div>
 
-          {/* Desktop navigation */}
-          <nav className="hidden lg:flex items-center justify-center flex-1">
-            <ul className="flex space-x-8">
+          {/* Desktop navigation — sits left, right after the logo */}
+          <nav className="hidden lg:flex items-center ml-10">
+            <ul className="flex items-center gap-2">
               {navigation.map((item) => {
-                // Skip orders link if user is not authenticated
-                if (item.href === "/orders" && !user) {
-                  return null;
-                }
-
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
@@ -70,35 +72,67 @@ export default function Header() {
           </nav>
 
           {/* Icons + Auth */}
-          <div className="flex items-center justify-end flex-1 space-x-1">
-            {/* Search — opens suggestion sheet */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors duration-200"
-              aria-label="Search products"
-              onClick={() => setSearchOpen(true)}
-            >
-              <Search className="h-5 w-5" />
-            </Button>
-            <SearchResultsSheet isOpen={searchOpen} onOpenChange={setSearchOpen} />
-            {/* User Icon — desktop only */}
-            <div className="hidden lg:block">
-              <Link href={user ? "/profile" : "/login"}>
+          <div className="flex items-center justify-end flex-1 space-x-2 lg:space-x-3">
+            <Link href="/products">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 lg:h-7 lg:w-7 flex items-center justify-center rounded-full hover:bg-transparent"
+                aria-label="Search products"
+              >
+                <Search className="!w-5 !h-5 text-cb-fg" />
+              </Button>
+            </Link>
+            <NotificationCenter />
+            <Link href="/wishlist">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 lg:h-7 lg:w-7 relative rounded-full hover:bg-transparent"
+                aria-label="Go to wishlist"
+              >
+                <Heart className="!w-5 !h-5 text-cb-fg" />
+                {wishlist.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-cb-terracotta text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                    {wishlist.length}
+                  </span>
+                )}
+              </Button>
+            </Link>
+            <Link href="/cart">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 lg:h-7 lg:w-7 relative rounded-full hover:bg-transparent"
+                aria-label="Go to cart"
+              >
+                <ShoppingBag className="!w-5 !h-5 text-cb-fg" />
+                {cartQuantity > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-cb-terracotta text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                    {cartQuantity}
+                  </span>
+                )}
+              </Button>
+            </Link>
+            <Link href="/profile">
+              {user && initials ? (
+                <span
+                  className="flex h-8 w-8 lg:h-7 lg:w-7 items-center justify-center rounded-full bg-cb-taupe text-white text-xs font-semibold ring-2 ring-cb-terracotta/40"
+                  aria-label="Go to profile"
+                >
+                  {initials}
+                </span>
+              ) : (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors duration-200"
-                  aria-label={user ? "Go to profile" : "Go to login"}
+                  className="h-8 w-8 lg:h-7 lg:w-7 flex items-center justify-center rounded-full bg-cb-muted hover:bg-cb-muted"
+                  aria-label="Go to profile"
                 >
-                  <User />
+                  <User className="!w-5 !h-5 text-cb-fg" />
                 </Button>
-              </Link>
-            </div>
-            <WishlistSheet />
-            <div className="hidden lg:block">
-              <CartSheet />
-            </div>
+              )}
+            </Link>
           </div>
         </div>
       </div>

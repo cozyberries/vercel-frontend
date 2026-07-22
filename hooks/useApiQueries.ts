@@ -12,6 +12,7 @@ import {
   getProductById,
   getActiveOfferFromApi,
   getProfileCombined,
+  getNotifications,
   type AgeOptionFilter,
   type CategoryOption,
   type SizeOptionFilter,
@@ -20,6 +21,8 @@ import {
 import type { ActiveOfferResponse } from "@/lib/types/order";
 import type { OrderShipmentTrackingData } from "@/lib/types/delhivery-tracking";
 import type { ProfileCombinedResponse } from "@/lib/services/api";
+import type { OnBehalfOrdersListResponse } from "@/lib/types/admin-on-behalf-orders";
+import type { AppNotification } from "@/lib/types/notification";
 import { orderService } from "@/lib/services/orders";
 
 /**
@@ -170,6 +173,56 @@ export function useProfileCombined(userId: string | undefined) {
     staleTime: 1000 * 60,       // 1 minute
     gcTime: 1000 * 60 * 10,    // 10 minutes
     enabled: !!userId,
+  });
+}
+
+/** Query key prefix for the notifications list; append userId for invalidation. */
+export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
+
+/**
+ * Real user notifications — used for both the notifications page and the
+ * unread-count badge in the account menu. Enabled only when logged in.
+ */
+export function useNotifications(userId: string | undefined) {
+  return useQuery<AppNotification[]>({
+    queryKey: [...NOTIFICATIONS_QUERY_KEY, userId],
+    queryFn: () => getNotifications(),
+    staleTime: 1000 * 30,
+    gcTime: 1000 * 60 * 10,
+    enabled: !!userId,
+  });
+}
+
+/**
+ * Page size for the admin on-behalf-orders list. Exported so the consuming
+ * component and this hook share a single source of truth for pagination.
+ */
+export const ON_BEHALF_ORDERS_PAGE_SIZE = 25;
+
+/**
+ * Admin-only list of orders placed on behalf of customers. Paginated via
+ * offset; each page is cached independently by offset + limit. Requests are
+ * sent with `credentials: "include"` so the Supabase session cookie is
+ * available to the server route.
+ */
+export function useOnBehalfOrders(
+  offset: number,
+  limit: number = ON_BEHALF_ORDERS_PAGE_SIZE
+) {
+  return useQuery<OnBehalfOrdersListResponse>({
+    queryKey: ["admin", "on-behalf-orders", { offset, limit }],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/admin/on-behalf-orders?limit=${limit}&offset=${offset}`,
+        { credentials: "include", cache: "no-store" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body?.error || `Request failed (${res.status})`);
+      }
+      return (await res.json()) as OnBehalfOrdersListResponse;
+    },
+    staleTime: 60_000,
   });
 }
 

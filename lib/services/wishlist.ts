@@ -1,5 +1,21 @@
-import { createClient } from "@/lib/supabase";
+/**
+ * Browser-side wishlist client.
+ *
+ * All remote reads and writes go through the `/api/wishlist` server route so
+ * that impersonation (admin-order-on-behalf, a.k.a. shadow mode) works
+ * correctly: the server derives the effective user from the session +
+ * `acting_as` cookie, and the browser never needs to know whose wishlist it
+ * is. `localStorage` is used purely as an instant-UI / guest-mode cache.
+ *
+ * The persistence hook (`useWishlistPersistence`) controls localStorage
+ * gating based on `useAuth().impersonation.active`: while impersonating, the
+ * hook bypasses localStorage entirely and reads/writes only via this
+ * service. The service itself remains pure: `getLocalWishlist` /
+ * `saveLocalWishlist` stay intact so guest-mode continues to work.
+ */
+
 import type { WishlistItem } from "@/components/wishlist-context";
+import { extractErrorMessage } from "@/lib/utils/http-errors";
 
 export interface UserWishlist {
   id: string;
@@ -10,113 +26,82 @@ export interface UserWishlist {
 }
 
 class WishlistService {
-  private supabase = createClient();
+  // Key: userId passed by the caller. Used only as a dedup bucket; the server
+  // ignores it and scopes by the effective user.
   private fetchRequests = new Map<string, Promise<WishlistItem[]>>();
 
-  /**
-   * Fetch user's wishlist from Supabase
-   * Note: Caching is handled by API routes, not here
-   */
   async getUserWishlist(userId: string): Promise<WishlistItem[]> {
+    const existing = this.fetchRequests.get(userId);
+    if (existing) return existing;
+
+    const requestPromise = this._getUserWishlistInternal();
+    this.fetchRequests.set(userId, requestPromise);
     try {
-      // Check if we already have a pending request for this user
-      if (this.fetchRequests.has(userId)) {
-        return await this.fetchRequests.get(userId)!;
+      return await requestPromise;
+    } finally {
+      this.fetchRequests.delete(userId);
+    }
+  }
+
+  private async _getUserWishlistInternal(): Promise<WishlistItem[]> {
+    try {
+      const response = await fetch("/api/wishlist", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status !== 401) {
+          console.error(
+            "Error fetching user wishlist: non-OK response",
+            response.status
+          );
+        }
+        return [];
       }
 
-      // Create a new request promise
-      const requestPromise = this.fetchWishlistFromDatabase(userId);
-      this.fetchRequests.set(userId, requestPromise);
-
-      try {
-        const result = await requestPromise;
-        return result;
-      } finally {
-        // Clean up the request after completion
-        this.fetchRequests.delete(userId);
-      }
+      const body = (await response.json()) as { wishlist?: WishlistItem[] };
+      return body.wishlist ?? [];
     } catch (error) {
       console.error("Error fetching user wishlist:", error);
       return [];
     }
   }
 
-  /**
-   * Fetch wishlist directly from database
-   * Caching is handled by the API routes on the server side
-   */
-  private async fetchWishlistFromDatabase(userId: string): Promise<WishlistItem[]> {
-    try {
-      const { data, error } = await this.supabase
-        .from("user_wishlists")
-        .select("items")
-        .eq("user_id", userId)
-        .single();
+  async saveUserWishlist(
+    _userId: string,
+    items: WishlistItem[]
+  ): Promise<void> {
+    const response = await fetch("/api/wishlist", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 is "not found" error - expected for new users
-        console.error("Error fetching user wishlist:", error);
-        return [];
-      }
-
-      const wishlistItems = data?.items || [];
-      
-      return wishlistItems;
-    } catch (error) {
-      console.error("Error fetching wishlist from database:", error);
-      return [];
+    if (!response.ok) {
+      const message = await extractErrorMessage(
+        response,
+        "Failed to save wishlist"
+      );
+      console.error("Error saving user wishlist:", message);
+      throw new Error(message);
     }
   }
 
-  /**
-   * Save wishlist to Supabase (upsert operation)
-   * Note: Cache invalidation is handled by API routes
-   */
-  async saveUserWishlist(userId: string, items: WishlistItem[]): Promise<void> {
-    try {
-      const { error } = await this.supabase
-        .from("user_wishlists")
-        .upsert(
-          {
-            user_id: userId,
-            items: items,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "user_id",
-          }
-        );
+  async clearUserWishlist(_userId: string): Promise<void> {
+    const response = await fetch("/api/wishlist", {
+      method: "DELETE",
+      credentials: "include",
+    });
 
-      if (error) {
-        console.error("Error saving user wishlist:", error);
-        throw error;
-      }
-
-    } catch (error) {
-      console.error("Error saving user wishlist:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete user's wishlist from Supabase
-   * Note: Cache invalidation is handled by API routes
-   */
-  async clearUserWishlist(userId: string): Promise<void> {
-    try {
-      const { error } = await this.supabase
-        .from("user_wishlists")
-        .delete()
-        .eq("user_id", userId);
-
-      if (error) {
-        console.error("Error clearing user wishlist:", error);
-        throw error;
-      }
-
-    } catch (error) {
-      console.error("Error clearing user wishlist:", error);
-      throw error;
+    if (!response.ok) {
+      const message = await extractErrorMessage(
+        response,
+        "Failed to clear wishlist"
+      );
+      console.error("Error clearing user wishlist:", message);
+      throw new Error(message);
     }
   }
 
@@ -124,15 +109,16 @@ class WishlistService {
    * Merge local wishlist with remote wishlist
    * Returns merged wishlist items (no duplicates)
    */
-  mergeWishlistItems(localItems: WishlistItem[], remoteItems: WishlistItem[]): WishlistItem[] {
+  mergeWishlistItems(
+    localItems: WishlistItem[],
+    remoteItems: WishlistItem[]
+  ): WishlistItem[] {
     const mergedItems = new Map<string, WishlistItem>();
 
-    // Add remote items first
     remoteItems.forEach((item) => {
       mergedItems.set(item.id, item);
     });
 
-    // Add local items (no duplicates since wishlists don't have quantities)
     localItems.forEach((localItem) => {
       if (!mergedItems.has(localItem.id)) {
         mergedItems.set(localItem.id, localItem);
@@ -142,9 +128,6 @@ class WishlistService {
     return Array.from(mergedItems.values());
   }
 
-  /**
-   * Get wishlist from localStorage
-   */
   getLocalWishlist(): WishlistItem[] {
     try {
       if (typeof window === "undefined") return [];
@@ -156,9 +139,6 @@ class WishlistService {
     }
   }
 
-  /**
-   * Save wishlist to localStorage
-   */
   saveLocalWishlist(items: WishlistItem[]): void {
     try {
       if (typeof window === "undefined") return;
@@ -168,9 +148,6 @@ class WishlistService {
     }
   }
 
-  /**
-   * Clear wishlist from localStorage
-   */
   clearLocalWishlist(): void {
     try {
       if (typeof window === "undefined") return;

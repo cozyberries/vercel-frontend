@@ -1,33 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
+import type { User } from "@supabase/supabase-js";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
+import { findAuthUserByEmail } from "@/lib/auth-phone";
 import CacheService from "@/lib/services/cache";
+import { notifyNewUserRegistered } from "@/lib/services/telegram";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    // Get the current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result);
     }
+    const { userId, effectiveUser } = result;
 
-    // Try to get from cache first with timeout (500ms)
     let cachedProfile: any = null;
     let useCache = false;
-    
+
     try {
-      const cacheResult = await Promise.race([
-        CacheService.getProfile(user.id),
+      const cacheResult = (await Promise.race([
+        CacheService.getProfile(userId),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Cache timeout")), 2000)
         ),
-      ]) as { data: any; ttl: number; isStale: boolean };
+      ])) as { data: any; ttl: number; isStale: boolean };
 
       cachedProfile = cacheResult.data;
       useCache = !!cachedProfile;
@@ -36,18 +36,17 @@ export async function GET() {
         const headers = {
           "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
           "X-Cache-Status": cacheResult.isStale ? "STALE" : "HIT",
-          "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
+          "X-Cache-Key": CacheService.getCacheKey("PROFILE", userId),
           "X-Data-Source": "REDIS_CACHE",
           "X-Cache-TTL": cacheResult.ttl.toString(),
         };
 
-        // If data is stale, trigger background revalidation
         if (cacheResult.isStale) {
           (async () => {
             try {
-              await refreshProfileInBackground(user.id, user, supabase);
+              await refreshProfileInBackground(userId, effectiveUser);
             } catch (error) {
-              console.error(`Background profile refresh failed for user ${user.id}:`, error);
+              console.error(`Background profile refresh failed for user ${userId}:`, error);
             }
           })();
         }
@@ -55,22 +54,19 @@ export async function GET() {
         return NextResponse.json(cachedProfile, { headers });
       }
     } catch (error) {
-      // Cache timeout or error - proceed without cache
       console.log("Cache timeout or error, fetching from database");
     }
 
-    // No cache hit, fetch from database
-    const userData = await fetchProfileFromDatabase(user, supabase);
-    
-    // Cache the result asynchronously (non-blocking) - don't wait for it
-    CacheService.setProfile(user.id, userData).catch((error) => {
-      console.error(`Failed to cache profile for user ${user.id}:`, error);
+    const userData = buildProfileFromUser(effectiveUser);
+
+    CacheService.setProfile(userId, userData).catch((error) => {
+      console.error(`Failed to cache profile for user ${userId}:`, error);
     });
 
     const headers = {
       "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
       "X-Cache-Status": "MISS",
-      "X-Cache-Key": CacheService.getCacheKey("PROFILE", user.id),
+      "X-Cache-Key": CacheService.getCacheKey("PROFILE", userId),
       "X-Data-Source": "SUPABASE_DATABASE",
       "X-Cache-Set": "PENDING",
     };
@@ -85,62 +81,21 @@ export async function GET() {
   }
 }
 
-/**
- * Fetch profile data from database
- */
-async function fetchProfileFromDatabase(user: any, supabase: any) {
-  // Get user profile data from profiles table - only select needed fields
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("full_name, phone, avatar_url, updated_at")
-    .eq("id", user.id)
-    .single();
-
-  // If table doesn't exist or no profile found, create a default profile
-  if (profileError) {
-    if (
-      profileError.code === "PGRST116" ||
-      profileError.message?.includes("relation") ||
-      profileError.message?.includes("does not exist")
-    ) {
-      // Table doesn't exist or no profile found, return user data only
-      return {
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        phone: null,
-        address: null,
-        city: null,
-        state: null,
-        postal_code: null,
-        country: null,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-      };
-    } else {
-      throw new Error(`Failed to retrieve profile: ${profileError.message}`);
-    }
-  }
-
-  // Return user data with profile information
+function buildProfileFromUser(user: User) {
   return {
     id: user.id,
     email: user.email,
-    full_name: user.user_metadata?.full_name || profile?.full_name || null,
-    avatar_url: user.user_metadata?.avatar_url || profile?.avatar_url || null,
-    phone: profile?.phone || null,
+    phone: user.phone ?? null,
+    full_name: user.user_metadata?.full_name ?? null,
+    avatar_url: user.user_metadata?.avatar_url ?? null,
     created_at: user.created_at,
-    updated_at: profile?.updated_at || user.updated_at,
+    updated_at: user.updated_at,
   };
 }
 
-/**
- * Background refresh function for profile stale-while-revalidate pattern
- */
-async function refreshProfileInBackground(userId: string, user: any, supabase: any): Promise<void> {
+async function refreshProfileInBackground(userId: string, user: User): Promise<void> {
   try {
-    const userData = await fetchProfileFromDatabase(user, supabase);
+    const userData = buildProfileFromUser(user);
     await CacheService.setProfile(userId, userData);
   } catch (error) {
     console.error("Error in background profile refresh:", error);
@@ -149,22 +104,28 @@ async function refreshProfileInBackground(userId: string, user: any, supabase: a
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    // Get the current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result);
     }
+    const { userId, actingAdminId, effectiveUser } = result;
 
     const body = await request.json();
-    const { full_name, phone } = body;
+    const { full_name, phone, email } = body;
 
-    // Validate input data
+    // Identity-mutating fields (email, password, role) MUST be blocked while
+    // an admin is acting on behalf of another user. Only data fields (phone,
+    // full_name) may flow through.
+    if (actingAdminId !== null && email !== undefined && email !== "") {
+      return NextResponse.json(
+        {
+          error: "Identity changes not permitted while acting as another user",
+          field: "email",
+        },
+        { status: 403 }
+      );
+    }
+
     if (full_name) {
       const nameValidation = validateFullName(full_name);
       if (!nameValidation.isValid) {
@@ -185,77 +146,90 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Build the payload dynamically so that omitted fields are never overwritten.
-    // upsert merges by primary key — only the columns present in the object are touched.
-    const profileData: Record<string, string | null> = {
-      id: user.id,
-      updated_at: new Date().toISOString(),
-    };
+    if (email !== undefined && email !== "") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+      }
+    }
 
-    // Only set full_name when explicitly provided so existing names are preserved
-    // (e.g. complete-profile sends only phone, must not wipe the name set by create-profile)
+    const adminSupabase = createAdminSupabaseClient();
+
+    if (email !== undefined && email !== "") {
+      const existingUser = await findAuthUserByEmail(email);
+      if (existingUser && existingUser.id !== userId) {
+        return NextResponse.json(
+          { error: "This email address is already associated with another account." },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Detect first-time phone for Telegram notification against the target.
+    // `effectiveUser` already reflects the target when impersonating (and the
+    // session user otherwise) — no need for a second getUserById round-trip.
+    const isFirstPhone = !effectiveUser.phone && !!phone;
+
+    const updatePayload: Record<string, any> = {};
+
+    if (email !== undefined && email !== "") {
+      updatePayload.email = email;
+      updatePayload.email_confirm = true;
+    }
+
+    const userMetaUpdate: Record<string, string> = {};
     if (full_name !== undefined) {
-      profileData.full_name = full_name || user.user_metadata?.full_name || null;
-    } else if (user.user_metadata?.full_name) {
-      // Carry forward metadata name on first-ever upsert (no-op if row already exists)
-      profileData.full_name = user.user_metadata.full_name;
+      userMetaUpdate.full_name = full_name || effectiveUser.user_metadata?.full_name || "";
+    } else if (effectiveUser.user_metadata?.full_name) {
+      userMetaUpdate.full_name = effectiveUser.user_metadata.full_name;
+    }
+    if (Object.keys(userMetaUpdate).length > 0) {
+      updatePayload.user_metadata = userMetaUpdate;
     }
 
     if (phone !== undefined) {
-      profileData.phone = phone || null;
+      updatePayload.phone = phone || "";
     }
 
-    // Use admin client so the write always succeeds (avoids RLS blocking new users
-    // whose profile was created in auth callback; middleware/GET use same profiles table)
-    const adminSupabase = createAdminSupabaseClient();
-    const { data, error } = await adminSupabase
-      .from("profiles")
-      .upsert([profileData], { onConflict: "id" })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error updating profile:", error);
-
-      // If table doesn't exist, provide helpful error message
-      if (
-        error.message?.includes("relation") ||
-        error.message?.includes("does not exist")
-      ) {
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
+        userId,
+        updatePayload
+      );
+      if (updateError) {
+        console.error("Error updating profile:", updateError);
         return NextResponse.json(
-          {
-            error: "Profiles table not found",
-            details:
-              "Please run the database migration to create the profiles table. See PROFILE_SETUP.md for instructions.",
-            migration_needed: true,
-          },
+          { error: updateError.message || "Failed to update profile" },
           { status: 500 }
         );
       }
-
-      return NextResponse.json(
-        { error: "Failed to update profile", details: error.message },
-        { status: 500 }
-      );
     }
 
-    // Build response shape for client/cache (Supabase returns snake_case)
+    const { data: updatedAuthUser } = await adminSupabase.auth.admin.getUserById(userId);
+    const updatedUser = updatedAuthUser?.user;
+
     const updatedUserData = {
-      id: user.id,
-      email: user.email,
-      full_name: data.full_name ?? user.user_metadata?.full_name ?? null,
-      avatar_url: user.user_metadata?.avatar_url ?? data.avatar_url ?? null,
-      phone: data.phone ?? null,
-      created_at: user.created_at,
-      updated_at: data.updated_at,
+      id: userId,
+      email: (email !== undefined && email !== "") ? email : effectiveUser.email,
+      full_name: updatedUser?.user_metadata?.full_name ?? null,
+      avatar_url: updatedUser?.user_metadata?.avatar_url ?? null,
+      phone: updatedUser?.phone ?? null,
+      created_at: effectiveUser.created_at,
+      updated_at: new Date().toISOString(),
     };
 
-    // Clear then set profile cache before responding so /api/profile/combined refetch gets fresh data
     try {
-      await CacheService.clearProfile(user.id);
-      await CacheService.setProfile(user.id, updatedUserData);
+      await CacheService.clearProfile(userId);
+      await CacheService.setProfile(userId, updatedUserData);
     } catch (error) {
-      console.error(`Failed to update profile cache for user ${user.id}:`, error);
+      console.error(`Failed to update profile cache for user ${userId}:`, error);
+    }
+    if (isFirstPhone && updatedUserData.phone) {
+      notifyNewUserRegistered({
+        name: updatedUserData.full_name,
+        email: updatedUserData.email ?? null,
+        phone: updatedUserData.phone,
+      });
     }
     return NextResponse.json(updatedUserData);
   } catch (error) {

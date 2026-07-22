@@ -43,9 +43,14 @@ public/sw.js.map
 # Brainstorming mockups
 .superpowers/
 
+# Superpowers plans/specs and prompts
+docs/superpowers/
+prompts/
+
 # IDE specific files
 .idea
 .vscode
+.cursor/settings.json
 *.swp
 *.swo
 
@@ -85,3 +90,6 @@ logs
 .env.development.local
 .env.test.local
 .env.production.local
+.worktrees/
+.claude/
+.playwright-mcp/

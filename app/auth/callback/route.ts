@@ -51,60 +51,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // If this is a new OAuth user, create their profile
     if (data?.user && data?.user.email) {
       try {
-        // Use admin client to check and create profile
         const adminSupabase = createAdminSupabaseClient();
 
-        // Check if profile exists
-        const { data: existingProfile } = await adminSupabase
-          .from("user_profiles")
-          .select("id")
-          .eq("id", data.user.id)
-          .single();
+        // Check if role already set (existing user)
+        const { data: authUser } = await adminSupabase.auth.admin.getUserById(data.user.id);
+        const existingRole = authUser?.user?.app_metadata?.role;
 
-        // If no profile exists, create one
-        if (!existingProfile) {
-          // Use name from user_metadata (from OAuth provider) or generate from email
+        if (!existingRole) {
+          // New OAuth user — set name and role
           const fullName =
             data.user.user_metadata?.full_name ||
             data.user.user_metadata?.name ||
             generateNameFromEmail(data.user.email);
 
-          const now = new Date().toISOString();
-
-          // Create profile in user_profiles table
-          await adminSupabase
-            .from("user_profiles")
-            .upsert(
-              {
-                id: data.user.id,
-                full_name: fullName,
-                role: "customer",
-                is_active: true,
-                created_at: now,
-                updated_at: now,
-              },
-              {
-                onConflict: "id",
-              }
-            );
-
-          // Also create in profiles table if it exists
-          await adminSupabase
-            .from("profiles")
-            .upsert(
-              {
-                id: data.user.id,
-                full_name: fullName,
-                created_at: now,
-                updated_at: now,
-              },
-              {
-                onConflict: "id",
-              }
-            );
+          const { error: updateError } = await adminSupabase.auth.admin.updateUserById(data.user.id, {
+            user_metadata: { full_name: fullName },
+            app_metadata: { role: "customer" },
+          });
+          if (updateError) {
+            console.error("Failed to set role for new OAuth user:", updateError);
+          }
 
           // New user — redirect to complete profile (phone required)
           const completeUrl = new URL("/complete-profile", base);
@@ -113,26 +81,14 @@ export async function GET(request: NextRequest) {
         }
 
         // Existing user — check if phone is missing
-        const { data: profileWithPhone, error: phoneCheckError } = await adminSupabase
-          .from("profiles")
-          .select("phone")
-          .eq("id", data.user.id)
-          .single();
-
-        if (phoneCheckError) {
-          console.error("Error checking phone:", phoneCheckError);
-          const completeUrl = new URL("/complete-profile", base);
-          if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
-          return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));
-        }
-
-        if (!profileWithPhone?.phone) {
+        const hasPhone = !!authUser?.user?.phone;
+        if (!hasPhone) {
           const completeUrl = new URL("/complete-profile", base);
           if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
           return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));
         }
       } catch (profileError) {
-        console.error("Error creating OAuth user profile:", profileError);
+        console.error("Error handling OAuth user profile:", profileError);
         const completeUrl = new URL("/complete-profile", base);
         if (authRedirect) completeUrl.searchParams.set("redirect", authRedirect);
         return clearAuthRedirectCookie(NextResponse.redirect(completeUrl));

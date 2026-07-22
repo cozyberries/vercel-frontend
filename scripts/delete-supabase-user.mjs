@@ -74,6 +74,8 @@ async function main() {
     process.exit(1);
   }
   const orderIds = (orders || []).map((o) => o.id);
+  // checkout_sessions.order_id FK blocks order deletes unless cleared first
+  await del("checkout_sessions", "user_id", userId);
   for (const orderId of orderIds) {
     await del("order_items", "order_id", orderId);
     await del("payments", "order_id", orderId);
@@ -84,7 +86,7 @@ async function main() {
   await del("user_carts", "user_id", userId);
   await del("user_wishlists", "user_id", userId);
   await del("ratings", "user_id", userId);
-  await del("checkout_sessions", "user_id", userId);
+  await del("notifications", "user_id", userId);
   await del("event_logs", "user_id", userId);
   await del("profiles", "id", userId);
   await del("user_profiles", "id", userId);

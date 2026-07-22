@@ -3,11 +3,32 @@ import withSerwistInit from '@serwist/next';
 
 const withBundleAnalyzer = BundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
 
+// Disable the SW in every environment that isn't an actual Vercel deployment.
+//
+// Why this is broader than just `NODE_ENV==='development'`:
+//   `next start` runs with NODE_ENV=production, so the SW would otherwise be
+//   installed on `http://localhost:3000`. Every `next build` changes the
+//   Next.js buildId, which changes our SW cache-bucket names and triggers an
+//   `activate` that wipes the old buckets. During a local kill→build→start
+//   cycle a stale SW in the tab can race that: network is down (server
+//   restarting) + old pages-cache bucket deleted + new bucket not populated
+//   yet → Workbox throws `no-response: no-response` on the next navigation
+//   (e.g. after the impersonation-exit reload). Real Vercel deployments can't
+//   hit this because they're atomic — there is no "server is gone" window.
+//
+// Force-enable locally when you actually need to test PWA behaviour:
+//   ENABLE_SW=1 npm run build && ENABLE_SW=1 npm run start
+const isVercelDeployment = !!process.env.VERCEL;
+const swExplicitlyEnabled = process.env.ENABLE_SW === '1';
+const swDisabled =
+  process.env.NODE_ENV === 'development' ||
+  (!isVercelDeployment && !swExplicitlyEnabled);
+
 const withSerwist = withSerwistInit({
   swSrc: 'app/sw.ts',
   swDest: 'public/sw.js',
   reloadOnOnline: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: swDisabled,
   // Ensure /offline is always precached so the fallback page never 404s
   additionalPrecacheEntries: [{ url: '/offline', revision: '1' }],
   // Don't precache API routes — they are handled at runtime in sw.ts
@@ -30,24 +51,9 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    formats: ['image/avif', 'image/webp'],
-    deviceSizes: [390, 640, 750, 828, 1080, 1200, 1920],
-    imageSizes: [32, 48, 64, 128, 192, 256, 384],
-    minimumCacheTTL: 604800,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'aqvcyyhuqcjnhohaclib.supabase.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
+    unoptimized: true,
+    // minimumCacheTTL has no effect when unoptimized: true (/_next/image is bypassed).
+    // Cache lifetime for pre-generated variants is controlled by Supabase Storage CDN headers.
   },
   experimental: {
     webpackBuildWorker: true,
@@ -68,14 +74,14 @@ const nextConfig = {
   env: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   },
+  webpack: (config, { buildId, webpack: wp }) => {
+    // Inject build ID into the service worker so cache names are versioned per deployment.
+    // Old cache buckets are abandoned on activation and expire naturally via maxAgeSeconds.
+    config.plugins.push(new wp.DefinePlugin({ __BUILD_ID__: JSON.stringify(buildId) }));
+    return config;
+  },
   async headers() {
     return [
-      {
-        source: '/_next/image',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' },
-        ],
-      },
       // Only in production: dev chunks change on every compile; immutable caching
       // causes ChunkLoadError when the browser keeps stale chunk URLs after a restart.
       ...(process.env.NODE_ENV === 'production'

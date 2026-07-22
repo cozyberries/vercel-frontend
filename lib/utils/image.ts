@@ -53,6 +53,24 @@ export function getSupabaseImageTransformUrl(
 }
 
 /**
+ * Returns the public URL for a pre-generated WebP or AVIF variant of a Supabase storage image.
+ * Variants are stored alongside originals with a preset suffix: 1.jpg → 1_list.webp
+ * Returns the original URL unchanged for non-Supabase or SVG URLs.
+ */
+export function getVariantUrl(
+  url: string,
+  preset: SupabaseImagePreset,
+  format: "webp" | "avif"
+): string {
+  const normalized = normalizeAbsoluteUrl(url.trim());
+  if (!isSupabaseStorageImageUrl(normalized)) return normalized;
+  const withoutQuery = normalized.split("?")[0];
+  const lastDot = withoutQuery.lastIndexOf(".");
+  const base = lastDot !== -1 ? withoutQuery.substring(0, lastDot) : withoutQuery;
+  return `${base}_${preset}.${format}`;
+}
+
+/**
  * Fixes malformed absolute URLs (e.g. "/https://..." from DB/cache) so they load correctly.
  */
 export function normalizeAbsoluteUrl(s: string): string {

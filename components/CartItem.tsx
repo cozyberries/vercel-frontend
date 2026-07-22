@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, Minus, Plus, Trash2 } from "lucide-react";
 import { images } from "@/app/assets/images";
-import type { CartItem } from "@/components/cart-context";
+import { useCart, getCartItemKey, type CartItem } from "@/components/cart-context";
 import DiscountedPrice from "@/components/discounted-price";
+import EditCartItemDialog from "@/components/EditCartItemDialog";
 
 interface CartItemProps {
   item: CartItem;
@@ -17,57 +19,88 @@ export default function CartItemRow({
   onQuantityChange,
   onRemove,
 }: CartItemProps) {
+  const { addToCart } = useCart();
+  const [editOpen, setEditOpen] = useState(false);
 
   const maxedOut = item.stock_quantity != null && item.quantity >= item.stock_quantity;
 
+  const handleUpdate = (newSize: string | undefined, newQty: number, newPrice: number, newStock: number) => {
+    if (getCartItemKey({ id: item.id, size: newSize, color: item.color }) === getCartItemKey(item)) {
+      onQuantityChange(item.id, newQty, item.size, item.color);
+      return;
+    }
+    onRemove(item.id, item.size, item.color);
+    addToCart({
+      id: item.id,
+      name: item.name,
+      price: newPrice,
+      image: item.image,
+      quantity: newQty,
+      stock_quantity: newStock,
+      ...(newSize ? { size: newSize } : {}),
+      ...(item.color ? { color: item.color } : {}),
+    });
+  };
+
   return (
-    <div className="flex items-center gap-4 border-b pb-4">
-      <div className="relative w-16 h-16 flex-shrink-0">
+    <div className="flex gap-4 rounded-2xl border border-cb-border p-4">
+      <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-cb-linen">
         <Image
           src={item.image || images.staticProductImage}
           alt={item.name}
           fill
-          sizes="64px"
-          className="object-cover rounded"
+          sizes="112px"
+          className="object-cover"
         />
       </div>
-      <div className="flex-1">
-        <div className="font-medium line-clamp-2">{item.name}</div>
-        {(item.size || item.color) && (
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {[item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
-              .filter(Boolean)
-              .join(" · ")}
-          </div>
-        )}
-        <div className="text-sm font-semibold mt-1">
-          <DiscountedPrice price={item.price} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-base font-semibold text-cb-fg leading-snug line-clamp-2">
+            {item.name}
+          </h3>
+          <button
+            type="button"
+            onClick={() => onRemove(item.id, item.size, item.color)}
+            className="shrink-0 text-cb-muted-fg hover:text-cb-destructive transition-colors"
+            aria-label="Remove from cart"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
+        {(item.color || item.size) && (
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-cb-border px-2.5 py-1 text-[13px] text-cb-muted-fg hover:border-cb-terracotta transition-colors"
+          >
+            {[item.color, item.size && `Size ${item.size}`].filter(Boolean).join(" · ")}
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        )}
         {maxedOut && (
           <p className="text-xs text-amber-600 font-medium mt-1">
             Only {item.stock_quantity} item{item.stock_quantity === 1 ? " is" : "s are"} available
           </p>
-        )}        <div className="mt-2 text-sm text-muted-foreground">
-          <div className="inline-flex items-center border h-7 rounded-md overflow-hidden">
-            <Button
+        )}
+        <div className="mt-3 flex items-center justify-between">
+          <div className="inline-flex items-center gap-3 rounded-full border border-cb-border px-1 h-9">
+            <button
               type="button"
-              variant="ghost"
-              className={`px-3 py-2 hover:bg-accent ${item.quantity <= 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-cb-fg ${item.quantity <= 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
               disabled={item.quantity <= 1}
               onClick={() =>
                 onQuantityChange(item.id, Math.max(1, item.quantity - 1), item.size, item.color)
               }
               aria-label="Decrease quantity"
             >
-              −
-            </Button>
-            <div className="px-4 py-2 min-w-10 text-center select-none text-foreground">
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <span className="min-w-4 text-center text-sm font-semibold text-cb-fg select-none">
               {item.quantity}
-            </div>
-            <Button
+            </span>
+            <button
               type="button"
-              variant="ghost"
-              className={`px-3 py-2 hover:bg-accent ${maxedOut ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-cb-fg ${maxedOut ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
               disabled={maxedOut}
               onClick={() => {
                 if (maxedOut) return;
@@ -77,19 +110,18 @@ export default function CartItemRow({
               }}
               aria-label="Increase quantity"
             >
-              +
-            </Button>
+              <Plus className="h-3.5 w-3.5" />
+            </button>
           </div>
+          <DiscountedPrice price={item.price} className="text-base font-bold" />
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => onRemove(item.id, item.size, item.color)}
-        className="hover:text-destructive"
-      >
-        ×
-      </Button>
+      <EditCartItemDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        item={item}
+        onUpdate={handleUpdate}
+      />
     </div>
   );
 }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
 import { mapOrderItems } from "@/lib/utils/order-mapper";
+import {
+  effectiveUserErrorResponse,
+  getEffectiveUser,
+} from "@/lib/services/effective-user";
 
 interface RouteParams {
   params: Promise<{
@@ -11,20 +14,13 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    // Get the current user from Supabase session
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId, client } = result;
 
     const resolvedParams = await params;
     const { id } = resolvedParams;
@@ -36,13 +32,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Step 1: Try to get from cache (with short timeout to avoid hanging)
     let cachedOrderDetails = null;
     let cacheHit = false;
 
     let timeoutId: NodeJS.Timeout | null = null;
     try {
-      const cachePromise = CacheService.getOrderDetails(user.id, id);
+      const cachePromise = CacheService.getOrderDetails(userId, id);
       const timeoutPromise = new Promise<{
         data: null;
         ttl: number;
@@ -56,18 +51,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       if (cacheResult.data) {
         cachedOrderDetails = cacheResult.data;
         cacheHit = true;
-        console.log(`Cache HIT for order details ${id}, user ${user.id}`);
+        console.log(`Cache HIT for order details ${id}, user ${userId}`);
       }
     } catch (cacheError) {
       console.error("Cache read error, falling back to database:", cacheError);
     } finally {
-      // Clear the timeout to prevent memory leaks if cachePromise resolved first
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
     }
 
-    // Step 2: If cache has data, return it immediately
     if (cacheHit && cachedOrderDetails) {
       return NextResponse.json(cachedOrderDetails, {
         headers: {
@@ -77,15 +70,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       });
     }
 
-    // Step 3: Cache miss - fetch from database
     console.log(
-      `Cache MISS for order details ${id}, user ${user.id}, fetching from database`
+      `Cache MISS for order details ${id}, user ${userId}, fetching from database`
     );
-    const { data: rawOrder, error: orderError } = await supabase
+    const { data: rawOrder, error: orderError } = await client
       .from("orders")
       .select("*, order_items(*)")
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (orderError || !rawOrder) {
@@ -98,17 +90,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       items: mapOrderItems(order_items ?? []),
     };
 
-    // Get associated payments
-    const { data: payments, error: paymentsError } = await supabase
+    const { data: payments, error: paymentsError } = await client
       .from("payments")
       .select("*")
       .eq("order_id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (paymentsError) {
       console.error("Error fetching payments:", paymentsError);
-      // Continue without payments data
     }
 
     const orderDetails = {
@@ -117,10 +107,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     };
 
     console.log(
-      `Fetched order details ${id} from database for user ${user.id}`
+      `Fetched order details ${id} from database for user ${userId}`
     );
 
-    // Step 4: Return data to user immediately
     const response = NextResponse.json(orderDetails, {
       headers: {
         "X-Cache-Status": "MISS",
@@ -128,16 +117,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Step 5: Cache in background (fire and forget - don't block response)
-    CacheService.setOrderDetails(user.id, id, orderDetails)
+    CacheService.setOrderDetails(userId, id, orderDetails)
       .then(() => {
         console.log(
-          `Background cache set SUCCESS for order ${id}, user ${user.id}`
+          `Background cache set SUCCESS for order ${id}, user ${userId}`
         );
       })
       .catch((err) => {
         console.error(
-          `Background cache set FAILED for order ${id}, user ${user.id}:`,
+          `Background cache set FAILED for order ${id}, user ${userId}:`,
           err
         );
       });
@@ -155,20 +143,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = await createServerSupabaseClient();
-
-    // Get the current user from Supabase session
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const result = await getEffectiveUser();
+    if (!result.ok) {
+      return effectiveUserErrorResponse(result, {
+        unauthenticatedMessage: "Authentication required",
+      });
     }
+    const { userId, client } = result;
 
     const resolvedParams = await params;
     const { id } = resolvedParams;
@@ -181,7 +162,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Only allow certain fields to be updated by users
     const allowedFields = ["notes"];
     const updateData: any = {};
 
@@ -198,12 +178,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update the order
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await client
       .from("orders")
       .update(updateData)
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .select()
       .single();
 
@@ -214,13 +193,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Clear orders cache in background (fire and forget)
     Promise.all([
-      CacheService.clearAllOrders(user.id),
-      CacheService.clearOrderDetails(user.id, id),
+      CacheService.clearAllOrders(userId),
+      CacheService.clearOrderDetails(userId, id),
     ])
       .then(() => {
-        console.log(`Cache cleared for user: ${user.id} after order update`);
+        console.log(`Cache cleared for user: ${userId} after order update`);
       })
       .catch((cacheError) => {
         console.error("Error clearing cache after update:", cacheError);

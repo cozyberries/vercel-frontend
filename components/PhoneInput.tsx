@@ -19,6 +19,7 @@ interface PhoneInputProps {
   onErrorChange?: (error: string) => void;
   required?: boolean;
   id?: string;
+  label?: string;
 }
 
 export default function PhoneInput({
@@ -28,6 +29,7 @@ export default function PhoneInput({
   onErrorChange,
   required = true,
   id = "phone",
+  label = "Phone Number",
 }: PhoneInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const nextCursorRef = useRef<number | null>(null);
@@ -79,11 +81,13 @@ export default function PhoneInput({
 
   return (
     <div>
-      <Label htmlFor={id}>Phone Number {required && "*"}</Label>
-      <div className="relative mt-1">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <span className="text-gray-500 text-sm">+91</span>
-        </div>
+      <Label htmlFor={id}>{label} {required && "*"}</Label>
+      <div
+        className={`mt-1 flex h-12 items-center overflow-hidden rounded-xl border bg-white ${error ? "border-red-500" : "border-transparent"}`}
+      >
+        <span className="flex h-full shrink-0 items-center border-r border-cb-border px-3 text-sm font-bold text-cb-fg">
+          +91
+        </span>
         <Input
           ref={inputRef}
           id={id}
@@ -95,8 +99,8 @@ export default function PhoneInput({
           value={formatted}
           onChange={handleChange}
           onBlur={handleBlur}
-          placeholder="98765 43210"
-          className={`pl-12 ${error ? "border-red-500" : ""}`}
+          placeholder="Enter your mobile number"
+          className="h-full flex-1 rounded-none border-none shadow-none focus-visible:ring-0"
         />
       </div>
       {error && (

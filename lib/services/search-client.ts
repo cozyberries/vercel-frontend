@@ -124,7 +124,7 @@ export interface ProductListSearchParams {
   limit?: number;
 }
 
-const PRODUCT_LIST_MAX_RESULTS = 500;
+const PRODUCT_LIST_MAX_RESULTS = 100;
 
 /**
  * Query Upstash Search for product slugs (and optional sort fields) for listing.

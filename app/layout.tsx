@@ -9,12 +9,14 @@ import { CartProvider } from "@/components/cart-context";
 import { WishlistProvider } from "@/components/wishlist-context";
 import { AuthGateProvider } from "@/components/auth-gate-context";
 import { SupabaseAuthProvider } from "@/components/supabase-auth-provider";
+import ImpersonationBanner from "@/components/ImpersonationBannerClient";
 import { DataPreloader } from "@/components/data-preloader";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import PwaUpdateHandler from "@/components/PwaUpdateHandlerClient";
 import { Toaster } from "sonner";
 import { RatingProvider } from "@/components/rating-context";
 import { QueryProvider } from "@/components/query-provider";
+import MetaPixelScript from "@/components/MetaPixelScript";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -98,6 +100,7 @@ export default function RootLayout({
       </head>
       {/* suppressHydrationWarning on body helps when a browser extension (e.g. Cursor) injects data-cursor-ref into the DOM after server render */}
       <body className={inter.className} suppressHydrationWarning>
+        <MetaPixelScript />
         <QueryProvider>
           <SupabaseAuthProvider>
             <DataPreloader>
@@ -112,6 +115,7 @@ export default function RootLayout({
                           enableSystem={false}
                           disableTransitionOnChange
                         >
+                          <ImpersonationBanner />
                           <ConditionalLayout>
                             {children}
                           </ConditionalLayout>

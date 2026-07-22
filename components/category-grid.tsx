@@ -25,7 +25,7 @@ const HIDE_FROM_HOMEPAGE_SLUGS = process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS
   ? process.env.NEXT_PUBLIC_HIDE_CATEGORY_SLUGS.split(",").map((s) => s.trim())
   : DEFAULT_HIDE_FROM_HOMEPAGE_SLUGS;
 
-// Category image overrides - use specific Cloudinary URLs for certain categories
+// Category image overrides - use specific Supabase Storage URLs for certain categories
 const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
   "sleeveless-jablas":
     "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/categories/sleeveless-jablas.webp"
@@ -43,11 +43,11 @@ export default function CategoryGrid() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-[14px] lg:gap-[18px]">
         {Array.from({ length: 8 }).map((_, index) => (
           <div
             key={index}
-            className="aspect-square bg-gray-200 animate-pulse rounded-lg"
+            className="aspect-[3/2] bg-gray-200 animate-pulse rounded-2xl"
           />
         ))}
       </div>
@@ -96,7 +96,7 @@ export default function CategoryGrid() {
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-[14px] lg:gap-[18px]">
       {displayCategories.map((category) => {
         const imageSrc = getCategoryImageSrc(category);
         return (
@@ -127,33 +127,28 @@ function CategoryCard({
   return (
     <Link
       href={`/products?category=${category.slug}`}
-      className="group flex flex-col active:scale-[0.97] transition-transform duration-150"
+      className="cb-cat-tile group relative block aspect-[3/2] overflow-hidden rounded-2xl transition-transform duration-[260ms] ease-out lg:hover:-translate-y-0.5 active:scale-[0.98]"
     >
-      <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
-        <Image
-          src={src}
-          alt={category.name}
-          width={400}
-          height={400}
-          sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 250px"
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          onError={() => {
-            if (!isPlaceholder) {
-              setSrc(PLACEHOLDER_DATA_URL);
-            }
-          }}
-        />
-        {/* Overlay darkens on hover */}
-        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-[background-color] duration-300 pointer-events-none" />
+      <Image
+        src={src}
+        alt={category.name}
+        width={400}
+        height={267}
+        sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 250px"
+        className="w-full h-full object-cover transition-transform duration-[600ms] ease-out group-hover:scale-[1.07]"
+        onError={() => {
+          if (!isPlaceholder) {
+            setSrc(PLACEHOLDER_DATA_URL);
+          }
+        }}
+      />
+      {/* Bottom-to-top gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent group-hover:from-black/55 transition-[background] duration-300 pointer-events-none" />
 
-        {/* Bottom-to-top gradient overlay */}
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/30 to-transparent group-hover:from-black/60 transition-[background] duration-300 pointer-events-none" />
-
-        {/* Category label placed on the image */}
-        <h3 className="absolute bottom-3 left-3 right-3 text-center text-white text-sm md:text-base lg:text-lg font-medium drop-shadow-sm transition-colors group-hover:text-white">
-          {category.name}
-        </h3>
-      </div>
+      {/* Category label — left-aligned, bottom of the tile */}
+      <h3 className="absolute left-3 bottom-[11px] text-sm font-semibold text-white [text-shadow:0_1px_6px_rgba(0,0,0,0.3)]">
+        {category.name}
+      </h3>
     </Link>
   );
 }

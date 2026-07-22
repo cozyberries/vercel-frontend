@@ -26,32 +26,21 @@ export interface AnonymousUserPayload {
 export async function generateAuthToken(userId: string, userEmail?: string): Promise<string> {
   try {
     const supabase = createAdminSupabaseClient();
-    
-    // Get user profile with role
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
 
-    const userRole = profile?.role || 'customer';
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
 
-    // If email is not provided, try to get it from auth
-    let email = userEmail;
-    if (!email) {
-      const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-      email = authUser.user?.email;
-    }
+    const userRole = (authUser?.user?.app_metadata?.role as UserPayload['role']) || 'customer';
+    const email = userEmail || authUser?.user?.email;
 
     const payload: UserPayload = {
       id: userId,
-      email: email,
+      email,
       role: userRole,
       isAnonymous: false,
     };
 
     return sign(payload, JWT_SECRET, {
-      expiresIn: '7d', // Token expires in 7 days
+      expiresIn: '7d',
       issuer: 'your-app-name',
       audience: 'your-app-users',
     });

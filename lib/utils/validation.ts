@@ -22,28 +22,6 @@ export const validateEmail = (email: string): ValidationResult => {
   return { isValid: true };
 };
 
-/** Password strength for signup; aligns with common auth requirements (e.g. Supabase default). */
-export const validateSignupPassword = (password: string): ValidationResult => {
-  if (!password) {
-    return { isValid: false, error: "Password is required" };
-  }
-  if (password.length < 8) {
-    return { isValid: false, error: "Password must be at least 8 characters" };
-  }
-  if (password.length > 72) {
-    return { isValid: false, error: "Password must be less than 72 characters" };
-  }
-  const hasLetter = /[a-zA-Z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  if (!hasLetter || !hasNumber) {
-    return {
-      isValid: false,
-      error: "Password must include at least one letter and one number",
-    };
-  }
-  return { isValid: true };
-};
-
 // Phone number validation (required version - for signup flows)
 export const validateRequiredPhoneNumber = (phone: string): ValidationResult => {
   if (!phone || phone.trim() === "") {

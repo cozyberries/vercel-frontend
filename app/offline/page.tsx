@@ -4,6 +4,7 @@ import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "You're Offline | CozyBerries",
+  robots: { index: false, follow: false },
 };
 
 export default function OfflinePage() {

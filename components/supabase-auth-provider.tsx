@@ -10,10 +10,26 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
+import {
+  requestAuthToken,
+  resolveAuthToken,
+  type ResolveAuthTokenResult,
+} from "@/lib/auth/generate-jwt-token";
 
 interface UserProfile {
   id: string;
   role: "customer" | "admin" | "super_admin";
+}
+
+export interface ImpersonationTarget {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+}
+
+export interface ImpersonationState {
+  active: boolean;
+  target: ImpersonationTarget | null;
 }
 
 interface AuthContextType {
@@ -25,14 +41,26 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  impersonation: ImpersonationState;
+  /**
+   * True once the client has resolved `/api/admin/impersonation/state` at
+   * least once for the current session. Hooks that read/write user-scoped
+   * data (cart, wishlist) should wait for this before their first fetch,
+   * so they don't accidentally act against the wrong effective user during
+   * the initial hydration race.
+   */
+  impersonationReady: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, phone?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<{ success: boolean; error?: any }>;
   refreshProfile: () => Promise<void>;
+  refreshImpersonation: () => Promise<void>;
+  stopImpersonation: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const DEFAULT_IMPERSONATION: ImpersonationState = { active: false, target: null };
 
 export function SupabaseAuthProvider({
   children,
@@ -44,39 +72,58 @@ export function SupabaseAuthProvider({
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [impersonation, setImpersonation] = useState<ImpersonationState>(
+    DEFAULT_IMPERSONATION
+  );
+  const [impersonationReady, setImpersonationReady] = useState(false);
 
   // Create supabase client once and reuse it
   const [supabase] = useState(() => createClient());
 
   // In-flight request deduplication for fetch-based calls
   const inflightRef = useRef<Map<string, Promise<any>>>(new Map());
+  const isMountedRef = useRef(true);
 
-  // Helper function to generate JWT token (deduplicated)
-  const generateJwtToken = useCallback(async (userId: string, userEmail?: string) => {
-    const key = `token:${userId}`;
-    const existing = inflightRef.current.get(key);
-    if (existing) return existing;
+  // Refs mirroring state that the token-mint flow needs to read without
+  // re-subscribing. `impersonationActiveRef` lets `mintAuthToken` gate the
+  // HTTP call on the latest impersonation state even when invoked from a
+  // memoised callback; `jwtTokenRef` exposes the previously-minted token so
+  // `resolveAuthToken` can preserve it across impersonation and transient
+  // network errors instead of silently wiping a still-valid JWT.
+  const impersonationActiveRef = useRef(false);
+  const jwtTokenRef = useRef<string | null>(null);
 
-    const promise = (async () => {
-      try {
-        const response = await fetch("/api/auth/generate-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, userEmail }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.token;
-        }
-      } catch (error) {
-        console.error("Error generating JWT token:", error);
-      }
-      return null;
-    })().finally(() => { inflightRef.current.delete(key); });
+  // Mint a JWT for the given session user, gated on impersonation state.
+  // Returns the resolved `{ token, action }` so callers can decide whether
+  // to commit the token to state (unchanged values short-circuit the
+  // downstream render). Deduplicated per userId + impersonation state so
+  // concurrent callers don't double-post to `/api/auth/generate-token`.
+  const mintAuthToken = useCallback(
+    async (
+      userId: string,
+      userEmail: string | undefined
+    ): Promise<ResolveAuthTokenResult> => {
+      const key = `token:${userId}:${impersonationActiveRef.current ? "imp" : "normal"}`;
+      const existing = inflightRef.current.get(key) as
+        | Promise<ResolveAuthTokenResult>
+        | undefined;
+      if (existing) return existing;
 
-    inflightRef.current.set(key, promise);
-    return promise;
-  }, []);
+      const promise = resolveAuthToken({
+        userId,
+        userEmail,
+        impersonationActive: impersonationActiveRef.current,
+        previousToken: jwtTokenRef.current,
+        request: requestAuthToken,
+      }).finally(() => {
+        inflightRef.current.delete(key);
+      });
+
+      inflightRef.current.set(key, promise);
+      return promise;
+    },
+    []
+  );
 
   // Helper function to create user profile if it doesn't exist (deduplicated)
   const ensureUserProfile = useCallback(async (userId: string) => {
@@ -107,81 +154,88 @@ export function SupabaseAuthProvider({
     return promise;
   }, []);
 
-  // Helper function to update user profile
+  // Helper function to update user profile.
+  //
+  // Token lifecycle is deliberately NOT handled here — it lives in a
+  // dedicated effect below that waits for impersonation state to resolve
+  // before minting. Doing it here would race the impersonation probe and
+  // fire `/api/auth/generate-token` with the `acting_as` cookie still in
+  // flight, which the server (correctly) refuses with 403.
   const updateUserProfile = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       try {
-        // First, ensure profile exists (create if it doesn't)
+        // Ensure role is set in app_metadata (safety net for first login)
         await ensureUserProfile(currentSession.user.id);
 
-        // Get user profile with role (deduplicated — prevents double query from
-        // concurrent getInitialSession + onAuthStateChange INITIAL_SESSION calls)
-        const roleKey = `role:${currentSession.user.id}`;
-        let rolePromise = inflightRef.current.get(roleKey);
-        if (!rolePromise) {
-          // Use try/finally inside async IIFE — no .finally() method required
-          // (Supabase query builder is a custom thenable without .finally)
-          rolePromise = (async () => {
-            try {
-              return await supabase
-                .from("user_profiles")
-                .select("role")
-                .eq("id", currentSession.user.id)
-                .single();
-            } finally {
-              inflightRef.current.delete(roleKey);
-            }
-          })();
-          inflightRef.current.set(roleKey, rolePromise);
-        }
-        const { data: profile, error } = await rolePromise;
-
-        if (!error && profile) {
-          const userProfile: UserProfile = {
-            id: currentSession.user.id,
-            role: profile.role,
-          };
-          setUserProfile(userProfile);
-        } else {
-          // Fallback for users without profile
-          const userProfile: UserProfile = {
-            id: currentSession.user.id,
-            role: "customer",
-          };
-          setUserProfile(userProfile);
-        }
-
-        // Generate JWT token for API authentication
-        const token = await generateJwtToken(
-          currentSession.user.id,
-          currentSession.user.email
-        );
-        setJwtToken(token);
+        // Role comes from JWT app_metadata — no DB query needed.
+        // New users fall back to 'customer' (correct); role appears in JWT on next refresh.
+        const role = (currentSession.user.app_metadata?.role as UserProfile['role']) ?? 'customer';
+        setUserProfile({ id: currentSession.user.id, role });
       } catch (error) {
         console.error("Error updating user profile:", error);
         // Set default customer profile on error
-        const userProfile: UserProfile = {
-          id: currentSession.user.id,
-          role: "customer",
-        };
-        setUserProfile(userProfile);
-
-        // Generate JWT token for API authentication
-        const token = await generateJwtToken(
-          currentSession.user.id,
-          currentSession.user.email
-        );
-        setJwtToken(token);
+        setUserProfile({ id: currentSession.user.id, role: "customer" });
       }
     } else {
-      // No session, clear profile and token
       setUserProfile(null);
-      setJwtToken(null);
     }
-  }, [supabase, generateJwtToken, ensureUserProfile]);
+  }, [ensureUserProfile]);
+
+  // Fetch /api/admin/impersonation/state with request dedup.
+  // Safe to call often; the endpoint is explicitly designed to be poll-friendly.
+  const refreshImpersonation = useCallback(async () => {
+    const key = "impersonation:state";
+    const existing = inflightRef.current.get(key);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      try {
+        const response = await fetch("/api/admin/impersonation/state", {
+          method: "GET",
+          credentials: "include",
+        });
+        if (!response.ok) {
+          if (isMountedRef.current) setImpersonation(DEFAULT_IMPERSONATION);
+          return;
+        }
+        const data = (await response.json()) as ImpersonationState;
+        if (!isMountedRef.current) return;
+        if (data && typeof data.active === "boolean") {
+          setImpersonation({
+            active: data.active,
+            target: data.target ?? null,
+          });
+        } else {
+          setImpersonation(DEFAULT_IMPERSONATION);
+        }
+      } catch (error) {
+        console.error("Error refreshing impersonation state:", error);
+        if (isMountedRef.current) setImpersonation(DEFAULT_IMPERSONATION);
+      } finally {
+        if (isMountedRef.current) setImpersonationReady(true);
+      }
+    })().finally(() => {
+      inflightRef.current.delete(key);
+    });
+
+    inflightRef.current.set(key, promise);
+    return promise;
+  }, []);
+
+  const stopImpersonation = useCallback(async () => {
+    try {
+      await fetch("/api/admin/impersonation/stop", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Error stopping impersonation:", error);
+    }
+    await refreshImpersonation();
+  }, [refreshImpersonation]);
 
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
     // Get initial session with timeout monitoring (but don't cancel the actual call)
     const getInitialSession = async () => {
@@ -210,7 +264,7 @@ export function SupabaseAuthProvider({
         // Don't treat slow responses as errors
         if (error) {
           console.warn("Session check error:", error.message);
-          if (isMounted) {
+          if (isMountedRef.current) {
             setSession(null);
             setUser(null);
             setLoading(false);
@@ -218,7 +272,7 @@ export function SupabaseAuthProvider({
           return;
         }
 
-        if (isMounted) {
+        if (isMountedRef.current) {
           setSession(session);
           setUser(session?.user ?? null);
           setLoading(false); // Set loading to false immediately after getting session
@@ -231,7 +285,7 @@ export function SupabaseAuthProvider({
         }
       } catch (error) {
         console.error("Error in getInitialSession:", error);
-        if (isMounted) {
+        if (isMountedRef.current) {
           setSession(null);
           setUser(null);
           setLoading(false);
@@ -245,7 +299,7 @@ export function SupabaseAuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
+      if (!isMountedRef.current) return;
 
       try {
         setSession(session);
@@ -261,69 +315,97 @@ export function SupabaseAuthProvider({
         });
       } catch (error) {
         console.error("Error in auth state change:", error);
-        if (isMounted) {
+        if (isMountedRef.current) {
           setLoading(false);
         }
       }
     });
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [supabase, updateUserProfile, ensureUserProfile]); // supabase, updateUserProfile, and ensureUserProfile are stable
+  }, [supabase, updateUserProfile]);
+
+  // Hydrate impersonation state on mount and whenever the session user id
+  // changes (login/logout). The endpoint is cheap and self-healing — it will
+  // clear the cookie if it's mismatched. We reset `impersonationReady` to
+  // false before the fetch so downstream hooks (cart, wishlist) wait for
+  // the fresh state before reading/writing against the new effective user
+  // — otherwise a stale `ready=true` from the previous session would let
+  // them run a hydration pass with the wrong context.
+  useEffect(() => {
+    setImpersonationReady(false);
+    refreshImpersonation();
+  }, [session?.user?.id, refreshImpersonation]);
+
+  // Re-hydrate when the tab regains focus — an admin may have started/exited
+  // impersonation in another tab.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handler = () => {
+      if (document.visibilityState === "visible") {
+        refreshImpersonation();
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [refreshImpersonation]);
+
+  // Keep refs consumed by `mintAuthToken` in sync with the latest state.
+  useEffect(() => {
+    impersonationActiveRef.current = impersonation.active;
+  }, [impersonation.active]);
+
+  useEffect(() => {
+    jwtTokenRef.current = jwtToken;
+  }, [jwtToken]);
+
+  // Session JWT lifecycle.
+  //
+  // The token MUST only be minted when impersonation is known to be
+  // inactive — `/api/auth/generate-token` is an identity-mutation endpoint
+  // that `blockIfImpersonating` refuses whenever the `acting_as` cookie is
+  // present (it would be a privilege-escalation surface otherwise). So we
+  // wait for `impersonationReady` before the first mint and skip the HTTP
+  // call entirely whenever `impersonation.active` is true.
+  //
+  // When impersonation ends (active: true → false) this effect re-runs and
+  // mints a fresh token automatically.
+  //
+  // When the user signs out (no session), we clear the token synchronously
+  // without hitting the network.
+  useEffect(() => {
+    if (!session?.user) {
+      setJwtToken(null);
+      return;
+    }
+    if (!impersonationReady) return;
+    if (impersonation.active) return;
+
+    let cancelled = false;
+    const { id, email } = session.user;
+    (async () => {
+      const { token } = await mintAuthToken(id, email);
+      if (cancelled || !isMountedRef.current) return;
+      setJwtToken((prev) => (prev === token ? prev : token));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    session?.user?.id,
+    session?.user?.email,
+    impersonationReady,
+    impersonation.active,
+    mintAuthToken,
+  ]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
-  };
-
-  const signUp = async (email: string, password: string, phone?: string) => {
-    const redirectUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
-        : process.env.NEXT_PUBLIC_SITE_URL
-          ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")}/auth/callback`
-          : "http://localhost:3000/auth/callback";
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    });
-    
-    // If signup is successful and user is created, create a profile with generated name
-    if (!error && data.user) {
-      // Call API route to create profile server-side (bypasses RLS issues)
-      try {
-        const response = await fetch("/api/users/create-profile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: data.user.id,
-            email: email,
-            phone: phone,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("Error creating user profile:", errorData);
-          // Don't fail signup if profile creation fails, just log the error
-        }
-      } catch (fetchError) {
-        console.error("Error calling profile init API:", fetchError);
-        // Don't fail signup if profile creation fails, just log the error
-      }
-    }
-    
     return { error };
   };
 
@@ -354,6 +436,13 @@ export function SupabaseAuthProvider({
   const signOut = useCallback(async () => {
     try {
       console.log("Sign out initiated...");
+      // Stop impersonation BEFORE signing out so the audit `stop` event
+      // can attribute the action to the still-active session user.
+      try {
+        await stopImpersonation();
+      } catch (stopErr) {
+        console.error("Error stopping impersonation during sign out:", stopErr);
+      }
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Error signing out:", error);
@@ -362,13 +451,14 @@ export function SupabaseAuthProvider({
       // Clear profile and token after sign out
       setUserProfile(null);
       setJwtToken(null);
+      setImpersonation(DEFAULT_IMPERSONATION);
       console.log("Sign out successful");
       return { success: true };
     } catch (error) {
       console.error("Sign out failed:", error);
       return { success: false, error };
     }
-  }, [supabase]);
+  }, [supabase, stopImpersonation]);
 
   const refreshProfile = useCallback(async () => {
     if (session?.user) {
@@ -376,14 +466,16 @@ export function SupabaseAuthProvider({
     }
   }, [session, updateUserProfile]);
 
-  // Computed values
+  // Computed values — `isAdmin`/`isSuperAdmin` reflect the SESSION user (the
+  // actor), not the effective user. Target admin powers are NOT inherited
+  // during impersonation; see the design spec §Security.
   const isAuthenticated = !!user;
   const isAdmin = userProfile
     ? ["admin", "super_admin"].includes(userProfile.role)
     : false;
   const isSuperAdmin = userProfile ? userProfile.role === "super_admin" : false;
 
-  const value = {
+  const value: AuthContextType = {
     user,
     session,
     loading,
@@ -392,11 +484,14 @@ export function SupabaseAuthProvider({
     isAuthenticated,
     isAdmin,
     isSuperAdmin,
+    impersonation,
+    impersonationReady,
     signIn,
-    signUp,
     signInWithGoogle,
     signOut,
     refreshProfile,
+    refreshImpersonation,
+    stopImpersonation,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

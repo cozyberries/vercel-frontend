@@ -86,6 +86,28 @@ export default defineConfig({
         video: 'on',
       },
     },
+
+    // Admin impersonation happy-path — reuses the same logged-in session
+    // from purchase-auth-setup (TEST_ADMIN_EMAIL is already an admin in the
+    // project; role is checked via Supabase JWT, not hard-coded here).
+    // Desktop viewport: the admin block on ProfileForm renders identically
+    // on mobile, but desktop avoids the drawer/sheet edge cases and gives
+    // the amber override panel more room.
+    // Retries disabled — the test creates a brand-new Supabase auth user
+    // and places a real order; retries would leak duplicate records and
+    // hide root causes.
+    {
+      name: 'admin-impersonation',
+      testMatch: /admin-impersonation\.spec\.ts/,
+      retries: 0,
+      dependencies: ['purchase-auth-setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        storageState: 'tests/.auth/purchase-user.json',
+        video: 'on',
+      },
+    },
   ],
 
   /* Run your local dev server before starting the tests */

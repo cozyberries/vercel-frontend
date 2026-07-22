@@ -5,6 +5,7 @@ import {
   stateCodeToName,
 } from "@/lib/utils/shipping-helpers";
 import { UpstashService } from "@/lib/upstash";
+import { notifyUnserviceablePincode } from "@/lib/services/telegram";
 
 const PINCODE_RATE_LIMIT_PER_MINUTE = 60;
 
@@ -105,6 +106,20 @@ export async function GET(request: Request) {
         }
       } catch (error) {
         console.warn("Pincode area fetch (postalpincode.in) failed:", error);
+      }
+    }
+
+    if (!result.serviceable) {
+      // Throttle: one Telegram alert per pincode per hour to avoid notification floods
+      const throttleKey = `telegram:unserviceable:${pincode}`;
+      const alreadyAlerted = await UpstashService.get(throttleKey).catch(() => null);
+      if (!alreadyAlerted) {
+        void UpstashService.set(throttleKey, 1, 3600).catch(() => {});
+        notifyUnserviceablePincode({
+          pincode,
+          district: result.district ?? null,
+          state: stateCodeToName(result.state_code) ?? null,
+        });
       }
     }
 

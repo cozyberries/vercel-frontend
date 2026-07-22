@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
+import { notifyNewRating } from "@/lib/services/telegram";
+
+async function uploadImageToSupabase(file: File, ratingId: string): Promise<string> {
+  const supabase = createAdminSupabaseClient();
+  const dotIdx = file.name.lastIndexOf(".");
+  const rawExt = dotIdx !== -1 ? file.name.slice(dotIdx + 1) : "";
+  const ext = /^[a-zA-Z0-9]+$/.test(rawExt)
+    ? rawExt.toLowerCase()
+    : (file.type.split("/")[1] ?? "jpg");
+  const path = `reviews/${ratingId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const arrayBuffer = await file.arrayBuffer();
+  const { error } = await supabase.storage
+    .from("media")
+    .upload(path, arrayBuffer, { contentType: file.type, upsert: false });
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+  const { data } = supabase.storage.from("media").getPublicUrl(path);
+  return data.publicUrl;
+}
 
 function invalidateRatingCaches(productSlug: string): void {
   UpstashService.delete("ratings:all").catch(() => {});
@@ -27,6 +44,7 @@ export async function POST(request: NextRequest) {
     const product_slug = (formData.get("product_slug") ?? formData.get("product_id")) as string | null;
     const ratingValue = Number(formData.get("rating"));
     const comment = (formData.get("comment") as string) || "";
+    const title = ((formData.get("title") as string) || "").trim() || null;
     const imageFiles = formData.getAll("images") as File[];
 
     if (user_id !== authUser.id) {
@@ -83,6 +101,7 @@ export async function POST(request: NextRequest) {
           user_id: authUser.id,
           product_slug,
           rating: ratingValue,
+          title,
           comment,
           images: [],
         },
@@ -99,7 +118,7 @@ export async function POST(request: NextRequest) {
     if (validImages.length > 0) {
       const uploadResults = await Promise.allSettled(
         validImages.map((file) =>
-          uploadImageToCloudinary(file).then((url) => ({ file: file.name, url, status: "success" }))
+          uploadImageToSupabase(file, data.id).then((url) => ({ file: file.name, url, status: "success" }))
         )
       );
 
@@ -144,6 +163,13 @@ export async function POST(request: NextRequest) {
     }
 
     invalidateRatingCaches(product_slug);
+    void notifyNewRating({
+      productSlug: product_slug,
+      rating: ratingValue,
+      comment: comment || null,
+      email: authUser.email ?? null,
+      phone: authUser.phone ?? null,
+    });
     if (uploadStatus !== undefined) {
       return NextResponse.json({
         success: true,
@@ -167,7 +193,7 @@ export async function GET(request: NextRequest) {
     const cacheKey = productSlug ? `ratings:product:${productSlug}` : "ratings:all";
 
     const cached = await UpstashService.get(cacheKey).catch(() => null);
-    if (cached) {
+    if (cached && Array.isArray(cached) && (cached.length === 0 || "user_name" in cached[0])) {
       return NextResponse.json(cached, {
         status: 200,
         headers: {
@@ -187,7 +213,28 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const payload = data ?? [];
+    const rows = data ?? [];
+
+    // Enrich with reviewer display names server-side so the client
+    // doesn't need to call the admin-only /api/users endpoint.
+    const userIds = [...new Set(rows.map((r: any) => r.user_id).filter(Boolean))] as string[];
+    const userMap: Record<string, string | null> = {};
+    if (userIds.length > 0) {
+      try {
+        const adminSupabase = createAdminSupabaseClient();
+        // Fetch only the specific users who left reviews — avoids paginating all users.
+        await Promise.all(userIds.map(async (id) => {
+          const { data } = await adminSupabase.auth.admin.getUserById(id);
+          if (data?.user) {
+            userMap[id] = (data.user.user_metadata?.full_name as string) ?? null;
+          }
+        }));
+      } catch (err) {
+        console.error("[ratings GET] Failed to enrich user names:", err);
+      }
+    }
+
+    const payload = rows.map((r: any) => ({ ...r, user_name: userMap[r.user_id] ?? null }));
     UpstashService.set(cacheKey, payload, 900).catch(() => {});
 
     return NextResponse.json(payload, {

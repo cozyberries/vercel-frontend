@@ -47,16 +47,99 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+const BASE_URL = "https://cozyberries.in";
+
+function buildProductJsonLd(product: NonNullable<Awaited<ReturnType<typeof getProductBySlug>>>) {
+  const images = (product.images ?? [])
+    .map((url) => (typeof url === "string" ? normalizeAbsoluteUrl(url) : undefined))
+    .filter(Boolean) as string[];
+
+  const variantPrices = (product.variants ?? []).map((v) => v.price).filter((p) => p > 0);
+  const lowPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : product.price;
+  const highPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : product.price;
+  const offerCount = (product.variants ?? []).length || 1;
+
+  const inStock =
+    (product.stock_quantity ?? 0) > 0 ||
+    (product.variants ?? []).some((v) => v.stock_quantity > 0);
+
+  const priceValidUntil = new Date();
+  priceValidUntil.setFullYear(priceValidUntil.getFullYear() + 1);
+  const priceValidUntilStr = priceValidUntil.toISOString().split("T")[0];
+
+  const productUrl = `${BASE_URL}/products/${product.slug}`;
+
+  return {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    name: product.name,
+    description: product.description || product.name,
+    image: images.length > 0 ? images : undefined,
+    url: productUrl,
+    brand: { "@type": "Brand", name: "CozyBerries" },
+    offers: {
+      "@type": "AggregateOffer",
+      priceCurrency: "INR",
+      lowPrice,
+      highPrice,
+      offerCount,
+      description: product.description || product.name,
+      url: productUrl,
+      availability: inStock
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      priceValidUntil: priceValidUntilStr,
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "IN",
+        returnPolicyCategory:
+          "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 7,
+        returnMethod: "https://schema.org/ReturnByMail",
+        returnFees: "https://schema.org/FreeReturn",
+      },
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: { "@type": "MonetaryAmount", value: "90", currency: "INR" },
+        shippingDestination: { "@type": "DefinedRegion", addressCountry: "IN" },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: {
+            "@type": "QuantitativeValue",
+            minValue: 1,
+            maxValue: 2,
+            unitCode: "DAY",
+          },
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 3,
+            maxValue: 7,
+            unitCode: "DAY",
+          },
+        },
+      },
+    },
+  };
+}
+
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
 
   const product = await getProductBySlug(id);
   if (!product) notFound();
 
+  const jsonLd = buildProductJsonLd(product);
+
   return (
-    <ProductInteractions
-      product={product}
-      staticContent={<ProductStaticInfo product={product} />}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ProductInteractions
+        product={product}
+        staticContent={<ProductStaticInfo product={product} />}
+      />
+    </>
   );
 }

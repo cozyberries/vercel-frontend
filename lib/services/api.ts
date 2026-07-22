@@ -1,6 +1,8 @@
 import axios from "axios";
 import { normalizeProduct } from "@/lib/utils/product";
 import type { ActiveOfferResponse } from "@/lib/types/order";
+import type { AppNotification } from "@/lib/types/notification";
+import type { NotificationPreferences } from "@/lib/notifications/preferences";
 // ---------- Types ----------
 export interface ProductVariant {
   slug: string;
@@ -327,6 +329,13 @@ export const getCategoryOptions = async (
 
 // Note: getAllProducts function removed - use getAllProductsDetailed() and transform with normalizeProduct() instead
 
+/**
+ * Fetches products flagged `is_featured`, topped up with the newest other
+ * active products when fewer than `limit` are actually marked featured —
+ * callers (home page "Featured" rail, PDP related-products) always want a
+ * full row rather than a sparse one that reveals how few products are
+ * currently flagged featured in the catalog.
+ */
 export const getFeaturedProducts = async (
   limit = 4,
   retries = 3
@@ -339,8 +348,25 @@ export const getFeaturedProducts = async (
           featured: true,
         },
       });
-      // Return full product data
-      return data?.products || [];
+      const featured: Product[] = data?.products || [];
+
+      if (featured.length >= limit) return featured;
+
+      // Top up with the newest other active products so the section is
+      // never sparser than `limit` just because few products are flagged featured.
+      // Over-fetch by `featured.length` so there's still enough left after
+      // de-duping against the featured set below.
+      const { data: fillData } = await dedupeGet("/api/products", {
+        params: {
+          limit: limit + featured.length,
+          sortBy: "created_at",
+          sortOrder: "desc",
+        },
+      });
+      const featuredIds = new Set(featured.map((p) => p.id));
+      const fill: Product[] = (fillData?.products || []).filter((p: Product) => !featuredIds.has(p.id));
+
+      return [...featured, ...fill].slice(0, limit);
     } catch (error) {
       console.error(
         `Error fetching featured products (attempt ${i + 1}/${retries}):`,
@@ -672,4 +698,47 @@ export async function getProfileCombined(): Promise<ProfileCombinedResponse> {
     profile: data.profile,
     addresses: Array.isArray(data.addresses) ? data.addresses : [],
   };
+}
+
+// ---------- Notifications (auth required) ----------
+
+export async function getNotifications(): Promise<AppNotification[]> {
+  const res = await fetch("/api/notifications", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Notifications fetch failed: ${res.status}`);
+  const data = (await res.json()) as { notifications?: AppNotification[] };
+  return Array.isArray(data.notifications) ? data.notifications : [];
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const res = await fetch(`/api/notifications/${id}`, { method: "PATCH" });
+  if (!res.ok) throw new Error(`Mark notification read failed: ${res.status}`);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const res = await fetch("/api/notifications", { method: "PATCH" });
+  if (!res.ok) throw new Error(`Mark all notifications read failed: ${res.status}`);
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  const res = await fetch("/api/profile/notification-preferences", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Notification preferences fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateNotificationPreferences(
+  patch: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> {
+  const res = await fetch("/api/profile/notification-preferences", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`Notification preferences update failed: ${res.status}`);
+  return res.json();
 }

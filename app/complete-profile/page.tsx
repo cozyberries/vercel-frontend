@@ -25,6 +25,8 @@ export default function CompleteProfilePage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -76,7 +78,7 @@ export default function CompleteProfilePage() {
     }
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-gray-500">Loading...</div>
