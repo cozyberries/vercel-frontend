@@ -121,6 +121,7 @@ export interface ProductListSearchParams {
   size?: string | null;
   age?: string | null;
   featured?: boolean;
+  design?: string | null;
   limit?: number;
 }
 
@@ -142,6 +143,7 @@ export async function queryProductSlugs(
     size,
     age,
     featured,
+    design,
     limit = PRODUCT_LIST_MAX_RESULTS,
   } = params;
 
@@ -194,8 +196,9 @@ export async function queryProductSlugs(
     }
   }
 
-  // When no search term, use a broad query that matches most product documents so filter-only requests succeed
-  const queryText = search?.trim() || 'a';
+  // When no search term, use a broad query that matches most product documents so filter-only requests succeed.
+  // Design is folded into the query text so Upstash matches it against indexed name/description fields.
+  const queryText = [search?.trim(), design?.trim()].filter(Boolean).join(' ') || 'a';
   const filter = clauses.length > 0 ? { AND: clauses } : undefined;
 
   const results = (await index.search({

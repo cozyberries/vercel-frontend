@@ -31,13 +31,6 @@ const TRUST_BADGES = [
   { icon: RotateCcw, label: "Easy returns" },
 ];
 
-// No backend hex per colour (each print is a separate product, not a switchable
-// variant) — these are decorative swatches matching the design, not real options.
-const DECORATIVE_SWATCHES = [
-  { name: "Sage", hex: "#aebd9c" },
-  { name: "Oat", hex: "#e4d4ba" },
-  { name: "Clay", hex: "#c98b6b" },
-];
 
 function AccordionSection({
   title,
@@ -116,7 +109,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [pendingSwatch, setPendingSwatch] = useState<string | null>(null);
   const [bundleChecked, setBundleChecked] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
   const { addToCart, cart } = useCart();
@@ -735,38 +727,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
           )}
 
           <div className="space-y-5 mb-6">
-            {product.colors && product.colors.length > 0 && (() => {
-              const realColorName = slugToTitle(product.colors[0]);
-              const defaultSwatch =
-                DECORATIVE_SWATCHES.find((s) => s.name.toLowerCase() === realColorName.toLowerCase())?.name
-                ?? DECORATIVE_SWATCHES[0].name;
-              const activeSwatch = pendingSwatch ?? defaultSwatch;
-              return (
-                <div>
-                  <p className="text-sm font-bold text-cb-fg mb-3">
-                    Colour — <span className="font-normal text-cb-muted-fg">{realColorName}</span>
-                  </p>
-                  <div className="flex gap-3">
-                    {DECORATIVE_SWATCHES.map((s) => (
-                      <button
-                        key={s.name}
-                        type="button"
-                        onClick={() => setPendingSwatch(s.name)}
-                        aria-label={s.name}
-                        title={s.name}
-                        className="h-9 w-9 rounded-full border-2"
-                        style={{
-                          background: s.hex,
-                          borderColor: activeSwatch === s.name ? "var(--cb-terracotta)" : "white",
-                          boxShadow: activeSwatch === s.name ? "0 0 0 1px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
             {product.sizes && product.sizes.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">

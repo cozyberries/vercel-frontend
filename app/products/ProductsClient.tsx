@@ -151,6 +151,7 @@ export default function ProductsClient() {
   const currentSize = searchParams.get("size") || "all";
   const currentGender = searchParams.get("gender") || "all";
   const currentAge = searchParams.get("age") || "all";
+  const currentDesign = searchParams.get("design") || null;
   const currentSearch = searchParams.get("search") || "";
   const currentFeatured = searchParams.get("featured") === "true";
   // Grid/list view only on mobile; desktop always uses grid. "view" query is mobile-only.
@@ -233,6 +234,7 @@ export default function ProductsClient() {
           sortOrder: currentSortOrder,
           featured: currentFeatured || undefined,
           search: currentSearch || undefined,
+          design: currentDesign || undefined,
         });
 
         // Ensure no duplicate products from the initial load
@@ -256,7 +258,7 @@ export default function ProductsClient() {
     };
 
     loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, productsRetry]);
+  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, currentDesign, productsRetry]);
 
   // Load more products function
   const loadMoreProducts = useCallback(async () => {
@@ -277,6 +279,7 @@ export default function ProductsClient() {
         sortOrder: currentSortOrder,
         featured: currentFeatured || undefined,
         search: currentSearch || undefined,
+        design: currentDesign || undefined,
       });
 
       setAllProducts((prev) => {
@@ -318,6 +321,7 @@ export default function ProductsClient() {
     currentSortOrder,
     currentFeatured,
     currentSearch,
+    currentDesign,
   ]);
 
   // Persist product slugs so the product detail page can show prev/next navigation
@@ -531,7 +535,7 @@ export default function ProductsClient() {
   };
 
   const handleApplyFilters = useCallback(
-    (filters: { size: string; gender: string; age: string }) => {
+    (filters: { size: string; gender: string; age: string; design: string | null }) => {
       const params = new URLSearchParams(searchParams.toString());
 
       if (filters.size === "all") params.delete("size");
@@ -542,6 +546,9 @@ export default function ProductsClient() {
 
       if (filters.age === "all") params.delete("age");
       else params.set("age", filters.age);
+
+      if (!filters.design) params.delete("design");
+      else params.set("design", filters.design);
 
       router.push(`/products?${params.toString()}`);
     },
@@ -557,9 +564,10 @@ export default function ProductsClient() {
       currentAge !== "all" ||
       currentSort !== "default" ||
       currentFeatured ||
-      currentSearch !== ""
+      currentSearch !== "" ||
+      currentDesign !== null
     );
-  }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
+  }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch, currentDesign]);
 
   // Show product grid as soon as products API returns; don't block on categories/sizes/genders
   const isProductsLoading = isLoading;
@@ -603,6 +611,7 @@ export default function ProductsClient() {
           currentSize={currentSize}
           currentGender={currentGender}
           currentAge={currentAge}
+          currentDesign={currentDesign}
           itemCount={totalItems}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}

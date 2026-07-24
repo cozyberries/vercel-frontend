@@ -24,6 +24,7 @@ interface FilterValues {
   size: string;
   gender: string;
   age: string;
+  design: string | null;
 }
 
 interface FilterSheetProps {
@@ -33,6 +34,7 @@ interface FilterSheetProps {
   currentSize: string;
   currentGender: string;
   currentAge: string;
+  currentDesign: string | null;
   itemCount: number;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
@@ -41,20 +43,6 @@ interface FilterSheetProps {
 
 // No backend field for pattern/design — chips are UI-only and don't affect results.
 const PATTERN_OPTIONS = ["Solid", "Stripe", "Polka", "Floral", "Check"];
-
-// No backend color palette exists (the catalog's `colors` table holds print/pattern
-// names like "Petal Pops", not a swatch palette) — these match the design mock's
-// swatch reference exactly but are visual only and don't affect results.
-const SWATCHES = [
-  { name: "Sage", hex: "#aebd9c" },
-  { name: "Oat", hex: "#e4d4ba" },
-  { name: "Clay", hex: "#c98b6b" },
-  { name: "Blush", hex: "#e3c2bd" },
-  { name: "Almond", hex: "#ead7bd" },
-  { name: "Mist", hex: "#c4cdc9" },
-  { name: "Stone", hex: "#d0c7ba" },
-  { name: "Fern", hex: "#8ba27e" },
-];
 
 const MIN_PRICE = 250;
 const MAX_PRICE = 2000;
@@ -66,6 +54,7 @@ export default function FilterSheet({
   currentSize,
   currentGender,
   currentAge,
+  currentDesign,
   itemCount,
   onApplyFilters,
   onClearFilters,
@@ -77,9 +66,7 @@ export default function FilterSheet({
   const [pendingSize, setPendingSize] = useState(currentSize);
   const [pendingGender, setPendingGender] = useState(currentGender);
   const [pendingAge, setPendingAge] = useState(currentAge);
-  // Not backed by real data/API — visual only, never sent to the parent.
-  const [pendingColor, setPendingColor] = useState<string | null>(null);
-  const [pendingPattern, setPendingPattern] = useState<string | null>(null);
+  const [pendingPattern, setPendingPattern] = useState<string | null>(currentDesign);
   const [pendingMaxPrice, setPendingMaxPrice] = useState(MAX_PRICE);
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -87,20 +74,18 @@ export default function FilterSheet({
       setPendingSize(currentSize);
       setPendingGender(currentGender);
       setPendingAge(currentAge);
-      setPendingColor(null);
-      setPendingPattern(null);
+      setPendingPattern(currentDesign);
       setPendingMaxPrice(MAX_PRICE);
     }
     setOpen(isOpen);
   };
 
   const handleApplyFilters = () => {
-    onApplyFilters({ size: pendingSize, gender: pendingGender, age: pendingAge });
+    onApplyFilters({ size: pendingSize, gender: pendingGender, age: pendingAge, design: pendingPattern });
     setOpen(false);
   };
 
   const handleClearFilters = () => {
-    setPendingColor(null);
     setPendingPattern(null);
     setPendingMaxPrice(MAX_PRICE);
     onClearFilters();
@@ -111,7 +96,6 @@ export default function FilterSheet({
     pendingSize !== "all" ||
     pendingGender !== "all" ||
     pendingAge !== "all" ||
-    pendingColor !== null ||
     pendingPattern !== null ||
     pendingMaxPrice !== MAX_PRICE;
 
@@ -143,8 +127,8 @@ export default function FilterSheet({
                 {genderOptions.map((g) => (
                   <Chip
                     key={g.id}
-                    active={pendingGender === g.name}
-                    onClick={() => setPendingGender(pendingGender === g.name ? "all" : g.name)}
+                    active={pendingGender === g.id}
+                    onClick={() => setPendingGender(pendingGender === g.id ? "all" : g.id)}
                   >
                     {g.name}
                   </Chip>
@@ -175,8 +159,8 @@ export default function FilterSheet({
                 {sizeOptions.map((s) => (
                   <Chip
                     key={s.id}
-                    active={pendingSize === s.name}
-                    onClick={() => setPendingSize(pendingSize === s.name ? "all" : s.name)}
+                    active={pendingSize === s.id}
+                    onClick={() => setPendingSize(pendingSize === s.id ? "all" : s.id)}
                   >
                     {s.name}
                   </Chip>
@@ -184,7 +168,7 @@ export default function FilterSheet({
               </div>
             </div>
 
-            {/* Design — not wired to any real data; visual only */}
+            {/* Design */}
             <div>
               <h3 className="text-sm font-bold mb-3">Design</h3>
               <div className="flex flex-wrap gap-2">
@@ -197,37 +181,6 @@ export default function FilterSheet({
                     {p}
                   </Chip>
                 ))}
-              </div>
-            </div>
-
-            {/* Colour — no backend palette exists (catalog only has print names); visual only */}
-            <div>
-              <h3 className="text-sm font-bold mb-3">Colour</h3>
-              <div className="flex flex-wrap gap-3">
-                {SWATCHES.map((c) => {
-                  const on = pendingColor === c.name;
-                  return (
-                    <button
-                      key={c.name}
-                      type="button"
-                      onClick={() => setPendingColor(on ? null : c.name)}
-                      aria-label={c.name}
-                      title={c.name}
-                      className="flex flex-col items-center gap-1.5 w-14"
-                    >
-                      <span
-                        className="block h-11 w-11 rounded-full border-2 border-white"
-                        style={{
-                          background: c.hex,
-                          boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
-                        }}
-                      />
-                      <span className={`text-[11.5px] font-medium ${on ? "text-cb-terracotta-deep" : "text-cb-muted-fg"}`}>
-                        {c.name}
-                      </span>
-                    </button>
-                  );
-                })}
               </div>
             </div>
 

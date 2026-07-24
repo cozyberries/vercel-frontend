@@ -101,6 +101,7 @@ async function refreshCacheInBackground(
     size: string | null;
     gender: string | null;
     age: string | null;
+    design: string | null;
   }
 ) {
   try {
@@ -163,6 +164,12 @@ async function refreshCacheInBackground(
   if (params.search) {
     query = query.or(
       `name.ilike.%${params.search}%,description.ilike.%${params.search}%`
+    );
+  }
+
+  if (params.design) {
+    query = query.or(
+      `name.ilike.%${params.design}%,description.ilike.%${params.design}%`
     );
   }
 
@@ -231,6 +238,7 @@ async function fetchProductsFromUpstashAndSupabase(params: {
   size: string | null;
   gender: string | null;
   age: string | null;
+  design: string | null;
 }): Promise<{
   products: Product[];
   totalItems: number;
@@ -243,6 +251,7 @@ async function fetchProductsFromUpstashAndSupabase(params: {
     size: params.size,
     age: params.age,
     featured: params.featured,
+    design: params.design,
     limit: 500,
   });
 
@@ -376,6 +385,7 @@ export async function GET(request: NextRequest) {
     const size = searchParams.get("size");
     const gender = searchParams.get("gender");
     const age = searchParams.get("age");
+    const design = searchParams.get("design");
     const sortBy = searchParams.get("sortBy") || "default";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
@@ -392,7 +402,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"}:feat_${featured}:sortb_${sortBy}:sorto_${sortOrder}${search ? `:q_${encodeURIComponent(search)}` : ""}${size ? `:size_${encodeURIComponent(size)}` : ""}${gender ? `:gender_${encodeURIComponent(gender)}` : ""}${age ? `:age_${encodeURIComponent(age)}` : ""}`;
+    const cacheKey = `products:lt_${limit}:pg_${page}:cat_${category || "all"}:feat_${featured}:sortb_${sortBy}:sorto_${sortOrder}${search ? `:q_${encodeURIComponent(search)}` : ""}${size ? `:size_${encodeURIComponent(size)}` : ""}${gender ? `:gender_${encodeURIComponent(gender)}` : ""}${age ? `:age_${encodeURIComponent(age)}` : ""}${design ? `:design_${encodeURIComponent(design)}` : ""}`;
 
     // 1. In-memory cache (instant)
     const memEntry = getMemoryCache(cacheKey);
@@ -446,7 +456,7 @@ export async function GET(request: NextRequest) {
         (async () => {
           try {
             await refreshCacheInBackground(cacheKey, {
-              limit, page, featured, category, search, size, gender, age, sortBy, sortOrder,
+              limit, page, featured, category, search, size, gender, age, sortBy, sortOrder, design,
             });
           } catch (error) {
             console.error(`Background revalidation failed for ${cacheKey}:`, error);
@@ -479,6 +489,7 @@ export async function GET(request: NextRequest) {
             size,
             gender,
             age,
+            design,
           });
 
         const response = {
@@ -577,6 +588,16 @@ export async function GET(request: NextRequest) {
         .replace(/_/g, "\\_");
       query = query.or(
         `name.ilike.%${escapedSearch}%,description.ilike.%${escapedSearch}%`
+      );
+    }
+
+    if (design) {
+      const escapedDesign = design
+        .replace(/\\/g, "\\\\")
+        .replace(/%/g, "\\%")
+        .replace(/_/g, "\\_");
+      query = query.or(
+        `name.ilike.%${escapedDesign}%,description.ilike.%${escapedDesign}%`
       );
     }
 
