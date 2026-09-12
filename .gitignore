@@ -93,3 +93,4 @@ logs
 .worktrees/
 .claude/
 .playwright-mcp/
+.mcp.json
