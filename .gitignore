@@ -94,3 +94,4 @@ logs
 .claude/
 .playwright-mcp/
 .mcp.json
+node-compile-cache/
