@@ -64,9 +64,6 @@ function Stepper({ step }: { step: Step }) {
   );
 }
 
-const ADMIN_OVERRIDE_NOTE_MIN_LEN = 3;
-const ADMIN_OVERRIDE_NOTE_MAX_LEN = 500;
-
 export default function CheckoutPage() {
   const { cart } = useCart();
   const { user, loading, impersonation } = useAuth();

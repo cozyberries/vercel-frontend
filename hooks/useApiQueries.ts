@@ -227,39 +227,6 @@ export function useOnBehalfOrders(
 }
 
 /**
- * Page size for the admin on-behalf-orders list. Exported so the consuming
- * component and this hook share a single source of truth for pagination.
- */
-export const ON_BEHALF_ORDERS_PAGE_SIZE = 25;
-
-/**
- * Admin-only list of orders placed on behalf of customers. Paginated via
- * offset; each page is cached independently by offset + limit. Requests are
- * sent with `credentials: "include"` so the Supabase session cookie is
- * available to the server route.
- */
-export function useOnBehalfOrders(
-  offset: number,
-  limit: number = ON_BEHALF_ORDERS_PAGE_SIZE
-) {
-  return useQuery<OnBehalfOrdersListResponse>({
-    queryKey: ["admin", "on-behalf-orders", { offset, limit }],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/admin/on-behalf-orders?limit=${limit}&offset=${offset}`,
-        { credentials: "include", cache: "no-store" }
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body?.error || `Request failed (${res.status})`);
-      }
-      return (await res.json()) as OnBehalfOrdersListResponse;
-    },
-    staleTime: 60_000,
-  });
-}
-
-/**
  * Delhivery shipment timeline for an order. Fetches only when enabled (e.g. order has a waybill).
  */
 export function useOrderShipmentTracking(
