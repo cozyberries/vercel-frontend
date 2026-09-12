@@ -51,7 +51,6 @@ interface AuthContextType {
    */
   impersonationReady: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, phone?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<{ success: boolean; error?: any }>;
   refreshProfile: () => Promise<void>;
@@ -410,52 +409,6 @@ export function SupabaseAuthProvider({
     return { error };
   };
 
-  const signUp = async (email: string, password: string, phone?: string) => {
-    const redirectUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
-        : process.env.NEXT_PUBLIC_SITE_URL
-          ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")}/auth/callback`
-          : "http://localhost:3000/auth/callback";
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    });
-    
-    // If signup is successful and user is created, create a profile with generated name
-    if (!error && data.user) {
-      // Call API route to create profile server-side (bypasses RLS issues)
-      try {
-        const response = await fetch("/api/users/create-profile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: data.user.id,
-            email: email,
-            phone: phone,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("Error creating user profile:", errorData);
-          // Don't fail signup if profile creation fails, just log the error
-        }
-      } catch (fetchError) {
-        console.error("Error calling profile init API:", fetchError);
-        // Don't fail signup if profile creation fails, just log the error
-      }
-    }
-    
-    return { error };
-  };
-
   const signInWithGoogle = useCallback(async () => {
     // Always use current origin for redirect so localhost stays localhost when testing locally.
     // Add http://localhost:3000/auth/callback to Supabase Dashboard → Auth → URL Configuration → Redirect URLs.
@@ -534,7 +487,6 @@ export function SupabaseAuthProvider({
     impersonation,
     impersonationReady,
     signIn,
-    signUp,
     signInWithGoogle,
     signOut,
     refreshProfile,

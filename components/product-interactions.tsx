@@ -2,26 +2,67 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import SupabaseImage from "@/components/ui/supabase-image";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Heart, Minus, Plus, Share2, Truck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus, Truck, Flame, Ruler, Leaf, RotateCcw, ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Chip } from "@/components/ui/chip";
 import { Product, SizeOption } from "@/lib/services/api";
-import { useWishlist } from "./wishlist-context";
+import { slugToTitle } from "@/lib/utils/product";
 import { useCart, getCartItemKey } from "./cart-context";
 import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import Reviews from "./reviews";
 import { RatingItem, useRating } from "./rating-context";
 import ViewReview from "./view_review";
-import { FaStar } from "react-icons/fa";
-import RatingForm from "./rating/RatingForm";
+import WriteReviewDialog from "./rating/WriteReviewDialog";
+import SizeGuideDialog from "./SizeGuideDialog";
 import { useAuth } from "./supabase-auth-provider";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
 import DiscountedPrice from '@/components/discounted-price'
-import { getDiscountedPrice } from '@/lib/utils/discount'
+import PincodeChecker from "./PincodeChecker"
+import QuickAddDialog from "./QuickAddDialog"
+import ProductCard from "./product-card"
+
+const TRUST_BADGES = [
+  { icon: Leaf, label: "100% Organic" },
+  { icon: Truck, label: "Ships in 2–4 days" },
+  { icon: RotateCcw, label: "Easy returns" },
+];
+
+// No backend hex per colour (each print is a separate product, not a switchable
+// variant) — these are decorative swatches matching the design, not real options.
+const DECORATIVE_SWATCHES = [
+  { name: "Sage", hex: "#aebd9c" },
+  { name: "Oat", hex: "#e4d4ba" },
+  { name: "Clay", hex: "#c98b6b" },
+];
+
+function AccordionSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-cb-border py-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className="text-sm font-bold text-cb-fg">{title}</span>
+        {open ? <Minus className="h-4 w-4 text-cb-fg" /> : <Plus className="h-4 w-4 text-cb-fg" />}
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
 
 import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
@@ -30,6 +71,7 @@ import { trackViewContent } from "@/lib/analytics/meta-pixel";
 
 interface ReviewItem {
   userName: string;
+  title?: string | null;
   rating: number;
   review: string;
   images?: string[];
@@ -41,12 +83,17 @@ interface ProductInteractionsProps {
   staticContent: React.ReactNode;
 }
 
+// Design shows only the top 3 feature chips near the price; the full list
+// reappears as a bulleted "Features" accordion further down the page.
+const TOP_CHIP_COUNT = 3;
+
 export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent }: ProductInteractionsProps) {
   // Read ?size= from URL client-side so the server component stays fully static (ISR).
   const searchParams = useSearchParams();
   const initialSize = searchParams.get("size") ?? initialSizeProp;
 
   const productSlug = product.slug ?? product.id ?? "";
+  const topFeatures = (product.features ?? []).slice(0, TOP_CHIP_COUNT);
 
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
@@ -65,11 +112,14 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const touchEndYRef = useRef<number>(0);
   const [allReviews, setAllReviews] = useState<ReviewItem[]>([]);
   const { reviews, showViewReviewModal, fetchReviews, setProductSlug } = useRating();
-  const [productRating, setProductRating] = useState<number>(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [pendingSwatch, setPendingSwatch] = useState<string | null>(null);
+  const [bundleChecked, setBundleChecked] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
-  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToCart, removeFromCart, addToCartTemporary, cart } = useCart();
+  const { addToCart, cart } = useCart();
   const { requireAuthForIntent } = useAuthGate();
   const router = useRouter();
 
@@ -96,24 +146,17 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       return;
     }
     setShowReviewForm(true);
-    // Scroll to the review form
-    setTimeout(() => {
-      document.getElementById("review-form-section")?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
   };
 
-  const handleSubmitRating = async (data: any) => {
+  const handleSubmitRating = async (data: { rating: number; title: string; comment: string }) => {
+    setIsSubmittingRating(true);
     try {
       const formData = new FormData();
-      formData.append("user_id", data.user_id);
-      formData.append("product_slug", data.product_slug);
+      formData.append("user_id", user?.id ?? "");
+      formData.append("product_slug", productSlug);
       formData.append("rating", String(data.rating));
+      if (data.title) formData.append("title", data.title);
       if (data.comment) formData.append("comment", data.comment);
-      if (data.imageFiles?.length > 0) {
-        for (const file of data.imageFiles) {
-          formData.append("images", file);
-        }
-      }
       const response = await fetch("/api/ratings", {
         method: "POST",
         body: formData,
@@ -126,14 +169,14 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
         // Fire and forget notifications (non-blocking)
         sendNotification(
           "Rating Submitted",
-          `User ${user?.id} has submitted a rating for product #${data?.product_slug}`,
+          `User ${user?.id} has submitted a rating for product #${productSlug}`,
           "success"
         ).catch((error) => console.error("Failed to send notification:", error));
 
         sendActivity(
           "rating_submission_success",
-          `User ${user?.id} submitted a rating for product #${data?.product_slug}`,
-          data?.product_slug
+          `User ${user?.id} submitted a rating for product #${productSlug}`,
+          productSlug
         ).catch((error) => console.error("Failed to log activity:", error));
 
         toast.success("Review submitted successfully!");
@@ -141,13 +184,15 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
         toast.error("Failed to submit review");
         sendActivity(
           "rating_submission_failed",
-          `User ${user?.id} failed to submit a rating for product #${data?.product_slug}`,
-          data?.product_slug
+          `User ${user?.id} failed to submit a rating for product #${productSlug}`,
+          productSlug
         ).catch((error) => console.error("Failed to log activity:", error));
       }
     } catch (error) {
       console.error("Error submitting rating:", error);
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsSubmittingRating(false);
     }
   };
 
@@ -181,34 +226,27 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Fetch all reviews
+  // Build the display review list for this product from the shared rating context
   useEffect(() => {
-    const fetchReviewsLocal = async () => {
-      if (!productSlug || !reviews || reviews.length === 0) return;
-      try {
-        const productReviews = reviews.filter((rev) => rev.product_slug === productSlug);
-        setAllReviews(
-          productReviews.map((rev: RatingItem) => ({
-            userName: rev.user_name || "Unknown User",
-            review: rev.comment,
-            rating: rev.rating,
-            images: rev.images,
-          }))
-        );
-        const totalRating = productReviews.reduce((acc, rev) => acc + rev.rating, 0);
-        const averageRating =
-          productReviews?.length > 0 ? (totalRating / productReviews?.length).toFixed(1) : 0;
-        setProductRating(Number(averageRating));
-      } catch (error) {
-        console.error('[fetchReviewsLocal] Failed to build review list', {
-          error,
-          productSlug,
-          reviewCount: reviews?.length ?? 0,
-        });
-        return;
-      }
-    };
-    fetchReviewsLocal();
+    if (!productSlug || !reviews || reviews.length === 0) return;
+    try {
+      const productReviews = reviews.filter((rev) => rev.product_slug === productSlug);
+      setAllReviews(
+        productReviews.map((rev: RatingItem) => ({
+          userName: rev.user_name || "Unknown User",
+          title: rev.title,
+          review: rev.comment,
+          rating: rev.rating,
+          images: rev.images,
+        }))
+      );
+    } catch (error) {
+      console.error('[fetchReviewsLocal] Failed to build review list', {
+        error,
+        productSlug,
+        reviewCount: reviews?.length ?? 0,
+      });
+    }
   }, [reviews, productSlug]);
 
   useEffect(() => {
@@ -241,6 +279,105 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const existingCartItem = cart.find((i) => getCartItemKey(i) === currentVariantKey);
   const existingCartQty = existingCartItem?.quantity ?? 0;
   const maxCanAdd = Math.max(0, availableStock - existingCartQty);
+
+  const addOptions = (product.sizes ?? []).map((s) => ({
+    size: s.name,
+    color: selectedColor || undefined,
+    price: s.price,
+    label: s.name,
+    stock: s.stock_quantity ?? 0,
+  }));
+
+  const handleQuickAddConfirm = (size: string | undefined, qty: number) => {
+    const opt = addOptions.find((o) => o.size === size);
+    if (!opt) return;
+    const stock = opt.stock ?? 0;
+    const existingKey = getCartItemKey({ id: product.id, size, color: selectedColor || undefined });
+    const existingQty = cart.find((i) => getCartItemKey(i) === existingKey)?.quantity ?? 0;
+    const room = Math.max(0, stock - existingQty);
+    if (room <= 0) {
+      toast.warning(`Only ${stock} item${stock === 1 ? "" : "s"} are available`);
+      return;
+    }
+    const qtyToAdd = Math.min(qty, room);
+    if (qty > room) {
+      toast.warning(`Only ${stock} item${stock === 1 ? "" : "s"} are available`);
+    }
+    const cartItem = {
+      id: product.id,
+      name: product.name,
+      price: opt.price,
+      image: product.images?.[0],
+      quantity: qtyToAdd,
+      stock_quantity: stock,
+      ...(selectedColor ? { color: selectedColor } : {}),
+      size,
+    };
+    if (!requireAuthForIntent({ type: "cart", item: cartItem })) return;
+    addToCart(cartItem);
+    toast.success(`${product.name} added to cart!`);
+  };
+
+  // "Frequently bought together" — real related products (same category), each
+  // defaulted to its first in-stock size. No real bundle discount exists, so the
+  // total is just a straight sum of the checked items' prices.
+  type BundleEntry = { id: string; name: string; image?: string; price: number; size?: string; stock: number; slug?: string };
+
+  const bundleItems: BundleEntry[] = [
+    {
+      id: product.id,
+      name: product.name,
+      image: product.images?.[0],
+      price: selectedSize?.price ?? product.price,
+      size: selectedSize?.name ?? product.sizes?.[0]?.name,
+      stock: availableStock,
+    },
+    ...relatedProducts.slice(0, 2).map((rp) => {
+      const rpSize = rp.sizes?.find((s) => (s.stock_quantity ?? 0) > 0) ?? rp.sizes?.[0];
+      return {
+        id: rp.id,
+        name: rp.name,
+        image: rp.images?.[0],
+        price: rpSize?.price ?? rp.price,
+        size: rpSize?.name,
+        stock: rpSize?.stock_quantity ?? rp.stock_quantity,
+        slug: rp.slug,
+      };
+    }),
+  ];
+  const bundleCheckedCount = bundleItems.filter((it) => bundleChecked[it.id] ?? true).length;
+  const bundleTotal = bundleItems
+    .filter((it) => bundleChecked[it.id] ?? true)
+    .reduce((sum, it) => sum + it.price, 0);
+
+  const handleAddBundle = () => {
+    const checkedItems = bundleItems.filter((it) => bundleChecked[it.id] ?? true);
+    if (checkedItems.length === 0) return;
+    const [first, ...rest] = checkedItems;
+    const firstPayload = {
+      id: first.id,
+      name: first.name,
+      price: first.price,
+      image: first.image,
+      quantity: 1,
+      stock_quantity: first.stock,
+      ...(first.size ? { size: first.size } : {}),
+    };
+    if (!requireAuthForIntent({ type: "cart", item: firstPayload })) return;
+    addToCart(firstPayload);
+    rest.forEach((it) => {
+      addToCart({
+        id: it.id,
+        name: it.name,
+        price: it.price,
+        image: it.image,
+        quantity: 1,
+        stock_quantity: it.stock,
+        ...(it.size ? { size: it.size } : {}),
+      });
+    });
+    toast.success(`${checkedItems.length} item${checkedItems.length === 1 ? "" : "s"} added to cart!`);
+  };
 
   const incrementQuantity = () => {
     setQuantity((prev) => Math.min(prev + 1, maxCanAdd > 0 ? maxCanAdd : availableStock));
@@ -352,7 +489,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   return showViewReviewModal ? (
     <ViewReview reviews={allReviews} />
   ) : (
-    <div className="container mx-auto px-4 py-4 md:py-8 pb-40 md:pb-8">
+    <div className="container mx-auto px-4 py-4 md:py-8 pb-28 lg:pb-24">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
         <div className="space-y-4 lg:space-y-0 lg:flex lg:gap-4">
@@ -409,6 +546,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 <ChevronLeft className="h-5 w-5" />
                 <span>Back</span>
               </button>
+
+              {/* Featured badge — same rotated sticker used on product cards */}
+              {product.is_featured && (
+                <span
+                  className="absolute top-12 md:top-3 left-3 z-20 inline-flex items-center gap-1 text-white text-[11px] font-extrabold tracking-[0.02em] px-2.5 py-1.5 shadow-md bg-cb-amber"
+                  style={{
+                    transform: "rotate(-6deg)",
+                    borderRadius: "9999px 9999px 9999px 3px",
+                  }}
+                >
+                  Featured
+                </span>
+              )}
 
               {/* Prev/Next arrows */}
               {product.images && product.images.length > 1 && (
@@ -550,237 +700,249 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
 
         {/* Product Details */}
         <div className="flex flex-col">
-          {/* Static content: title + wishlist button (h1 for SEO), category, shipping, features, care (RSC passed as prop) */}
+          {/* Static content: title + wishlist button (h1 for SEO), category, colour name (RSC passed as prop) */}
           {staticContent}
 
-          {/* Ratings row */}
-          {allReviews?.length > 0 && (
-            <div className="flex items-center justify-between mb-2">
-              <p className="flex items-center gap-2 text-[#6F5B35B8] text-[16px] font-[500]">
-                <FaStar /> {productRating} | {allReviews?.length} Ratings
-              </p>
-            </div>
-          )}
-
           {/* Price: hero = MRP strikethrough + large payable + badge on one row */}
-          <div className="mb-6">
+          <div className="mt-3 mb-2">
             <DiscountedPrice price={displayPrice} variant="hero" />
           </div>
 
-          <div className="space-y-4 mb-6">
+          <p className="flex items-center gap-2 text-sm text-cb-success mb-2">
+            <Truck className="h-4 w-4" />
+            Free shipping on orders above ₹{FREE_DELIVERY_THRESHOLD.toLocaleString("en-IN")}
+          </p>
+
+          {availableStock > 0 && availableStock <= 5 && (
+            <p className="flex items-center gap-1.5 text-sm font-medium text-cb-terracotta-deep mb-2">
+              <Flame className="h-4 w-4" />
+              Only {availableStock} left — order soon
+            </p>
+          )}
+
+          {topFeatures.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6 mt-2">
+              {topFeatures.map((feature, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cb-border bg-white px-3 py-1.5 text-xs font-medium text-cb-fg"
+                >
+                  <Leaf className="h-3.5 w-3.5 text-cb-terracotta" />
+                  {feature}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-5 mb-6">
+            {product.colors && product.colors.length > 0 && (() => {
+              const realColorName = slugToTitle(product.colors[0]);
+              const defaultSwatch =
+                DECORATIVE_SWATCHES.find((s) => s.name.toLowerCase() === realColorName.toLowerCase())?.name
+                ?? DECORATIVE_SWATCHES[0].name;
+              const activeSwatch = pendingSwatch ?? defaultSwatch;
+              return (
+                <div>
+                  <p className="text-sm font-bold text-cb-fg mb-3">
+                    Colour — <span className="font-normal text-cb-muted-fg">{realColorName}</span>
+                  </p>
+                  <div className="flex gap-3">
+                    {DECORATIVE_SWATCHES.map((s) => (
+                      <button
+                        key={s.name}
+                        type="button"
+                        onClick={() => setPendingSwatch(s.name)}
+                        aria-label={s.name}
+                        title={s.name}
+                        className="h-9 w-9 rounded-full border-2"
+                        style={{
+                          background: s.hex,
+                          borderColor: activeSwatch === s.name ? "var(--cb-terracotta)" : "white",
+                          boxShadow: activeSwatch === s.name ? "0 0 0 1px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {product.sizes && product.sizes.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium">Size</h3>
-                  <Link href="/size-guide" className="text-xs text-primary hover:underline">
-                    Size Guide
-                  </Link>
+                  <h3 className="text-sm font-bold text-cb-fg">Select size</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeGuide(true)}
+                    className="flex items-center gap-1 text-xs font-semibold text-cb-terracotta hover:text-cb-terracotta-deep"
+                  >
+                    <Ruler className="h-3.5 w-3.5" />
+                    Size guide
+                  </button>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {product.sizes.map((size) => {
                     const isSelected = selectedSize?.name === size.name;
                     const isOutOfStock =
                       size.stock_quantity === undefined || size.stock_quantity <= 0;
-                    const sizePayable = getDiscountedPrice(size.price).discounted;
                     return (
-                      <button
+                      <Chip
                         key={size.name}
-                        onClick={() => !isOutOfStock && setSelectedSize(size)}
+                        active={isSelected}
                         disabled={isOutOfStock}
-                        className={`relative flex flex-col items-center justify-center px-2 py-2.5 border rounded-lg text-sm transition-[border-color,background-color,color,box-shadow] duration-200
-                          ${isSelected
-                            ? "border-black bg-black text-white shadow-sm"
-                            : isOutOfStock
-                              ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
-                              : "border-gray-300 bg-white text-gray-900 hover:border-black hover:shadow-sm"
-                          }`}
+                        onClick={() => !isOutOfStock && setSelectedSize(size)}
+                        className={isOutOfStock ? "opacity-40 cursor-not-allowed line-through" : ""}
                       >
-                        <span className="font-medium">{size.name}</span>
-                        <span
-                          className={`text-xs mt-0.5 ${isSelected
-                              ? "text-gray-300"
-                              : isOutOfStock
-                                ? "text-gray-300"
-                                : "text-muted-foreground"
-                            }`}
-                        >
-                          ₹{sizePayable.toFixed(0)}
-                        </span>
-                        {isOutOfStock && (
-                          <span className="absolute inset-0 flex items-center justify-center">
-                            <span className="w-full h-px bg-gray-300 rotate-[-20deg]" />
-                          </span>
-                        )}
-                      </button>
+                        {size.name}
+                      </Chip>
                     );
                   })}
                 </div>
-                {availableStock > 0 && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    Only {availableStock} item{availableStock === 1 ? "" : "s"} left in this size!
-                  </p>
-                )}
               </div>
             )}
 
             <div>
-              <h3 className="text-sm font-medium mb-3">Quantity</h3>
-              <div className="flex items-center border rounded-md w-32">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-none"
+              <h3 className="text-sm font-bold text-cb-fg mb-3">Quantity</h3>
+              <div className="inline-flex items-center gap-4 rounded-full border border-cb-border px-1 h-10">
+                <button
+                  type="button"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-cb-fg ${quantity <= 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
                   onClick={decrementQuantity}
                   disabled={quantity <= 1}
                   aria-label="Decrease quantity"
                 >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <div className="flex-1 text-center">{quantity}</div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-none"
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="min-w-4 text-center text-sm font-semibold text-cb-fg select-none">{quantity}</span>
+                <button
+                  type="button"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-cb-fg ${quantity >= availableStock ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
                   onClick={incrementQuantity}
                   disabled={quantity >= availableStock}
                   aria-label="Increase quantity"
                 >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
 
+            <PincodeChecker />
+
+            <div className="grid grid-cols-3 gap-2">
+              {TRUST_BADGES.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex flex-col items-center gap-1.5 rounded-xl bg-cb-linen py-3 text-center">
+                  <Icon className="h-4 w-4 text-cb-terracotta-deep" />
+                  <span className="text-[11px] font-semibold text-cb-fg">{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Desktop CTA buttons */}
-          <div className="hidden md:flex flex-col sm:flex-row gap-4 mb-8">
-            <Button
-              size="lg"
-              className="w-1/2 bg-black hover:bg-gray-800"
-              onClick={() => {
-                if (availableStock <= 0) {
-                  toast.error("This option is out of stock");
-                  return;
-                }
-                const qty = Math.min(quantity, availableStock);
-                if (quantity > availableStock) {
-                  toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
-                }
-                const buyNowItem = {
-                  id: product.id,
-                  name: product.name,
-                  price: displayPrice,
-                  image: product.images?.[0],
-                  quantity: qty,
-                  stock_quantity: availableStock,
-                  ...(selectedColor ? { color: selectedColor } : {}),
-                  ...(selectedSize ? { size: selectedSize.name } : {}),
-                };
-                if (!requireAuthForIntent({ type: "buy_now", item: buyNowItem }))
-                  return;
-                addToCartTemporary(buyNowItem);
-                // flushSync in addToCartTemporary guarantees state is committed
-                // before this call returns, so we can navigate immediately.
-                router.push("/checkout");
-              }}
-            >
-              Buy Now
-            </Button>
-            <motion.div
-              className="w-1/2"
-              animate={
-                isShaking
-                  ? {
-                    x: [0, -10, 10, -10, 10, -5, 5, 0],
-                    transition: { duration: 0.6, ease: "easeInOut" },
-                  }
-                  : {}
-              }
-            >
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full z-0"
-                onClick={() => {
-                  if (isInCart) {
-                    removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
-                    toast.success(`${product.name} removed from cart!`);
-                  } else {
-                    if (availableStock <= 0) {
-                      toast.error("This option is out of stock");
-                      return;
-                    }
-                    if (maxCanAdd <= 0) {
-                      toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
-                      return;
-                    }
-                    const qtyToAdd  = Math.min(quantity, maxCanAdd);
-                    if (quantity > maxCanAdd) {
-                      toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
-                    }
-                    const cartItem = {
-                      id: product.id,
-                      name: product.name,
-                      price: displayPrice,
-                      image: product.images?.[0],
-                      quantity: qtyToAdd,
-                      stock_quantity: availableStock,
-                      ...(selectedColor ? { color: selectedColor } : {}),
-                      ...(selectedSize ? { size: selectedSize.name } : {}),
-                    };
-                    if (!requireAuthForIntent({ type: "cart", item: cartItem }))
-                      return;
-                    addToCart(cartItem);
-                    toast.success(`${product.name} added to cart!`);
-                  }
-                }}
-              >
-                {isInCart ? "Remove from Cart" : "Add to Cart"}
-              </Button>
-            </motion.div>
-          </div>
-
-          {isInCart && (
-            <div className="mb-4">
-              <span className="inline-block bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded shadow">
-                Added
-              </span>
+          {/* Frequently bought together — real related products; checkboxes/total/add are fully functional */}
+          {relatedProducts.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-sm font-bold text-cb-fg mb-3">Frequently bought together</h3>
+              <div className="rounded-2xl border border-cb-border overflow-hidden">
+                <div className="divide-y divide-cb-border">
+                  {bundleItems.map((it, index) => {
+                    const isCurrent = index === 0;
+                    const checked = bundleChecked[it.id] ?? true;
+                    return (
+                      <div key={it.id} className="flex items-center gap-3 p-3">
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-cb-linen">
+                          <SupabaseImage
+                            src={it.image}
+                            preset="thumbnail"
+                            alt={it.name}
+                            width={48}
+                            height={48}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-cb-fg truncate">{it.name}</p>
+                          <p className="text-sm text-cb-muted-fg">
+                            ₹{it.price}
+                            {it.size ? ` · Size ${it.size}` : ""}
+                          </p>
+                        </div>
+                        {isCurrent ? (
+                          <span className="shrink-0 rounded-full bg-cb-peach px-2.5 py-1 text-[11px] font-bold text-cb-terracotta-deep">
+                            This item
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setBundleChecked((prev) => ({ ...prev, [it.id]: !checked }))}
+                            aria-label={checked ? `Remove ${it.name} from bundle` : `Add ${it.name} to bundle`}
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
+                              checked
+                                ? "border-cb-terracotta bg-cb-terracotta text-white"
+                                : "border-cb-border text-transparent"
+                            }`}
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-between gap-4 border-t border-cb-border p-3">
+                  <div>
+                    <p className="text-xs text-cb-muted-fg">{bundleCheckedCount} items</p>
+                    <p className="text-base font-bold text-cb-fg">₹{bundleTotal}</p>
+                  </div>
+                  <Button
+                    onClick={handleAddBundle}
+                    disabled={bundleCheckedCount === 0}
+                    className="rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add {bundleCheckedCount} to cart
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Free delivery + Share */}
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
-            <div className="flex items-center gap-2">
-              <Truck className="h-4 w-4" />
-              <span>
-                Free shipping over ₹{FREE_DELIVERY_THRESHOLD.toLocaleString("en-IN")}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-0 h-auto"
-              onClick={async () => {
-                // Always copy clean URL to clipboard for consistency
-                try {
-                  await navigator.clipboard.writeText(window.location.href);
-                  toast.success("Product link copied to clipboard!");
-                } catch (err) {
-                  console.log("Error copying to clipboard:", err);
-                  // Fallback for older browsers
-                  const textArea = document.createElement("textarea");
-                  textArea.value = window.location.href;
-                  document.body.appendChild(textArea);
-                  textArea.select();
-                  document.execCommand("copy");
-                  document.body.removeChild(textArea);
-                  toast.success("Product link copied to clipboard!");
-                }
-              }}
-            >
-              <Share2 className="h-4 w-4 mr-1" />
-              Share
-            </Button>
+          {/* Description / Features / Materials & Care / Delivery & Returns */}
+          <div className="mb-2">
+            {product.description && (
+              <AccordionSection title="Description" defaultOpen>
+                <p className="text-sm text-cb-muted-fg leading-relaxed whitespace-pre-wrap">
+                  {product.description}
+                </p>
+              </AccordionSection>
+            )}
+            {product.features && product.features.length > 0 && (
+              <AccordionSection title="Features" defaultOpen>
+                <ul className="space-y-1.5">
+                  {product.features.map((feature, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm text-cb-muted-fg">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-cb-muted-fg" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </AccordionSection>
+            )}
+            {product.care_instructions && (
+              <AccordionSection title="Materials & Care">
+                <p className="text-sm text-cb-muted-fg leading-relaxed whitespace-pre-wrap">
+                  {product.care_instructions}
+                </p>
+              </AccordionSection>
+            )}
+            <AccordionSection title="Delivery & Returns">
+              <ul className="space-y-1.5">
+                <li className="text-sm text-cb-muted-fg">
+                  Free shipping on orders above ₹{FREE_DELIVERY_THRESHOLD.toLocaleString("en-IN")}; otherwise a flat delivery fee applies at checkout.
+                </li>
+                <li className="text-sm text-cb-muted-fg">Ships in 2–4 days, most pincodes served across India.</li>
+                <li className="text-sm text-cb-muted-fg">7-day easy returns on unused items in original packaging.</li>
+              </ul>
+            </AccordionSection>
           </div>
 
           <Separator className="my-8" />
@@ -792,88 +954,31 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               onWriteReview={handleWriteReview}
               isLoggedIn={!!user}
             />
-            {showReviewForm && (
-              <div id="review-form-section" className="mt-4">
-                <RatingForm
-                  onSubmitRating={handleSubmitRating}
-                  onCancel={() => setShowReviewForm(false)}
-                />
-              </div>
-            )}
           </div>
+
+          <WriteReviewDialog
+            isOpen={showReviewForm}
+            onClose={() => setShowReviewForm(false)}
+            productName={product.name}
+            productImage={product.images?.[0]}
+            reviewerName={user?.user_metadata?.full_name || user?.email || "You"}
+            isSaving={isSubmittingRating}
+            onSubmit={handleSubmitRating}
+          />
 
           {/* Related Products */}
           {relatedProducts && relatedProducts?.length > 0 && (
             <section className="mt-16">
-              <h2 className="text-2xl font-light text-center mb-8">You May Also Like</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <h2 className="text-[21px] md:text-[26px] font-light text-cb-fg mb-4 md:mb-6">You may also like</h2>
+              <div className="flex gap-[14px] lg:gap-[18px] overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {relatedProducts
-                  ?.filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
-                  ?.map((relatedProduct) => {
-                    const isRelatedInWishlist = isInWishlist(relatedProduct.id);
-                    return (
-                      <div key={relatedProduct?.id} className="group">
-                        <div className="relative mb-4 overflow-hidden bg-[#f5f5f5]">
-                          <Link href={`/products/${relatedProduct.slug}`}>
-                            <SupabaseImage
-                              src={relatedProduct?.images?.[0]}
-                              preset="list"
-                              alt={relatedProduct?.name ?? ""}
-                              width={400}
-                              height={400}
-                              className="w-full h-[350px] object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-4 right-4 bg-white/80 hover:bg-white rounded-full h-8 w-8"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (isRelatedInWishlist) {
-                                removeFromWishlist(relatedProduct.id);
-                                toast.success(`${relatedProduct.name} removed from wishlist!`);
-                              } else {
-                                const wItem = {
-                                  id: relatedProduct.id,
-                                  name: relatedProduct.name,
-                                  price: relatedProduct.price,
-                                  image: relatedProduct.images?.[0],
-                                };
-                                if (!requireAuthForIntent({ type: "wishlist", item: wItem }))
-                                  return;
-                                addToWishlist(wItem);
-                                toast.success(`${relatedProduct.name} added to wishlist!`);
-                              }
-                            }}
-                          >
-                            <Heart
-                              className={`h-4 w-4 ${isRelatedInWishlist ? "fill-red-500 text-red-500" : ""
-                                }`}
-                            />
-                            <span className="sr-only">
-                              {isRelatedInWishlist ? "Remove from wishlist" : "Add to wishlist"}
-                            </span>
-                          </Button>
-                        </div>
-                        <div className="text-center">
-                          <h3 className="text-sm font-medium mb-1">
-                            <Link
-                              href={`/products/${relatedProduct.slug}`}
-                              className="hover:text-primary"
-                            >
-                              {relatedProduct.name}
-                            </Link>
-                          </h3>
-                          <p className="text-sm text-muted-foreground mb-1">
-                            {relatedProduct.category}
-                          </p>
-                          <DiscountedPrice price={relatedProduct.price} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                  .filter((rp): rp is Product & { slug: string } => Boolean(rp.slug))
+                  .slice(0, 8)
+                  .map((relatedProduct, index) => (
+                    <div key={relatedProduct.id} className="w-[46%] sm:w-[220px] shrink-0">
+                      <ProductCard product={relatedProduct} index={index} currentView="list" />
+                    </div>
+                  ))}
               </div>
             </section>
           )}
@@ -950,85 +1055,61 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
         </div>
       )}
 
-      {/* Sticky Mobile Buttons */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 md:hidden">
-        <div className="flex gap-3">
-          <Button
-            size="lg"
-            className="w-1/2 h-12 bg-black hover:bg-gray-800"
-            onClick={() => {
-              if (availableStock <= 0) {
-                toast.error("This option is out of stock");
-                return;
-              }
-              const qty = Math.min(quantity, availableStock);
-              if (quantity > availableStock) {
-                toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
-              }
-              const buyNowItemMobile = {
-                id: product.id,
-                name: product.name,
-                price: displayPrice,
-                image: product.images?.[0],
-                quantity: qty,
-                stock_quantity: availableStock,
-                ...(selectedColor ? { color: selectedColor } : {}),
-                ...(selectedSize ? { size: selectedSize.name } : {}),
-              };
-              if (!requireAuthForIntent({ type: "buy_now", item: buyNowItemMobile }))
-                return;
-              addToCartTemporary(buyNowItemMobile);
-              // Use router navigation with small delay to ensure state update
-              setTimeout(() => {
-                router.push("/checkout");
-              }, 100);
-            }}
-          >
-            Buy Now
-          </Button>
-
-          <Button
-            size="lg"
-            variant="outline"
-            className="w-1/2 h-12 overflow-hidden"
-            onClick={() => {
-              if (isInCart) {
-                removeFromCart(product.id, selectedSize?.name, selectedColor || undefined);
-                toast.success(`${product.name} removed from cart!`);
-              } else {
-                if (availableStock <= 0) {
-                  toast.error("This option is out of stock");
-                  return;
-                }
-                if (maxCanAdd <= 0) {
-                  toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
-                  return;
-                }
-                const qtyToAdd = Math.min(quantity, maxCanAdd);
-                if (quantity > maxCanAdd) {
-                  toast.warning(`Only ${availableStock} item${availableStock === 1 ? "" : "s"} are available`);
-                }
-                const cartItemMobile = {
-                  id: product.id,
-                  name: product.name,
-                  price: displayPrice,
-                  image: product.images?.[0],
-                  quantity: qtyToAdd,
-                  stock_quantity: availableStock,
-                  ...(selectedColor ? { color: selectedColor } : {}),
-                  ...(selectedSize ? { size: selectedSize.name } : {}),
-                };
-                if (!requireAuthForIntent({ type: "cart", item: cartItemMobile }))
-                  return;
-                addToCart(cartItemMobile);
-                toast.success(`${product.name} added to cart!`);
-              }
-            }}
-          >
-            {isInCart ? "Remove from Cart" : "Add to Cart"}
-          </Button>
+      {/* Sticky CTA bar — all breakpoints, matching design */}
+      <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 bg-white border-t border-cb-border p-4 z-30 flex items-center gap-4">
+        <div className="shrink-0">
+          <p className="text-xs text-cb-muted-fg">Total</p>
+          <DiscountedPrice price={displayPrice * quantity} className="text-lg font-bold" />
         </div>
+        <motion.div
+          className="ml-auto flex-1 max-w-[280px]"
+          animate={
+            isShaking
+              ? {
+                x: [0, -10, 10, -10, 10, -5, 5, 0],
+                transition: { duration: 0.6, ease: "easeInOut" },
+              }
+              : {}
+          }
+        >
+          {isInCart ? (
+            <Button
+              size="lg"
+              className="w-full h-12 rounded-full bg-cb-espresso hover:opacity-90 text-white gap-2"
+              onClick={() => router.push("/cart")}
+            >
+              <Check className="h-4 w-4" />
+              Added · Go to Cart
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
+              onClick={() =>
+                selectedSize
+                  ? handleQuickAddConfirm(selectedSize.name, quantity)
+                  : setQuickAddOpen(true)
+              }
+            >
+              <ShoppingBag className="h-4 w-4" />
+              {selectedSize ? "Add to cart" : "Choose size & add"}
+            </Button>
+          )}
+        </motion.div>
       </div>
+
+      <QuickAddDialog
+        open={quickAddOpen}
+        onOpenChange={setQuickAddOpen}
+        productName={product.name}
+        productImage={product.images?.[0]}
+        productColor={product.colors?.[0] ? slugToTitle(product.colors[0]) : undefined}
+        addOptions={addOptions}
+        onConfirm={handleQuickAddConfirm}
+      />
+
+      <SizeGuideDialog isOpen={showSizeGuide} onClose={() => setShowSizeGuide(false)} />
     </div>
   );
 }

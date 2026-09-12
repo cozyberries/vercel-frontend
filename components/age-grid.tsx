@@ -32,11 +32,11 @@ export default function AgeGrid() {
 
   if (isLoading) {
     return (
-      <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+      <div className="flex gap-3.5 overflow-x-auto lg:justify-between lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-full aspect-square bg-neutral-200 animate-pulse"
+            className="w-[104px] h-[104px] lg:w-[118px] lg:h-[118px] shrink-0 rounded-full bg-neutral-200 animate-pulse"
             aria-hidden
           />
         ))}
@@ -54,31 +54,23 @@ export default function AgeGrid() {
   }
 
   return (
-    <div className="grid lg:grid-cols-6 md:grid-cols-3 grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+    <div className="flex gap-3.5 overflow-x-auto lg:justify-between lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {ageOptions.map((age) => {
         const image = SLUG_TO_IMAGE[age.slug] ?? FALLBACK_IMAGE;
         return (
           <Link
             key={age.id}
             href={`/products?age=${encodeURIComponent(age.slug)}`}
-            className="group relative overflow-hidden rounded-full aspect-square transition-transform duration-150 active:scale-95 lg:hover:scale-105"
+            className="w-[104px] h-[104px] lg:w-[118px] lg:h-[118px] shrink-0 overflow-hidden rounded-full active:scale-[0.98] transition-transform duration-150"
           >
-            <div className="relative w-full h-full">
-              <Image
-                src={image}
-                alt={age.name}
-                fill
-                sizes="(max-width: 768px) 30vw, (max-width: 1024px) 33vw, 16vw"
-                className="object-cover transition-transform duration-500 ease-out scale-125 group-hover:scale-110 group-hover:rotate-12"
-              />
-              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/30 transition-[background-color] duration-300 rounded-full" />
-
-              {/* Swirl effect overlay */}
-              <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent transform rotate-45 group-hover:rotate-[405deg] transition-transform duration-1000 ease-out" />
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/5 to-transparent transform -rotate-45 group-hover:rotate-[315deg] transition-transform duration-1200 ease-out" />
-              </div>
-            </div>
+            <Image
+              src={image}
+              alt={age.name}
+              width={118}
+              height={118}
+              sizes="118px"
+              className="w-full h-full object-cover"
+            />
           </Link>
         );
       })}

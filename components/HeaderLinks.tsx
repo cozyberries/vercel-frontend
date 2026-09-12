@@ -18,16 +18,13 @@ export default function HeaderLinks({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`group relative text-sm font-medium transition-colors ${
-          isActive ? "text-primary" : "text-foreground/80 hover:text-primary"
+        className={`inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+          isActive
+            ? "bg-cb-mauve-tint text-cb-terracotta-deep"
+            : "text-cb-fg hover:text-cb-terracotta-deep"
         }`}
       >
         {name}
-        <span
-          className={`absolute left-0 -bottom-1 h-0.5 w-full origin-left scale-x-0 bg-primary transition-transform duration-200 ${
-            isActive ? "scale-x-100" : "group-hover:scale-x-100"
-          }`}
-        />
       </Link>
     </li>
   );

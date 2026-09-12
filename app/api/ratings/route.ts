@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     const product_slug = (formData.get("product_slug") ?? formData.get("product_id")) as string | null;
     const ratingValue = Number(formData.get("rating"));
     const comment = (formData.get("comment") as string) || "";
+    const title = ((formData.get("title") as string) || "").trim() || null;
     const imageFiles = formData.getAll("images") as File[];
 
     if (user_id !== authUser.id) {
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
           user_id: authUser.id,
           product_slug,
           rating: ratingValue,
+          title,
           comment,
           images: [],
         },

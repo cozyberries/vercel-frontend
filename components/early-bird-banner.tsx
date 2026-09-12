@@ -26,7 +26,7 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
   return (
     <div
       style={{ background: '#fff', border: '1px solid #d4b896' }}
-      className="rounded-xl px-3 py-2.5 text-center min-w-[56px]"
+      className="rounded-xl px-3 py-2.5 text-center min-w-[56px] w-full"
     >
       <div style={{ color: '#3d2b1a' }} className="text-2xl font-extrabold leading-none">
         {String(value).padStart(2, '0')}

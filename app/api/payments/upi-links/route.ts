@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
         });
 
         const links = {
+            general: upiUrl,
             phonepe: `phonepe://pay?${baseParams}`,
             gpay: `tez://upi/pay?${baseParams}`,
             paytm: `paytmmp://pay?${baseParams}`,

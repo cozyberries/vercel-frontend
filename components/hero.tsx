@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 import { images } from "@/app/assets/images";
 
 // Hero images
@@ -11,6 +12,13 @@ const HERO_IMAGES = images.heroImages;
 const MOBILE_IMAGES = images.mobileHeroImages;
 const FALLBACK_IMAGE = "/placeholder.jpg";
 const SWIPE_THRESHOLD_PX = 50;
+
+// Slide copy, indexed to match heroImages/mobileHeroImages order (gifting, gentle-at-home, texture)
+const HERO_COPY = [
+  { eyebrow: "New Season", title: "Soft Beginnings,\nWrapped in Love", cta: "Shop gifting" },
+  { eyebrow: "Gentle at home", title: "Made for\nTiny Moments", cta: "Shop everyday" },
+  { eyebrow: "100% Organic Muslin", title: "Light as Air,\nKind to Skin", cta: "Feel the muslin" },
+];
 
 export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -91,70 +99,83 @@ export default function Hero() {
   // to avoid downloading the wrong image set
   if (isMobile === null) {
     return (
-      <section className="relative h-[70vh] md:h-[700px] bg-[#f5eee0] overflow-hidden" />
+      <div className="container mx-auto px-4 pt-4">
+        <div className="h-[380px] md:h-[500px] rounded-[22px] bg-[#f5eee0]" />
+      </div>
     );
   }
 
   return (
-    <section className="relative h-[70vh] md:h-[700px] bg-[#f5eee0] overflow-hidden group">
-      {/* Image Carousel - Full Width Background */}
-      <div
-        className="absolute inset-0 w-full h-full overflow-hidden touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+    <section className="container mx-auto px-4 pt-4">
+      <div className="relative h-[380px] md:h-[500px] rounded-[22px] overflow-hidden group">
+        {/* Image Carousel */}
         <div
-          className="flex h-full transition-transform duration-700 ease-in-out"
-          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+          className="absolute inset-0 w-full h-full overflow-hidden touch-pan-y"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
+          <div
+            className="flex h-full transition-transform duration-700 ease-in-out"
+            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+          >
+            {heroImages.map((src, index) => (
+              <div key={src} className="w-full h-full flex-shrink-0 relative">
+                <Image
+                  src={imageErrors.has(index) ? FALLBACK_IMAGE : src}
+                  alt="Baby clothing collection"
+                  fill
+                  /* Mobile gets ~100vw, desktop caps at 1920 */
+                  sizes={
+                    isMobile
+                      ? "100vw"
+                      : "(max-width: 1200px) 100vw, 1920px"
+                  }
+                  className="object-cover"
+                  priority={index === 0}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  onError={() => handleImageError(index)}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+        </div>
+
+        {/* Slide copy + CTA — left-aligned, same treatment at every breakpoint */}
+        <div className="absolute left-5 right-5 md:left-10 md:right-10 bottom-6 md:bottom-8 z-10 text-white">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
+            {HERO_COPY[currentIndex]?.eyebrow}
+          </p>
+          <h1 className="mb-4 whitespace-pre-line text-[28px] md:text-[32px] font-light leading-[1.12] [text-shadow:0_1px_12px_rgba(0,0,0,0.25)]">
+            {HERO_COPY[currentIndex]?.title}
+          </h1>
+          <Button
+            asChild
+            size="lg"
+            className="bg-cb-terracotta text-white border-0 shadow-lg hover:bg-cb-terracotta-deep transition-colors duration-300 rounded-full px-6 h-11 text-sm font-medium"
+          >
+            <Link href="/products">
+              {HERO_COPY[currentIndex]?.cta ?? "Shop Now"}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        {/* Slide indicators — top-right dot/pill */}
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
           {heroImages.map((src, index) => (
-            <div key={src} className="w-full h-full flex-shrink-0 relative">
-              <Image
-                src={imageErrors.has(index) ? FALLBACK_IMAGE : src}
-                alt="Baby clothing collection"
-                fill
-                /* Mobile gets ~100vw, desktop caps at 1920 */
-                sizes={
-                  isMobile
-                    ? "100vw"
-                    : "(max-width: 1200px) 100vw, 1920px"
-                }
-                className="object-cover"
-                priority={index === 0}
-                loading={index === 0 ? "eager" : "lazy"}
-                onError={() => handleImageError(index)}
-              />
-            </div>
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`h-[7px] rounded-full transition-all duration-300 ${
+                index === currentIndex
+                  ? "w-[22px] bg-white"
+                  : "w-[7px] bg-white/55 hover:bg-white/80"
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+            />
           ))}
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/30 to-transparent lg:from-black/20" />
-      </div>
-
-      {/* CTA Button */}
-      <div className="absolute inset-x-0 bottom-16 flex justify-center z-10">
-        <Button
-          asChild
-          size="lg"
-          className="bg-white/70 text-gray-900 border-0 shadow-lg hover:shadow-xl hover:bg-white/90 hover:scale-105 transition-[transform,box-shadow,background-color] duration-300 rounded-full px-8 h-11 text-sm font-medium backdrop-blur-sm"
-        >
-          <Link href="/products">Shop Now</Link>
-        </Button>
-      </div>
-
-      {/* Modern Small Rounded Navigation Buttons */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-        {heroImages.map((src, index) => (
-          <button
-            key={index}
-            onClick={() => goToSlide(index)}
-            className={`w-3 h-3 rounded-full transition-[transform,background-color] duration-300 ${
-              index === currentIndex
-                ? "bg-white shadow-lg scale-125"
-                : "bg-white/50 hover:bg-white/80 hover:scale-110"
-            }`}
-            aria-label={`Go to slide ${index + 1}`}
-          />
-        ))}
       </div>
     </section>
   );

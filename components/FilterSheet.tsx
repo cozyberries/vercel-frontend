@@ -1,262 +1,277 @@
 "use client";
 
 import { useState } from "react";
-import { Filter } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
-import { useSwipeToClose } from "@/hooks/useSwipeToClose";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-interface Category {
+interface Option {
   id: string;
   name: string;
+  display_order: number;
+}
+
+interface AgeOption extends Option {
   slug: string;
-  description?: string;
-}
-
-interface SizeOption {
-  id: string;
-  name: string;
-  display_order: number;
-}
-
-interface GenderOption {
-  id: string;
-  name: string;
-  display_order: number;
 }
 
 interface FilterValues {
-  category: string;
   size: string;
   gender: string;
-  sort: string;
+  age: string;
 }
 
 interface FilterSheetProps {
-  categories: Category[];
-  sizeOptions: SizeOption[];
-  genderOptions: GenderOption[];
-  currentCategory: string;
+  sizeOptions: Option[];
+  genderOptions: Option[];
+  ageOptions: AgeOption[];
   currentSize: string;
   currentGender: string;
-  currentSort: string;
-  currentSortOrder: string;
+  currentAge: string;
+  itemCount: number;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   disabled?: boolean;
 }
 
+// No backend field for pattern/design — chips are UI-only and don't affect results.
+const PATTERN_OPTIONS = ["Solid", "Stripe", "Polka", "Floral", "Check"];
+
+// No backend color palette exists (the catalog's `colors` table holds print/pattern
+// names like "Petal Pops", not a swatch palette) — these match the design mock's
+// swatch reference exactly but are visual only and don't affect results.
+const SWATCHES = [
+  { name: "Sage", hex: "#aebd9c" },
+  { name: "Oat", hex: "#e4d4ba" },
+  { name: "Clay", hex: "#c98b6b" },
+  { name: "Blush", hex: "#e3c2bd" },
+  { name: "Almond", hex: "#ead7bd" },
+  { name: "Mist", hex: "#c4cdc9" },
+  { name: "Stone", hex: "#d0c7ba" },
+  { name: "Fern", hex: "#8ba27e" },
+];
+
+const MIN_PRICE = 250;
+const MAX_PRICE = 2000;
+
 export default function FilterSheet({
-  categories,
   sizeOptions,
   genderOptions,
-  currentCategory,
+  ageOptions,
   currentSize,
   currentGender,
-  currentSort,
-  currentSortOrder,
+  currentAge,
+  itemCount,
   onApplyFilters,
   onClearFilters,
   disabled = false,
 }: FilterSheetProps) {
   const [open, setOpen] = useState(false);
 
-  // Local pending state — only sent to parent on "Apply"
-  const [pendingCategory, setPendingCategory] = useState(currentCategory);
+  // Local pending state — only sent to parent on "Show N items"
   const [pendingSize, setPendingSize] = useState(currentSize);
   const [pendingGender, setPendingGender] = useState(currentGender);
-  const [pendingSort, setPendingSort] = useState(
-    currentSort === "price" ? currentSortOrder : "default"
-  );
+  const [pendingAge, setPendingAge] = useState(currentAge);
+  // Not backed by real data/API — visual only, never sent to the parent.
+  const [pendingColor, setPendingColor] = useState<string | null>(null);
+  const [pendingPattern, setPendingPattern] = useState<string | null>(null);
+  const [pendingMaxPrice, setPendingMaxPrice] = useState(MAX_PRICE);
 
-  // Reset local state when sheet opens (sync with actual URL params)
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen) {
-      setPendingCategory(currentCategory);
       setPendingSize(currentSize);
       setPendingGender(currentGender);
-      setPendingSort(currentSort === "price" ? currentSortOrder : "default");
+      setPendingAge(currentAge);
+      setPendingColor(null);
+      setPendingPattern(null);
+      setPendingMaxPrice(MAX_PRICE);
     }
     setOpen(isOpen);
   };
 
-  const swipeLeftToClose = useSwipeToClose("left", () => setOpen(false));
-
   const handleApplyFilters = () => {
-    onApplyFilters({
-      category: pendingCategory,
-      size: pendingSize,
-      gender: pendingGender,
-      sort: pendingSort,
-    });
+    onApplyFilters({ size: pendingSize, gender: pendingGender, age: pendingAge });
     setOpen(false);
   };
 
   const handleClearFilters = () => {
+    setPendingColor(null);
+    setPendingPattern(null);
+    setPendingMaxPrice(MAX_PRICE);
     onClearFilters();
     setOpen(false);
   };
 
+  const hasPending =
+    pendingSize !== "all" ||
+    pendingGender !== "all" ||
+    pendingAge !== "all" ||
+    pendingColor !== null ||
+    pendingPattern !== null ||
+    pendingMaxPrice !== MAX_PRICE;
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2 md:hidden" disabled={disabled}>
-          <Filter className="h-4 w-4" />
-          Filters
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="left" className="w-[min(90vw,400px)] p-0">
-        <div
-          className="flex h-full flex-col touch-pan-y"
-          {...swipeLeftToClose}
-        >
-          <SheetHeader className="p-4 border-b">
-            <SheetTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </SheetTitle>
+      <Button
+        variant="outline"
+        className="flex items-center gap-2 rounded-full border-cb-border"
+        disabled={disabled}
+        onClick={() => handleOpenChange(true)}
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        Filters
+      </Button>
+      <SheetContent
+        side="bottom"
+        className="rounded-t-2xl p-0 max-h-[88vh] flex flex-col lg:top-1/2 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:-translate-y-1/2 lg:bottom-auto lg:rounded-2xl lg:max-w-md lg:w-full lg:h-auto"
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <SheetHeader className="p-5 pb-2 text-left">
+            <SheetTitle className="text-lg font-semibold">Filters</SheetTitle>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {/* Category Filter */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            {/* Gender */}
             <div>
-              <h3 className="text-sm font-medium mb-3">Category</h3>
-              <Select value={pendingCategory} onValueChange={setPendingCategory}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Filter by category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.slug}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <h3 className="text-sm font-bold mb-3">Gender</h3>
+              <div className="flex flex-wrap gap-2">
+                {genderOptions.map((g) => (
+                  <Chip
+                    key={g.id}
+                    active={pendingGender === g.name}
+                    onClick={() => setPendingGender(pendingGender === g.name ? "all" : g.name)}
+                  >
+                    {g.name}
+                  </Chip>
+                ))}
+              </div>
             </div>
 
-            {/* Size Filter */}
+            {/* Age */}
             <div>
-              <h3 className="text-sm font-medium mb-3">Size</h3>
-              <Select value={pendingSize} onValueChange={setPendingSize}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Filter by size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sizes</SelectItem>
-                  {sizeOptions.map((size) => (
-                    <SelectItem key={size.id} value={size.name}>
-                      {size.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <h3 className="text-sm font-bold mb-3">Age</h3>
+              <div className="flex flex-wrap gap-2">
+                {ageOptions.map((a) => (
+                  <Chip
+                    key={a.id}
+                    active={pendingAge === a.slug}
+                    onClick={() => setPendingAge(pendingAge === a.slug ? "all" : a.slug)}
+                  >
+                    {a.name}
+                  </Chip>
+                ))}
+              </div>
             </div>
 
-            {/* Gender Filter */}
+            {/* Size */}
             <div>
-              <h3 className="text-sm font-medium mb-3">Gender</h3>
-              <Select value={pendingGender} onValueChange={setPendingGender}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Genders</SelectItem>
-                  {genderOptions.map((g) => (
-                    <SelectItem key={g.id} value={g.name}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <h3 className="text-sm font-bold mb-3">Size</h3>
+              <div className="flex flex-wrap gap-2">
+                {sizeOptions.map((s) => (
+                  <Chip
+                    key={s.id}
+                    active={pendingSize === s.name}
+                    onClick={() => setPendingSize(pendingSize === s.name ? "all" : s.name)}
+                  >
+                    {s.name}
+                  </Chip>
+                ))}
+              </div>
             </div>
 
-            {/* Sort Filter */}
+            {/* Design — not wired to any real data; visual only */}
             <div>
-              <h3 className="text-sm font-medium mb-3">Sort By</h3>
-              <Select
-                value={pendingSort}
-                onValueChange={setPendingSort}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="asc">Price: Low to High</SelectItem>
-                  <SelectItem value="desc">Price: High to Low</SelectItem>
-                </SelectContent>
-              </Select>
+              <h3 className="text-sm font-bold mb-3">Design</h3>
+              <div className="flex flex-wrap gap-2">
+                {PATTERN_OPTIONS.map((p) => (
+                  <Chip
+                    key={p}
+                    active={pendingPattern === p}
+                    onClick={() => setPendingPattern(pendingPattern === p ? null : p)}
+                  >
+                    {p}
+                  </Chip>
+                ))}
+              </div>
             </div>
 
-            {/* Selected Filters Summary */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-medium mb-3">Selected Filters</h3>
-              <div className="space-y-2">
-                {pendingCategory !== "all" && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Category:</span>
-                    <span className="font-medium">
-                      {categories.find((c) => c.slug === pendingCategory)?.name ||
-                        pendingCategory}
-                    </span>
-                  </div>
-                )}
-                {pendingSize !== "all" && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Size:</span>
-                    <span className="font-medium">{pendingSize}</span>
-                  </div>
-                )}
-                {pendingGender !== "all" && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Gender:</span>
-                    <span className="font-medium">{pendingGender}</span>
-                  </div>
-                )}
-                {pendingSort !== "default" && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Sort:</span>
-                    <span className="font-medium">
-                      {pendingSort === "asc" ? "Price Low to High" : "Price High to Low"}
-                    </span>
-                  </div>
-                )}
-                {pendingCategory === "all" && pendingSize === "all" && pendingGender === "all" && pendingSort === "default" && (
-                  <p className="text-sm text-muted-foreground">No filters selected</p>
-                )}
+            {/* Colour — no backend palette exists (catalog only has print names); visual only */}
+            <div>
+              <h3 className="text-sm font-bold mb-3">Colour</h3>
+              <div className="flex flex-wrap gap-3">
+                {SWATCHES.map((c) => {
+                  const on = pendingColor === c.name;
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => setPendingColor(on ? null : c.name)}
+                      aria-label={c.name}
+                      title={c.name}
+                      className="flex flex-col items-center gap-1.5 w-14"
+                    >
+                      <span
+                        className="block h-11 w-11 rounded-full border-2 border-white"
+                        style={{
+                          background: c.hex,
+                          boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
+                        }}
+                      />
+                      <span className={`text-[11.5px] font-medium ${on ? "text-cb-terracotta-deep" : "text-cb-muted-fg"}`}>
+                        {c.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Max price — not wired to any real API param; visual only */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold">Max price</h3>
+                <span className="text-sm font-bold text-cb-terracotta">₹{pendingMaxPrice}</span>
+              </div>
+              <input
+                type="range"
+                min={MIN_PRICE}
+                max={MAX_PRICE}
+                step={50}
+                value={pendingMaxPrice}
+                onChange={(e) => setPendingMaxPrice(Number(e.target.value))}
+                className="w-full accent-cb-terracotta"
+              />
+              <div className="flex justify-between text-xs text-cb-muted-fg mt-1">
+                <span>₹{MIN_PRICE}</span>
+                <span>₹{MAX_PRICE}</span>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="border-t p-4 space-y-3">
-            <Button onClick={handleApplyFilters} className="w-full">
-              Apply Filters
-            </Button>
-            {(pendingCategory !== "all" || pendingSize !== "all" || pendingGender !== "all" || pendingSort !== "default") && (
-              <Button
-                variant="outline"
+          {/* Footer */}
+          <div className="border-t p-5 flex items-center gap-4">
+            {hasPending ? (
+              <button
+                type="button"
                 onClick={handleClearFilters}
-                className="w-full"
+                className="text-sm font-semibold text-cb-fg"
               >
-                Clear All Filters
-              </Button>
+                Clear all
+              </button>
+            ) : (
+              <span />
             )}
+            <Button
+              onClick={handleApplyFilters}
+              className="ml-auto flex-1 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white h-12"
+            >
+              Show {itemCount} items
+            </Button>
           </div>
         </div>
       </SheetContent>

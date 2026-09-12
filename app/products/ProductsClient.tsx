@@ -5,19 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Chip } from "@/components/ui/chip";
 import ProductCard from "@/components/product-card";
 import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
+import SortSheet from "@/components/SortSheet";
 import { getProducts, type Product } from "@/lib/services/api";
-import { useCategoryOptions, useSizeOptions, useGenderOptions } from "@/hooks/useApiQueries";
-import { Loader, Search, X, RotateCcw, LayoutGrid, LayoutList } from "lucide-react";
+import { useCategoryOptions, useSizeOptions, useGenderOptions, useAgeOptions } from "@/hooks/useApiQueries";
+import { Loader, Search, X, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { trackSearch } from '@/lib/analytics/meta-pixel';
 
@@ -68,27 +63,27 @@ function ProductSearchInput({
       className={className}
     >
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-cb-muted-fg" />
         <Input
           ref={inputRef}
           type="text"
-          placeholder="Search products..."
+          placeholder="Search organic muslin, gifts…"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className="pl-9 pr-8 h-10"
+          className="pl-10 pr-9 h-11 rounded-full border-0 bg-cb-muted focus-visible:ring-1 focus-visible:ring-cb-terracotta"
         />
         {value && !disabled && (
           <button
             type="button"
             onClick={onClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-cb-muted-fg hover:text-cb-fg"
           >
             <X className="h-4 w-4" />
           </button>
         )}
         {disabled && (
-          <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-pulse text-muted-foreground" />
+          <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-pulse text-cb-muted-fg" />
         )}
       </div>
     </form>
@@ -115,6 +110,7 @@ export default function ProductsClient() {
 
   const { data: sizeOptions = [], isLoading: sizeOptionsLoading } = useSizeOptions();
   const { data: genderOptions = [], isLoading: genderOptionsLoading } = useGenderOptions();
+  const { data: ageOptions = [], isLoading: ageOptionsLoading } = useAgeOptions();
 
   // Error source tracking for reliable retry logic
   const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
@@ -509,6 +505,18 @@ export default function ProductsClient() {
     router.push(`/products?${params.toString()}`);
   };
 
+  const handleAgeChange = (age: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (age === "all") {
+      params.delete("age");
+    } else {
+      params.set("age", age);
+    }
+
+    router.push(`/products?${params.toString()}`);
+  };
+
   const handleClearFilters = () => {
     setSearchInput("");
     const params = new URLSearchParams();
@@ -523,11 +531,8 @@ export default function ProductsClient() {
   };
 
   const handleApplyFilters = useCallback(
-    (filters: { category: string; size: string; gender: string; sort: string }) => {
+    (filters: { size: string; gender: string; age: string }) => {
       const params = new URLSearchParams(searchParams.toString());
-
-      if (filters.category === "all") params.delete("category");
-      else params.set("category", filters.category);
 
       if (filters.size === "all") params.delete("size");
       else params.set("size", filters.size);
@@ -535,13 +540,8 @@ export default function ProductsClient() {
       if (filters.gender === "all") params.delete("gender");
       else params.set("gender", filters.gender);
 
-      if (filters.sort === "default") {
-        params.delete("sortBy");
-        params.delete("sortOrder");
-      } else {
-        params.set("sortBy", "price");
-        params.set("sortOrder", filters.sort);
-      }
+      if (filters.age === "all") params.delete("age");
+      else params.set("age", filters.age);
 
       router.push(`/products?${params.toString()}`);
     },
@@ -563,11 +563,11 @@ export default function ProductsClient() {
 
   // Show product grid as soon as products API returns; don't block on categories/sizes/genders
   const isProductsLoading = isLoading;
-  const isFiltersLoading = categoriesLoading || sizeOptionsLoading || genderOptionsLoading;
+  const isFiltersLoading = categoriesLoading || sizeOptionsLoading || genderOptionsLoading || ageOptionsLoading;
 
-  /* ─── Shared mobile filter row (search + FilterSheet + reset) ─── */
-  const mobileFilterRow = (
-    <div className="flex flex-col gap-4 lg:hidden">
+  /* ─── Shared toolbar: search + category chips + filter/sort/count row ─── */
+  const toolbar = (
+    <div className="flex flex-col gap-3">
       <ProductSearchInput
         value={searchInput}
         onChange={setSearchInput}
@@ -575,61 +575,81 @@ export default function ProductsClient() {
         onClear={handleClearSearch}
         inputRef={searchInputRef}
         disabled={isFiltersLoading}
-        className="flex-1"
+        className="w-full"
       />
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <FilterSheet
-            categories={categories}
-            sizeOptions={sizeOptions}
-            genderOptions={genderOptions}
-            currentCategory={currentCategory}
-            currentSize={currentSize}
-            currentGender={currentGender}
-            currentSort={currentSort}
-            currentSortOrder={currentSortOrder}
-            onApplyFilters={handleApplyFilters}
-            onClearFilters={handleClearFilters}
-            disabled={isProductsLoading || isFiltersLoading}
-          />
-          {hasActiveFilters && !isProductsLoading && !isFiltersLoading && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearFilters}
-              className="text-foreground hover:text-foreground"
-              aria-label="Clear all filters"
-            >
-              Reset Filters
-            </Button>
-          )}
-        </div>
-        <div>
-          {/* View toggle: mobile only — above products when we have results */}
-          {allProducts.length > 0 && isMobile === true && (
-            <div className="flex items-center border rounded-md p-0.5">
-              <Button
-                variant={effectiveView === "grid" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleViewChange("grid")}
-                aria-label="Grid view"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={effectiveView === "list" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleViewChange("list")}
-                aria-label="List view"
-              >
-                <LayoutList className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
+
+      {/* Category chips */}
+      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <Chip active={currentCategory === "all"} onClick={() => handleCategoryChange("all")}>
+          All
+        </Chip>
+        {categories.map((cat) => (
+          <Chip
+            key={cat.id}
+            active={currentCategory === cat.slug}
+            onClick={() => handleCategoryChange(cat.slug)}
+          >
+            {cat.name}
+          </Chip>
+        ))}
       </div>
+
+      {/* Filters + Sort + item count */}
+      <div className="flex items-center gap-2">
+        <FilterSheet
+          sizeOptions={sizeOptions}
+          genderOptions={genderOptions}
+          ageOptions={ageOptions}
+          currentSize={currentSize}
+          currentGender={currentGender}
+          currentAge={currentAge}
+          itemCount={totalItems}
+          onApplyFilters={handleApplyFilters}
+          onClearFilters={handleClearFilters}
+          disabled={isProductsLoading || isFiltersLoading}
+        />
+        <SortSheet
+          currentSort={currentSort === "price" ? currentSortOrder : "default"}
+          onSelect={handleSortChange}
+          disabled={isProductsLoading || isFiltersLoading}
+        />
+        <span className="ml-auto text-sm text-cb-muted-fg whitespace-nowrap">
+          {totalItems} item{totalItems === 1 ? "" : "s"}
+        </span>
+        {/* View toggle: mobile only */}
+        {allProducts.length > 0 && isMobile === true && (
+          <div className="flex items-center border rounded-md p-0.5">
+            <Button
+              variant={effectiveView === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handleViewChange("grid")}
+              aria-label="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={effectiveView === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handleViewChange("list")}
+              aria-label="List view"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {hasActiveFilters && !isProductsLoading && !isFiltersLoading && (
+        <button
+          type="button"
+          onClick={handleClearFilters}
+          className="self-start text-sm font-semibold text-cb-terracotta"
+        >
+          Clear all filters
+        </button>
+      )}
     </div>
   );
 
@@ -637,11 +657,11 @@ export default function ProductsClient() {
     const skeletonCount = PAGE_SIZE;
     return (
       <>
-        <div className="mb-6">{mobileFilterRow}</div>
+        <div className="mb-6">{toolbar}</div>
         <div className={
           effectiveView === "list"
             ? "flex flex-col gap-4"
-            : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
+            : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px]"
         }>
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <ProductCardSkeleton key={i} />
@@ -703,7 +723,7 @@ export default function ProductsClient() {
   if (!allProducts || allProducts.length === 0) {
     return (
       <>
-        <div className="mb-6">{mobileFilterRow}</div>
+        <div className="mb-6">{toolbar}</div>
 
         <div className="text-center py-16">
           <div className="max-w-md mx-auto">
@@ -726,7 +746,7 @@ export default function ProductsClient() {
               {currentSearch ? "No products found" : "No products available"}
             </h3>
             <p className="text-gray-500 mb-6">
-              {currentSearch || currentCategory !== "all" || currentSize !== "all" || currentGender !== "all" || currentFeatured
+              {currentSearch || currentCategory !== "all" || currentSize !== "all" || currentGender !== "all" || currentAge !== "all" || currentFeatured
                 ? "We couldn't find any products matching your current filters. Try adjusting your search criteria."
                 : "Our product catalog is currently empty. Please check back later or contact us for more information."}
             </p>
@@ -752,111 +772,8 @@ export default function ProductsClient() {
 
   return (
     <>
-      {/* Search + Filters */}
-      <div className="mb-6 space-y-4">
-        {/* Mobile: Search bar + Filter button + Reset in same row */}
-        {mobileFilterRow}
-
-        {/* Desktop Filters */}
-        <div
-          className="hidden lg:flex justify-end items-center gap-4"
-          data-testid="desktop-filters"
-        >
-          {/* Desktop Search */}
-          <ProductSearchInput
-            value={searchInput}
-            onChange={setSearchInput}
-            onSubmit={handleSearchSubmit}
-            onClear={handleClearSearch}
-            inputRef={searchInputRef}
-            className="flex-1 max-w-sm"
-          />
-
-          {/* Category Filter */}
-          <Select value={currentCategory} onValueChange={handleCategoryChange}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.slug}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Size Filter */}
-          <Select value={currentSize} onValueChange={handleSizeChange}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Filter by size" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Sizes</SelectItem>
-              {sizeOptions.map((size) => (
-                <SelectItem key={size.id} value={size.name}>
-                  {size.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Gender Filter */}
-          <Select value={currentGender} onValueChange={handleGenderChange}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Gender" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Genders</SelectItem>
-              {genderOptions.map((g) => (
-                <SelectItem key={g.id} value={g.name}>
-                  {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Sort By */}
-          <Select
-            value={currentSort === "price" ? currentSortOrder : "default"}
-            onValueChange={handleSortChange}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">Default</SelectItem>
-              <SelectItem value="asc">Price: Low to High</SelectItem>
-              <SelectItem value="desc">Price: High to Low</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Clear All Filters Button */}
-          {hasActiveFilters && (
-            <Button
-              variant="outline"
-              onClick={handleClearFilters}
-              className="whitespace-nowrap text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              Clear All
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Active search chip */}
-      {currentSearch && (
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Results for</span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-            &ldquo;{currentSearch}&rdquo;
-            <button onClick={handleClearSearch} className="hover:text-primary/70 ml-0.5">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </span>
-        </div>
-      )}
+      {/* Search + category chips + filters/sort/count */}
+      <div className="mb-6">{toolbar}</div>
 
       {/* Products — grid (default) or list view */}
       {allProducts.length > 0 ? (
@@ -865,7 +782,7 @@ export default function ProductsClient() {
             className={
               effectiveView === "list"
                 ? "flex flex-col gap-4 mb-8"
-                : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 mb-8"
+                : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px] mb-8"
             }
           >
             {allProducts.map((product, index) => (
@@ -886,7 +803,7 @@ export default function ProductsClient() {
                 className={
                   effectiveView === "list"
                     ? "flex flex-col gap-4"
-                    : "grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8"
+                    : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px]"
                 }
               >
                 {Array.from({ length: PAGE_SIZE }).map((_, i) => (
