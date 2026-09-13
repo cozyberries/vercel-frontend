@@ -27,7 +27,9 @@
     "test:payment:debug": "playwright test --project=payment --headed --debug",
     "test:admin-impersonation": "playwright test --project=admin-impersonation",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest"
+    "test:unit:watch": "vitest",
+    "catalog:rebuild": "node scripts/catalog-rebuild.mjs",
+    "qstash:setup": "node scripts/qstash-setup.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
