@@ -76,6 +76,24 @@ const serwist = new Serwist({
       }),
     },
 
+    // ── Catalog snapshot and search ────────────────────────────────────────────
+    // Catalog snapshot: serve the last copy instantly, refresh in the background.
+    {
+      matcher: ({ url }) => url.pathname === "/api/catalog",
+      handler: new StaleWhileRevalidate({
+        cacheName: `api-catalog-${v}`,
+        plugins: [cacheablePlugin, new ExpirationPlugin({ maxEntries: 2, maxAgeSeconds: 7 * 24 * 60 * 60 })],
+      }),
+    },
+    // Search rankings and suggestions.
+    {
+      matcher: ({ url }) => url.pathname === "/api/search" || url.pathname.startsWith("/api/search/"),
+      handler: new StaleWhileRevalidate({
+        cacheName: `api-search-${v}`,
+        plugins: [cacheablePlugin, new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 })],
+      }),
+    },
+
     // ── Product listings ──────────────────────────────────────────────────────
     // NetworkFirst: prices and stock are mutable — always prefer fresh data.
     // 6 s timeout (raised from 3 s) to survive slow mobile connections.
@@ -150,6 +168,8 @@ serwist.addEventListeners();
 const MANAGED_PREFIXES = [
   "pages-cache-",
   "api-reference-cache-",
+  "api-catalog-",
+  "api-search-",
   "api-products-cache-",
   "next-static-",
   "next-image-",
