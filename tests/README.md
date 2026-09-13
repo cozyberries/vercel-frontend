@@ -44,12 +44,17 @@ npm run test:report
 ## Test Files
 
 ### `auth.spec.ts`
-Comprehensive tests for user authentication including:
-- Signup flow validation
-- Login flow validation
-- Form validation
-- Error handling
-- Navigation between pages
+Tests for the phone-first auth UI (`/login`, `/signup`, `/login/email` staff sign-in,
+`/login/verify` redirect guard) including:
+- Rendering and client-side mobile-number validation on `/login` and `/signup`
+- Staff (email + password) sign-in error handling, HTML5 validation, and loading state
+- Navigation between `/login`, `/signup`, and `/login/email`
+- "Continue as guest" and the `redirect` query param
+
+Phone sign-in sends a real OTP SMS, so these tests never submit a valid-looking
+mobile number and never attempt a real login. Email/password *signup* was
+removed from the product (only `/login/email` staff sign-in remains); do not
+re-add those tests without confirming the feature exists again.
 
 ## Configuration
 

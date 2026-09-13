@@ -4,46 +4,41 @@ import { test, expect, type Page } from "@playwright/test";
  * Homepage & All Pages E2E Tests
  *
  * Validates:
- *   1. Homepage sections: Hero, Shop by Age, Shop by Category,
- *      New Born Gifting, Featured Products, Our Story, Sustainability
- *   2. Shop by Age – all 6 age links navigate to products with results
+ *   1. Homepage sections: Hero, Shop by Age, Shop by Category, New Born Gifting,
+ *      Featured, Comfort Meets Conscious Living, Loved by Parents
+ *   2. Shop by Age – all age links navigate to products with results
  *   3. Shop by Category – dynamic categories load and link to filtered products
- *   4. New Born Gifting – all cards and "View All" button return results
- *   5. Featured Products – carousel loads product cards
- *   6. All public pages render correctly (About, Contact, FAQs, etc.)
- *   7. Header and footer navigation links work
- *   8. Key button clicks produce expected outcomes
+ *   4. New Born Gifting – cards and "View All" link return results
+ *   5. Featured – product cards load and link to product detail pages
+ *   6. All public pages render correctly (Products, About, Contact)
+ *   7. Header navigation (logo, nav links, search) and mobile bottom navigation
+ *      (the footer is commented out in the current build — there is no <footer>)
+ *   8. Retired info pages (/faqs, /shipping-returns, /track-order) redirect home
  */
 
-// Run tests serially to avoid overwhelming the dev server
-test.describe.configure({ mode: "serial", retries: 1 });
-
-/** Timeout for waiting for "Loading featured products..." to disappear and related assertions. */
-const FEATURED_PRODUCTS_LOAD_TIMEOUT = 45_000;
+/** General timeout for page-load heavy tests (multiple navigations). */
+const PAGE_LOAD_TIMEOUT = 45_000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Wait for the homepage to fully load (hero + key sections). */
 async function waitForHomepageToLoad(page: Page) {
-  // Wait for the hero heading to appear
+  // The hero heading copy rotates per carousel slide, so assert structurally.
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(
-    page.getByRole("heading", {
-      name: "Adorable Clothing for Your Little Treasures",
-    })
-  ).toBeVisible({ timeout: 30_000 });
+    page.getByRole("heading", { name: "Shop by Age" })
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 /** Wait for products page to load with results. */
 async function waitForProductsToLoad(page: Page) {
-  const loadingText = page.getByText("Loading products...");
-
-  try {
-    await loadingText.waitFor({ state: "hidden", timeout: 20_000 });
-  } catch {
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await loadingText.waitFor({ state: "hidden", timeout: 30_000 });
-  }
-
+  // The current build has no "Loading products..." spinner — wait for the
+  // real success signal instead: the "N items" count and the product grid.
+  await expect(page.getByText(/\d+\s*items?/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
   await page
     .locator(".grid")
     .first()
@@ -54,11 +49,11 @@ async function waitForProductsToLoad(page: Page) {
 async function assertProductResultsExist(page: Page) {
   await waitForProductsToLoad(page);
 
-  const showingText = page.getByText(/Showing \d+ of \d+ products/);
-  await expect(showingText).toBeVisible({ timeout: 15_000 });
+  const countText = page.getByText(/\d+\s*items?/i).first();
+  await expect(countText).toBeVisible({ timeout: 15_000 });
 
-  const text = (await showingText.textContent()) ?? "";
-  const total = Number(text.match(/of (\d+)/)?.[1] ?? 0);
+  const text = (await countText.textContent()) ?? "";
+  const total = Number(text.match(/(\d+)\s*items?/i)?.[1] ?? 0);
   expect(total).toBeGreaterThan(0);
 }
 
@@ -74,46 +69,44 @@ test.describe("Homepage Sections", () => {
 
   // ── Hero Section ──────────────────────────────────────────────────────────
 
-  test("Hero section renders with heading and Shop Now button", async ({
-    page,
-  }) => {
-    // Heading
-    await expect(
-      page.getByRole("heading", {
-        name: "Adorable Clothing for Your Little Treasures",
-      })
-    ).toBeVisible();
+  test("Hero section renders with heading and CTA link", async ({ page }) => {
+    const heroSection = page.locator("section").first();
 
-    // Tagline
-    await expect(
-      page.getByText("Crafted with love, designed for comfort, and made to last").first()
-    ).toBeVisible();
+    // Heading — copy rotates per carousel slide, so assert structurally, not exact text.
+    const heading = heroSection.getByRole("heading", { level: 1 });
+    await expect(heading).toBeVisible();
+    expect((await heading.textContent())?.trim().length).toBeGreaterThan(0);
 
-    // Shop Now button
-    const shopNowLink = page
-      .locator("section")
-      .first()
-      .getByRole("link", { name: "Shop Now" });
-    await expect(shopNowLink).toBeVisible();
+    // CTA link inside the hero (e.g. "Shop gifting")
+    const ctaLink = heroSection.getByRole("link").first();
+    await expect(ctaLink).toBeVisible();
 
-    // Click Shop Now → navigate to /products
-    await shopNowLink.click();
+    await ctaLink.click();
     await page.waitForURL("**/products**", { timeout: 15_000 });
     expect(page.url()).toContain("/products");
   });
 
   // ── Shop by Age Section ───────────────────────────────────────────────────
 
-  test("Shop by Age section renders age range links", async ({ page }) => {
+  test("Shop by Age section renders all age range links", async ({ page }) => {
     const heading = page.getByRole("heading", { name: "Shop by Age" });
     await expect(heading).toBeVisible();
 
-    // Wait for age options to load from the API (they are fetched asynchronously)
     const ageLinks = page.locator('a[href*="/products?age="]');
     await expect(ageLinks.first()).toBeAttached({ timeout: 15_000 });
 
-    const count = await ageLinks.count();
-    expect(count).toBeGreaterThanOrEqual(1);
+    const hrefs = await ageLinks.evaluateAll((els) =>
+      els.map((e) => e.getAttribute("href") ?? "")
+    );
+    const ageSlugs = new Set(
+      hrefs
+        .map((href) => new URL(href, "http://placeholder.local").searchParams.get("age"))
+        .filter(Boolean)
+    );
+
+    for (const slug of ["0-3m", "3-6m", "6-12m", "1-2y", "2-3y", "3-6y"]) {
+      expect(ageSlugs.has(slug)).toBe(true);
+    }
   });
 
   // ── Shop by Category Section ──────────────────────────────────────────────
@@ -122,16 +115,17 @@ test.describe("Homepage Sections", () => {
     page,
   }) => {
     const heading = page.getByRole("heading", { name: "Shop by Category" });
+    await heading.scrollIntoViewIfNeeded();
     await expect(heading).toBeVisible();
 
-    // Scroll to the category section and wait for categories to load from API
-    await heading.scrollIntoViewIfNeeded();
-    const categoryLinks = page.locator('a[href*="/products?category="]');
+    const categorySection = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Shop by Category" }) });
+    const categoryLinks = categorySection.locator('a[href*="/products?category="]');
 
     // Wait for at least one category link to be in the DOM (API loaded)
     await expect(categoryLinks.first()).toBeAttached({ timeout: 30_000 });
 
-    // Should have at least 1 category
     const count = await categoryLinks.count();
     expect(count).toBeGreaterThan(0);
 
@@ -162,25 +156,14 @@ test.describe("Homepage Sections", () => {
     await expect(page.getByText("Essential Kits").first()).toBeAttached();
   });
 
-  // ── Featured Products Section ─────────────────────────────────────────────
+  // ── Featured Section ──────────────────────────────────────────────────────
 
-  test("Featured Products section renders with product cards", async ({
-    page,
-  }) => {
-    test.setTimeout(120_000);
-    const heading = page.getByRole("heading", {
-      name: "Our Featured Products",
-    });
+  test("Featured section renders with product cards", async ({ page }) => {
+    const heading = page.getByRole("heading", { name: "Featured", exact: true });
     await expect(heading).toBeVisible();
 
-    // Wait for featured products to load
-    await expect(
-      page.getByText("Loading featured products...")
-    ).toBeHidden({ timeout: FEATURED_PRODUCTS_LOAD_TIMEOUT });
-
-    // Product cards should be present
     const featuredSection = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Our Featured Products" }),
+      has: page.getByRole("heading", { name: "Featured", exact: true }),
     });
 
     // Product cards have images and links
@@ -191,27 +174,37 @@ test.describe("Homepage Sections", () => {
     expect(imageCount).toBeGreaterThan(0);
   });
 
-  // ── Our Story Section ─────────────────────────────────────────────────────
+  // ── Comfort Meets Conscious Living Section ────────────────────────────────
 
-  test("Our Story section renders with Learn More button", async ({
+  test("Comfort Meets Conscious Living section renders", async ({ page }) => {
+    const heading = page.getByRole("heading", {
+      name: "Comfort Meets Conscious Living",
+    });
+    await heading.scrollIntoViewIfNeeded();
+    await expect(heading).toBeVisible();
+  });
+
+  // ── Loved by Parents Section ──────────────────────────────────────────────
+
+  test("Loved by Parents section renders with product cards and See all link", async ({
     page,
   }) => {
-    const heading = page.getByRole("heading", { name: "Our Story" });
+    const heading = page.getByRole("heading", { name: "Loved by Parents" });
+    await heading.scrollIntoViewIfNeeded();
     await expect(heading).toBeVisible();
 
-    await expect(
-      page.getByText(
-        "At Cozyberries, we believe that every baby deserves to be wrapped in"
-      )
-    ).toBeVisible();
+    const section = page.locator("section").filter({ has: heading });
 
-    // Learn More button links to /about
-    const learnMore = page.getByRole("link", { name: "Learn More" });
-    await expect(learnMore).toBeVisible();
+    const productLinks = section.locator('a[href^="/products/"]');
+    await expect(productLinks.first()).toBeVisible({ timeout: 10_000 });
+    expect(await productLinks.count()).toBeGreaterThan(0);
 
-    await learnMore.click();
-    await page.waitForURL("**/about**", { timeout: 15_000 });
-    expect(page.url()).toContain("/about");
+    const seeAll = section.getByRole("link", { name: "See all" });
+    await expect(seeAll).toBeVisible();
+
+    await seeAll.click();
+    await page.waitForURL("**/products**", { timeout: 15_000 });
+    expect(page.url()).toContain("/products");
   });
 });
 
@@ -239,8 +232,8 @@ test.describe("Shop by Age – All age ranges return products", () => {
 
       expect(page.url()).toContain(`age=${ageRange.slug}`);
 
-      const showingText = page.getByText(/Showing \d+ of \d+ products/);
-      await expect(showingText).toBeVisible({ timeout: 30_000 });
+      const countText = page.getByText(/\d+\s*items?/i).first();
+      await expect(countText).toBeVisible({ timeout: 30_000 });
     });
   }
 });
@@ -282,11 +275,11 @@ test.describe("Shop by Category – All categories return products", () => {
 
         expect(page.url()).toContain(`category=${category.slug}`);
 
-        const showingText = page.getByText(/Showing \d+ of \d+ products/);
-        await expect(showingText).toBeVisible({ timeout: 15_000 });
+        const countText = page.getByText(/\d+\s*items?/i).first();
+        await expect(countText).toBeVisible({ timeout: 15_000 });
 
-        const text = (await showingText.textContent()) ?? "";
-        const total = Number(text.match(/of (\d+)/)?.[1] ?? 0);
+        const text = (await countText.textContent()) ?? "";
+        const total = Number(text.match(/(\d+)\s*items?/i)?.[1] ?? 0);
         expect(total).toBeGreaterThan(0);
       });
     }
@@ -315,13 +308,13 @@ test.describe("New Born Gifting – Cards and buttons", () => {
     expect(page.url()).toContain("category=newborn-essentials");
   });
 
-  test("View All Newborn Products button navigates to age-filtered page", async ({
+  test("View All Newborn Products link navigates to age-filtered page", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    // The "View All Newborn Products" button (mobile) or "View All Newborn" (desktop)
+    // The "View All Newborn Products" link (mobile) or its desktop equivalent
     const viewAllLink = page
       .locator('a[href="/products?age=0-3m"]')
       .first();
@@ -334,24 +327,19 @@ test.describe("New Born Gifting – Cards and buttons", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FEATURED PRODUCTS – PRODUCT CARDS ARE CLICKABLE
+// FEATURED – PRODUCT CARDS ARE CLICKABLE
 // ══════════════════════════════════════════════════════════════════════════════
 
-test.describe("Featured Products – Product cards", () => {
+test.describe("Featured – Product cards", () => {
   test("Featured product cards link to product detail pages", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    // Wait for featured products to load
-    await expect(
-      page.getByText("Loading featured products...")
-    ).toBeHidden({ timeout: FEATURED_PRODUCTS_LOAD_TIMEOUT });
-
     // Get the first product card link in the featured section
     const featuredSection = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Our Featured Products" }),
+      has: page.getByRole("heading", { name: "Featured", exact: true }),
     });
 
     const productLink = featuredSection
@@ -377,7 +365,7 @@ test.describe("Featured Products – Product cards", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 test.describe("All Public Pages Render Correctly", () => {
-  test.setTimeout(FEATURED_PRODUCTS_LOAD_TIMEOUT);
+  test.setTimeout(PAGE_LOAD_TIMEOUT);
 
   test("Homepage (/) loads with all major sections", async ({ page }) => {
     await page.goto("/");
@@ -394,10 +382,13 @@ test.describe("All Public Pages Render Correctly", () => {
       page.getByRole("heading", { name: "New Born Gifting" })
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Our Featured Products" })
+      page.getByRole("heading", { name: "Featured", exact: true })
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Our Story" })
+      page.getByRole("heading", { name: "Comfort Meets Conscious Living" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Loved by Parents" })
     ).toBeVisible();
   });
 
@@ -418,61 +409,46 @@ test.describe("All Public Pages Render Correctly", () => {
     await page.goto("/about");
 
     await expect(
-      page.getByRole("heading", { name: "About CozyBerries", level: 1 })
+      page.getByRole("heading", { name: "Our Story", level: 1 })
     ).toBeVisible({ timeout: 15_000 });
 
-    // Our Story section
+    // Sustainability content reused from the homepage's "Comfort Meets
+    // Conscious Living" section
     await expect(
-      page.getByRole("heading", { name: "Our Story" }).first()
+      page.getByRole("heading", { name: "Why Muslin" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Our Commitment to Sustainability" })
     ).toBeVisible();
 
-    // Our Values section
-    await expect(
-      page.getByRole("heading", { name: "Our Values" })
-    ).toBeVisible();
+    // "Shop the collection" link navigates to /products
+    const shopLink = page.getByRole("link", { name: "Shop the collection" });
+    await expect(shopLink).toBeVisible();
 
-    // Quality Promise section
-    await expect(
-      page.getByRole("heading", { name: "Our Quality Promise" })
-    ).toBeVisible();
-
-    // Shop Now and Back to Home buttons
-    const shopNow = page.getByRole("link", { name: "Shop Now" });
-    await expect(shopNow).toBeVisible();
-
-    const backHome = page.getByRole("link", { name: "Back to Home" });
-    await expect(backHome).toBeVisible();
-
-    // Click Shop Now → products page
-    await shopNow.click();
+    await shopLink.click();
     await page.waitForURL("**/products**", { timeout: 15_000 });
     expect(page.url()).toContain("/products");
   });
 
-  test("Contact page (/contact) renders with form and info", async ({
+  test("Contact page (/contact) renders with support channels", async ({
     page,
   }) => {
     await page.goto("/contact");
 
     await expect(
-      page.getByRole("heading", { name: "Contact Us", level: 1 })
+      page.getByRole("heading", { name: "Contact & Support", level: 1 })
     ).toBeVisible({ timeout: 15_000 });
 
-    // Form fields
-    await expect(page.getByLabel(/Name/)).toBeVisible();
-    await expect(page.getByRole("textbox", { name: /Email/ })).toBeVisible();
-    await expect(page.getByLabel(/Subject/)).toBeVisible();
-    await expect(page.getByLabel(/Message/)).toBeVisible();
-
-    // Send Message button
     await expect(
-      page.getByRole("button", { name: "Send Message" })
+      page.getByRole("heading", { name: "We're here to help" })
     ).toBeVisible();
 
-    // Contact info section
-    await expect(
-      page.getByRole("heading", { name: "Get in touch" })
-    ).toBeVisible();
+    // Support channels (WhatsApp, Email, Instagram, Call us, Visit us) — the
+    // page is an info/contact-channels page, not a contact form.
+    await expect(page.getByText("WhatsApp")).toBeVisible();
+    await expect(page.getByText("Email", { exact: true })).toBeVisible();
+    await expect(page.getByText("cozyberriesofficial@gmail.com")).toBeVisible();
+    await expect(page.getByText("+91 7411431101").first()).toBeVisible();
   });
 
   // Retired info pages redirect to the homepage from next.config.mjs (HTTP 307). Rendering a page
@@ -519,33 +495,38 @@ test.describe("Header Navigation", () => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    // HOME link
-    const homeLink = page.locator("header nav").getByText("HOME");
+    const headerNav = page.locator("header nav").first();
+
+    // Home link
+    const homeLink = headerNav.getByRole("link", { name: "Home" });
     await expect(homeLink).toBeVisible();
 
-    // PRODUCTS link
-    const productsLink = page.locator("header nav").getByText("PRODUCTS");
-    await expect(productsLink).toBeVisible();
+    // Shop link
+    const shopLink = headerNav.getByRole("link", { name: "Shop" });
+    await expect(shopLink).toBeVisible();
 
-    await productsLink.click();
+    await shopLink.click();
     await page.waitForURL("**/products**", { timeout: 15_000 });
     expect(page.url()).toContain("/products");
 
-    // ABOUT link
+    // Wishlist link
     await page.goto("/");
-    const aboutLink = page.locator("header nav").getByText("ABOUT");
-    await expect(aboutLink).toBeVisible();
+    const wishlistLink = page
+      .locator("header nav")
+      .first()
+      .getByRole("link", { name: "Wishlist" });
+    await expect(wishlistLink).toBeVisible();
 
-    await aboutLink.click();
-    await page.waitForURL("**/about**", { timeout: 15_000 });
-    expect(page.url()).toContain("/about");
+    await wishlistLink.click();
+    await page.waitForURL("**/wishlist**", { timeout: 15_000 });
+    expect(page.url()).toContain("/wishlist");
   });
 
   test("Search button opens search overlay", async ({ page }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    const searchButton = page.locator("button[data-search-trigger]");
+    const searchButton = page.getByRole("button", { name: "Search products" });
     await expect(searchButton).toBeVisible();
     await searchButton.click();
 
@@ -553,91 +534,97 @@ test.describe("Header Navigation", () => {
     const searchInput = page.getByPlaceholder(/search/i);
     await expect(searchInput).toBeVisible({ timeout: 10_000 });
   });
+
+  test("Header icon buttons navigate to cart, profile and wishlist", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForHomepageToLoad(page);
+
+    await page.getByRole("button", { name: "Go to cart" }).click();
+    await page.waitForURL("**/cart**", { timeout: 15_000 });
+    expect(page.url()).toContain("/cart");
+
+    await page.goto("/");
+    await waitForHomepageToLoad(page);
+    await page.getByRole("button", { name: "Go to profile" }).click();
+    await page.waitForURL("**/profile**", { timeout: 15_000 });
+    expect(page.url()).toContain("/profile");
+
+    await page.goto("/");
+    await waitForHomepageToLoad(page);
+    await page.getByRole("button", { name: "Go to wishlist" }).click();
+    await page.waitForURL("**/wishlist**", { timeout: 15_000 });
+    expect(page.url()).toContain("/wishlist");
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FOOTER NAVIGATION
+// BOTTOM NAVIGATION (MOBILE) — the footer is commented out (no <footer> in the
+// current build); the mobile bottom nav is its functional replacement.
 // ══════════════════════════════════════════════════════════════════════════════
 
-test.describe("Footer Navigation", () => {
-  test("Footer renders with all link sections", async ({ page }) => {
+test.describe("Bottom Navigation (mobile)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("Bottom nav renders with Home, Shop, Cart and Account", async ({
+    page,
+  }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    const footer = page.locator("footer");
-    await expect(footer).toBeVisible();
-
-    // Footer sections
-    await expect(footer.getByText("Shop")).toBeVisible();
-    await expect(footer.getByText("Help")).toBeVisible();
-    await expect(footer.getByText("About")).toBeVisible();
-
-    // Footer links
-    await expect(footer.getByRole("link", { name: "Products" })).toBeVisible();
+    const bottomNav = page.locator('[class*="fixed"][class*="bottom"]');
+    await expect(bottomNav.getByRole("link", { name: "Home" })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Shop" })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Cart" })).toBeVisible();
     await expect(
-      footer.getByRole("link", { name: "Contact Us", exact: true })
+      bottomNav.getByRole("link", { name: "Account" })
     ).toBeVisible();
-    await expect(
-      footer.getByRole("link", { name: "Shipping & Returns" })
-    ).toBeVisible();
-    await expect(footer.getByRole("link", { name: "FAQs" })).toBeVisible();
-    await expect(
-      footer.getByRole("link", { name: "Track Order" })
-    ).toBeVisible();
-    await expect(
-      footer.getByRole("link", { name: "Our Story" })
-    ).toBeVisible();
-
-    // Copyright
-    await expect(footer.getByText(/CozyBerries. All rights reserved/)).toBeVisible();
   });
 
-  test("Footer Products link navigates to /products", async ({ page }) => {
+  test("Bottom nav Shop link navigates to /products", async ({ page }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    const footer = page.locator("footer");
-    const productsLink = footer.getByRole("link", { name: "Products" });
-    await productsLink.click();
+    const bottomNav = page.locator('[class*="fixed"][class*="bottom"]');
+    await bottomNav.getByRole("link", { name: "Shop" }).click();
 
     await page.waitForURL("**/products**", { timeout: 15_000 });
     expect(page.url()).toContain("/products");
   });
 
-  test("Footer Contact Us link navigates to /contact", async ({ page }) => {
+  test("Bottom nav Cart link navigates to /cart", async ({ page }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    const footer = page.locator("footer");
-    const link = footer.getByRole("link", { name: "Contact Us", exact: true });
-    await link.click();
+    const bottomNav = page.locator('[class*="fixed"][class*="bottom"]');
+    await bottomNav.getByRole("link", { name: "Cart" }).click();
 
-    await page.waitForURL("**/contact**", { timeout: 15_000 });
-    expect(page.url()).toContain("/contact");
+    await page.waitForURL("**/cart**", { timeout: 15_000 });
+    expect(page.url()).toContain("/cart");
   });
 
-  test("Footer FAQs link navigates to /faqs", async ({ page }) => {
+  test("Bottom nav Account link navigates to /login when signed out", async ({
+    page,
+  }) => {
     await page.goto("/");
     await waitForHomepageToLoad(page);
 
-    const footer = page.locator("footer");
-    const link = footer.getByRole("link", { name: "FAQs" });
-    await link.click();
+    const bottomNav = page.locator('[class*="fixed"][class*="bottom"]');
+    await bottomNav.getByRole("link", { name: "Account" }).click();
 
-    await page.waitForURL("**/faqs**", { timeout: 15_000 });
-    expect(page.url()).toContain("/faqs");
+    await page.waitForURL("**/login**", { timeout: 15_000 });
+    expect(page.url()).toContain("/login");
   });
 
-  test("Footer Our Story link navigates to /about", async ({ page }) => {
-    await page.goto("/");
-    await waitForHomepageToLoad(page);
+  test("Bottom nav Home link navigates to /", async ({ page }) => {
+    await page.goto("/products");
+    await waitForProductsToLoad(page);
 
-    const footer = page.locator("footer");
-    const link = footer.getByRole("link", { name: "Our Story" });
-    await link.click();
+    const bottomNav = page.locator('[class*="fixed"][class*="bottom"]');
+    await bottomNav.getByRole("link", { name: "Home" }).click();
 
-    await page.waitForURL("**/about**", { timeout: 15_000 });
-    expect(page.url()).toContain("/about");
+    await page.waitForURL("/", { timeout: 15_000 });
   });
 });
 

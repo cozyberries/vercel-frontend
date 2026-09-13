@@ -2,317 +2,242 @@ import { test, expect } from '@playwright/test';
 
 /**
  * Authentication Tests
- * 
- * These tests validate the signup and login functionality.
- * 
- * Note: For these tests to work properly, you need:
- * 1. A valid Supabase configuration in .env.local
- * 2. Email confirmation settings configured in Supabase
- * 3. Test credentials or ability to create test users
+ *
+ * Covers the current phone-first auth UI:
+ * - /login        — mobile number sign-in, Google, guest, links to signup/staff sign-in
+ * - /login/email  — staff (email + password) sign-in
+ * - /signup       — mobile number registration (full name + mobile + optional email)
+ * - /login/verify — redirect guard when there is no pending OTP session
+ *
+ * Phone sign-in sends a REAL OTP SMS. These tests never submit a valid-looking
+ * mobile number and never attempt a real login — they only assert rendering,
+ * client-side validation, and navigation.
+ *
+ * Email/password *signup* (formerly /register/email) no longer exists in the
+ * product (only /login/email staff sign-in remains), so those tests were
+ * deleted rather than rewritten.
  */
 
-// Test credentials - these should be unique for each test run
-// Using timestamp to ensure uniqueness
-const timestamp = Date.now();
-const testEmail = `test-${timestamp}@example.com`;
-const testPassword = 'TestPassword123!';
+test.describe('Login page (/login)', () => {
+  test('renders the phone sign-in form', async ({ page }) => {
+    await page.goto('/login');
 
-test.describe('User Authentication', () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to home page before each test
+    await expect(page).toHaveTitle(/CozyBerries/i);
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    await expect(page.getByPlaceholder('Enter your mobile number')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Continue with Google/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Continue as guest/i })).toBeVisible();
+  });
+
+  test('shows a validation error when the mobile number is empty', async ({ page }) => {
+    await page.goto('/login');
+
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+
+    await expect(page.getByText('Phone number is required')).toBeVisible();
+  });
+
+  test('shows a validation error for a too-short mobile number', async ({ page }) => {
+    await page.goto('/login');
+
+    // Deliberately not a valid-looking number — 3 digits can never pass
+    // validation or trigger a real OTP send.
+    await page.getByPlaceholder('Enter your mobile number').fill('123');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+
+    await expect(page.getByText('Phone number must be 10 digits')).toBeVisible();
+  });
+
+  test('links to the staff sign-in page', async ({ page }) => {
+    await page.goto('/login');
+
+    await page
+      .getByRole('link', { name: /Sign in with your CozyBerries staff email/i })
+      .click();
+
+    await expect(page).toHaveURL(/\/login\/email$/);
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+  });
+
+  test('links to the signup page', async ({ page }) => {
+    await page.goto('/login');
+
+    await page.getByRole('link', { name: 'Create an account.' }).click();
+
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole('heading', { name: 'Welcome to CozyBerries' })).toBeVisible();
+  });
+
+  test('continue as guest returns to the page the visitor came from', async ({ page }) => {
+    // Navigate home first so there is a real "previous page" in history —
+    // handleGuest() falls back to router.back() when there is no redirect param.
     await page.goto('/');
+    await page.goto('/login');
+
+    await page.getByRole('button', { name: /Continue as guest/i }).click();
+
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/');
   });
 
-  test.describe('Signup Flow', () => {
-    test('should display signup page correctly (phone default)', async ({ page }) => {
-      await page.goto('/register');
-      
-      // Check page title
-      await expect(page).toHaveTitle(/CozyBerries/i);
-      
-      // Check heading
-      await expect(page.getByRole('heading', { name: /Register with phone/i })).toBeVisible();
-      
-      // Phone signup primary path
-      await expect(page.getByRole('button', { name: /Send OTP/i })).toBeVisible();
-      await expect(page.getByRole('link', { name: /sign in to your existing account/i })).toBeVisible();
-      await expect(page.getByRole('link', { name: /use email instead/i })).toBeVisible();
-    });
+  test('renders with a redirect param and carries it into the signup link', async ({ page }) => {
+    await page.goto('/login?redirect=%2Fcheckout');
 
-    test('should show error when passwords do not match', async ({ page }) => {
-      await page.goto('/register/email');
-      
-      // Fill in the form with mismatched passwords
-      await page.getByLabel(/Email address/i).fill(testEmail);
-      await page.getByLabel(/^Password$/i).first().fill(testPassword);
-      await page.getByLabel(/Confirm Password/i).fill('DifferentPassword123!');
-      
-      // Submit the form
-      await page.getByRole('button', { name: /Create account/i }).click();
-      
-      // Check for error message
-      await expect(page.getByText(/Passwords do not match/i)).toBeVisible();
-    });
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Create an account.' })).toHaveAttribute(
+      'href',
+      '/signup?redirect=%2Fcheckout'
+    );
+  });
+});
 
-    test('should show error for invalid email format', async ({ page }) => {
-      await page.goto('/register/email');
-      
-      // Fill in the form with invalid email
-      await page.getByLabel(/Email address/i).fill('invalid-email');
-      await page.getByLabel(/^Password$/i).first().fill(testPassword);
-      await page.getByLabel(/Confirm Password/i).fill(testPassword);
-      
-      // Try to submit - browser validation should prevent submission
-      const emailInput = page.getByLabel(/Email address/i);
-      await emailInput.blur();
-      
-      // Check HTML5 validation
-      const isInvalid = await emailInput.evaluate((el: HTMLInputElement) => {
-        return !el.validity.valid;
-      });
-      expect(isInvalid).toBe(true);
-    });
+test.describe('Login verify guard (/login/verify)', () => {
+  test('redirects to /login when there is no pending login', async ({ page }) => {
+    await page.goto('/login/verify');
 
-    test('should show error for weak password', async ({ page }) => {
-      await page.goto('/register/email');
-      
-      // Fill in the form with weak password
-      await page.getByLabel(/Email address/i).fill(testEmail);
-      await page.getByLabel(/^Password$/i).first().fill('123');
-      await page.getByLabel(/Confirm Password/i).fill('123');
-      
-      // Submit the form
-      await page.getByRole('button', { name: /Create account/i }).click();
-      
-      // Wait for error message (Supabase password requirements or validation)
-      const errorLocator = page.locator('text=/password|error|invalid/i').first();
-      await errorLocator.waitFor({ state: 'visible', timeout: 10_000 });
-      const errorText = await errorLocator.textContent();
-      expect(errorText).toBeTruthy();
-    });
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  });
+});
 
-    test('should successfully submit signup form with valid data', async ({ page }) => {
-      await page.goto('/register/email');
-      
-      // Generate unique email for this test
-      const uniqueEmail = `test-signup-${Date.now()}@example.com`;
-      
-      // Fill in the form with valid data
-      await page.getByLabel(/Email address/i).fill(uniqueEmail);
-      await page.getByLabel(/^Password$/i).first().fill(testPassword);
-      await page.getByLabel(/Confirm Password/i).fill(testPassword);
-      
-      // Submit the form
-      await page.getByRole('button', { name: /Create account/i }).click();
-      
-      // Wait for the signup request to complete — the button should revert
-      // from "Creating account..." back to "Create account"
-      await expect(
-        page.getByRole('button', { name: /Create account/i })
-      ).toBeVisible({ timeout: 15_000 });
-      
-      // Check for success message (email confirmation), error, or redirect
-      const successMessage = page.getByText(/Check your email for a confirmation link/i);
-      // Match broad error patterns including "invalid", "error", "failed"
-      const errorMessage = page.locator('text=/error|failed|invalid/i').first();
-      
-      const hasSuccess = await successMessage.isVisible().catch(() => false);
-      const hasError = await errorMessage.isVisible().catch(() => false);
-      const wasRedirected = !page.url().includes('/register/email');
-      
-      // If there's an error, log it for debugging
-      if (hasError) {
-        const errorText = await errorMessage.textContent();
-        console.log('Signup error:', errorText);
-      }
-      
-      const strictMode = process.env.SUPABASE_DETERMINISTIC === 'true' || process.env.TEST_STRICT === 'true';
-      if (strictMode) {
-        // Deterministic environments: require a specific outcome
-        expect(hasSuccess || wasRedirected, 'In strict mode expect success or redirect').toBe(true);
-      } else {
-        // The form was processed: either success, error, or redirect occurred.
-        expect(hasSuccess || hasError || wasRedirected).toBe(true);
-      }
-    });
+test.describe('Staff sign-in (/login/email)', () => {
+  test('shows an error for invalid credentials', async ({ page }) => {
+    await page.goto('/login/email');
 
-    test('should navigate to login page from signup page', async ({ page }) => {
-      await page.goto('/register');
-      
-      // Click the link to login page (phone flow default)
-      await page.getByRole('link', { name: /sign in to your existing account/i }).click();
-      
-      await expect(page).toHaveURL(/\/login\/phone/);
-      await expect(page.getByRole('heading', { name: /Sign in with phone/i })).toBeVisible();
-    });
+    await page.getByLabel(/Email address/i).fill('nonexistent@example.com');
+    await page.getByLabel(/^Password$/i).fill('WrongPassword123!');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+
+    await expect(page.getByText('Invalid login credentials')).toBeVisible({ timeout: 10_000 });
   });
 
-  test.describe('Login Flow', () => {
-    test('should display login page correctly (phone default)', async ({ page }) => {
-      await page.goto('/login');
-      
-      // Check page title
-      await expect(page).toHaveTitle(/CozyBerries/i);
-      
-      await expect(page).toHaveURL(/\/login\/phone/);
-      await expect(page.getByRole('heading', { name: /Sign in with phone/i })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Send OTP/i })).toBeVisible();
-      await expect(page.getByRole('link', { name: /use email instead/i })).toBeVisible();
-      await expect(page.getByRole('link', { name: /create a new account/i })).toBeVisible();
-    });
+  test('flags an invalid email format via HTML5 validation', async ({ page }) => {
+    await page.goto('/login/email');
 
-    test('should show error for invalid credentials', async ({ page }) => {
-      await page.goto('/login/email');
-      
-      // Fill in the form with invalid credentials
-      await page.getByLabel(/Email address/i).fill('nonexistent@example.com');
-      await page.getByLabel(/^Password$/i).fill('WrongPassword123!');
-      
-      // Submit the form
-      await page.getByRole('button', { name: /Sign in/i }).click();
-      
-      // Wait for error message to appear (exact message depends on Supabase configuration)
-      const errorMessage = page.locator('text=/invalid|incorrect|error|wrong/i').first();
-      await expect(errorMessage).toBeVisible({ timeout: 10_000 });
-      const errorText = await errorMessage.textContent();
-      expect(errorText).toBeTruthy();
-    });
+    const emailInput = page.getByLabel(/Email address/i);
+    await emailInput.fill('invalid-email');
+    await emailInput.blur();
 
-    test('should show error for invalid email format', async ({ page }) => {
-      await page.goto('/login/email');
-      
-      // Fill in the form with invalid email
-      await page.getByLabel(/Email address/i).fill('invalid-email');
-      await page.getByLabel(/^Password$/i).fill(testPassword);
-      
-      // Try to submit - browser validation should prevent submission
-      const emailInput = page.getByLabel(/Email address/i);
-      await emailInput.blur();
-      
-      // Check HTML5 validation
-      const isInvalid = await emailInput.evaluate((el: HTMLInputElement) => {
-        return !el.validity.valid;
-      });
-      expect(isInvalid).toBe(true);
-    });
-
-    test('should navigate to register page from login page', async ({ page }) => {
-      await page.goto('/login');
-      
-      await page.getByRole('link', { name: /create a new account/i }).click();
-      
-      await expect(page).toHaveURL(/\/register\/phone/);
-      await expect(page.getByRole('heading', { name: /Register with phone/i })).toBeVisible();
-    });
-
-    test('should show loading state during login', async ({ page }) => {
-      await page.goto('/login/email');
-      
-      // Intercept auth requests with regex (matches Supabase auth URLs) and delay response
-      await page.route(/auth/, async (route) => {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        await route.continue();
-      });
-      
-      // Fill in the form
-      await page.getByLabel(/Email address/i).fill('test@example.com');
-      await page.getByLabel(/^Password$/i).fill('TestPassword123!');
-      
-      // Fire the click without awaiting so we can check loading state immediately
-      const submitButton = page.getByRole('button', { name: /Sign in/i });
-      void submitButton.click();
-      
-      // The button should show "Signing in..." while the auth request is delayed
-      await expect(
-        page.getByRole('button', { name: /Signing in/i })
-      ).toBeVisible({ timeout: 10_000 });
-      
-      // Clean up route interception
-      await page.unrouteAll();
-    });
-
-    test('should disable form during loading', async ({ page }) => {
-      await page.goto('/login/email');
-      
-      // Intercept auth requests with regex and delay response
-      await page.route(/auth/, async (route) => {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        await route.continue();
-      });
-      
-      // Fill in the form
-      await page.getByLabel(/Email address/i).fill('test@example.com');
-      await page.getByLabel(/^Password$/i).fill('TestPassword123!');
-      
-      // Fire the click without awaiting so we can check disabled state immediately
-      void page.getByRole('button', { name: /Sign in/i }).click();
-      
-      // During loading, check for the loading state using a stable selector
-      await expect(async () => {
-        const loadingButton = page.getByRole('button', { name: /Signing in/i });
-        const hasLoadingText = await loadingButton.isVisible().catch(() => false);
-        
-        // Re-query the submit button to get its current state
-        const currentButton = page.getByRole('button').filter({ hasText: /Sign in|Signing in/i }).first();
-        const isDisabled = await currentButton.isDisabled().catch(() => false);
-        
-        expect(hasLoadingText || isDisabled).toBe(true);
-      }).toPass({ timeout: 10_000 });
-      
-      // Clean up route interception
-      await page.unrouteAll();
-    });
+    const isInvalid = await emailInput.evaluate((el: HTMLInputElement) => !el.validity.valid);
+    expect(isInvalid).toBe(true);
   });
 
-  test.describe('Navigation Flow', () => {
-    test('should navigate between login and register pages (phone default)', async ({ page }) => {
-      await page.goto('/login');
-      await expect(page.getByRole('heading', { name: /Sign in with phone/i })).toBeVisible();
-      
-      await page.getByRole('link', { name: /create a new account/i }).click();
-      await expect(page).toHaveURL(/\/register\/phone/);
-      await expect(page.getByRole('heading', { name: /Register with phone/i })).toBeVisible();
-      
-      await page.getByRole('link', { name: /sign in to your existing account/i }).click();
-      await expect(page).toHaveURL(/\/login\/phone/);
-      await expect(page.getByRole('heading', { name: /Sign in with phone/i })).toBeVisible();
-    });
+  test('requires the email field', async ({ page }) => {
+    await page.goto('/login/email');
+
+    await expect(page.getByLabel(/Email address/i)).toHaveAttribute('required', '');
   });
 
-  test.describe('Form Validation', () => {
-    test('should require email field', async ({ page }) => {
-      await page.goto('/login/email');
-      
-      const emailInput = page.getByLabel(/Email address/i);
-      const isRequired = await emailInput.getAttribute('required');
-      expect(isRequired).not.toBeNull();
+  test('requires the password field', async ({ page }) => {
+    await page.goto('/login/email');
+
+    await expect(page.getByLabel(/^Password$/i)).toHaveAttribute('required', '');
+  });
+
+  test('shows a loading state while signing in', async ({ page }) => {
+    await page.goto('/login/email');
+
+    // Delay the auth request so the loading state is observable.
+    await page.route(/auth/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.continue();
     });
 
-    test('should require password field', async ({ page }) => {
-      await page.goto('/login/email');
-      
-      const passwordInput = page.getByLabel(/^Password$/i);
-      const isRequired = await passwordInput.getAttribute('required');
-      expect(isRequired).not.toBeNull();
+    await page.getByLabel(/Email address/i).fill('test@example.com');
+    await page.getByLabel(/^Password$/i).fill('TestPassword123!');
+    void page.getByRole('button', { name: 'Sign in', exact: true }).click();
+
+    await expect(page.getByRole('button', { name: /Signing in/i })).toBeVisible({
+      timeout: 10_000,
     });
 
-    test('should require all fields on register page', async ({ page }) => {
-      await page.goto('/register/email');
-      
-      const emailInput = page.getByLabel(/Email address/i);
-      const phoneInput = page.getByLabel(/Phone Number/i);
-      const passwordInput = page.getByLabel(/^Password$/i).first();
-      const confirmPasswordInput = page.getByLabel(/Confirm Password/i);
-      
-      const emailRequired = await emailInput.getAttribute('required');
-      const phoneRequired = await phoneInput.getAttribute('required');
-      const passwordRequired = await passwordInput.getAttribute('required');
-      const confirmPasswordRequired = await confirmPasswordInput.getAttribute('required');
-      
-      expect(emailRequired).not.toBeNull();
-      expect(phoneRequired).not.toBeNull();
-      expect(passwordRequired).not.toBeNull();
-      expect(confirmPasswordRequired).not.toBeNull();
+    await page.unrouteAll();
+  });
+
+  test('disables the submit button while signing in', async ({ page }) => {
+    await page.goto('/login/email');
+
+    await page.route(/auth/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.continue();
     });
+
+    await page.getByLabel(/Email address/i).fill('test@example.com');
+    await page.getByLabel(/^Password$/i).fill('TestPassword123!');
+    void page.getByRole('button', { name: 'Sign in', exact: true }).click();
+
+    await expect(page.getByRole('button', { name: /Signing in/i })).toBeDisabled({
+      timeout: 10_000,
+    });
+
+    await page.unrouteAll();
+  });
+
+  test('links back to the phone sign-in page', async ({ page }) => {
+    await page.goto('/login/email');
+
+    await page.getByRole('link', { name: /Go back to sign in/i }).click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  });
+});
+
+test.describe('Signup page (/signup)', () => {
+  test('renders the phone signup form', async ({ page }) => {
+    await page.goto('/signup');
+
+    await expect(page.getByRole('heading', { name: 'Welcome to CozyBerries' })).toBeVisible();
+    await expect(page.getByPlaceholder('Enter your full name')).toBeVisible();
+    await expect(page.getByPlaceholder('Enter your mobile number')).toBeVisible();
+    await expect(page.getByPlaceholder('For order updates & invoices')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Continue with Google/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Continue as guest/i })).toBeVisible();
+  });
+
+  test('shows a validation error when the full name is empty', async ({ page }) => {
+    await page.goto('/signup');
+
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+
+    await expect(page.getByText('Full name is required')).toBeVisible();
+  });
+
+  test('shows a validation error when the mobile number is empty', async ({ page }) => {
+    await page.goto('/signup');
+
+    await page.getByPlaceholder('Enter your full name').fill('Test User');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+
+    await expect(page.getByText('Phone number is required')).toBeVisible();
+  });
+
+  test('shows a validation error for a too-short mobile number', async ({ page }) => {
+    await page.goto('/signup');
+
+    await page.getByPlaceholder('Enter your full name').fill('Test User');
+    // Deliberately not a valid-looking number — never triggers a real OTP send.
+    await page.getByPlaceholder('Enter your mobile number').fill('123');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+
+    await expect(page.getByText('Phone number must be 10 digits')).toBeVisible();
+  });
+
+  test('the optional email field is not required', async ({ page }) => {
+    await page.goto('/signup');
+
+    const emailInput = page.getByPlaceholder('For order updates & invoices');
+    await expect(emailInput).toHaveAttribute('type', 'email');
+    expect(await emailInput.getAttribute('required')).toBeNull();
+  });
+
+  test('links to the login page', async ({ page }) => {
+    await page.goto('/signup');
+
+    await page.getByRole('link', { name: 'Sign in.' }).click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   });
 });
