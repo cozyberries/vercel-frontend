@@ -67,3 +67,15 @@ QStash dev server. Supabase Vault: `storefront_base_url`, `catalog_webhook_secre
 | `X-Cache-Status: FALLBACK` on responses | Redis unreachable or keys missing → run `npm run catalog:rebuild`; Telegram alert throttled to hourly |
 | Health `index has N docs, snapshot has M` | run a full rebuild; the index recreates with `existsOk` |
 | 429 from rebuild | another rebuild holds the lock; QStash retries automatically |
+
+## Verifying a deployment
+
+`npm run catalog:verify -- --url=https://cozyberries.in` checks: functions in `bom1`, health ok,
+`/api/catalog` CDN hit with a version, `/products` HTML embedding that version, a product page
+served as a static CDN hit, `/api/products` carrying `X-Catalog-Version`, `/api/search` answering.
+Run it after every production deploy of this pipeline and after enabling `CATALOG_SOURCE=redis`.
+
+## Rollout flag
+
+`CATALOG_SOURCE=redis` switches API routes and the product page to the catalog; `legacy` (default)
+keeps the old code paths. Flip it in Vercel env and redeploy. Removed in the cleanup phase.

@@ -18,6 +18,9 @@ Do not add admin-only operations here. Do not use `JWT_SECRET` in this repo.
 ```bash
 # Development
 npm run dev          # Start dev server on port 3000
+npm run catalog:rebuild            # POST a full rebuild event (or -- --slug=<slug>)
+npm run qstash:setup               # (once) create the nightly full-rebuild schedule
+npm run catalog:verify -- --url=https://cozyberries.in   # post-deploy checks
 
 # Build & Production
 npm run build        # Build for production
@@ -59,6 +62,11 @@ app/
   /api/payments/*            # UPI link generation + confirmation
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
+  /api/catalog               # Static snapshot for browsers (revalidated on change)
+  /api/catalog/events        # Supabase change webhook (x-catalog-secret)
+  /api/catalog/rebuild       # QStash-signed / cron rebuild job
+  /api/search                # Redis Search ranking
+  /api/health/catalog        # Catalog health (version, age, counts)
   /api/auth/generate-token   # JWT generation (bypasses RLS)
 ```
 
@@ -91,8 +99,14 @@ app/
 - Shipment creation remains in the admin app; storefront only displays tracking when `tracking_number` is set
 
 ### Caching Strategy
-- Next.js cache headers set in `next.config.mjs`: 1h for reference data, 60s for products
-- Cloudinary handles image CDN caching
+- **Catalog (products, categories, sizes, ages, genders, colours) is served from Upstash Redis in Mumbai**, never from Supabase on a request. Module: `lib/catalog/` (see `docs/CATALOG_CACHE.md`).
+  - Keys live under `cat:` (`cat:product:{slug}` JSON docs, `cat:snapshot`, `cat:reference`, `cat:version`, `cat:meta`). One Redis Search index `cat_products`.
+  - Request code reads only through `lib/catalog/cache.ts` (`getSnapshot`, `getProduct`, `getRanking`), which wraps Redis in Next's Data Cache with tags `catalog` and `product:{slug}`. Redis is touched only after an invalidation.
+  - Freshness is event-driven: Supabase triggers → `POST /api/catalog/events` (secret header, Redis debounce 8s, burst collapse) → QStash → `POST /api/catalog/rebuild` (signed) → `revalidateTag`. Nightly QStash schedule plus two daily Vercel crons as backstops. A change is live in about 10 seconds.
+  - Nothing under `lib/catalog/` may import `next/headers`; that is what keeps `/`, `/products/[id]` and `/api/catalog` static.
+  - Free tiers only (Upstash Redis/QStash Free, Vercel Hobby, Supabase Free). Budget: under 3,000 Redis commands and 1,000 QStash messages per day.
+- Browser: `hooks/useCatalog.ts` keeps the snapshot in TanStack Query (persisted to localStorage) and `/products` filters locally; the service worker caches `/api/catalog` stale-while-revalidate.
+- Per-user data (cart, wishlist, orders, profile) keeps its existing Redis caches in `lib/services/cache.ts`.
 
 ### Path Aliases
 - `@/*` maps to project root (configured in `tsconfig.json`)
@@ -102,6 +116,7 @@ app/
 - `POST|GET /api/notifications` and `PATCH /api/notifications/[id]` verify the session, then use **`SUPABASE_SERVICE_ROLE_KEY`** to read/write rows scoped by `user_id` (avoids `GRANT`/`RLS` drift across Supabase projects)
 - `AddressFormModal` accepts `enablePincodeCheck` prop to toggle Delhivery validation
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
+- Env vars for the catalog pipeline: CATALOG_BASE_URL, CATALOG_WEBHOOK_SECRET, QSTASH_TOKEN, QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY (server-only). Vercel functions are pinned to bom1 in vercel.json.
 
 ### Admin impersonation E2E
 - Run: `npm run test:admin-impersonation` (Desktop Chrome, reuses `purchase-auth-setup`).

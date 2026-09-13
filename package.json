@@ -29,7 +29,8 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "catalog:rebuild": "node scripts/catalog-rebuild.mjs",
-    "qstash:setup": "node scripts/qstash-setup.mjs"
+    "qstash:setup": "node scripts/qstash-setup.mjs",
+    "catalog:verify": "node scripts/catalog-verify.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
