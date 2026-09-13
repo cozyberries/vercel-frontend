@@ -13,7 +13,14 @@ export default defineConfig({
     },
   },
   test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html'],
+      include: ['lib/**', 'app/**', 'hooks/**', 'components/**'],
+      exclude: ['**/*.test.*', '**/__fixtures__/**', 'lib/catalog/testing/**', '.next/**'],
+    },
     environment: 'node',
+    setupFiles: ['./vitest.setup.ts'],
     globals: true,
     include: ['**/*.test.ts', '**/*.test.tsx'],
     exclude: ['node_modules/**', '.next/**', 'tests/**'],

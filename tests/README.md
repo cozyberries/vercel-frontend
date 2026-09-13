@@ -115,3 +115,18 @@ test.describe('Feature Name', () => {
 
 
 
+
+## Conventions (2026-09)
+
+- Every bug found or reported gets an automated test: a vitest unit test when the defect is in a
+  pure module, a Playwright spec when it is in a page, a route header, a redirect or browser
+  behaviour (console errors, caching). Verification of fixes and deploys runs through scripts,
+  never by hand.
+- `tests/catalog.spec.ts` covers the Redis catalog: snapshot + health agreement, search ranking,
+  the /products grid (instant filtering, URL sync, infinite scroll), static rendering of / and
+  product pages, console hygiene. `tests/pages-coverage.spec.ts` covers pages that had no spec and
+  sweeps every public page for console errors and 5xx responses. Both run at 375x812.
+- Component tests live next to their component as `*.test.tsx` with a
+  `// @vitest-environment jsdom` docblock (see `app/products/ProductsClient.test.tsx`).
+- Run the browser suites against a production build (`npm run build && npx next start -p 3000`);
+  `next dev` shares `.next` with the build and must not run at the same time.

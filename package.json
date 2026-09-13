@@ -30,7 +30,10 @@
     "test:unit:watch": "vitest",
     "catalog:rebuild": "node scripts/catalog-rebuild.mjs",
     "qstash:setup": "node scripts/qstash-setup.mjs",
-    "catalog:verify": "node scripts/catalog-verify.mjs"
+    "catalog:verify": "node scripts/catalog-verify.mjs",
+    "test:unit:coverage": "vitest run --coverage",
+    "test:catalog": "playwright test tests/catalog.spec.ts tests/pages-coverage.spec.ts --project=chromium",
+    "test:e2e:prod": "PLAYWRIGHT_TEST_BASE_URL=https://cozyberries.in playwright test tests/catalog.spec.ts tests/pages-coverage.spec.ts tests/homepage-and-pages.spec.ts --project=chromium"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -88,15 +91,20 @@
   "devDependencies": {
     "@next/bundle-analyzer": "^15.1.6",
     "@playwright/test": "^1.49.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.19.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.4",
     "@vitest/ui": "^4.1.4",
     "eslint": "^9.16.0",
     "eslint-config-next": "15.1.0",
+    "jsdom": "^29.1.1",
     "pg": "^8.18.0",
     "postcss": "^8.4.49",
     "sharp": "^0.34.5",

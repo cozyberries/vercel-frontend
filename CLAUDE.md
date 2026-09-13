@@ -29,10 +29,13 @@ npm run start        # Start production server
 # Code Quality
 npm run lint         # Run ESLint (Next.js config)
 
-# Testing (E2E with Playwright — skip for now per project conventions)
-npx playwright test                      # All browsers
-npx playwright test --project=chromium  # Single browser
-npx playwright test tests/foo.spec.ts   # Single test file
+# Testing — every bug gets an automated test; no manual verification
+npm run test:unit                        # vitest (node + jsdom component tests)
+npm run test:unit:coverage               # vitest with v8 coverage summary
+npm test                                 # Playwright, chromium project (needs a server on :3000)
+npm run test:catalog                     # catalog + page-coverage specs only
+npm run test:e2e:prod                    # catalog/page/homepage specs against https://cozyberries.in
+npx playwright test tests/foo.spec.ts    # Single test file
 ```
 
 ## Architecture
