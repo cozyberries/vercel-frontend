@@ -126,9 +126,10 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     () => snapshot.reference.genders.map((g) => ({ id: g.slug, name: g.name, display_order: g.display_order })),
     [snapshot.reference.genders],
   );
+  // Ages come from the age list (each size plus multi-size groups such as 3-6y), not from sizes.
   const ageOptions = useMemo(
-    () => snapshot.reference.sizes.map((s) => ({ id: s.slug, slug: s.slug, name: s.name, display_order: s.display_order })),
-    [snapshot.reference.sizes],
+    () => snapshot.reference.ages.map((a) => ({ id: a.slug, slug: a.slug, name: a.name, display_order: a.display_order })),
+    [snapshot.reference.ages],
   );
 
   // ── URL state ──
