@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UpstashService } from '@/lib/upstash';
 import { querySearch, isSearchConfigured } from '@/lib/services/search-client';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { suggestionsResponse } from "@/lib/catalog/http";
 
 /** Fallback: Supabase ILIKE used when Upstash Search is not configured. */
 async function supabaseFallbackSearch(normalised: string) {
@@ -85,6 +87,9 @@ function rejectAfter(ms: number): Promise<never> {
 }
 
 export async function GET(request: NextRequest) {
+  if (isCatalogRedisEnabled()) {
+    return suggestionsResponse(new URL(request.url).searchParams.get("q") ?? "");
+  }
   const start = Date.now();
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
