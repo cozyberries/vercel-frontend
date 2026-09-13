@@ -375,3 +375,13 @@ export function notifyTrackingGap(data: {
     `\n⏰ ${ts}`
   );
 }
+
+/** Catalog cache alerts (rebuild failures, Redis fallback). Fire-and-forget like the other notifiers. */
+export function notifyCatalogAlert(data: { title: string; details: string }): void {
+  const ts = toIST(new Date());
+  void sendToTelegram(
+    `🧺 <b>Catalog: ${escapeHtml(data.title)}</b>\n\n` +
+    `${escapeHtml(data.details).slice(0, 1500)}\n\n` +
+    `⏰ ${ts}`
+  );
+}
