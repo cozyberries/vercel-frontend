@@ -2,8 +2,6 @@
 import { NextResponse } from 'next/server'
 import { getActiveOfferServer } from '@/lib/utils/offers-server'
 
-export const dynamic = 'force-dynamic'
-
 export async function GET() {
   const offer = getActiveOfferServer()
 

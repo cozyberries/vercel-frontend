@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService, isRedisConfigured, REDIS_REQUIRED_BODY } from "@/lib/upstash";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { optionsResponse } from "@/lib/catalog/http";
 
 export interface AgeOption {
   id: string;
@@ -16,6 +18,7 @@ const IN_MEMORY_TTL = 120_000; // 2 minutes
 
 export async function GET() {
   try {
+    if (isCatalogRedisEnabled()) return optionsResponse("ages");
     if (!isRedisConfigured()) {
       return NextResponse.json(REDIS_REQUIRED_BODY, { status: 503 });
     }

@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import { Product, ProductUpdate } from "@/lib/types/product";
 import { aggregateSizesFromVariants } from "@/lib/utils/product";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { productDetailResponse } from "@/lib/catalog/http";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -18,6 +20,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: 400 }
       );
     }
+
+    if (isCatalogRedisEnabled()) return productDetailResponse(id);
 
     const cacheKey = `product:${id}`;
 
