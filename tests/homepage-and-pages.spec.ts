@@ -475,75 +475,27 @@ test.describe("All Public Pages Render Correctly", () => {
     ).toBeVisible();
   });
 
-  test("FAQs page (/faqs) renders with categories and questions", async ({
-    page,
-  }) => {
-    await page.goto("/faqs");
+  // Retired info pages redirect to the homepage from next.config.mjs (HTTP 307). Rendering a page
+  // that called redirect() aborted the layout link prefetches and logged console errors.
+  for (const path of ["/faqs", "/shipping-returns", "/track-order"]) {
+    test(`retired page ${path} redirects to the homepage without console errors`, async ({
+      page,
+      request,
+    }) => {
+      const response = await request.get(path, { maxRedirects: 0 });
+      expect(response.status()).toBe(307);
+      expect(new URL(response.headers()["location"], "http://placeholder.local").pathname).toBe("/");
 
-    await expect(
-      page.getByRole("heading", {
-        name: "Frequently Asked Questions",
-        level: 1,
-      })
-    ).toBeVisible({ timeout: 15_000 });
-
-    // Category filter buttons
-    await expect(
-      page.getByRole("button", { name: /All Questions/ })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /General/ })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Shopping & Orders/ })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Shipping & Delivery/ })
-    ).toBeVisible();
-
-    // FAQ items visible
-    await expect(
-      page.getByText("What is CozyBerries?")
-    ).toBeVisible();
-
-    // Click a category filter button and verify filter works
-    await page.getByRole("button", { name: /Shopping & Orders/ }).click();
-
-    // Shopping-specific question should be visible
-    await expect(
-      page.getByText("How do I place an order?")
-    ).toBeVisible();
-
-    // Click on a FAQ question to expand it
-    await page
-      .getByRole("button", { name: /How do I place an order/ })
-      .click();
-
-    // The answer should now be visible
-    await expect(
-      page.getByText("Simply browse our products, select the items you love")
-    ).toBeVisible();
-
-    // Contact Us button at the bottom (scoped to main content, not footer)
-    await expect(
-      page.getByRole("main").getByRole("link", { name: "Contact Us" })
-    ).toBeVisible();
-  });
-
-  test("Shipping & Returns page (/shipping-returns) renders", async ({
-    page,
-  }) => {
-    await page.goto("/shipping-returns");
-
-    // Page should load and have content
-    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15_000 });
-  });
-
-  test("Track Order page (/track-order) renders", async ({ page }) => {
-    await page.goto("/track-order");
-
-    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15_000 });
-  });
+      const consoleErrors: string[] = [];
+      page.on("console", (message) => {
+        if (message.type() === "error") consoleErrors.push(message.text());
+      });
+      await page.goto(path);
+      await expect.poll(() => new URL(page.url()).pathname).toBe("/");
+      await expect(page.locator("h1, h2").first()).toBeVisible({ timeout: 15_000 });
+      expect(consoleErrors).toEqual([]);
+    });
+  }
 
 });
 
