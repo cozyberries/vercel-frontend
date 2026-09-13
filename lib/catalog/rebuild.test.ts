@@ -42,7 +42,7 @@ describe("rebuild full", () => {
     expect(await store.readReference()).not.toBeNull();
     expect((await store.readMeta())?.ok).toBe(true);
     expect((await store.readMeta())?.indexDocCount).toBe(3);
-    expect([...redis.indexes.keys()]).toEqual(["cat_products"]);
+    expect([...redis.indexes.keys()]).toEqual(["cozyberries-search"]);
     expect(revalidate).toHaveBeenCalledWith({ slugs: expect.arrayContaining([frockRow.slug]), versionChanged: true });
   });
 
@@ -107,7 +107,7 @@ describe("rebuild product", () => {
     await rebuild({ kind: "full" }, { store, db: makeDb(), now });
     redis.indexes.clear();
     await rebuild({ kind: "product", slug: frockRow.slug }, { store, db: makeDb(), now });
-    expect([...redis.indexes.keys()]).toEqual(["cat_products"]);
+    expect([...redis.indexes.keys()]).toEqual(["cozyberries-search"]);
   });
 
   it("resolves product-id scopes and falls back to full when unresolvable", async () => {
