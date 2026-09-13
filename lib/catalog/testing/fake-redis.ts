@@ -68,23 +68,22 @@ export class FakeRedis implements RedisLike {
 
   pipeline() {
     const ops: Array<() => Promise<unknown>> = [];
-    const self = this;
     const chain = {
       json: {
-        set(key: string, path: string, value: unknown) {
-          ops.push(() => self.json.set(key, path, value));
+        set: (key: string, path: string, value: unknown) => {
+          ops.push(() => this.json.set(key, path, value));
           return chain;
         },
       },
-      set(key: string, value: unknown, opts?: { ex?: number }) {
-        ops.push(() => self.set(key, value, opts));
+      set: (key: string, value: unknown, opts?: { ex?: number }) => {
+        ops.push(() => this.set(key, value, opts));
         return chain;
       },
-      del(...keys: string[]) {
-        ops.push(() => self.del(...keys));
+      del: (...keys: string[]) => {
+        ops.push(() => this.del(...keys));
         return chain;
       },
-      async exec<T = unknown[]>(): Promise<T> {
+      exec: async <T = unknown[]>(): Promise<T> => {
         const results: unknown[] = [];
         for (const op of ops) results.push(await op());
         return results as T;
