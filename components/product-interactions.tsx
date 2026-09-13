@@ -81,13 +81,15 @@ interface ProductInteractionsProps {
   product: Product;
   initialSize?: string;
   staticContent: React.ReactNode;
+  /** Server-rendered same-category products. When provided, no client fetch happens. */
+  relatedProducts?: Product[];
 }
 
 // Design shows only the top 3 feature chips near the price; the full list
 // reappears as a bulleted "Features" accordion further down the page.
 const TOP_CHIP_COUNT = 3;
 
-export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent }: ProductInteractionsProps) {
+export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent, relatedProducts: relatedProductsProp }: ProductInteractionsProps) {
   // Read ?size= from URL client-side so the server component stays fully static (ISR).
   const searchParams = useSearchParams();
   const initialSize = searchParams.get("size") ?? initialSizeProp;
@@ -123,10 +125,12 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const { requireAuthForIntent } = useAuthGate();
   const router = useRouter();
 
-  const { data: allFeaturedData } = useFeaturedProducts(12);
-  const relatedProducts = (allFeaturedData ?? []).filter(
-    (p: Product) => p.slug !== product.slug && p.category_slug === product.category_slug
-  );
+  const { data: allFeaturedData } = useFeaturedProducts(12, { enabled: relatedProductsProp === undefined });
+  const relatedProducts =
+    relatedProductsProp ??
+    (allFeaturedData ?? []).filter(
+      (p: Product) => p.slug !== product.slug && p.category_slug === product.category_slug
+    );
 
   const isInCart = cart.some(
     (item) =>
