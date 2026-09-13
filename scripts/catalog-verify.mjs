@@ -43,7 +43,10 @@ check("health ok", health.res.status === 200 && healthBody.ok === true, health.t
 
 await timed("/api/catalog");
 const catalog = await timed("/api/catalog");
-const version = (catalog.res.headers.get("etag") ?? "").replace(/"/g, "");
+// Prefer the explicit header; the CDN may turn the ETag into a weak validator (W/"…").
+const version =
+  catalog.res.headers.get("x-catalog-version") ??
+  (catalog.res.headers.get("etag") ?? "").replace(/^W\//, "").replace(/"/g, "");
 check("/api/catalog is a CDN hit on repeat", catalog.res.headers.get("x-vercel-cache") === "HIT", `${catalog.ms}ms x-vercel-cache=${catalog.res.headers.get("x-vercel-cache")}`);
 check("/api/catalog carries a version", /^[0-9a-f]{16}$/.test(version), version);
 check("health and catalog agree on version", healthBody.version === version, `${healthBody.version} vs ${version}`);
