@@ -31,8 +31,10 @@ const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
     "https://aqvcyyhuqcjnhohaclib.supabase.co/storage/v1/object/public/media/categories/sleeveless-jablas.webp"
 };
 
-export default function CategoryGrid() {
-  const { categories, isLoading } = usePreloadedData();
+export default function CategoryGrid({ initialCategories }: { initialCategories?: Category[] } = {}) {
+  const preloaded = usePreloadedData();
+  const categories = initialCategories ?? preloaded.categories;
+  const isLoading = initialCategories ? false : preloaded.isLoading;
 
   // Filter categories: display not false (API already filters display=true; be resilient to missing field) and not in hide list
   const displayCategories = categories.filter(
