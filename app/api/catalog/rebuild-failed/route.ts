@@ -14,7 +14,7 @@ function decodeBase64(value: unknown): string {
 }
 
 // QStash calls this after all retries of a rebuild message are exhausted.
-export const POST = verifySignatureAppRouter(async (req: Request) => {
+async function onFailure(req: Request): Promise<Response> {
   let payload: Record<string, unknown> = {};
   try {
     payload = (await req.json()) as Record<string, unknown>;
@@ -29,4 +29,11 @@ export const POST = verifySignatureAppRouter(async (req: Request) => {
       `response: ${decodeBase64(payload.body)}`,
   });
   return Response.json({ received: true });
-});
+}
+
+let verified: ((req: Request) => Promise<Response>) | null = null;
+
+export async function POST(req: Request): Promise<Response> {
+  if (!verified) verified = verifySignatureAppRouter(onFailure);
+  return verified(req);
+}
