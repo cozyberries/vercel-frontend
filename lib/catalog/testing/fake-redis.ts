@@ -106,14 +106,21 @@ export class FakeRedis implements RedisLike {
       return {};
     },
     index: (options: { name: string }) => ({
-      query: async (q: { filter: unknown; limit?: number }): Promise<SearchHit[]> =>
-        this.documents(options.name)
+      // Like the SDK: null when the index has not been created.
+      query: async (q: { filter: unknown; limit?: number }): Promise<SearchHit[] | null> =>
+        !this.indexes.has(options.name)
+          ? null
+          : this.documents(options.name)
           .filter(({ doc }) => matches(doc, q.filter))
           .slice(0, q.limit ?? 10)
           .map(({ key }) => ({ key, score: 1, data: {} })),
       waitIndexing: async (): Promise<unknown> => "OK",
-      count: async (q: { filter: unknown }): Promise<number> =>
-        this.documents(options.name).filter(({ doc }) => matches(doc, q.filter)).length,
+      // Like the SDK: `{ count: -1 }` when the index has not been created.
+      count: async (q: { filter: unknown }): Promise<{ count: number }> => ({
+        count: this.indexes.has(options.name)
+          ? this.documents(options.name).filter(({ doc }) => matches(doc, q.filter)).length
+          : -1,
+      }),
     }),
   };
 

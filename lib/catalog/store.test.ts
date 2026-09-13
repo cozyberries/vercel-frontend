@@ -70,4 +70,14 @@ describe("createCatalogStore", () => {
     const keys = await store.searchKeys({ category_slug: { $eq: "frocks" } }, 10);
     expect(keys).toEqual([KEYS.product(frockRow.slug)]);
   });
+
+  it("reports a missing index as an error for search and as null for the doc count", async () => {
+    const redis = new FakeRedis();
+    const store = createCatalogStore(redis);
+    await store.writeCatalog({ docs, deleteSlugs: [], meta });
+    expect(await store.indexDocCount()).toBeNull();
+    await expect(store.searchKeys({ category_slug: { $eq: "frocks" } }, 10)).rejects.toThrow(/does not exist/);
+    await store.ensureIndex();
+    expect(await store.indexDocCount()).toBe(3);
+  });
 });

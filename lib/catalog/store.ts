@@ -19,7 +19,7 @@ export const KEYS = {
   alertFallback: "cat:alert:fallback",
 } as const;
 
-export const CATALOG_INDEX_NAME = "cat_products";
+export const CATALOG_INDEX_NAME = "cozyberries-search";
 
 /** The one Redis Search index the Free plan allows. Numbers/booleans/dates are FAST by default (sortable). */
 export const CATALOG_INDEX_SCHEMA = s.object({
@@ -65,9 +65,9 @@ export interface RedisLike {
   search: {
     createIndex(options: Record<string, unknown>): Promise<unknown>;
     index(options: { name: string; schema?: unknown }): {
-      query(options: { filter: unknown; select?: Record<string, boolean>; limit?: number; offset?: number }): Promise<SearchHit[]>;
+      query(options: { filter: unknown; select?: Record<string, boolean>; limit?: number; offset?: number }): Promise<SearchHit[] | null>;
       waitIndexing(): Promise<unknown>;
-      count(options: { filter: unknown }): Promise<number>;
+      count(options: { filter: unknown }): Promise<{ count: number } | number>;
     };
   };
 }
@@ -165,13 +165,18 @@ export function createCatalogStore(redis: RedisLike): CatalogStore {
     },
     async indexDocCount() {
       try {
-        return await index().count({ filter: { price: { $gte: 0 } } });
+        // The SDK returns `{ count }` (a negative count means the index does not exist).
+        const result = await index().count({ filter: { price: { $gte: 0 } } });
+        const count = typeof result === "number" ? result : result.count;
+        return count < 0 ? null : count;
       } catch {
         return null;
       }
     },
     async searchKeys(filter, limit) {
       const hits = await index().query({ filter, select: { name: true }, limit });
+      // The SDK answers null, not an error, when the index does not exist.
+      if (!hits) throw new Error(`search index ${CATALOG_INDEX_NAME} does not exist`);
       return hits.map((hit) => hit.key);
     },
     async acquireLock(ttlMs) {

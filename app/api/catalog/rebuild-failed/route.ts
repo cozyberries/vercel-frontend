@@ -37,6 +37,9 @@ async function onFailure(req: Request): Promise<Response> {
 let verified: ((req: Request) => Promise<Response>) | null = null;
 
 export async function POST(req: Request): Promise<Response> {
+  if (!process.env.QSTASH_CURRENT_SIGNING_KEY || !process.env.QSTASH_NEXT_SIGNING_KEY) {
+    return Response.json({ error: "QStash signing keys are not configured" }, { status: 401 });
+  }
   if (!verified) verified = verifySignatureAppRouter(onFailure);
   return verified(req);
 }

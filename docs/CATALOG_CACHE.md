@@ -14,7 +14,7 @@ Design: `docs/superpowers/specs/2026-09-13-catalog-redis-cache-design.md`.
    (delay 8s, dedup id per 8s bucket, flow control `catalog-rebuild` parallelism 1, 3 retries).
 4. QStash calls `POST /api/catalog/rebuild` (signature-verified). The job takes `cat:rebuild:lock`,
    fetches the scope from Supabase, writes `cat:product:{slug}` JSON docs, `cat:reference`,
-   `cat:snapshot`, `cat:version`, `cat:meta`, waits for the `cat_products` index, then
+   `cat:snapshot`, `cat:version`, `cat:meta`, waits for the `cozyberries-search` index, then
    `revalidateTag('product:{slug}')` always and `revalidateTag('catalog')` when the version changed.
 5. Pages and API routes read through `lib/catalog/cache.ts` (Next Data Cache). Redis is touched
    only after an invalidation.
@@ -23,7 +23,7 @@ Design: `docs/superpowers/specs/2026-09-13-catalog-redis-cache-design.md`.
 
 | Key | Contents |
 |---|---|
-| `cat:product:{slug}` | full product JSON document (indexed by `cat_products`) |
+| `cat:product:{slug}` | full product JSON document (indexed by `cozyberries-search`) |
 | `cat:snapshot` | all list cards + reference + `version` |
 | `cat:reference` | categories, genders, sizes, ages, colours |
 | `cat:version` | current snapshot version (sha1 content hash, 16 chars) |
@@ -89,6 +89,11 @@ time bakes a Supabase-built snapshot into the static `/api/catalog` for up to a 
 `npm run qstash:setup`, apply the Supabase migration once Vault secrets exist, confirm
 `/api/health/catalog` is green and `/api/catalog` shows `X-Cache-Status: HIT`, then set `redis`
 and run `npm run catalog:verify`.
+
+The Redis Free plan allows exactly one Search index, and `SEARCH.CREATE ... EXISTSOK` only tolerates
+an index of the same name. Before the first rebuild, check the database for a leftover index
+(`SEARCH.DESCRIBE <name>` in the Upstash console CLI; there is no list command) and drop it, or the
+rebuild fails with `Exceeded max index count of 1` and health reports `ok: false`.
 
 ## Known limits
 

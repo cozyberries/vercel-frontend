@@ -26,8 +26,13 @@ function deps(alertOnFailure: boolean) {
 // and `next build` imports route modules in environments that may not have them.
 // QSTASH_DEV=true switches verification to the local dev server keys.
 let viaQstash: ((req: Request) => Promise<Response>) | null = null;
+const signingKeysMissing = async (): Promise<Response> =>
+  Response.json({ error: "QStash signing keys are not configured" }, { status: 401 });
+
 function qstashVerified(): (req: Request) => Promise<Response> {
-  if (!viaQstash) viaQstash = verifySignatureAppRouter(async (req: Request) => handleRebuild(req, deps(false)));
+  if (viaQstash) return viaQstash;
+  if (!process.env.QSTASH_CURRENT_SIGNING_KEY || !process.env.QSTASH_NEXT_SIGNING_KEY) return signingKeysMissing;
+  viaQstash = verifySignatureAppRouter(async (req: Request) => handleRebuild(req, deps(false)));
   return viaQstash;
 }
 
