@@ -1,38 +1,25 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Chip } from "@/components/ui/chip";
 import ProductCard from "@/components/product-card";
-import ProductCardSkeleton from "@/components/product-card-skeleton";
 import FilterSheet from "@/components/FilterSheet";
 import SortSheet from "@/components/SortSheet";
-import { getProducts, type Product } from "@/lib/services/api";
-import { useCategoryOptions, useSizeOptions, useGenderOptions, useAgeOptions } from "@/hooks/useApiQueries";
+import type { Product } from "@/lib/services/api";
+import { useCatalog, useRanking } from "@/hooks/useCatalog";
+import { MIN_QUERY_LENGTH, applyFilters, filtersKey, normalizeQuery, parseFilters } from "@/lib/catalog/filter";
+import type { Snapshot } from "@/lib/catalog/types";
 import { Loader, Search, X, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { trackSearch } from '@/lib/analytics/meta-pixel';
+import { trackSearch } from "@/lib/analytics/meta-pixel";
 
 const PAGE_SIZE = 12;
-// Max pages to re-fetch for scroll restore (prevents 4+ sequential API calls on back-nav)
-const MAX_SCROLL_RESTORE_PAGES = 2;
-
-function parseApiError(err: unknown, fallback: string): string {
-  const data =
-    err &&
-      typeof err === "object" &&
-      "response" in err
-      ? (err as { response?: { data?: { error?: string; details?: string } } })
-        .response?.data
-      : null;
-  if (data?.error) {
-    return data.details ? `${data.error}: ${data.details}` : data.error;
-  }
-  return err instanceof Error ? err.message : fallback;
-}
+const SEARCH_DEBOUNCE_MS = 300;
+const HIDDEN_CATEGORY_SLUGS = new Set(["accessories", "newborn-accessories"]);
 
 /* ─── Extracted search input ─── */
 interface ProductSearchInputProps {
@@ -90,480 +77,223 @@ function ProductSearchInput({
   );
 }
 
-export default function ProductsClient() {
-  const router = useRouter();
+interface ProductsClientProps {
+  snapshot: Snapshot;
+  initialRanking: { q: string; slugs: string[] | null } | null;
+}
+
+/** Update the URL without a server round trip. Next syncs pushState/replaceState into useSearchParams. */
+function navigate(params: URLSearchParams, mode: "push" | "replace") {
+  const query = params.toString();
+  const url = query ? `/products?${query}` : "/products";
+  if (mode === "push") window.history.pushState(null, "", url);
+  else window.history.replaceState(null, "", url);
+}
+
+function setOrDelete(params: URLSearchParams, name: string, value: string | null) {
+  if (value === null || value === "" || value === "all") params.delete(name);
+  else params.set(name, value);
+}
+
+export default function ProductsClient({ snapshot: initialSnapshot, initialRanking }: ProductsClientProps) {
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
 
-  // ── Filter options via React Query (cached across navigations) ──
-  const {
-    data: rawCategories = [],
-    isLoading: categoriesLoading,
-    error: categoriesError,
-    refetch: refetchCategories,
-  } = useCategoryOptions();
+  // ── Data: server snapshot first, background refreshes afterwards ──
+  const { data: snapshot = initialSnapshot } = useCatalog(initialSnapshot);
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  const { data: ranking } = useRanking(filters.search, filters, initialRanking ?? undefined);
+  const rankingActive = normalizeQuery(filters.search).length >= MIN_QUERY_LENGTH;
+  const filtered = useMemo(
+    () => applyFilters(snapshot.products, filters, rankingActive ? ranking ?? null : null),
+    [snapshot.products, filters, ranking, rankingActive],
+  );
+  const filterSignature = `${filtersKey(filters)}|${filters.search}`;
 
+  // ── Options come from the snapshot: nothing is fetched on mount ──
   const categories = useMemo(
-    () => rawCategories.filter((c) => c.slug !== "accessories" && c.slug !== "newborn-accessories"),
-    [rawCategories],
+    () =>
+      snapshot.reference.categories
+        .filter((c) => !HIDDEN_CATEGORY_SLUGS.has(c.slug))
+        .map((c) => ({ id: c.slug, name: c.name, slug: c.slug })),
+    [snapshot.reference.categories],
+  );
+  const sizeOptions = useMemo(
+    () => snapshot.reference.sizes.map((s) => ({ id: s.slug, name: s.name, display_order: s.display_order })),
+    [snapshot.reference.sizes],
+  );
+  const genderOptions = useMemo(
+    () => snapshot.reference.genders.map((g) => ({ id: g.slug, name: g.name, display_order: g.display_order })),
+    [snapshot.reference.genders],
+  );
+  const ageOptions = useMemo(
+    () => snapshot.reference.sizes.map((s) => ({ id: s.slug, slug: s.slug, name: s.name, display_order: s.display_order })),
+    [snapshot.reference.sizes],
   );
 
-  const { data: sizeOptions = [], isLoading: sizeOptionsLoading } = useSizeOptions();
-  const { data: genderOptions = [], isLoading: genderOptionsLoading } = useGenderOptions();
-  const { data: ageOptions = [], isLoading: ageOptionsLoading } = useAgeOptions();
-
-  // Error source tracking for reliable retry logic
-  const [errorSource, setErrorSource] = useState<'categories' | 'products' | null>(null);
-  // Incrementing this triggers the products useEffect to refetch without a full page reload
-  const [productsRetry, setProductsRetry] = useState(0);
-
-  // Track category errors — set errorSource when error appears, clear it when error resolves
-  useEffect(() => {
-    if (categoriesError) {
-      setErrorSource('categories');
-    } else {
-      setErrorSource((prev) => (prev === 'categories' ? null : prev));
-    }
-  }, [categoriesError]);
-
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [hasMoreProducts, setHasMoreProducts] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [totalItems, setTotalItems] = useState(0);
-
-  // Inline search input (local state, only applied on submit)
-  const [searchInput, setSearchInput] = useState("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Infinite scroll sentinel ref
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  // Scroll restore when returning from product detail: index to scroll into view
-  const scrollRestoreIndexRef = useRef<number | null>(null);
-  const haveReadScrollRestoreRef = useRef(false);
-
-  // Get current URL parameters
-  const currentSort = searchParams.get("sortBy") || "default";
-  const currentSortOrder = searchParams.get("sortOrder") || "desc";
-  const currentCategory = searchParams.get("category") || "all";
-  const currentSize = searchParams.get("size") || "all";
-  const currentGender = searchParams.get("gender") || "all";
-  const currentAge = searchParams.get("age") || "all";
-  const currentSearch = searchParams.get("search") || "";
-  const currentFeatured = searchParams.get("featured") === "true";
-  // Grid/list view only on mobile; desktop always uses grid. "view" query is mobile-only.
-  // Default is grid; "view=list" opts into list.
+  // ── URL state ──
+  const currentCategory = filters.category;
+  const currentSort = filters.sortBy;
+  const currentSortOrder = filters.sortOrder;
   const currentView = searchParams.get("view") === "list" ? "list" : "grid";
   const effectiveView = isMobile === false ? "grid" : currentView;
 
-  // On desktop, strip view param from URL so we don't show view=list in the query
-  useEffect(() => {
-    if (isMobile === false && searchParams.get("view")) {
+  const setParams = useCallback(
+    (mutate: (params: URLSearchParams) => void, mode: "push" | "replace" = "push") => {
       const params = new URLSearchParams(searchParams.toString());
-      params.delete("view");
-      const q = params.toString();
-      router.replace(q ? `/products?${q}` : "/products");
+      mutate(params);
+      navigate(params, mode);
+    },
+    [searchParams],
+  );
+
+  // Desktop never shows list view; strip the param so it does not linger in the URL
+  useEffect(() => {
+    if (isMobile === false && searchParams.get("view")) setParams((p) => p.delete("view"), "replace");
+  }, [isMobile, searchParams, setParams]);
+
+  // ── Infinite scroll over the local list ──
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filterSignature]);
+  const hasMore = visibleCount < filtered.length;
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = sentinelRef.current;
+    if (!element || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasMore, filtered.length]);
+
+  // Hide footer while more cards can appear (visibility preserves layout)
+  useEffect(() => {
+    document.body.classList.toggle("hide-footer", hasMore);
+    return () => document.body.classList.remove("hide-footer");
+  }, [hasMore]);
+
+  // Scroll to top when a filter (not the search text) changes, except on first render
+  const firstRenderRef = useRef(true);
+  const structuralKey = filtersKey(filters);
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
     }
-  }, [isMobile, searchParams, router]);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [structuralKey]);
 
-  // Tracks whether the next currentSearch change came from our own debounce push.
-  // If true, skip re-syncing searchInput so typing isn't interrupted mid-word.
+  // Persist product slugs so the product detail page can show prev/next navigation
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("productListSlugs", JSON.stringify(filtered.map((p) => p.slug)));
+    } catch {
+      // sessionStorage may be unavailable
+    }
+  }, [filtered]);
+
+  // Restore scroll to the product that was clicked when returning from product detail
+  const restoreIndexRef = useRef<number | null>(null);
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("productsPageScrollToIndex");
+      if (saved === null) return;
+      sessionStorage.removeItem("productsPageScrollToIndex");
+      const index = parseInt(saved, 10);
+      if (!Number.isFinite(index) || index < 0) return;
+      restoreIndexRef.current = index;
+      setVisibleCount((n) => Math.max(n, Math.ceil((index + 1) / PAGE_SIZE) * PAGE_SIZE));
+    } catch {
+      // ignore
+    }
+  }, []);
+  useEffect(() => {
+    const index = restoreIndexRef.current;
+    if (index === null || index >= visible.length) return;
+    document.querySelector(`[data-product-index="${index}"]`)?.scrollIntoView({ behavior: "auto", block: "center" });
+    restoreIndexRef.current = null;
+  }, [visible.length]);
+
+  // ── Search: instant local matching, debounced URL update, server ranking via useRanking ──
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const skipSyncRef = useRef(false);
-
-  // Sync local search input with URL param (e.g. back/forward nav, external filter changes).
-  // Skipped after our own debounce push to avoid resetting the input mid-typing.
   useEffect(() => {
     if (skipSyncRef.current) {
       skipSyncRef.current = false;
       return;
     }
-    setSearchInput(currentSearch);
-  }, [currentSearch]);
-
-  // Debounced live search — push ?search= URL param 500ms after typing stops.
-  // skipSyncRef prevents the URL update from resetting the input mid-typing.
+    setSearchInput(filters.search);
+  }, [filters.search]);
   useEffect(() => {
     const trimmed = searchInput.trim();
-    if (trimmed === currentSearch) return;
-
+    if (trimmed === filters.search) return;
     const timer = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (trimmed) {
-        params.set("search", trimmed);
-      } else {
-        params.delete("search");
-      }
       skipSyncRef.current = true;
-      router.replace(`/products?${params.toString()}`);
-      requestAnimationFrame(() => searchInputRef.current?.focus());
-    }, 500);
-
+      setParams((p) => setOrDelete(p, "search", trimmed || null), "replace");
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [searchInput, currentSearch, searchParams, router]);
-
-  // Memoize searchParams string to create stable dependency (prevent unnecessary useEffect re-runs)
-  const searchParamsString = useMemo(() => searchParams.toString(), [searchParams]);
-
-  // Scroll to top when landing on products page or when any filter/category/age changes
+  }, [searchInput, filters.search, setParams]);
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "auto" });
-  }, [searchParamsString]);
+    if (filters.search.trim()) trackSearch({ query: filters.search });
+  }, [filters.search]);
 
-  // Load products with server-side filtering, sorting, and search
-  useEffect(() => {
-    // Wait until viewport is known so we fetch with the correct page size (once)
-    const loadProducts = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        setErrorSource(null);
-        setCurrentPage(1);
-        setAllProducts([]);
-
-        const response = await getProducts({
-          limit: PAGE_SIZE,
-          page: 1,
-          category: currentCategory !== "all" ? currentCategory : undefined,
-          size: currentSize !== "all" ? currentSize : undefined,
-          gender: currentGender !== "all" ? currentGender : undefined,
-          age: currentAge !== "all" ? currentAge : undefined,
-          sortBy: currentSort !== "default" ? currentSort : undefined,
-          sortOrder: currentSortOrder,
-          featured: currentFeatured || undefined,
-          search: currentSearch || undefined,
-        });
-
-        // Ensure no duplicate products from the initial load
-        const uniqueProducts = response.products.filter(
-          (product, index, self) =>
-            index === self.findIndex((p) => p.id === product.id)
-        );
-        setAllProducts(uniqueProducts);
-        setTotalItems(response.pagination.totalItems);
-        setHasMoreProducts(response.pagination.hasNextPage);
-      } catch (err: unknown) {
-        console.error("Error loading products:", err);
-        setError(parseApiError(err, "Failed to load products"));
-        setErrorSource('products');
-        setAllProducts([]);
-        setTotalItems(0);
-        setHasMoreProducts(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProducts();
-  }, [currentSort, currentSortOrder, currentCategory, currentSize, currentGender, currentAge, currentFeatured, currentSearch, productsRetry]);
-
-  // Load more products function
-  const loadMoreProducts = useCallback(async () => {
-    if (isLoadingMore || !hasMoreProducts) return;
-
-    try {
-      setIsLoadingMore(true);
-      const nextPage = currentPage + 1;
-
-      const response = await getProducts({
-        limit: PAGE_SIZE,
-        page: nextPage,
-        category: currentCategory !== "all" ? currentCategory : undefined,
-        size: currentSize !== "all" ? currentSize : undefined,
-        gender: currentGender !== "all" ? currentGender : undefined,
-        age: currentAge !== "all" ? currentAge : undefined,
-        sortBy: currentSort !== "default" ? currentSort : undefined,
-        sortOrder: currentSortOrder,
-        featured: currentFeatured || undefined,
-        search: currentSearch || undefined,
-      });
-
-      setAllProducts((prev) => {
-        // Create a Map to track unique products by ID
-        const productMap = new Map();
-
-        // Add existing products to the map
-        prev.forEach((product) => {
-          productMap.set(product.id, product);
-        });
-
-        // Add new products, skipping duplicates
-        response.products.forEach((product) => {
-          if (!productMap.has(product.id)) {
-            productMap.set(product.id, product);
-          }
-        });
-
-        // Convert back to array
-        return Array.from(productMap.values());
-      });
-      setCurrentPage(nextPage);
-      setHasMoreProducts(response.pagination.hasNextPage);
-    } catch (err: unknown) {
-      console.error("Error loading more products:", err);
-      setError(parseApiError(err, "Failed to load products"));
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [
-    currentPage,
-    hasMoreProducts,
-    isLoadingMore,
-    currentCategory,
-    currentSize,
-    currentGender,
-    currentAge,
-    currentSort,
-    currentSortOrder,
-    currentFeatured,
-    currentSearch,
-  ]);
-
-  // Persist product slugs so the product detail page can show prev/next navigation
-  useEffect(() => {
-    if (allProducts.length > 0) {
-      try {
-        const slugs = allProducts.map((p) => p.slug).filter(Boolean);
-        sessionStorage.setItem("productListSlugs", JSON.stringify(slugs));
-      } catch {
-        // sessionStorage may be unavailable (private browsing, quota, etc.)
-      }
-    }
-  }, [allProducts]);
-
-  // NOTE: Scroll lock removed — it blocked users from interacting with the page
-  // while products loaded. The skeleton grid provides adequate loading feedback.
-
-  // Hide footer while more products can be loaded (visibility preserves layout)
-  useEffect(() => {
-    if (hasMoreProducts && !isLoading) {
-      document.body.classList.add("hide-footer");
-    } else {
-      document.body.classList.remove("hide-footer");
-    }
-    return () => {
-      document.body.classList.remove("hide-footer");
-    };
-  }, [hasMoreProducts, isLoading]);
-
-  // Infinite scroll using IntersectionObserver
-  // `isLoading` is in deps so the observer re-attaches after products load (sentinel enters DOM)
-  useEffect(() => {
-    if (!sentinelRef.current || isLoading) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMoreProducts && !isLoadingMore) {
-          loadMoreProducts();
-        }
-      },
-      { rootMargin: "100px" }
-    );
-
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [hasMoreProducts, isLoadingMore, loadMoreProducts, isLoading]);
-
-  // Restore scroll to the product that was clicked when returning from product detail.
-  // Capped at MAX_SCROLL_RESTORE_PAGES to avoid sequential API waterfall on back-nav.
-  useEffect(() => {
-    if (isLoading || allProducts.length === 0) return;
-
-    if (!haveReadScrollRestoreRef.current) {
-      haveReadScrollRestoreRef.current = true;
-      try {
-        const s = sessionStorage.getItem("productsPageScrollToIndex");
-        if (s != null) {
-          const n = parseInt(s, 10);
-          if (!isNaN(n) && n >= 0) {
-            // If the target index would require too many pages, skip scroll restore
-            const maxRestorable = MAX_SCROLL_RESTORE_PAGES * PAGE_SIZE;
-            if (n >= maxRestorable) {
-              sessionStorage.removeItem("productsPageScrollToIndex");
-            } else {
-              scrollRestoreIndexRef.current = n;
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    const idx = scrollRestoreIndexRef.current;
-    if (idx === null) return;
-
-    if (idx < allProducts.length) {
-      const el = document.querySelector(`[data-product-index="${idx}"]`);
-      el?.scrollIntoView({ behavior: "auto", block: "center" });
-      try {
-        sessionStorage.removeItem("productsPageScrollToIndex");
-      } catch {
-        // ignore
-      }
-      scrollRestoreIndexRef.current = null;
-      return;
-    }
-
-    // Only load more if we haven't exceeded the page cap
-    const currentMaxIndex = allProducts.length;
-    if (hasMoreProducts && !isLoadingMore && currentMaxIndex < MAX_SCROLL_RESTORE_PAGES * PAGE_SIZE) {
-      loadMoreProducts();
-    } else if (currentMaxIndex >= MAX_SCROLL_RESTORE_PAGES * PAGE_SIZE) {
-      // Past the cap — abandon scroll restore, scroll to top
-      scrollRestoreIndexRef.current = null;
-      try {
-        sessionStorage.removeItem("productsPageScrollToIndex");
-      } catch {
-        // ignore
-      }
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [isLoading, allProducts.length, hasMoreProducts, isLoadingMore, loadMoreProducts]);
-
-  // Meta Pixel — Search
-  useEffect(() => {
-    if (currentSearch.trim()) {
-      trackSearch({ query: currentSearch });
-    }
-  }, [currentSearch]);
-
-  // Submit search — updates URL param which triggers server-side fetch
+  // ── Handlers: same URL semantics as before, no navigation round trip ──
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) return;
-    const params = new URLSearchParams(searchParams.toString());
-    const trimmed = searchInput.trim();
-    if (trimmed) {
-      params.set("search", trimmed);
-    } else {
-      params.delete("search");
-    }
-    router.push(`/products?${params.toString()}`);
+    skipSyncRef.current = true;
+    setParams((p) => setOrDelete(p, "search", searchInput.trim() || null));
   };
-
   const handleClearSearch = () => {
-    if (isLoading || categoriesLoading || sizeOptionsLoading || genderOptionsLoading) return;
     setSearchInput("");
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("search");
-    router.push(`/products?${params.toString()}`);
+    setParams((p) => p.delete("search"));
     searchInputRef.current?.focus();
   };
-
-  const handleSortChange = (sort: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (sort === "default") {
-      params.delete("sortBy");
-      params.delete("sortOrder");
-    } else if (sort === "asc") {
-      params.set("sortBy", "price");
-      params.set("sortOrder", "asc");
-    } else if (sort === "desc") {
-      params.set("sortBy", "price");
-      params.set("sortOrder", "desc");
-    }
-
-    router.push(`/products?${params.toString()}`);
-  };
-
-  const handleCategoryChange = (category: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (category === "all") {
-      params.delete("category");
-    } else {
-      params.set("category", category);
-    }
-
-    router.push(`/products?${params.toString()}`);
-  };
-
-  const handleSizeChange = (size: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (size === "all") {
-      params.delete("size");
-    } else {
-      params.set("size", size);
-    }
-
-    router.push(`/products?${params.toString()}`);
-  };
-
-  const handleGenderChange = (gender: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (gender === "all") {
-      params.delete("gender");
-    } else {
-      params.set("gender", gender);
-    }
-
-    router.push(`/products?${params.toString()}`);
-  };
-
-  const handleAgeChange = (age: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (age === "all") {
-      params.delete("age");
-    } else {
-      params.set("age", age);
-    }
-
-    router.push(`/products?${params.toString()}`);
-  };
-
+  const handleCategoryChange = (category: string) => setParams((p) => setOrDelete(p, "category", category));
+  const handleSortChange = (sort: string) =>
+    setParams((p) => {
+      if (sort === "default") {
+        p.delete("sortBy");
+        p.delete("sortOrder");
+      } else {
+        p.set("sortBy", "price");
+        p.set("sortOrder", sort === "asc" ? "asc" : "desc");
+      }
+    });
+  const handleApplyFilters = useCallback(
+    (values: { size: string; gender: string; age: string }) =>
+      setParams((p) => {
+        setOrDelete(p, "size", values.size);
+        setOrDelete(p, "gender", values.gender);
+        setOrDelete(p, "age", values.age);
+      }),
+    [setParams],
+  );
   const handleClearFilters = () => {
     setSearchInput("");
-    const params = new URLSearchParams();
-    router.push(`/products?${params.toString()}`);
+    navigate(new URLSearchParams(currentView === "list" ? { view: "list" } : {}), "push");
   };
+  const handleViewChange = (view: "grid" | "list") =>
+    setParams((p) => setOrDelete(p, "view", view === "list" ? "list" : null), "replace");
 
-  const handleViewChange = (view: "grid" | "list") => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (view === "grid") params.delete("view");
-    else params.set("view", view);
-    router.push(`/products?${params.toString()}`);
-  };
-
-  const handleApplyFilters = useCallback(
-    (filters: { size: string; gender: string; age: string }) => {
-      const params = new URLSearchParams(searchParams.toString());
-
-      if (filters.size === "all") params.delete("size");
-      else params.set("size", filters.size);
-
-      if (filters.gender === "all") params.delete("gender");
-      else params.set("gender", filters.gender);
-
-      if (filters.age === "all") params.delete("age");
-      else params.set("age", filters.age);
-
-      router.push(`/products?${params.toString()}`);
-    },
-    [router, searchParams],
-  );
-
-  // Check if any filters are applied
-  const hasActiveFilters = useMemo(() => {
-    return (
-      currentCategory !== "all" ||
-      currentSize !== "all" ||
-      currentGender !== "all" ||
-      currentAge !== "all" ||
-      currentSort !== "default" ||
-      currentFeatured ||
-      currentSearch !== ""
-    );
-  }, [currentCategory, currentSize, currentGender, currentAge, currentSort, currentFeatured, currentSearch]);
-
-  // Show product grid as soon as products API returns; don't block on categories/sizes/genders
-  const isProductsLoading = isLoading;
-  const isFiltersLoading = categoriesLoading || sizeOptionsLoading || genderOptionsLoading || ageOptionsLoading;
+  const hasActiveFilters =
+    currentCategory !== "all" ||
+    filters.size !== "all" ||
+    filters.gender !== "all" ||
+    filters.age !== "all" ||
+    currentSort !== "default" ||
+    filters.featured ||
+    filters.search !== "";
+  const totalItems = filtered.length;
+  // ListCard is the list-shaped subset of Product; ProductCard only reads those fields.
+  const cards = visible as unknown as Product[];
 
   /* ─── Shared toolbar: search + category chips + filter/sort/count row ─── */
   const toolbar = (
@@ -574,7 +304,6 @@ export default function ProductsClient() {
         onSubmit={handleSearchSubmit}
         onClear={handleClearSearch}
         inputRef={searchInputRef}
-        disabled={isFiltersLoading}
         className="w-full"
       />
 
@@ -584,11 +313,7 @@ export default function ProductsClient() {
           All
         </Chip>
         {categories.map((cat) => (
-          <Chip
-            key={cat.id}
-            active={currentCategory === cat.slug}
-            onClick={() => handleCategoryChange(cat.slug)}
-          >
+          <Chip key={cat.id} active={currentCategory === cat.slug} onClick={() => handleCategoryChange(cat.slug)}>
             {cat.name}
           </Chip>
         ))}
@@ -600,24 +325,19 @@ export default function ProductsClient() {
           sizeOptions={sizeOptions}
           genderOptions={genderOptions}
           ageOptions={ageOptions}
-          currentSize={currentSize}
-          currentGender={currentGender}
-          currentAge={currentAge}
+          currentSize={filters.size}
+          currentGender={filters.gender}
+          currentAge={filters.age}
           itemCount={totalItems}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}
-          disabled={isProductsLoading || isFiltersLoading}
         />
-        <SortSheet
-          currentSort={currentSort === "price" ? currentSortOrder : "default"}
-          onSelect={handleSortChange}
-          disabled={isProductsLoading || isFiltersLoading}
-        />
+        <SortSheet currentSort={currentSort === "price" ? currentSortOrder : "default"} onSelect={handleSortChange} />
         <span className="ml-auto text-sm text-cb-muted-fg whitespace-nowrap">
           {totalItems} item{totalItems === 1 ? "" : "s"}
         </span>
         {/* View toggle: mobile only */}
-        {allProducts.length > 0 && isMobile === true && (
+        {cards.length > 0 && isMobile === true && (
           <div className="flex items-center border rounded-md p-0.5">
             <Button
               variant={effectiveView === "grid" ? "secondary" : "ghost"}
@@ -641,142 +361,19 @@ export default function ProductsClient() {
         )}
       </div>
 
-      {hasActiveFilters && !isProductsLoading && !isFiltersLoading && (
-        <button
-          type="button"
-          onClick={handleClearFilters}
-          className="self-start text-sm font-semibold text-cb-terracotta"
-        >
+      {hasActiveFilters && (
+        <button type="button" onClick={handleClearFilters} className="self-start text-sm font-semibold text-cb-terracotta">
           Clear all filters
         </button>
       )}
     </div>
   );
 
-  if (isProductsLoading) {
-    const skeletonCount = PAGE_SIZE;
-    return (
-      <>
-        <div className="mb-6">{toolbar}</div>
-        <div className={
-          effectiveView === "list"
-            ? "flex flex-col gap-4"
-            : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px]"
-        }>
-          {Array.from({ length: skeletonCount }).map((_, i) => (
-            <ProductCardSkeleton key={i} />
-          ))}
-        </div>
-      </>
-    );
-  }
-
-  if (error || categoriesError) {
-    const displayedError = error || (categoriesError instanceof Error ? categoriesError.message : String(categoriesError));
-    return (
-      <div className="text-center p-12">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
-          <div className="text-red-600 mb-4">
-            <svg
-              className="mx-auto h-12 w-12"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-red-800 mb-2">
-            Connection Error
-          </h3>
-          <p className="text-red-700 mb-4">{displayedError}</p>
-          <Button
-            onClick={() => {
-              if (errorSource === 'categories') {
-                refetchCategories();
-              } else {
-                setProductsRetry((r) => r + 1);
-              }
-            }}
-            variant="outline"
-            disabled={errorSource === 'categories' ? categoriesLoading : isLoading}
-          >
-            {errorSource === 'categories' && categoriesLoading ? (
-              <>
-                <Loader className="mr-2 h-4 w-4 animate-pulse" />
-                Retrying...
-              </>
-            ) : (
-              "Try Again"
-            )}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!allProducts || allProducts.length === 0) {
-    return (
-      <>
-        <div className="mb-6">{toolbar}</div>
-
-        <div className="text-center py-16">
-          <div className="max-w-md mx-auto">
-            <div className="mb-6">
-              <svg
-                className="mx-auto h-24 w-24 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1}
-                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-xl font-medium text-gray-900 mb-3">
-              {currentSearch ? "No products found" : "No products available"}
-            </h3>
-            <p className="text-gray-500 mb-6">
-              {currentSearch || currentCategory !== "all" || currentSize !== "all" || currentGender !== "all" || currentAge !== "all" || currentFeatured
-                ? "We couldn't find any products matching your current filters. Try adjusting your search criteria."
-                : "Our product catalog is currently empty. Please check back later or contact us for more information."}
-            </p>
-            <div className="space-y-3">
-              {hasActiveFilters && (
-                <Button
-                  variant="outline"
-                  onClick={handleClearFilters}
-                  className="mr-3"
-                >
-                  Clear All Filters
-                </Button>
-              )}
-              <Button asChild variant="default">
-                <Link href="/">Back to Home</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
-      {/* Search + category chips + filters/sort/count */}
       <div className="mb-6">{toolbar}</div>
 
-      {/* Products — grid (default) or list view */}
-      {allProducts.length > 0 ? (
+      {cards.length > 0 ? (
         <>
           <div
             className={
@@ -785,7 +382,7 @@ export default function ProductsClient() {
                 : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px] mb-8"
             }
           >
-            {allProducts.map((product, index) => (
+            {cards.map((product, index) => (
               <div
                 key={product.id}
                 data-product-index={index}
@@ -796,33 +393,14 @@ export default function ProductsClient() {
             ))}
           </div>
 
-          {/* Infinite Scroll Sentinel */}
-          <div ref={sentinelRef} data-testid="infinite-scroll-sentinel" className="py-4">
-            {hasMoreProducts && (
-              <div
-                className={
-                  effectiveView === "list"
-                    ? "flex flex-col gap-4"
-                    : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px]"
-                }
-              >
-                {Array.from({ length: PAGE_SIZE }).map((_, i) => (
-                  <ProductCardSkeleton key={i} />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Infinite scroll sentinel: appends from memory, so no skeleton is needed */}
+          <div ref={sentinelRef} data-testid="infinite-scroll-sentinel" className="py-4" aria-hidden="true" />
         </>
       ) : (
         <div className="text-center py-16">
           <div className="max-w-md mx-auto">
             <div className="mb-6">
-              <svg
-                className="mx-auto h-24 w-24 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -831,18 +409,12 @@ export default function ProductsClient() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-medium text-gray-900 mb-3">
-              No products found
-            </h3>
+            <h3 className="text-xl font-medium text-gray-900 mb-3">No products found</h3>
             <p className="text-gray-500 mb-6">
               We couldn&apos;t find any products matching your current filters. Try adjusting your search criteria.
             </p>
             <div className="space-y-3">
-              <Button
-                variant="outline"
-                onClick={handleClearFilters}
-                className="mr-3"
-              >
+              <Button variant="outline" onClick={handleClearFilters} className="mr-3">
                 Clear All Filters
               </Button>
               <Button asChild variant="default">
