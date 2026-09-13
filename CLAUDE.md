@@ -107,6 +107,7 @@ app/
   - Free tiers only (Upstash Redis/QStash Free, Vercel Hobby, Supabase Free). Budget: under 3,000 Redis commands and 1,000 QStash messages per day.
 - Browser: `hooks/useCatalog.ts` keeps the snapshot in TanStack Query (persisted to localStorage) and `/products` filters locally; the service worker caches `/api/catalog` stale-while-revalidate.
 - Per-user data (cart, wishlist, orders, profile) keeps its existing Redis caches in `lib/services/cache.ts`.
+- `CATALOG_SOURCE` (`legacy` default) gates the compatibility API routes and the product/home pages; `/products` and `/api/catalog` always read the catalog. Removed in the cleanup task.
 
 ### Path Aliases
 - `@/*` maps to project root (configured in `tsconfig.json`)

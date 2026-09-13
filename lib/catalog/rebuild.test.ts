@@ -101,6 +101,15 @@ describe("rebuild product", () => {
     expect(result.touchedSlugs).toEqual([jhablaRow.slug]);
   });
 
+  it("recreates a missing index even for a product-scope rebuild", async () => {
+    const redis = new FakeRedis();
+    const store = createCatalogStore(redis);
+    await rebuild({ kind: "full" }, { store, db: makeDb(), now });
+    redis.indexes.clear();
+    await rebuild({ kind: "product", slug: frockRow.slug }, { store, db: makeDb(), now });
+    expect([...redis.indexes.keys()]).toEqual(["cat_products"]);
+  });
+
   it("resolves product-id scopes and falls back to full when unresolvable", async () => {
     const store = createCatalogStore(new FakeRedis());
     await rebuild({ kind: "full" }, { store, db: makeDb(), now });

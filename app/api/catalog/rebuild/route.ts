@@ -1,4 +1,5 @@
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
+import { after } from "next/server";
 import { revalidateCatalog } from "@/lib/catalog/cache";
 import { handleRebuild, hasCronBearer } from "@/lib/catalog/rebuild-handler";
 import { catalogStore } from "@/lib/catalog/store";
@@ -10,7 +11,15 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function deps(alertOnFailure: boolean) {
-  return { store: catalogStore(), db: catalogDb, revalidate: revalidateCatalog, alert: notifyCatalogAlert, alertOnFailure };
+  return {
+    store: catalogStore(),
+    db: catalogDb,
+    revalidate: revalidateCatalog,
+    alert: (data: { title: string; details: string }) => {
+      after(() => notifyCatalogAlert(data));
+    },
+    alertOnFailure,
+  };
 }
 
 // QStash-signed path, built lazily: the SDK reads the signing keys when the verifier is created,

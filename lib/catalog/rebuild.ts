@@ -71,7 +71,8 @@ export async function rebuild(scope: Scope, deps: RebuildDeps): Promise<RebuildR
   const merged = effective.kind === "product" && previous ? mergeCards(previous.products, cards, deleteSlugs) : cards;
   const { snapshot, changed } = buildSnapshot(merged, reference, previous, now());
 
-  if (isFull) await store.ensureIndex();
+  // Idempotent (existsOk) and one command: a dropped index heals on the next rebuild of any scope.
+  await store.ensureIndex();
 
   const meta: CatalogMeta = {
     version: snapshot.version,

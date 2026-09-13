@@ -1,5 +1,6 @@
 // Request-level logic for /api/catalog/rebuild. Auth is decided by the route file
 // (QStash signature or cron bearer); this module parses the scope, takes the lock and runs.
+import { timingSafeEqual } from "node:crypto";
 import { rebuild, scopeLabel, type RebuildDeps } from "./rebuild";
 import type { CatalogStore } from "./store";
 import type { CatalogDb } from "./supabase";
@@ -33,8 +34,11 @@ export function parseScope(body: unknown, searchParams: URLSearchParams): Scope 
 
 export function hasCronBearer(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  const header = req.headers.get("authorization");
+  if (!secret || !header) return false;
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const actual = Buffer.from(header);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 export async function handleRebuild(req: Request, deps: RebuildHandlerDeps): Promise<Response> {

@@ -51,7 +51,7 @@ check("health and catalog agree on version", healthBody.version === version, `${
 const products = await timed("/products?category=frocks");
 const embedsVersion = products.text.includes(`\\"version\\":\\"${version}\\"`) || products.text.includes(`"version":"${version}"`);
 check("/products embeds the current snapshot", products.res.status === 200 && embedsVersion, `${products.ms}ms`);
-check("/products answers under 600ms from here", products.ms < 600, `${products.ms}ms`);
+check("/products answers under 600ms from here", products.res.status === 200 && products.ms < 600, `${products.ms}ms`);
 
 let snapshot = {};
 try { snapshot = JSON.parse(catalog.text); } catch {}

@@ -94,7 +94,19 @@ export async function processScope(scope: Scope, deps: EventDeps): Promise<Event
   const key = scopeLabel(scope);
   const { store } = deps;
 
-  if (await store.exists(KEYS.muted)) return { status: "muted", scopeKey: key };
+  if (await store.exists(KEYS.muted)) {
+    // Rows that change while muted would otherwise wait for the nightly job. Schedule exactly one
+    // full rebuild for when the mute ends; the debounce key makes later muted events no-ops.
+    if (await store.setIfAbsent(KEYS.trailing, MUTE_SECONDS)) {
+      const bucket = Math.floor(now() / (MUTE_SECONDS * 1000));
+      await deps.publish({
+        ...buildMessage({ kind: "full" }, deps.baseUrl, now()),
+        delay: MUTE_SECONDS,
+        deduplicationId: `full:trailing:${bucket}`,
+      });
+    }
+    return { status: "muted", scopeKey: key };
+  }
   if (!(await store.setIfAbsent(KEYS.pending(key), DEBOUNCE_SECONDS))) return { status: "deduped", scopeKey: key };
 
   const publishedThisWindow = await store.incrWithTtl(KEYS.published, BURST_WINDOW_SECONDS);

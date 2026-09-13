@@ -45,6 +45,12 @@ export async function getProduct(slug: string): Promise<{ product: ProductDoc | 
   try {
     return { product: await cached(), source: "redis" };
   } catch (error) {
+    // A slug the current snapshot does not list is an ordinary 404 (deleted product, bot probe):
+    // no Supabase fallback and no alert. Only an unavailable snapshot means we are in an outage.
+    const { snapshot, source } = await getSnapshot();
+    if (source === "redis" && !snapshot.products.some((card) => card.slug === slug)) {
+      return { product: null, source: "redis" };
+    }
     await noteFallback(`product:${slug}`, error);
     return { product: await fallbackProduct(slug), source: "fallback" };
   }

@@ -78,6 +78,15 @@ describe("catalog cache layer", () => {
     expect((await getProduct("does-not-exist")).product).toBeNull();
   });
 
+  it("treats a slug missing from a healthy snapshot as a 404 without fallback or alert", async () => {
+    const { snapshot } = buildSnapshot(docs.map(toListCard), reference, null, new Date());
+    await store.writeCatalog({ docs, deleteSlugs: [], reference, snapshot, meta: { version: snapshot.version, lastRebuildAt: "", scope: "full", durationMs: 0, ok: true, productCount: 3, indexDocCount: 3 } });
+    const result = await getProduct("never-existed");
+    expect(result).toEqual({ product: null, source: "redis" });
+    expect(db.fetchProductRows).not.toHaveBeenCalled();
+    expect(notifyCatalogAlert).not.toHaveBeenCalled();
+  });
+
   it("returns null ranking for short queries or search failures", async () => {
     expect(await getRanking("f", DEFAULT_FILTERS)).toBeNull();
     store = { ...store, searchKeys: async () => { throw new Error("index missing"); } };

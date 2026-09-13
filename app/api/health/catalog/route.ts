@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { after } from "next/server";
 import { CATALOG_TAG } from "@/lib/catalog/cache";
 import { hasCronBearer } from "@/lib/catalog/rebuild-handler";
 import { catalogStore } from "@/lib/catalog/store";
@@ -37,7 +38,7 @@ const readHealthInputs = unstable_cache(
     };
   },
   ["cat:health"],
-  { revalidate: 60, tags: [CATALOG_TAG] },
+  { revalidate: 300, tags: [CATALOG_TAG] },
 );
 
 export async function GET(req: Request): Promise<Response> {
@@ -69,12 +70,12 @@ export async function GET(req: Request): Promise<Response> {
 
     // The Vercel cron calls this daily with the cron bearer; only that caller may trigger alerts.
     if (hasCronBearer(req) && problems.length > 0) {
-      notifyCatalogAlert({ title: "Health check failed", details: problems.join("\n") });
+      after(() => notifyCatalogAlert({ title: "Health check failed", details: problems.join("\n") }));
     }
 
     return Response.json(body, {
       status: body.ok ? 200 : 503,
-      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60" },
+      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300" },
     });
   } catch (error) {
     return Response.json(

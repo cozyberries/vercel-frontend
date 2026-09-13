@@ -39,11 +39,11 @@ export async function productsListResponse(searchParams: URLSearchParams): Promi
 
 export async function productDetailResponse(slug: string): Promise<Response> {
   const started = Date.now();
-  const { product, source } = await getProduct(slug);
+  const [{ product, source }, { snapshot }] = await Promise.all([getProduct(slug), getSnapshot()]);
   if (!product) {
     return Response.json({ error: "Product not found" }, { status: 404, headers: { "Cache-Control": CACHE_CONTROL.none } });
   }
-  return Response.json(product, { headers: catalogHeaders(source, null, CACHE_CONTROL.list, started) });
+  return Response.json(product, { headers: catalogHeaders(source, snapshot.version, CACHE_CONTROL.list, started) });
 }
 
 export type OptionKind = "categories" | "ages" | "sizes" | "genders";

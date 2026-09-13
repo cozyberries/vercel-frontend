@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   BURST_THRESHOLD,
   DEBOUNCE_SECONDS,
+  MUTE_SECONDS,
   buildMessage,
   deriveScopes,
   processEvent,
@@ -92,6 +93,13 @@ describe("processScope", () => {
     expect(deps.published.at(-1)?.deduplicationId).toBe(`full:${Math.floor(1_700_000_000_000 / 60_000)}`);
     expect(await processScope({ kind: "product", slug: "another" }, deps)).toEqual({ status: "muted", scopeKey: "product:another" });
     expect(await deps.store.exists(KEYS.muted)).toBe(true);
+    const trailing = deps.published.at(-1);
+    expect(trailing?.body).toEqual({ kind: "full" });
+    expect(trailing?.delay).toBe(MUTE_SECONDS);
+    expect(trailing?.deduplicationId).toBe(`full:trailing:${Math.floor(1_700_000_000_000 / (MUTE_SECONDS * 1000))}`);
+    const before = deps.published.length;
+    expect((await processScope({ kind: "product", slug: "yet-another" }, deps)).status).toBe("muted");
+    expect(deps.published).toHaveLength(before);
   });
 
   it("handles a payload end to end", async () => {

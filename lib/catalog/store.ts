@@ -15,6 +15,7 @@ export const KEYS = {
   pending: (scopeKey: string) => `cat:pending:${scopeKey}`,
   published: "cat:events:published",
   muted: "cat:events:muted",
+  trailing: "cat:events:trailing",
   alertFallback: "cat:alert:fallback",
 } as const;
 

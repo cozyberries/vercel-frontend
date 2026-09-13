@@ -30,7 +30,7 @@ Design: `docs/superpowers/specs/2026-09-13-catalog-redis-cache-design.md`.
 | `cat:meta` | last rebuild status |
 | `cat:rebuild:lock`, `cat:pending:*`, `cat:events:published`, `cat:events:muted`, `cat:alert:fallback`, `cat:rl:*` | control keys |
 
-Never write `products:*` or `product:*` keys; those belong to the removed legacy cache.
+Legacy-mode code (`CATALOG_SOURCE=legacy`) still writes the old `products:*`/`product:*` keys until the cleanup task deletes it; the catalog never reads them.
 
 ## Endpoints
 
@@ -42,6 +42,8 @@ Never write `products:*` or `product:*` keys; those belong to the removed legacy
 | `GET /api/health/catalog` | public (alerts only with cron bearer) | version, age, counts, last rebuild |
 | `GET /api/catalog` | public, static, revalidated on change | the snapshot for browsers |
 | `GET /api/search?q=` | public | ranked slugs from Redis Search |
+| `GET /api/search/suggestions?q=` | public | header search suggestions |
+| compatibility routes `/api/products`, `/api/products/[id]`, `/api/categories`, `/api/{categories,ages,sizes,genders}/options` | public | catalog-backed when `CATALOG_SOURCE=redis` |
 
 ## Environment
 
@@ -79,3 +81,17 @@ Run it after every production deploy of this pipeline and after enabling `CATALO
 
 `CATALOG_SOURCE=redis` switches API routes and the product page to the catalog; `legacy` (default)
 keeps the old code paths. Flip it in Vercel env and redeploy. Removed in the cleanup phase.
+
+`/products` and `/api/catalog` always read the catalog (they fall back to Supabase when Redis is
+empty); rolling those back means reverting the UI commits, not flipping the flag. First-deploy
+order: deploy with `legacy`, run `npm run catalog:rebuild` immediately (an empty Redis at build
+time bakes a Supabase-built snapshot into the static `/api/catalog` for up to a week), run
+`npm run qstash:setup`, apply the Supabase migration once Vault secrets exist, confirm
+`/api/health/catalog` is green and `/api/catalog` shows `X-Cache-Status: HIT`, then set `redis`
+and run `npm run catalog:verify`.
+
+## Known limits
+
+A flood of unique `/api/search` queries costs one Redis Search command each (cached per query
+afterwards); watch the Upstash Usage tab. The snapshot design suits catalogs of hundreds of
+products, not the index's 10K-document ceiling.

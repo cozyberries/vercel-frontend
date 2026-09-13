@@ -1,4 +1,5 @@
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
+import { after } from "next/server";
 import { notifyCatalogAlert } from "@/lib/services/telegram";
 
 export const runtime = "nodejs";
@@ -21,13 +22,15 @@ async function onFailure(req: Request): Promise<Response> {
   } catch {
     // keep empty payload
   }
-  notifyCatalogAlert({
-    title: "Rebuild failed after retries",
-    details:
-      `status ${String(payload.status ?? "unknown")}, retried ${String(payload.retried ?? "?")}/${String(payload.maxRetries ?? "?")}\n` +
-      `scope: ${decodeBase64(payload.sourceBody)}\n` +
-      `response: ${decodeBase64(payload.body)}`,
-  });
+  after(() =>
+    notifyCatalogAlert({
+      title: "Rebuild failed after retries",
+      details:
+        `status ${String(payload.status ?? "unknown")}, retried ${String(payload.retried ?? "?")}/${String(payload.maxRetries ?? "?")}\n` +
+        `scope: ${decodeBase64(payload.sourceBody)}\n` +
+        `response: ${decodeBase64(payload.body)}`,
+    }),
+  );
   return Response.json({ received: true });
 }
 
