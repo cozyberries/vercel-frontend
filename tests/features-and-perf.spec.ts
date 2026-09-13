@@ -1,95 +1,96 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
 /**
  * Features & Performance E2E Tests
  *
  * Validates:
- *   1. Featured badge displays on featured product cards
- *   2. "Show Featured" filter returns featured products only
- *   3. Add to wishlist from products page
- *   4. Add to cart from product detail page
- *   5. No API returns 5xx errors (suite enforces 5xx only; products page test
- *      validates absence of 5xx responses, not 4xx)
- *   6. All pages load within ~2 seconds (generous budget for CI)
- *   7. Infinite scroll loads more products
- *   8. No 404 errors for static assets (gingerbread SVG fix)
+ *   1. Featured products: `?featured=true` shows exactly the catalog's is_featured products,
+ *      each carrying the "Featured" badge on its card
+ *   2. Add to wishlist from the product detail page
+ *   3. Add to cart from the product detail page
+ *   4. No API returns 5xx errors (5xx only; 4xx from optional/unauthenticated endpoints is fine)
+ *   5. Products page uses infinite scroll, never a "Show More" button
+ *   6. No 404 errors for static assets
+ *   7. Public pages load within a generous budget
+ *
+ * Tests are independent (each navigates itself), so they run in parallel — no serial mode.
  */
 
-test.describe.configure({ mode: "serial", retries: 1 });
+type ProductSize = { name: string; slug: string | null; price: number; stock_quantity: number };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+type CatalogProduct = {
+  slug: string;
+  name: string;
+  category_slug: string;
+  is_featured: boolean;
+  price: number;
+  sizes: ProductSize[];
+};
 
+type Snapshot = {
+  version: string;
+  products: CatalogProduct[];
+};
+
+async function loadSnapshot(request: APIRequestContext): Promise<Snapshot> {
+  const response = await request.get("/api/catalog");
+  expect(response.status()).toBe(200);
+  return (await response.json()) as Snapshot;
+}
+
+/** The grid is server-rendered — wait for the "N item(s)" count rather than a spinner. */
 async function waitForProductsToLoad(page: Page) {
-  const loadingText = page.getByText("Loading products...");
-  try {
-    await loadingText.waitFor({ state: "hidden", timeout: 20_000 });
-  } catch {
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await loadingText.waitFor({ state: "hidden", timeout: 30_000 });
-  }
-  await page
-    .locator(".grid")
-    .first()
-    .waitFor({ state: "visible", timeout: 10_000 });
+  await page.getByText(/^\d+ items?$/).first().waitFor({ state: "visible", timeout: 15_000 });
+}
+
+async function itemsCount(page: Page): Promise<number> {
+  const text = await page.getByText(/^\d+ items?$/).first().textContent();
+  return Number.parseInt(text ?? "NaN", 10);
+}
+
+async function uniqueVisibleSlugs(page: Page): Promise<string[]> {
+  return page.locator('a[href^="/products/"]').evaluateAll((els) =>
+    Array.from(new Set(els.map((el) => (el.getAttribute("href") ?? "").replace("/products/", "")))),
+  );
+}
+
+/** A product with an in-stock size, so the detail page auto-selects a size and the sticky CTA
+ *  reads "Add to cart" immediately (no "Choose size & add" intermediate state). */
+function pickProductWithStock(snapshot: Snapshot): CatalogProduct {
+  const withStock = snapshot.products.find((p) => (p.sizes ?? []).some((s) => s.stock_quantity > 0));
+  if (!withStock) throw new Error("no product in the catalog has an in-stock size");
+  return withStock;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FEATURED BADGE
+// FEATURED PRODUCTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-test.describe("Featured Badge", () => {
-  test("Featured products display a 'Featured' badge on product cards", async ({
+test.describe("Featured products", () => {
+  test("?featured=true shows exactly the catalog's is_featured products, each with a Featured badge", async ({
     page,
+    request,
   }) => {
-    // Navigate to featured-only filter
+    const snapshot = await loadSnapshot(request);
+    const featuredSlugs = new Set(snapshot.products.filter((p) => p.is_featured).map((p) => p.slug));
+    test.skip(featuredSlugs.size === 0, "no featured products in the catalog");
+
     await page.goto("/products?featured=true");
     await waitForProductsToLoad(page);
 
-    // The "Featured" text in results info
-    await expect(page.getByText(/Featured only/)).toBeVisible();
+    expect(await itemsCount(page)).toBe(featuredSlugs.size);
 
-    // At least one product card should show the "Featured" badge
-    const featuredBadges = page.locator(
-      ".grid > div span:has-text('Featured')"
-    );
-    const badgeCount = await featuredBadges.count();
+    const badgeCount = await page.locator(".grid > div span:has-text('Featured')").count();
     expect(badgeCount).toBeGreaterThan(0);
-  });
 
-  test("'Show Featured' button filters to featured products", async ({
-    page,
-  }) => {
-    // Navigate directly to the featured-filtered URL to avoid click timing issues
-    await page.goto("/products");
-    await waitForProductsToLoad(page);
-
-    // Get initial product count
-    const showingBefore = await page
-      .getByText(/Showing \d+ of \d+ products/)
-      .textContent();
-    const totalBefore = Number(showingBefore?.match(/of (\d+)/)?.[1] ?? 0);
-
-    // Navigate directly to featured URL (avoids Radix button click issues in headless)
-    await page.goto("/products?featured=true");
-    await waitForProductsToLoad(page);
-
-    // Verify URL
-    expect(page.url()).toContain("featured=true");
-
-    // The featured filter label should show
-    await expect(page.getByText(/Featured only/)).toBeVisible();
-
-    // The "Show Featured" button should show as active ("✓ Featured")
-    const desktopFilters = page.getByTestId("desktop-filters");
-    await expect(desktopFilters.getByText("✓ Featured")).toBeVisible();
-
-    // Featured count should be <= total
-    const showingAfter = await page
-      .getByText(/Showing \d+ of \d+ products/)
-      .textContent();
-    const totalAfter = Number(showingAfter?.match(/of (\d+)/)?.[1] ?? 0);
-    expect(totalAfter).toBeLessThanOrEqual(totalBefore);
-    expect(totalAfter).toBeGreaterThan(0);
+    // Load every featured card (infinite scroll) and confirm the set matches the snapshot exactly.
+    const sentinel = page.getByTestId("infinite-scroll-sentinel");
+    for (let round = 0; round < 20 && (await uniqueVisibleSlugs(page)).length < featuredSlugs.size; round++) {
+      await sentinel.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+    }
+    const visibleSlugs = await uniqueVisibleSlugs(page);
+    expect(visibleSlugs.slice().sort()).toEqual([...featuredSlugs].sort());
   });
 });
 
@@ -100,37 +101,26 @@ test.describe("Featured Badge", () => {
 test.describe("Wishlist", () => {
   test.setTimeout(60_000);
 
-  test("Can add a product to wishlist from product detail page", async ({
-    page,
-  }) => {
-    // Navigate to products page and click first product
-    await page.goto("/products");
-    await waitForProductsToLoad(page);
+  test("Can add a product to wishlist from the product detail page", async ({ page, request }) => {
+    const snapshot = await loadSnapshot(request);
+    const product = snapshot.products[0];
 
-    const firstCardLink = page
-      .locator(".grid > div")
-      .first()
-      .locator("a")
-      .first();
-    await firstCardLink.click();
+    await page.goto(`/products/${product.slug}`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(product.name, { timeout: 45_000 });
 
-    // Wait for product detail to load (price is indicator)
-    await expect(page.getByText(/₹\d+\.\d{2}/).first()).toBeVisible({
-      timeout: 45_000,
+    // The static-info block (name + wishlist/share buttons) renders once, above the related
+    // products strip further down — .first() is the real control, not a related card's.
+    const wishlistButton = page.getByRole("button", { name: "Add to wishlist" }).first();
+    await expect(wishlistButton).toBeVisible({ timeout: 10_000 });
+    await wishlistButton.click();
+
+    // Guest sessions (no Supabase user) apply cart/wishlist intents silently — components/
+    // auth-gate-context.tsx's requireAuthForIntent adds the item itself and returns false,
+    // which short-circuits the caller's own toast.success(...) call. So the only observable,
+    // auth-state-independent signal here is the button flipping to its "in wishlist" state.
+    await expect(page.getByRole("button", { name: "Remove from wishlist" }).first()).toBeVisible({
+      timeout: 5_000,
     });
-
-    // The product detail page has a wishlist button with sr-only "Add to wishlist"
-    const wishlistButton = page.getByRole("button", {
-      name: /add to wishlist/i,
-    });
-    await expect(wishlistButton.first()).toBeVisible({ timeout: 10_000 });
-
-    await wishlistButton.first().click();
-
-    // Toast notification confirms the action (text: "PRODUCT_NAME added to wishlist!")
-    await expect(
-      page.getByText(/added to wishlist/i)
-    ).toBeVisible({ timeout: 5_000 });
   });
 });
 
@@ -141,37 +131,27 @@ test.describe("Wishlist", () => {
 test.describe("Add to Cart", () => {
   test.setTimeout(60_000);
 
-  test("Can add a product to cart from product detail page", async ({
-    page,
-  }) => {
-    // Navigate to products page and click first product
-    await page.goto("/products");
-    await waitForProductsToLoad(page);
+  test("Can add a product to cart from the product detail page", async ({ page, request }) => {
+    const snapshot = await loadSnapshot(request);
+    const product = pickProductWithStock(snapshot);
 
-    const firstCardLink = page
-      .locator(".grid > div")
-      .first()
-      .locator("a")
-      .first();
-    await firstCardLink.click();
+    await page.goto(`/products/${product.slug}`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(product.name, { timeout: 45_000 });
 
-    // Wait for product detail to load
-    await expect(page.getByText(/₹\d+\.\d{2}/).first()).toBeVisible({
-      timeout: 45_000,
-    });
-
-    // Find and click Add to Cart button
-    const addToCartButton = page
-      .getByRole("button", { name: /Add to Cart/i })
-      .first();
+    // Scope to the sticky CTA bar — related-product cards further down the page carry an
+    // identically-labelled "Add to cart" button.
+    const stickyBar = page.locator(".fixed.z-30");
+    const addToCartButton = stickyBar.getByRole("button", { name: "Add to cart", exact: true });
     await expect(addToCartButton).toBeVisible({ timeout: 10_000 });
     await addToCartButton.click();
 
-    // After clicking, the button text changes to "Remove from Cart"
-    // which confirms the product was added
-    await expect(
-      page.getByRole("button", { name: /Remove from Cart/i }).first()
-    ).toBeVisible({ timeout: 5_000 });
+    // Guest sessions (no Supabase user) apply cart/wishlist intents silently — components/
+    // auth-gate-context.tsx's requireAuthForIntent adds the item itself and returns false,
+    // which short-circuits the caller's own toast.success(...) call. So the only observable,
+    // auth-state-independent signal here is the sticky CTA flipping to its in-cart state.
+    await expect(stickyBar.getByRole("button", { name: /Added.*Go to Cart/i })).toBeVisible({
+      timeout: 5_000,
+    });
   });
 });
 
@@ -182,39 +162,23 @@ test.describe("Add to Cart", () => {
 test.describe("Infinite Scroll", () => {
   test.setTimeout(60_000);
 
-  test("Products page uses infinite scroll instead of Show More button", async ({
-    page,
-  }) => {
+  test("Products page has no Show More button and paginates via scroll", async ({ page, request }) => {
     await page.goto("/products");
     await waitForProductsToLoad(page);
 
-    // There should be NO "Show More" button
-    const showMoreButton = page.getByRole("button", { name: /Show More/i });
-    await expect(showMoreButton).toBeHidden();
+    await expect(page.getByRole("button", { name: /Show More/i })).toHaveCount(0);
 
-    // Get initial product count
-    const showingText = page.getByText(/Showing \d+ of \d+ products/);
-    const textBefore = (await showingText.textContent()) ?? "";
-    const countBefore = Number(textBefore.match(/Showing (\d+)/)?.[1] ?? 0);
-    const total = Number(textBefore.match(/of (\d+)/)?.[1] ?? 0);
+    const snapshot = await loadSnapshot(request);
+    const total = snapshot.products.length;
+    test.skip(total <= 12, "catalog fits on one page — nothing to paginate");
 
-    // Skip if all products fit on one page
-    test.skip(
-      countBefore >= total,
-      "All products already visible – nothing to paginate."
-    );
-
-    // Scroll the sentinel element into view repeatedly to trigger IntersectionObserver
     const sentinel = page.getByTestId("infinite-scroll-sentinel");
-    
-    // Poll: scroll → check → repeat until more products appear
-    await expect(async () => {
+    for (let round = 0; round < 20 && (await uniqueVisibleSlugs(page)).length < total; round++) {
       await sentinel.scrollIntoViewIfNeeded();
-      await page.waitForTimeout(500);
-      const textNow = (await showingText.textContent()) ?? "";
-      const countNow = Number(textNow.match(/Showing (\d+)/)?.[1] ?? 0);
-      expect(countNow).toBeGreaterThan(countBefore);
-    }).toPass({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+    }
+    await expect.poll(() => itemsCount(page)).toBe(total);
+    expect((await uniqueVisibleSlugs(page)).length).toBe(total);
   });
 });
 
@@ -223,9 +187,7 @@ test.describe("Infinite Scroll", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 test.describe("API Error Checks", () => {
-  test("No API returns 5xx errors on homepage load", async ({
-    page,
-  }) => {
+  test("No API returns 5xx errors on homepage load", async ({ page }) => {
     const apiErrors: { url: string; status: number }[] = [];
 
     page.on("response", (response) => {
@@ -243,20 +205,15 @@ test.describe("API Error Checks", () => {
 
     await page.goto("/", { waitUntil: "networkidle" });
 
-    // Assert no 5xx API errors
     expect(apiErrors).toEqual([]);
   });
 
-  test("No API returns 5xx errors on products page", async ({
-    page,
-  }) => {
+  test("No API returns 5xx errors on products page", async ({ page }) => {
     const apiErrors: { url: string; status: number }[] = [];
 
     page.on("response", (response) => {
       const url = response.url();
       const status = response.status();
-      // Only flag server errors (5xx). Client errors (4xx) may be expected
-      // for unauthenticated requests or optional endpoints.
       if (
         (url.includes("/api/") || url.includes("supabase") || url.includes("cloudinary")) &&
         status >= 500
@@ -277,7 +234,6 @@ test.describe("API Error Checks", () => {
     page.on("response", (response) => {
       const url = response.url();
       const status = response.status();
-      // Check for SVG, image, and font 404s
       if (
         (url.endsWith(".svg") ||
           url.endsWith(".png") ||

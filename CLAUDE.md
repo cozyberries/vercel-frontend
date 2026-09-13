@@ -120,6 +120,7 @@ app/
 - `POST|GET /api/notifications` and `PATCH /api/notifications/[id]` verify the session, then use **`SUPABASE_SERVICE_ROLE_KEY`** to read/write rows scoped by `user_id` (avoids `GRANT`/`RLS` drift across Supabase projects)
 - `AddressFormModal` accepts `enablePincodeCheck` prop to toggle Delhivery validation
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
+- Static pages must ship their content in the HTML: no `useSearchParams()` in components rendered by `/` or `/products/[id]` (read `window.location` in an effect instead), and no `ssr: false` for content sections. `tests/catalog.spec.ts` "Static HTML carries real content" enforces it.
 - Env vars for the catalog pipeline: CATALOG_BASE_URL, CATALOG_WEBHOOK_SECRET, QSTASH_TOKEN, QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY (server-only). Vercel functions are pinned to bom1 in vercel.json.
 
 ### Admin impersonation E2E
