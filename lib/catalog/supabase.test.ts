@@ -58,6 +58,18 @@ describe("catalogDb", () => {
     expect(ref.sizes).toEqual([{ slug: "sizes-1" }]);
   });
 
+  it("labels errors from every fetcher", async () => {
+    fake = new FakeSupabase(() => ({ data: null, error: { message: "boom" } }));
+    await expect(catalogDb.fetchProductRows(["a"])).rejects.toThrow(/products by slug: boom/);
+    await expect(catalogDb.fetchProductRows()).rejects.toThrow(/products page: boom/);
+    await expect(catalogDb.fetchRatingRows(["a"])).rejects.toThrow(/ratings: boom/);
+  });
+
+  it("labels a failing reference table", async () => {
+    fake = new FakeSupabase((table) => (table === "sizes" ? { data: null, error: { message: "sizes down" } } : { data: [], error: null }));
+    await expect(catalogDb.fetchReferenceRows()).rejects.toThrow(/sizes: sizes down/);
+  });
+
   it("scopes rating rows and resolves ids to slugs", async () => {
     fake = new FakeSupabase((table, calls) => {
       if (table === "ratings") {
