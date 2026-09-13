@@ -41,16 +41,17 @@ function DecorationPlaceholder() {
   return null;
 }
 
-// These sections use browser APIs (IntersectionObserver, animations) or
-// fetch client-side, so we exclude them from the server render entirely.
+// Featured products and testimonials are server-rendered: the home page is static and they carry
+// its main content (featured cards arrive as initialProducts from the catalog snapshot). Browser
+// APIs inside them run in effects. `ssr: false` here shipped skeletons in the static HTML.
 const FeaturedProducts = dynamic(() => import("./featured-products"), {
-  ssr: false,
   loading: () => <ProductSkeleton />,
 });
 const LovedByParents = dynamic(() => import("./loved-by-parents"), {
-  ssr: false,
   loading: () => <ProductSkeleton />,
 });
+
+// Decorations and the contact sidebar are non-content client-only extras.
 const SnowflakeDecoration = dynamic(() => import("./SnowflakeDecoration"), {
   ssr: false,
   loading: () => <DecorationPlaceholder />,

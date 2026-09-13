@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import SupabaseImage from "@/components/ui/supabase-image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Minus, Plus, Truck, Flame, Ruler, Leaf, RotateCcw, ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -90,9 +90,13 @@ interface ProductInteractionsProps {
 const TOP_CHIP_COUNT = 3;
 
 export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent, relatedProducts: relatedProductsProp }: ProductInteractionsProps) {
-  // Read ?size= from URL client-side so the server component stays fully static (ISR).
-  const searchParams = useSearchParams();
-  const initialSize = searchParams.get("size") ?? initialSizeProp;
+  // Read ?size= from the URL after mount. useSearchParams() would bail the statically rendered
+  // product page out to client-side rendering (the HTML shipped only the loading skeleton).
+  const [sizeFromUrl, setSizeFromUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setSizeFromUrl(new URLSearchParams(window.location.search).get("size"));
+  }, []);
+  const initialSize = sizeFromUrl ?? initialSizeProp;
 
   const productSlug = product.slug ?? product.id ?? "";
   const topFeatures = (product.features ?? []).slice(0, TOP_CHIP_COUNT);

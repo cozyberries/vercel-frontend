@@ -24,7 +24,10 @@ export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  // Mobile-first: the server renders the phone hero so the h1 and the LCP image are in the static
+  // HTML; desktop viewports swap image sets after hydration. (A null "detecting" state shipped an
+  // empty box in the HTML instead.)
+  const [isMobile, setIsMobile] = useState<boolean>(true);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const currentIndexRef = useRef(currentIndex);
@@ -94,16 +97,6 @@ export default function Hero() {
       goToSlide((idx - 1 + len) % len);
     }
   };
-
-  // While we haven't detected mobile/desktop yet, show a neutral skeleton
-  // to avoid downloading the wrong image set
-  if (isMobile === null) {
-    return (
-      <div className="container mx-auto px-4 pt-4">
-        <div className="h-[380px] md:h-[500px] rounded-[22px] bg-[#f5eee0]" />
-      </div>
-    );
-  }
 
   return (
     <section className="container mx-auto px-4 pt-4">

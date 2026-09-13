@@ -184,3 +184,24 @@ test.describe("Static rendering", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe("Static HTML carries real content", () => {
+  // Regression (2026-09-13): useSearchParams() in the product component and `ssr: false` on the
+  // home sections made the statically rendered HTML a skeleton (no h1, no price, no product links);
+  // the real content only appeared after hydration.
+  test("the home page HTML contains the hero heading and featured product links", async ({ request }) => {
+    const html = await (await request.get("/")).text();
+    expect(html.match(/<h1[\s>]/g)?.length ?? 0, "hero h1 missing from HTML").toBeGreaterThan(0);
+    expect(html.match(/href="\/products\/[a-z0-9-]+"/g)?.length ?? 0, "featured product links missing from HTML").toBeGreaterThan(0);
+  });
+
+  test("the product page HTML contains the name, price and add-to-cart control", async ({ request }) => {
+    const snapshot = await loadSnapshot(request);
+    const product = snapshot.products[0];
+    // React separates adjacent text nodes with <!-- --> (e.g. "₹<!-- -->839"); strip them first.
+    const html = (await (await request.get(`/products/${product.slug}`)).text()).replace(/<!--.*?-->/g, "");
+    expect(html, "product h1 missing from HTML").toMatch(new RegExp(`<h1[^>]*>[^<]*${product.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    expect(html, "price missing from HTML").toMatch(/₹\s?\d/);
+    expect(html, "add-to-cart missing from HTML").toMatch(/Add to cart/i);
+  });
+});
