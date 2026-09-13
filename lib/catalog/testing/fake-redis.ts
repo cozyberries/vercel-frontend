@@ -95,8 +95,14 @@ export class FakeRedis implements RedisLike {
 
   search = {
     createIndex: async (options: Record<string, unknown>): Promise<unknown> => {
+      const name = String(options.name);
+      // Upstash rejects a duplicate index unless existsOk is set; the fake must too, or
+      // the store's idempotency test would pass even if ensureIndex dropped existsOk.
+      if (this.indexes.has(name) && options.existsOk !== true) {
+        throw new Error(`index ${name} already exists`);
+      }
       const prefix = options.prefix;
-      this.indexes.set(String(options.name), { prefix: Array.isArray(prefix) ? String(prefix[0]) : String(prefix) });
+      this.indexes.set(name, { prefix: Array.isArray(prefix) ? String(prefix[0]) : String(prefix) });
       return {};
     },
     index: (options: { name: string }) => ({

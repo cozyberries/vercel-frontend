@@ -64,6 +64,7 @@ describe("createCatalogStore", () => {
     await store.ensureIndex();
     await store.ensureIndex();
     expect([...redis.indexes.keys()]).toEqual([CATALOG_INDEX_NAME]);
+    await expect(redis.search.createIndex({ name: CATALOG_INDEX_NAME, prefix: KEYS.productPrefix })).rejects.toThrow(/already exists/);
     await store.waitIndexing();
     expect(await store.indexDocCount()).toBe(3);
     const keys = await store.searchKeys({ category_slug: { $eq: "frocks" } }, 10);
