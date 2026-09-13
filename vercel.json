@@ -4,6 +4,7 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "regions": ["bom1"],
   "crons": [
     {
       "path": "/api/cache/warm",
