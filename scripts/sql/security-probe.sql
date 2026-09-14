@@ -5,16 +5,47 @@ begin;
 
 create temporary table probe_result(name text, ok boolean, reason text) on commit drop;
 
+-- has_table_privilege alone is blind to a column-scoped grant such as
+-- GRANT UPDATE (price) ON products TO anon, even though PostgREST would
+-- still honour it. This helper treats a privilege as held if it holds at
+-- the table level OR on any column of the table, so a future column-only
+-- grant cannot slip past these assertions. (Reference pattern: the vendored
+-- scripts/sql/lint.sql uses the same has_column_privilege/pg_attribute join
+-- for its equivalent exposure checks.)
+-- DELETE (and TRUNCATE/TRIGGER) have no column-level grant in Postgres's ACL
+-- model, so has_column_privilege rejects them with "unrecognized privilege
+-- type"; only SELECT/INSERT/UPDATE/REFERENCES can be column-scoped.
+create function pg_temp.priv_any(p_role text, p_table regclass, p_priv text) returns boolean
+language plpgsql as $$
+declare result boolean;
+begin
+  select has_table_privilege(p_role, p_table, p_priv)
+      or (
+        p_priv in ('SELECT','INSERT','UPDATE','REFERENCES')
+        and exists (
+          select 1
+            from pg_attribute a
+           where a.attrelid = p_table
+             and a.attnum > 0
+             and not a.attisdropped
+             and has_column_privilege(p_role, p_table, a.attnum, p_priv)
+        )
+      )
+    into result;
+  return result;
+end;
+$$;
+
 -- anon must NOT be able to write catalogue data
 do $$
 declare can_write boolean;
 begin
-  select has_table_privilege('anon','public.products','UPDATE')
-      or has_table_privilege('anon','public.products','DELETE')
-      or has_table_privilege('anon','public.products','INSERT')
+  select pg_temp.priv_any('anon','public.products'::regclass,'UPDATE')
+      or pg_temp.priv_any('anon','public.products'::regclass,'DELETE')
+      or pg_temp.priv_any('anon','public.products'::regclass,'INSERT')
   into can_write;
   insert into probe_result values ('anon_cannot_write_products', not can_write,
-    case when can_write then 'anon holds INSERT/UPDATE/DELETE on products' end);
+    case when can_write then 'anon holds INSERT/UPDATE/DELETE on products (table- or column-level)' end);
 end $$;
 
 -- anon must NOT hold any privilege on user-owned tables
@@ -24,10 +55,10 @@ begin
   foreach t in array array['user_carts','user_wishlists','orders','order_items','payments',
                            'user_addresses','checkout_sessions','event_logs','notifications']
   loop
-    if has_table_privilege('anon','public.'||t,'SELECT')
-    or has_table_privilege('anon','public.'||t,'INSERT')
-    or has_table_privilege('anon','public.'||t,'UPDATE')
-    or has_table_privilege('anon','public.'||t,'DELETE') then
+    if pg_temp.priv_any('anon',('public.'||t)::regclass,'SELECT')
+    or pg_temp.priv_any('anon',('public.'||t)::regclass,'INSERT')
+    or pg_temp.priv_any('anon',('public.'||t)::regclass,'UPDATE')
+    or pg_temp.priv_any('anon',('public.'||t)::regclass,'DELETE') then
       bad := bad || t;
     end if;
   end loop;
@@ -35,18 +66,24 @@ begin
     cardinality(bad) = 0, 'anon still reaches: '||array_to_string(bad,', '));
 end $$;
 
--- anon must NOT hold any privilege on admin/internal tables
+-- anon and authenticated must NOT hold any privilege on admin/internal tables.
+-- Both roles get all four privileges checked (not just anon SELECT/INSERT/
+-- UPDATE/DELETE plus authenticated SELECT) so that authenticated holding
+-- INSERT/UPDATE/DELETE without SELECT cannot slip through as a false PASS.
 do $$
 declare t text; bad text[] := '{}';
 begin
   foreach t in array array['expenses','expense_categories','admin_users',
                            'impersonation_events','webhook_events','recent_activities']
   loop
-    if has_table_privilege('anon','public.'||t,'SELECT')
-    or has_table_privilege('anon','public.'||t,'INSERT')
-    or has_table_privilege('anon','public.'||t,'UPDATE')
-    or has_table_privilege('anon','public.'||t,'DELETE')
-    or has_table_privilege('authenticated','public.'||t,'SELECT') then
+    if pg_temp.priv_any('anon',('public.'||t)::regclass,'SELECT')
+    or pg_temp.priv_any('anon',('public.'||t)::regclass,'INSERT')
+    or pg_temp.priv_any('anon',('public.'||t)::regclass,'UPDATE')
+    or pg_temp.priv_any('anon',('public.'||t)::regclass,'DELETE')
+    or pg_temp.priv_any('authenticated',('public.'||t)::regclass,'SELECT')
+    or pg_temp.priv_any('authenticated',('public.'||t)::regclass,'INSERT')
+    or pg_temp.priv_any('authenticated',('public.'||t)::regclass,'UPDATE')
+    or pg_temp.priv_any('authenticated',('public.'||t)::regclass,'DELETE') then
       bad := bad || t;
     end if;
   end loop;
@@ -90,7 +127,7 @@ declare t text; bad text[] := '{}';
 begin
   foreach t in array array['orders','payments','notifications','event_logs','order_items']
   loop
-    if has_table_privilege('authenticated','public.'||t,'DELETE') then
+    if pg_temp.priv_any('authenticated',('public.'||t)::regclass,'DELETE') then
       bad := bad || t;
     end if;
   end loop;
