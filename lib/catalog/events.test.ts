@@ -57,12 +57,25 @@ describe("buildMessage", () => {
       url: "https://cozyberries.in/api/catalog/rebuild",
       body: { kind: "product", slug: "a" },
       delay: DEBOUNCE_SECONDS,
-      deduplicationId: `product:a:${Math.floor(1_700_000_000_000 / (DEBOUNCE_SECONDS * 1000))}`,
+      deduplicationId: `product-a-${Math.floor(1_700_000_000_000 / (DEBOUNCE_SECONDS * 1000))}`,
       flowControl: { key: "catalog-rebuild", parallelism: 1 },
       retries: 3,
       failureCallback: "https://cozyberries.in/api/catalog/rebuild-failed",
       label: "catalog",
     });
+  });
+  // Regression (2026-09-14): QStash rejects `DeduplicationId cannot contain ':'`, so every event
+  // publish failed with 500 in production and no webhook-driven rebuild ever ran.
+  it("never puts a colon in the deduplication id, whatever the scope label contains", () => {
+    const scopes = [
+      { kind: "product", slug: "odd:slug" },
+      { kind: "product-id", id: "42" },
+      { kind: "reference" },
+      { kind: "full" },
+    ] as const;
+    for (const scope of scopes) {
+      expect(buildMessage(scope, "https://cozyberries.in", 1_700_000_000_000).deduplicationId).not.toContain(":");
+    }
   });
 });
 
@@ -90,13 +103,13 @@ describe("processScope", () => {
     const collapsed = await processScope({ kind: "product", slug: "one-more" }, deps);
     expect(collapsed).toEqual({ status: "collapsed", scopeKey: "full", messageId: `msg-${BURST_THRESHOLD + 1}` });
     expect(deps.published.at(-1)?.body).toEqual({ kind: "full" });
-    expect(deps.published.at(-1)?.deduplicationId).toBe(`full:${Math.floor(1_700_000_000_000 / 60_000)}`);
+    expect(deps.published.at(-1)?.deduplicationId).toBe(`full-${Math.floor(1_700_000_000_000 / 60_000)}`);
     expect(await processScope({ kind: "product", slug: "another" }, deps)).toEqual({ status: "muted", scopeKey: "product:another" });
     expect(await deps.store.exists(KEYS.muted)).toBe(true);
     const trailing = deps.published.at(-1);
     expect(trailing?.body).toEqual({ kind: "full" });
     expect(trailing?.delay).toBe(MUTE_SECONDS);
-    expect(trailing?.deduplicationId).toBe(`full:trailing:${Math.floor(1_700_000_000_000 / (MUTE_SECONDS * 1000))}`);
+    expect(trailing?.deduplicationId).toBe(`full-trailing-${Math.floor(1_700_000_000_000 / (MUTE_SECONDS * 1000))}`);
     const before = deps.published.length;
     expect((await processScope({ kind: "product", slug: "yet-another" }, deps)).status).toBe("muted");
     expect(deps.published).toHaveLength(before);

@@ -62,13 +62,21 @@ export interface PublishMessage {
   label: string;
 }
 
+/**
+ * QStash rejects deduplication ids containing ':' (and the scope labels use it), so ids are
+ * joined with '-' and any stray colon is replaced.
+ */
+export function deduplicationId(...parts: Array<string | number>): string {
+  return parts.map(String).join("-").replace(/:/g, "-");
+}
+
 export function buildMessage(scope: Scope, baseUrl: string, nowMs: number): PublishMessage {
   const bucket = Math.floor(nowMs / (DEBOUNCE_SECONDS * 1000));
   return {
     url: `${baseUrl}/api/catalog/rebuild`,
     body: scope,
     delay: DEBOUNCE_SECONDS,
-    deduplicationId: `${scopeLabel(scope)}:${bucket}`,
+    deduplicationId: deduplicationId(scopeLabel(scope), bucket),
     flowControl: { key: "catalog-rebuild", parallelism: 1 },
     retries: REBUILD_RETRIES,
     failureCallback: `${baseUrl}/api/catalog/rebuild-failed`,
@@ -102,7 +110,7 @@ export async function processScope(scope: Scope, deps: EventDeps): Promise<Event
       await deps.publish({
         ...buildMessage({ kind: "full" }, deps.baseUrl, now()),
         delay: MUTE_SECONDS,
-        deduplicationId: `full:trailing:${bucket}`,
+        deduplicationId: deduplicationId("full", "trailing", bucket),
       });
     }
     return { status: "muted", scopeKey: key };
@@ -113,7 +121,7 @@ export async function processScope(scope: Scope, deps: EventDeps): Promise<Event
   if (publishedThisWindow > BURST_THRESHOLD && scope.kind !== "full") {
     await store.setIfAbsent(KEYS.muted, MUTE_SECONDS);
     const minuteBucket = Math.floor(now() / 60_000);
-    const message = { ...buildMessage({ kind: "full" }, deps.baseUrl, now()), deduplicationId: `full:${minuteBucket}` };
+    const message = { ...buildMessage({ kind: "full" }, deps.baseUrl, now()), deduplicationId: deduplicationId("full", minuteBucket) };
     const result = await deps.publish(message);
     return { status: "collapsed", scopeKey: "full", messageId: result?.messageId ?? null };
   }

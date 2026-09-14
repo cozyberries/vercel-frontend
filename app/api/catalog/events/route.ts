@@ -30,7 +30,9 @@ function secretMatches(header: string | null): boolean {
 
 let qstash: Client | null = null;
 async function publish(message: PublishMessage): Promise<{ messageId: string } | null> {
-  if (!qstash) qstash = new Client({ token: process.env.QSTASH_TOKEN ?? "" });
+  // QStash is regional: the SDK reads QSTASH_URL for the account's endpoint; pass it explicitly so
+  // a misconfigured deployment fails loudly in the same place rather than with "user not found".
+  if (!qstash) qstash = new Client({ token: process.env.QSTASH_TOKEN ?? "", baseUrl: process.env.QSTASH_URL });
   const result = await qstash.publishJSON(message);
   const first = Array.isArray(result) ? result[0] : result;
   return first ? { messageId: String((first as { messageId?: string }).messageId ?? "") } : null;
