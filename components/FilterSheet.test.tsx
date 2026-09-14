@@ -95,6 +95,30 @@ describe("FilterSheet design and colour groups", () => {
     expect(white.className).not.toContain("border-white");
   });
 
+  it("shows a tick on the selected swatch only, and drops it when deselected", () => {
+    const sheet = openSheet({ onApplyFilters: vi.fn(), currentColour: "white" });
+    expect(within(within(sheet).getByTestId("swatch-white")).getByTestId("swatch-check")).toBeInTheDocument();
+    expect(within(within(sheet).getByTestId("swatch-lilac")).queryByTestId("swatch-check")).toBeNull();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+    expect(within(within(sheet).getByTestId("swatch-lilac")).getByTestId("swatch-check")).toBeInTheDocument();
+    expect(within(within(sheet).getByTestId("swatch-white")).queryByTestId("swatch-check")).toBeNull();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+    expect(within(sheet).queryAllByTestId("swatch-check")).toHaveLength(0);
+  });
+
+  // Regression (2026-09-14): ?gender=Girl is parsed to "girl", so reopening the sheet never showed
+  // the Girl chip as selected and a second tap selected it again instead of clearing it.
+  it("pre-selects the gender from the URL regardless of case and toggles it off", () => {
+    const onApplyFilters = vi.fn();
+    const sheet = openSheet({ onApplyFilters, currentGender: "girl" });
+    const girl = within(sheet).getByRole("button", { name: "Girl" });
+    expect(girl).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(girl);
+    expect(girl).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(within(sheet).getByRole("button", { name: /show 12 items/i }));
+    expect(onApplyFilters).toHaveBeenCalledWith(expect.objectContaining({ gender: "all" }));
+  });
+
   it("hides a group whose option list is empty instead of showing placeholders", () => {
     const sheet = openSheet({ onApplyFilters: vi.fn(), designOptions: [], colourOptions: [] });
     expect(within(sheet).queryByText("Design", { exact: true })).toBeNull();

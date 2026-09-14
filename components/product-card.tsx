@@ -189,7 +189,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
             height={750}
             sizes={
               currentView === "list"
-                ? "100vw"
+                ? "(max-width: 1023px) 100vw, 25vw"
                 : "(max-width: 1023px) 50vw, 25vw"
             }
             priority={index < 4}

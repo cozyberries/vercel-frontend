@@ -80,7 +80,8 @@ test.describe("Featured products", () => {
 
     expect(await itemsCount(page)).toBe(featuredSlugs.size);
 
-    const badgeCount = await page.locator(".grid > div span:has-text('Featured')").count();
+    // Sold-out products show a "Sold out" sticker in place of "Featured", so only some cards carry the badge.
+    const badgeCount = await page.locator('[data-testid="product-grid"] > div span:has-text("Featured")').count();
     expect(badgeCount).toBeGreaterThan(0);
 
     // Load every featured card (infinite scroll) and confirm the set matches the snapshot exactly.

@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 /**
  * Products Page E2E Tests
@@ -30,6 +30,9 @@ type CatalogProduct = {
   description?: string;
   images: string[];
   sizes: ProductSize[];
+  gender_slug: string;
+  size_slugs: string[];
+  age_slugs?: string[];
   color_slugs: string[];
   base_colors?: string[];
 };
@@ -69,7 +72,7 @@ function parsePrice(text: string): number {
 /** First ₹ price text inside each currently rendered card (MRP when a sitewide offer is active — a
  *  constant discount rate, so ordering by MRP or by the discounted price is equivalent). */
 async function cardPrices(page: Page): Promise<number[]> {
-  const cards = page.locator(".grid > div");
+  const cards = page.locator('[data-testid="product-grid"] > div');
   const count = await cards.count();
   const prices: number[] = [];
   for (let i = 0; i < count; i++) {
@@ -106,7 +109,7 @@ test.describe("Products Page", () => {
     const snapshot = await loadSnapshot(request);
     expect(await itemsCount(page)).toBe(snapshot.products.length);
 
-    const firstCard = page.locator(".grid > div").first();
+    const firstCard = page.locator('[data-testid="product-grid"] > div').first();
     await expect(firstCard.locator("img").first()).toBeVisible();
     await expect(firstCard.locator('a[href^="/products/"]').first()).toBeVisible();
     await expect(firstCard.getByText(/₹\s?\d[\d,]*/).first()).toBeVisible();
@@ -124,7 +127,7 @@ test.describe("Products Page", () => {
     const baseColours = new Set(snapshot.products.flatMap((p) => p.base_colors ?? []));
     expect(printNames.length).toBeGreaterThan(0);
 
-    await page.getByRole("button", { name: "Filters" }).click();
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Filters" });
 
     await expect(sheet.getByText("Gender", { exact: true })).toBeVisible();
@@ -164,7 +167,7 @@ test.describe("Products Page", () => {
     const name = snapshot.reference.colors.find((c) => c.slug === slug)?.name ?? slug;
     expect(expected).toBeLessThan(snapshot.products.length);
 
-    await page.getByRole("button", { name: "Filters" }).click();
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Filters" });
     await sheet.getByRole("button", { name, exact: true }).click();
     await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
@@ -182,6 +185,114 @@ test.describe("Products Page", () => {
     await expect(page.getByPlaceholder("Search organic muslin, gifts…")).toBeFocused();
     await applied.getByRole("button", { name: `Remove Design filter ${name}` }).click();
     await expect(page).not.toHaveURL(/[?&]design=/);
+  });
+
+  // ── Every filter group in the sheet, applied for real: URL param, item count, applied chip ──
+  test.describe("Filter options", () => {
+    const THREE_TO_SIX = ["3-4y", "4-5y", "5-6y"];
+    const inAgeBand = (p: CatalogProduct) => p.age_slugs?.includes("3-6y") ?? p.size_slugs.some((s) => THREE_TO_SIX.includes(s));
+    const baseColourSlug = (name: string) => name.trim().toLowerCase().replace(/\s+/g, "-");
+
+    async function applyFromSheet(page: Page, pick: (sheet: Locator) => Promise<void>) {
+      await page.getByRole("button", { name: "Filters", exact: true }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      await pick(sheet);
+      await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
+      await expect(sheet).toBeHidden();
+      await waitForProductsToLoad(page);
+    }
+
+    /** The most-used base colour, with the display name the sheet shows for it. */
+    function pickColour(snapshot: Snapshot): { slug: string; name: string; count: number } {
+      const counts = new Map<string, number>();
+      for (const p of snapshot.products) for (const c of p.base_colors ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
+      const [slug, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
+      const name = snapshot.reference.colors.map((c) => c.base_color?.trim() ?? "").find((n) => n && baseColourSlug(n) === slug) ?? slug;
+      return { slug, name, count };
+    }
+
+    test("Gender: Girl shows girl and unisex products and writes ?gender=", async ({ page, request }) => {
+      const snapshot = await loadSnapshot(request);
+      const expected = snapshot.products.filter((p) => ["girl", "unisex"].includes(p.gender_slug)).length;
+      await applyFromSheet(page, (sheet) => sheet.getByRole("button", { name: "Girl", exact: true }).click());
+      await expect(page).toHaveURL(/[?&]gender=Girl(&|$)/);
+      expect(await itemsCount(page)).toBe(expected);
+      await expect(page.getByLabel("Applied filters").getByText("Girl", { exact: true })).toBeVisible();
+    });
+
+    test("Age: 3-6 Years shows every product with a 3-4Y, 4-5Y or 5-6Y size and writes ?age=3-6y", async ({ page, request }) => {
+      const snapshot = await loadSnapshot(request);
+      const expected = snapshot.products.filter(inAgeBand).length;
+      expect(expected).toBeGreaterThan(0);
+      await applyFromSheet(page, (sheet) => sheet.getByRole("button", { name: "3-6 Years", exact: true }).click());
+      await expect(page).toHaveURL(/[?&]age=3-6y(&|$)/);
+      expect(await itemsCount(page)).toBe(expected);
+      await expect(page.getByLabel("Applied filters").getByText("3-6 Years", { exact: true })).toBeVisible();
+    });
+
+    test("Colour: the chosen swatch shows a tick, filters by base colour and writes ?colour=", async ({ page, request }) => {
+      const snapshot = await loadSnapshot(request);
+      const colour = pickColour(snapshot);
+      expect(colour.count).toBeLessThan(snapshot.products.length);
+      await applyFromSheet(page, async (sheet) => {
+        const swatch = sheet.getByRole("button", { name: colour.name, exact: true });
+        await expect(swatch.getByTestId("swatch-check")).toHaveCount(0);
+        await swatch.click();
+        await expect(swatch).toHaveAttribute("aria-pressed", "true");
+        await expect(swatch.getByTestId("swatch-check")).toBeVisible();
+      });
+      await expect(page).toHaveURL(new RegExp(`[?&]colour=${colour.slug}(&|$)`));
+      expect(await itemsCount(page)).toBe(colour.count);
+      await expect(page.getByLabel("Applied filters").getByText(colour.name, { exact: true })).toBeVisible();
+    });
+
+    test("Age and Colour combine (intersection), and removing one chip keeps the other", async ({ page, request }) => {
+      const snapshot = await loadSnapshot(request);
+      // Pick the base colour with the largest overlap with the 3-6 Years band.
+      const overlap = new Map<string, number>();
+      for (const p of snapshot.products.filter(inAgeBand)) for (const c of p.base_colors ?? []) overlap.set(c, (overlap.get(c) ?? 0) + 1);
+      const best = [...overlap.entries()].sort((a, b) => b[1] - a[1])[0];
+      test.skip(!best, "no product has both a 3-6 Years size and a base colour");
+      const [slug, expected] = best!;
+      const name = snapshot.reference.colors.map((c) => c.base_color?.trim() ?? "").find((n) => n && baseColourSlug(n) === slug) ?? slug;
+
+      await applyFromSheet(page, async (sheet) => {
+        await sheet.getByRole("button", { name: "3-6 Years", exact: true }).click();
+        await sheet.getByRole("button", { name, exact: true }).click();
+      });
+      await expect(page).toHaveURL(/[?&]age=3-6y(&|$)/);
+      await expect(page).toHaveURL(new RegExp(`[?&]colour=${slug}(&|$)`));
+      expect(await itemsCount(page)).toBe(expected);
+
+      await page.getByLabel("Applied filters").getByRole("button", { name: "Remove Age filter 3-6 Years" }).click();
+      await expect(page).not.toHaveURL(/[?&]age=/);
+      await expect(page).toHaveURL(new RegExp(`[?&]colour=${slug}(&|$)`));
+      await waitForProductsToLoad(page);
+      expect(await itemsCount(page)).toBe(snapshot.products.filter((p) => p.base_colors?.includes(slug)).length);
+    });
+
+    test("Re-opening the sheet pre-selects the applied options; tapping one again deselects it", async ({ page }) => {
+      await applyFromSheet(page, (sheet) => sheet.getByRole("button", { name: "Boy", exact: true }).click());
+      await page.getByRole("button", { name: "Filters", exact: true }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      const boy = sheet.getByRole("button", { name: "Boy", exact: true });
+      await expect(boy).toHaveAttribute("aria-pressed", "true");
+      await boy.click();
+      await expect(boy).toHaveAttribute("aria-pressed", "false");
+      await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
+      await expect(page).not.toHaveURL(/[?&]gender=/);
+    });
+
+    test("Clear all filters resets the URL and shows the whole catalog again", async ({ page, request }) => {
+      const snapshot = await loadSnapshot(request);
+      await applyFromSheet(page, (sheet) => sheet.getByRole("button", { name: "Girl", exact: true }).click());
+      expect(await itemsCount(page)).toBeLessThan(snapshot.products.length);
+      await page.getByRole("button", { name: "Clear all filters" }).click();
+      await expect(page).toHaveURL(/\/products\/?$/);
+      await waitForProductsToLoad(page);
+      expect(await itemsCount(page)).toBe(snapshot.products.length);
+      await expect(page.getByLabel("Applied filters")).toHaveCount(0);
+    });
   });
 
   test("Sort sheet lists Popular, price options and Top Rated, and sorts the grid by price", async ({ page }) => {

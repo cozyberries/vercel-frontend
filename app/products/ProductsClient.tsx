@@ -15,6 +15,7 @@ import { MIN_QUERY_LENGTH, ageFilterOptions, applyFilters, filtersKey, normalize
 import { colourOptionsFor, designOptionsFor } from "@/lib/catalog/colours";
 import { activeFilterChips, type ActiveFilterParam } from "@/lib/catalog/active-filters";
 import { FOCUS_SEARCH_EVENT, SEARCH_HASH } from "@/lib/utils/search-navigation";
+import { resolveProductView, viewParamFor, type ProductView } from "@/lib/utils/product-view";
 import type { Snapshot } from "@/lib/catalog/types";
 import type { FilterValues } from "@/components/FilterSheet";
 import ActiveFilterChips from "@/components/ActiveFilterChips";
@@ -148,8 +149,9 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
   const currentCategory = filters.category;
   const currentSort = filters.sortBy;
   const currentSortOrder = filters.sortOrder;
-  const currentView = searchParams.get("view") === "list" ? "list" : "grid";
-  const effectiveView = isMobile === false ? "grid" : currentView;
+  // Mobile defaults to the list; ?view=grid opts into the grid; desktop is always a grid. The
+  // container classes are responsive, so the server HTML is right for both without a flip.
+  const effectiveView = resolveProductView(searchParams.get("view"), isMobile);
 
   const setParams = useCallback(
     (mutate: (params: URLSearchParams) => void, mode: "push" | "replace" = "push") => {
@@ -310,7 +312,7 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
   );
   const handleClearFilters = () => {
     setSearchInput("");
-    navigate(new URLSearchParams(currentView === "list" ? { view: "list" } : {}), "push");
+    navigate(new URLSearchParams(searchParams.get("view") === "grid" ? { view: "grid" } : {}), "push");
   };
   const handleRemoveFilter = (param: ActiveFilterParam) =>
     setParams((p) => {
@@ -318,8 +320,7 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
       if (param === "colour") p.delete("color");
     });
   const appliedChips = useMemo(() => activeFilterChips(filters, snapshot.reference), [filters, snapshot.reference]);
-  const handleViewChange = (view: "grid" | "list") =>
-    setParams((p) => setOrDelete(p, "view", view === "list" ? "list" : null), "replace");
+  const handleViewChange = (view: ProductView) => setParams((p) => setOrDelete(p, "view", viewParamFor(view)), "replace");
 
   const hasActiveFilters =
     currentCategory !== "all" ||
@@ -416,9 +417,10 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
       {cards.length > 0 ? (
         <>
           <div
+            data-testid="product-grid"
             className={
               effectiveView === "list"
-                ? "flex flex-col gap-4 mb-8"
+                ? "flex flex-col gap-4 mb-8 lg:grid lg:grid-cols-4 lg:gap-[18px]"
                 : "grid grid-cols-2 lg:grid-cols-4 gap-[14px] lg:gap-[18px] mb-8"
             }
           >

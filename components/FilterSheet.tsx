@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { Check, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import {
@@ -138,15 +138,15 @@ export default function FilterSheet({
             <div>
               <h3 className="text-sm font-bold mb-3">Gender</h3>
               <div className="flex flex-wrap gap-2">
-                {genderOptions.map((g) => (
-                  <Chip
-                    key={g.id}
-                    active={pendingGender === g.name}
-                    onClick={() => setPendingGender(pendingGender === g.name ? "all" : g.name)}
-                  >
-                    {g.name}
-                  </Chip>
-                ))}
+                {genderOptions.map((g) => {
+                  // The URL keeps the name but parseFilters lowercases it, so compare case-insensitively.
+                  const on = pendingGender.toLowerCase() === g.name.toLowerCase();
+                  return (
+                    <Chip key={g.id} active={on} onClick={() => setPendingGender(on ? "all" : g.name)}>
+                      {g.name}
+                    </Chip>
+                  );
+                })}
               </div>
             </div>
 
@@ -204,12 +204,22 @@ export default function FilterSheet({
                         {/* Visible neutral border so pale swatches (White, Cream) read on the white sheet */}
                         <span
                           data-testid={`swatch-${c.slug}`}
-                          className="block h-11 w-11 rounded-full border-2 border-cb-border"
+                          className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-cb-border"
                           style={{
                             background: c.hex,
                             boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "none",
                           }}
-                        />
+                        >
+                          {/* Tick on the chosen swatch: the ring alone is easy to miss on pale colours */}
+                          {on && (
+                            <span
+                              data-testid="swatch-check"
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-white/85 shadow-sm"
+                            >
+                              <Check className="h-4 w-4 text-cb-terracotta-deep" strokeWidth={3} aria-hidden="true" />
+                            </span>
+                          )}
+                        </span>
                         <span className={`text-[11.5px] font-medium ${on ? "text-cb-terracotta-deep" : "text-cb-muted-fg"}`}>
                           {c.name}
                         </span>
