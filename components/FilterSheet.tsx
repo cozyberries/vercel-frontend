@@ -201,11 +201,13 @@ export default function FilterSheet({
                         title={c.name}
                         className="flex flex-col items-center gap-1.5 w-14"
                       >
+                        {/* Visible neutral border so pale swatches (White, Cream) read on the white sheet */}
                         <span
-                          className="block h-11 w-11 rounded-full border-2 border-white"
+                          data-testid={`swatch-${c.slug}`}
+                          className="block h-11 w-11 rounded-full border-2 border-cb-border"
                           style={{
                             background: c.hex,
-                            boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
+                            boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "none",
                           }}
                         />
                         <span className={`text-[11.5px] font-medium ${on ? "text-cb-terracotta-deep" : "text-cb-muted-fg"}`}>

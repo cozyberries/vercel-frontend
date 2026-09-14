@@ -13,8 +13,11 @@ import type { Product } from "@/lib/services/api";
 import { useCatalog, useRanking } from "@/hooks/useCatalog";
 import { MIN_QUERY_LENGTH, ageFilterOptions, applyFilters, filtersKey, normalizeQuery, parseFilters } from "@/lib/catalog/filter";
 import { colourOptionsFor, designOptionsFor } from "@/lib/catalog/colours";
+import { activeFilterChips, type ActiveFilterParam } from "@/lib/catalog/active-filters";
+import { FOCUS_SEARCH_EVENT, SEARCH_HASH } from "@/lib/utils/search-navigation";
 import type { Snapshot } from "@/lib/catalog/types";
 import type { FilterValues } from "@/components/FilterSheet";
+import ActiveFilterChips from "@/components/ActiveFilterChips";
 import { Loader, Search, X, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { trackSearch } from "@/lib/analytics/meta-pixel";
@@ -255,6 +258,23 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     if (filters.search.trim()) trackSearch({ query: filters.search });
   }, [filters.search]);
 
+  // The header's search icon: focus the box in place (event) or on arrival (#search hash),
+  // never touching the applied filters in the URL.
+  useEffect(() => {
+    const focusSearch = () => {
+      const input = searchInputRef.current;
+      if (!input) return;
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+      input.focus();
+    };
+    if (window.location.hash === SEARCH_HASH) {
+      focusSearch();
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    window.addEventListener(FOCUS_SEARCH_EVENT, focusSearch);
+    return () => window.removeEventListener(FOCUS_SEARCH_EVENT, focusSearch);
+  }, []);
+
   // ── Handlers: same URL semantics as before, no navigation round trip ──
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -292,6 +312,12 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     setSearchInput("");
     navigate(new URLSearchParams(currentView === "list" ? { view: "list" } : {}), "push");
   };
+  const handleRemoveFilter = (param: ActiveFilterParam) =>
+    setParams((p) => {
+      p.delete(param);
+      if (param === "colour") p.delete("color");
+    });
+  const appliedChips = useMemo(() => activeFilterChips(filters, snapshot.reference), [filters, snapshot.reference]);
   const handleViewChange = (view: "grid" | "list") =>
     setParams((p) => setOrDelete(p, "view", view === "list" ? "list" : null), "replace");
 
@@ -378,9 +404,7 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
       </div>
 
       {hasActiveFilters && (
-        <button type="button" onClick={handleClearFilters} className="self-start text-sm font-semibold text-cb-terracotta">
-          Clear all filters
-        </button>
+        <ActiveFilterChips chips={appliedChips} onRemove={handleRemoveFilter} onClearAll={handleClearFilters} />
       )}
     </div>
   );

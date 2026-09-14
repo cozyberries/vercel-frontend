@@ -172,6 +172,16 @@ test.describe("Products Page", () => {
     await expect(page).toHaveURL(new RegExp(`[?&]design=${slug}(&|$)`));
     await waitForProductsToLoad(page);
     expect(await itemsCount(page)).toBe(expected);
+
+    // The applied filter is visible on the results screen and removable on its own.
+    const applied = page.getByLabel("Applied filters");
+    await expect(applied.getByText(name, { exact: true })).toBeVisible();
+    // The header search icon must keep the filter and only focus the search box.
+    await page.getByRole("button", { name: "Search products" }).click();
+    await expect(page).toHaveURL(new RegExp(`[?&]design=${slug}(&|$)`));
+    await expect(page.getByPlaceholder("Search organic muslin, gifts…")).toBeFocused();
+    await applied.getByRole("button", { name: `Remove Design filter ${name}` }).click();
+    await expect(page).not.toHaveURL(/[?&]design=/);
   });
 
   test("Sort sheet lists Popular, price options and Top Rated, and sorts the grid by price", async ({ page }) => {

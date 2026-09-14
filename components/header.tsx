@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { FOCUS_SEARCH_EVENT, searchIconAction } from "@/lib/utils/search-navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
 import { User, Search, Heart, ShoppingBag } from "lucide-react";
@@ -17,6 +18,7 @@ import HeaderLinks from "./HeaderLinks";
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const { wishlist } = useWishlist();
   const { cart } = useCart();
   const cartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -73,16 +75,20 @@ export default function Header() {
 
           {/* Icons + Auth */}
           <div className="flex items-center justify-end flex-1 space-x-2 lg:space-x-3">
-            <Link href="/products">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 lg:h-7 lg:w-7 flex items-center justify-center rounded-full hover:bg-transparent"
-                aria-label="Search products"
-              >
-                <Search className="!w-5 !h-5 text-cb-fg" />
-              </Button>
-            </Link>
+            {/* On /products this only focuses the search box, so applied filters survive. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 lg:h-7 lg:w-7 flex items-center justify-center rounded-full hover:bg-transparent"
+              aria-label="Search products"
+              onClick={() => {
+                const action = searchIconAction(pathname ?? "/");
+                if (action.kind === "focus") window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT));
+                else router.push(action.href);
+              }}
+            >
+              <Search className="!w-5 !h-5 text-cb-fg" />
+            </Button>
             <NotificationCenter />
             <Link href="/wishlist">
               <Button

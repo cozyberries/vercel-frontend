@@ -761,8 +761,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     <p className="flex items-center gap-2 text-sm text-cb-muted-fg">
                       <span
                         aria-hidden="true"
-                        className="inline-block h-5 w-5 rounded-full border-2 border-white"
-                        style={{ background: swatchHex, boxShadow: "0 0 0 1px var(--cb-border)" }}
+                        className="inline-block h-5 w-5 rounded-full border-2 border-cb-border"
+                        style={{ background: swatchHex }}
                       />
                       <span>
                         Colour — <span className="text-cb-fg">{baseColour}</span>

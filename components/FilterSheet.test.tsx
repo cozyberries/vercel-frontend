@@ -87,6 +87,14 @@ describe("FilterSheet design and colour groups", () => {
     expect(onApplyFilters.mock.calls[0]![0]).not.toHaveProperty("size");
   });
 
+  // Regression (2026-09-14): swatches had a white border on a white sheet, so the White swatch vanished.
+  it("draws every swatch with a visible neutral border, not a white one", () => {
+    const sheet = openSheet({ onApplyFilters: vi.fn() });
+    const white = within(sheet).getByTestId("swatch-white");
+    expect(white.className).toContain("border-cb-border");
+    expect(white.className).not.toContain("border-white");
+  });
+
   it("hides a group whose option list is empty instead of showing placeholders", () => {
     const sheet = openSheet({ onApplyFilters: vi.fn(), designOptions: [], colourOptions: [] });
     expect(within(sheet).queryByText("Design", { exact: true })).toBeNull();
