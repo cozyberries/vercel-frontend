@@ -12,6 +12,10 @@ dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+// Stateful flows (payment, purchase, admin impersonation) have their own auth-setup projects below;
+// keep them out of the plain browser projects so `npm test` stays side-effect free.
+const STATEFUL_SPECS = /(payment|e2e-purchase-flow|admin-impersonation)\.spec\.ts|.*\.setup\.ts/;
+
 export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
@@ -40,9 +44,9 @@ export default defineConfig({
    * separate CI job or via `npm run test:cross-browser` to catch browser-specific regressions.
    */
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: STATEFUL_SPECS },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: STATEFUL_SPECS },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: STATEFUL_SPECS },
 
     // Auth setup for payment tests — signs in the test user and saves session
     {

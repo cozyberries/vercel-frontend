@@ -17,6 +17,7 @@ import {
   type CategoryOption,
   type SizeOptionFilter,
   type GenderOptionFilter,
+  type Product,
 } from "@/lib/services/api";
 import type { ActiveOfferResponse } from "@/lib/types/order";
 import type { OrderShipmentTrackingData } from "@/lib/types/delhivery-tracking";
@@ -56,12 +57,17 @@ export function useCategories() {
  * Automatically deduplicates requests and caches results
  * @param limit - Number of products to fetch (default: 6)
  */
-export function useFeaturedProducts(limit: number = 6) {
+export function useFeaturedProducts(
+  limit: number = 6,
+  options?: { enabled?: boolean; initialData?: Product[] },
+) {
   return useQuery({
     queryKey: ["featuredProducts", limit],
     queryFn: () => getFeaturedProducts(limit),
     staleTime: 1000 * 60 * 10, // 10 minutes (featured products change less frequently)
     gcTime: 1000 * 60 * 60, // 1 hour
+    enabled: options?.enabled ?? true,
+    initialData: options?.initialData,
   });
 }
 

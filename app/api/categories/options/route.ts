@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService, isRedisConfigured } from "@/lib/upstash";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { optionsResponse } from "@/lib/catalog/http";
 
 export interface CategoryOption {
   id: string;
@@ -16,6 +18,7 @@ const IN_MEMORY_TTL = 120_000; // 2 minutes — options change very rarely
 
 export async function GET() {
   try {
+    if (isCatalogRedisEnabled()) return optionsResponse("categories");
     const redisConfigured = isRedisConfigured();
 
     // 1. Check in-memory cache first (instant)

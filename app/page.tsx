@@ -13,8 +13,29 @@ import {
   WhyMuslinSection,
   ScrollReveal,
 } from "@/components/HomeClientSections";
+import { getSnapshot } from "@/lib/catalog/cache";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import type { Product } from "@/lib/services/api";
 
-export default function Home() {
+export const revalidate = 604800; // backstop; on-demand via the catalog tag
+
+async function loadHomeData() {
+  if (!isCatalogRedisEnabled()) return { featured: undefined, categories: undefined };
+  const { snapshot } = await getSnapshot();
+  const featured = snapshot.products.filter((p) => p.is_featured).slice(0, 8) as unknown as Product[];
+  const categories = snapshot.reference.categories.map((c) => ({
+    id: c.slug,
+    slug: c.slug,
+    name: c.name,
+    image: c.image ?? undefined,
+    images: c.image ? [{ url: c.image }] : [],
+    display: c.display,
+  }));
+  return { featured, categories };
+}
+
+export default async function Home() {
+  const { featured, categories } = await loadHomeData();
   return (
     <div className="flex flex-col">
       <PromoPill />
@@ -33,7 +54,7 @@ export default function Home() {
       {/* Featured Products */}
       <section className="lg:py-14 py-8 bg-background">
         <ScrollReveal>
-          <FeaturedProducts />
+          <FeaturedProducts initialProducts={featured} />
         </ScrollReveal>
       </section>
 
@@ -43,7 +64,7 @@ export default function Home() {
           <h2 className="text-[21px] md:text-[26px] font-light mb-4 md:mb-8">
             Shop by Category
           </h2>
-          <CategoryGrid />
+          <CategoryGrid initialCategories={categories} />
         </ScrollReveal>
       </section>
 

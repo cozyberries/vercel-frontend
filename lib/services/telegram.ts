@@ -375,3 +375,15 @@ export function notifyTrackingGap(data: {
     `\n⏰ ${ts}`
   );
 }
+
+/** Catalog cache alerts (rebuild failures, Redis fallback). Callers that need delivery guaranteed
+ * past the response (e.g. route handlers using `after()`) can await the returned promise; other
+ * callers may still fire-and-forget with `void`. */
+export function notifyCatalogAlert(data: { title: string; details: string }): Promise<void> {
+  const ts = toIST(new Date());
+  return sendToTelegram(
+    `🧺 <b>Catalog: ${escapeHtml(data.title)}</b>\n\n` +
+    `${escapeHtml(data.details).slice(0, 1500)}\n\n` +
+    `⏰ ${ts}`
+  );
+}

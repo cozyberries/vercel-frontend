@@ -7,6 +7,8 @@ import {
 } from "@/lib/services/search-client";
 import { Product, ProductCreate } from "@/lib/types/product";
 import { aggregateSizesFromVariants } from "@/lib/utils/product";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { productsListResponse } from "@/lib/catalog/http";
 
 /**
  * Pure function — no DB call needed.
@@ -368,6 +370,7 @@ async function fetchAndCacheAllProducts(): Promise<void> {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    if (isCatalogRedisEnabled()) return productsListResponse(searchParams);
     const limit = parseInt(searchParams.get("limit") || "100", 10);
     const page = parseInt(searchParams.get("page") || "1", 10);
     const featured = searchParams.get("featured") === "true";

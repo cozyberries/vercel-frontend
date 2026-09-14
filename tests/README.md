@@ -44,12 +44,17 @@ npm run test:report
 ## Test Files
 
 ### `auth.spec.ts`
-Comprehensive tests for user authentication including:
-- Signup flow validation
-- Login flow validation
-- Form validation
-- Error handling
-- Navigation between pages
+Tests for the phone-first auth UI (`/login`, `/signup`, `/login/email` staff sign-in,
+`/login/verify` redirect guard) including:
+- Rendering and client-side mobile-number validation on `/login` and `/signup`
+- Staff (email + password) sign-in error handling, HTML5 validation, and loading state
+- Navigation between `/login`, `/signup`, and `/login/email`
+- "Continue as guest" and the `redirect` query param
+
+Phone sign-in sends a real OTP SMS, so these tests never submit a valid-looking
+mobile number and never attempt a real login. Email/password *signup* was
+removed from the product (only `/login/email` staff sign-in remains); do not
+re-add those tests without confirming the feature exists again.
 
 ## Configuration
 
@@ -115,3 +120,18 @@ test.describe('Feature Name', () => {
 
 
 
+
+## Conventions (2026-09)
+
+- Every bug found or reported gets an automated test: a vitest unit test when the defect is in a
+  pure module, a Playwright spec when it is in a page, a route header, a redirect or browser
+  behaviour (console errors, caching). Verification of fixes and deploys runs through scripts,
+  never by hand.
+- `tests/catalog.spec.ts` covers the Redis catalog: snapshot + health agreement, search ranking,
+  the /products grid (instant filtering, URL sync, infinite scroll), static rendering of / and
+  product pages, console hygiene. `tests/pages-coverage.spec.ts` covers pages that had no spec and
+  sweeps every public page for console errors and 5xx responses. Both run at 375x812.
+- Component tests live next to their component as `*.test.tsx` with a
+  `// @vitest-environment jsdom` docblock (see `app/products/ProductsClient.test.tsx`).
+- Run the browser suites against a production build (`npm run build && npx next start -p 3000`);
+  `next dev` shares `.next` with the build and must not run at the same time.

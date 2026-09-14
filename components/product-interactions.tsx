@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import SupabaseImage from "@/components/ui/supabase-image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Minus, Plus, Truck, Flame, Ruler, Leaf, RotateCcw, ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -81,16 +81,22 @@ interface ProductInteractionsProps {
   product: Product;
   initialSize?: string;
   staticContent: React.ReactNode;
+  /** Server-rendered same-category products. When provided, no client fetch happens. */
+  relatedProducts?: Product[];
 }
 
 // Design shows only the top 3 feature chips near the price; the full list
 // reappears as a bulleted "Features" accordion further down the page.
 const TOP_CHIP_COUNT = 3;
 
-export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent }: ProductInteractionsProps) {
-  // Read ?size= from URL client-side so the server component stays fully static (ISR).
-  const searchParams = useSearchParams();
-  const initialSize = searchParams.get("size") ?? initialSizeProp;
+export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent, relatedProducts: relatedProductsProp }: ProductInteractionsProps) {
+  // Read ?size= from the URL after mount. useSearchParams() would bail the statically rendered
+  // product page out to client-side rendering (the HTML shipped only the loading skeleton).
+  const [sizeFromUrl, setSizeFromUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setSizeFromUrl(new URLSearchParams(window.location.search).get("size"));
+  }, []);
+  const initialSize = sizeFromUrl ?? initialSizeProp;
 
   const productSlug = product.slug ?? product.id ?? "";
   const topFeatures = (product.features ?? []).slice(0, TOP_CHIP_COUNT);
@@ -123,10 +129,12 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const { requireAuthForIntent } = useAuthGate();
   const router = useRouter();
 
-  const { data: allFeaturedData } = useFeaturedProducts(12);
-  const relatedProducts = (allFeaturedData ?? []).filter(
-    (p: Product) => p.slug !== product.slug && p.category_slug === product.category_slug
-  );
+  const { data: allFeaturedData } = useFeaturedProducts(12, { enabled: relatedProductsProp === undefined });
+  const relatedProducts =
+    relatedProductsProp ??
+    (allFeaturedData ?? []).filter(
+      (p: Product) => p.slug !== product.slug && p.category_slug === product.category_slug
+    );
 
   const isInCart = cart.some(
     (item) =>

@@ -29,8 +29,8 @@ export interface SearchSuggestion {
   categoryName?: string;
 }
 
-/** Must match the index name in Upstash console (e.g. cozyburry-search). */
-const INDEX_NAME = 'cozyburry-search';
+/** Must match the index name in Upstash console (cozyberries-search). */
+const INDEX_NAME = 'cozyberries-search';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _searchIndex: any = null;

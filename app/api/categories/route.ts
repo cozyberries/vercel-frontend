@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService, isRedisConfigured } from "@/lib/upstash";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { categoriesResponse } from "@/lib/catalog/http";
 // In-memory cache for categories (avoids Redis round-trip on hot path)
 let inMemoryCache: { data: any; timestamp: number } | null = null;
 const IN_MEMORY_TTL = 60_000; // 1 minute in-memory TTL
@@ -20,6 +22,7 @@ function isPurgeAuthorized(request: Request): boolean {
 
 export async function GET(request: Request) {
   try {
+    if (isCatalogRedisEnabled()) return categoriesResponse();
     const redisConfigured = isRedisConfigured();
     const { searchParams } = new URL(request.url);
     const purge = searchParams.get("purge") === "1";

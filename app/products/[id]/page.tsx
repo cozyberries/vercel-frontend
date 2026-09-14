@@ -2,14 +2,40 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getAllProductSlugs, getProductBySlug } from '@/lib/services/products-server';
+import { getProduct, getSnapshot } from '@/lib/catalog/cache';
+import { isCatalogRedisEnabled } from '@/lib/catalog/flags';
+import type { Product } from '@/lib/services/api';
 import ProductInteractions from '@/components/product-interactions';
 import ProductStaticInfo from '@/components/product-static-info';
 import { resolveImageUrl, normalizeAbsoluteUrl } from '@/lib/utils/image';
 
-export const revalidate = 86400;
+export const revalidate = 604800; // backstop; on-demand revalidation via product:{slug} and catalog tags
+export const dynamicParams = true;
+
+/** Redis catalog when enabled (cookie-free → static page); legacy Supabase otherwise. */
+async function loadProduct(slug: string): Promise<Product | null> {
+  if (!isCatalogRedisEnabled()) return getProductBySlug(slug);
+  const { product } = await getProduct(slug);
+  // ProductDoc is a superset of Product; variant `size` may be null where Product says string.
+  return product ? (product as unknown as Product) : null;
+}
+
+async function loadRelated(product: Product): Promise<Product[]> {
+  if (!isCatalogRedisEnabled()) return [];
+  const { snapshot } = await getSnapshot();
+  return snapshot.products
+    .filter((p) => p.slug !== product.slug && p.category_slug === product.category_slug)
+    .slice(0, 12) as unknown as Product[];
+}
 
 export async function generateStaticParams() {
-  return getAllProductSlugs();
+  if (!isCatalogRedisEnabled()) return getAllProductSlugs();
+  try {
+    const { snapshot } = await getSnapshot();
+    return snapshot.products.map((p) => ({ id: p.slug }));
+  } catch {
+    return [];
+  }
 }
 
 interface PageProps {
@@ -27,7 +53,7 @@ function getFirstImageUrl(images: unknown[] | undefined): string | undefined {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const product = await getProductBySlug(id);
+  const product = await loadProduct(id);
   if (!product) return {};
   const imageUrl = getFirstImageUrl(product.images);
   return {
@@ -49,7 +75,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 const BASE_URL = "https://cozyberries.in";
 
-function buildProductJsonLd(product: NonNullable<Awaited<ReturnType<typeof getProductBySlug>>>) {
+function buildProductJsonLd(product: Product) {
   const images = (product.images ?? [])
     .map((url) => (typeof url === "string" ? normalizeAbsoluteUrl(url) : undefined))
     .filter(Boolean) as string[];
@@ -125,8 +151,10 @@ function buildProductJsonLd(product: NonNullable<Awaited<ReturnType<typeof getPr
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
 
-  const product = await getProductBySlug(id);
+  const product = await loadProduct(id);
   if (!product) notFound();
+
+  const related = await loadRelated(product);
 
   const jsonLd = buildProductJsonLd(product);
 
@@ -139,6 +167,7 @@ export default async function ProductPage({ params }: PageProps) {
       <ProductInteractions
         product={product}
         staticContent={<ProductStaticInfo product={product} />}
+        relatedProducts={isCatalogRedisEnabled() ? related : undefined}
       />
     </>
   );

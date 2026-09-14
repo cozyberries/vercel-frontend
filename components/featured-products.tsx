@@ -5,9 +5,13 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductCard from "./product-card";
 import { useFeaturedProducts } from "@/hooks/useApiQueries";
+import type { Product } from "@/lib/services/api";
 
-export default function FeaturedProducts() {
-  const { data: products = [], isLoading, error } = useFeaturedProducts(8);
+export default function FeaturedProducts({ initialProducts }: { initialProducts?: Product[] } = {}) {
+  const { data: products = [], isLoading, error } = useFeaturedProducts(8, {
+    enabled: initialProducts === undefined,
+    initialData: initialProducts,
+  });
 
   if (isLoading) {
     return (

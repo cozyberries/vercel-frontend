@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService, isRedisConfigured } from "@/lib/upstash";
 import { setAgeSlugsCache } from "@/lib/age-slug-sizes";
+import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { optionsResponse } from "@/lib/catalog/http";
 
 export interface SizeOption {
   id: string;
@@ -20,6 +22,7 @@ const IN_MEMORY_TTL = 120_000; // 2 minutes
 
 export async function GET() {
   try {
+    if (isCatalogRedisEnabled()) return optionsResponse("sizes");
     if (inMemoryCache && Date.now() - inMemoryCache.timestamp < IN_MEMORY_TTL) {
       return NextResponse.json(inMemoryCache.data, {
         headers: {

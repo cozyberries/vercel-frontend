@@ -4,14 +4,15 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "regions": ["bom1"],
   "crons": [
     {
-      "path": "/api/cache/warm",
-      "schedule": "30 20 * * *"
+      "path": "/api/catalog/rebuild",
+      "schedule": "30 22 * * *"
     },
     {
-      "path": "/api/cron/reindex-search",
-      "schedule": "30 21 * * *"
+      "path": "/api/health/catalog",
+      "schedule": "0 3 * * *"
     }
   ]
 }

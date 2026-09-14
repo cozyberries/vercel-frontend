@@ -80,6 +80,15 @@ const nextConfig = {
     config.plugins.push(new wp.DefinePlugin({ __BUILD_ID__: JSON.stringify(buildId) }));
     return config;
   },
+  // Retired info pages redirect at the edge. Rendering a page that called redirect() served a 200
+  // shell whose client-side redirect aborted the layout link prefetches and logged console errors.
+  async redirects() {
+    return ["/faqs", "/shipping-returns", "/track-order"].map((source) => ({
+      source,
+      destination: "/",
+      permanent: false,
+    }));
+  },
   async headers() {
     return [
       // Only in production: dev chunks change on every compile; immutable caching
