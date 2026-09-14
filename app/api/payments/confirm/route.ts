@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { z } from "zod";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import { logServerEvent } from "@/lib/services/event-logger";
 import { notifyPaymentConfirmed, notifyNewOrder } from "@/lib/services/telegram";
@@ -100,13 +101,20 @@ async function restoreSessionStatus(
 }
 
 // ─── Helper: Rollback order and related records ────────────────────────────────
+//
+// `authenticated` deliberately has no DELETE on orders/order_items/payments
+// (deny-by-default RLS remediation — financial records are append-and-amend
+// only for end users). Compensating deletes are a privileged cleanup
+// operation, not a user action, so this rollback always runs through the
+// service-role client rather than the caller's session client.
 
 async function rollbackOrder(
-  client: SupabaseClient,
   orderId: string,
   paymentId?: string
 ) {
-  const { error: itemsDeleteError } = await client
+  const adminClient = createAdminSupabaseClient();
+
+  const { error: itemsDeleteError } = await adminClient
     .from("order_items")
     .delete()
     .eq("order_id", orderId);
@@ -117,7 +125,7 @@ async function rollbackOrder(
     });
   }
 
-  const { error: orderDeleteError } = await client
+  const { error: orderDeleteError } = await adminClient
     .from("orders")
     .delete()
     .eq("id", orderId);
@@ -129,7 +137,7 @@ async function rollbackOrder(
   }
 
   if (paymentId) {
-    const { error: paymentDeleteError } = await client
+    const { error: paymentDeleteError } = await adminClient
       .from("payments")
       .delete()
       .eq("id", paymentId);
@@ -263,7 +271,7 @@ async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
 
   if (itemsError) {
     console.error("Error inserting order items:", itemsError);
-    await rollbackOrder(client, order.id);
+    await rollbackOrder(order.id);
     await restoreSessionStatus(client, sessionId, "processing", "pending");
     return NextResponse.json(
       { error: "Failed to save order items" },
@@ -296,7 +304,7 @@ async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
 
   if (paymentInsertError || !insertedPayment) {
     console.error("Payment insert error:", paymentInsertError);
-    await rollbackOrder(client, order.id);
+    await rollbackOrder(order.id);
     await restoreSessionStatus(client, sessionId, "processing", "pending");
     return NextResponse.json(
       { error: "Failed to record payment" },
@@ -317,7 +325,7 @@ async function handleSessionConfirm(ctx: ConfirmContext, sessionId: string) {
 
   if (sessionUpdateError || !updatedSessionRows?.length) {
     console.error("Session update failed — rolled back order:", sessionUpdateError ?? "no rows updated");
-    await rollbackOrder(client, order.id, insertedPayment.id);
+    await rollbackOrder(order.id, insertedPayment.id);
     await restoreSessionStatus(client, sessionId, "processing", "pending");
     return NextResponse.json(
       { error: "Failed to complete checkout. Please try again." },
@@ -474,8 +482,12 @@ async function handleOrderConfirm(ctx: ConfirmContext, orderId: string) {
     .select("id");
 
   if (orderUpdateError || !updatedRows || updatedRows.length !== 1) {
-    // Rollback: remove the orphaned payment record
-    const { error: rollbackError } = await client
+    // Rollback: remove the orphaned payment record. `authenticated` no longer
+    // has DELETE on `payments` (deny-by-default RLS remediation), so this
+    // compensating delete runs through the service-role client rather than
+    // the caller's session client.
+    const adminClient = createAdminSupabaseClient();
+    const { error: rollbackError } = await adminClient
       .from("payments")
       .delete()
       .eq("id", insertedPayment.id);

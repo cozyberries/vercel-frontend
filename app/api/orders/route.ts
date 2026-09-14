@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest, OrderCreate, OrderStatus } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
 import {
@@ -191,9 +192,13 @@ export async function POST(request: NextRequest) {
 
     if (itemsError) {
       // Compensate: delete the orphaned order so the DB stays consistent.
+      // `authenticated` no longer has DELETE on `orders` (deny-by-default RLS
+      // remediation), so this compensating delete runs through the
+      // service-role client rather than the caller's session client.
       // NOTE: this is not atomic — a Supabase RPC wrapping both inserts in a
       // Postgres transaction would be strictly more robust.
-      const { error: deleteError } = await client
+      const adminClient = createAdminSupabaseClient();
+      const { error: deleteError } = await adminClient
         .from("orders")
         .delete()
         .eq("id", order.id);
