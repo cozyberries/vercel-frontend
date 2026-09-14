@@ -9,7 +9,9 @@ Customers browse products, manage their cart, checkout, pay via UPI, and track o
 
 The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.cozyberries.com, port 4000).
 That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
-Do not add admin-only operations here. Do not use `JWT_SECRET` in this repo.
+Do not add admin-only operations here.
+
+`JWT_SECRET` **is** used in this repo, and it is shared with the admin app — the token `lib/jwt-auth.ts` signs carries `app_metadata.role`, and the admin app's `authenticateRequest` + `isAdminUser` treat that role as the gate in front of a service-role client. Two rules follow. First, `lib/jwt-auth.ts` is the only place that reads it, through the lazy `getJwtSecret()` accessor that throws when the variable is missing; never add a fallback default and never touch `process.env.JWT_SECRET` at module load. Second, anything that mints a token must derive the subject from a server-verified Supabase session — `/api/auth/generate-token` calls `getUser()` and ignores any caller-supplied `userId`, because a caller-chosen subject here is a full admin bypass over there.
 `SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Three shapes qualify, and nothing else does:
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).

@@ -70,7 +70,11 @@ describe('GET /api/ratings does not leak reviewer user ids', () => {
       // The display name the UI actually renders survives.
       expect(row).toHaveProperty('user_name');
     }
-    expect(res.headers.get('Cache-Control')).toContain('public');
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=60, stale-while-revalidate=300'
+    );
+    // The body varies by session now, so the shared cache must key on the cookie.
+    expect(res.headers.get('Vary')).toBe('Cookie');
   });
 
   it('echoes back only the viewer own user_id when signed in', async () => {
@@ -86,6 +90,7 @@ describe('GET /api/ratings does not leak reviewer user ids', () => {
     expect(bob).not.toHaveProperty('user_id');
     // Personalised response must never be shared by a CDN.
     expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(res.headers.get('Vary')).toBe('Cookie');
   });
 
   it('strips user_id on the Redis cache-hit path too', async () => {
@@ -101,5 +106,41 @@ describe('GET /api/ratings does not leak reviewer user ids', () => {
     for (const row of body) {
       expect(row).not.toHaveProperty('user_id');
     }
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=60, stale-while-revalidate=300'
+    );
+    expect(res.headers.get('Vary')).toBe('Cookie');
+  });
+
+  it('serves the signed-in variant from the Redis hit path without shared caching', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'alice' } }, error: null });
+    upstashGetMock.mockResolvedValue(
+      ROWS.map((r) => ({ ...r, user_name: `Name ${r.user_id}` }))
+    );
+
+    const res = await GET(request());
+    const body = await res.json();
+
+    expect(res.headers.get('X-Cache-Status')).toBe('HIT');
+    expect(body.find((r: any) => r.id === 'r1').user_id).toBe('alice');
+    expect(body.find((r: any) => r.id === 'r2')).not.toHaveProperty('user_id');
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(res.headers.get('Vary')).toBe('Cookie');
+  });
+
+  it('keeps one Redis entry per product, not one per viewer', async () => {
+    // The Redis copy stores the privileged superset (user_id intact) and every
+    // read path derives the per-viewer response from it, so the cache key must
+    // not be conflated with, or split by, the viewer.
+    getUserMock.mockResolvedValue({ data: { user: { id: 'alice' } }, error: null });
+
+    await GET(request());
+
+    expect(upstashGetMock).toHaveBeenCalledWith('ratings:product:tee');
+    expect(upstashSetMock).toHaveBeenCalledWith(
+      'ratings:product:tee',
+      expect.arrayContaining([expect.objectContaining({ user_id: 'alice' })]),
+      900
+    );
   });
 });

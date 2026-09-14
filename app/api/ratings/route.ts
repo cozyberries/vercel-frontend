@@ -227,9 +227,16 @@ export async function GET(request: NextRequest) {
       viewerId = null;
     }
 
+    // The body now varies by session (see stripForeignUserIds), so a shared
+    // cache must key on the cookie. Without `Vary: Cookie` an anonymous
+    // response could be replayed to a signed-in caller, stripping the
+    // `user_id` that /orders uses for its "already reviewed" check.
+    // `Vary` is emitted on every path, including the Redis hit, so no
+    // response that can differ is ever cached under a cookie-blind key.
     const cacheControl = viewerId
       ? "private, no-store"
       : "public, s-maxage=60, stale-while-revalidate=300";
+    const varyHeader = "Cookie";
 
     const cached = await UpstashService.get(cacheKey).catch(() => null);
     if (cached && Array.isArray(cached) && (cached.length === 0 || "user_name" in cached[0])) {
@@ -239,6 +246,7 @@ export async function GET(request: NextRequest) {
           "X-Cache-Status": "HIT",
           "X-Data-Source": "REDIS_CACHE",
           "Cache-Control": cacheControl,
+          Vary: varyHeader,
         },
       });
     }
@@ -283,6 +291,7 @@ export async function GET(request: NextRequest) {
         "X-Cache-Status": "MISS",
         "X-Data-Source": "SUPABASE_DATABASE",
         "Cache-Control": cacheControl,
+        Vary: varyHeader,
       },
     });
   } catch (error) {
