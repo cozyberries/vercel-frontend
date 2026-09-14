@@ -185,6 +185,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Strips reviewer `user_id` UUIDs out of the public ratings payload.
+ *
+ * The list endpoint is readable anonymously, so emitting raw auth user ids
+ * handed callers a ready-made directory of valid user ids. The only consumer
+ * that genuinely needs `user_id` is `/orders`, which compares it against the
+ * signed-in user to decide whether they have already reviewed a product — so
+ * the id is echoed back for the viewer's OWN rows and dropped for everyone
+ * else. `user_name` (the display name the UI renders) is unaffected.
+ */
+function stripForeignUserIds<T extends Record<string, any>>(
+  rows: T[],
+  viewerId: string | null
+): Record<string, any>[] {
+  return rows.map((row) => {
+    const { user_id, ...rest } = row;
+    if (viewerId && user_id === viewerId) {
+      return { ...rest, user_id };
+    }
+    return rest;
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -192,19 +215,34 @@ export async function GET(request: NextRequest) {
 
     const cacheKey = productSlug ? `ratings:product:${productSlug}` : "ratings:all";
 
+    const supabase = await createServerSupabaseClient();
+
+    // Identify the viewer so we can echo back only their own user_id. The
+    // response now varies per user, so it must never be shared by a CDN.
+    let viewerId: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      viewerId = user?.id ?? null;
+    } catch {
+      viewerId = null;
+    }
+
+    const cacheControl = viewerId
+      ? "private, no-store"
+      : "public, s-maxage=60, stale-while-revalidate=300";
+
     const cached = await UpstashService.get(cacheKey).catch(() => null);
     if (cached && Array.isArray(cached) && (cached.length === 0 || "user_name" in cached[0])) {
-      return NextResponse.json(cached, {
+      return NextResponse.json(stripForeignUserIds(cached, viewerId), {
         status: 200,
         headers: {
           "X-Cache-Status": "HIT",
           "X-Data-Source": "REDIS_CACHE",
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          "Cache-Control": cacheControl,
         },
       });
     }
 
-    const supabase = await createServerSupabaseClient();
     let query = supabase.from("ratings").select("*").order("created_at", { ascending: false });
     if (productSlug) {
       query = query.eq("product_slug", productSlug);
@@ -235,14 +273,16 @@ export async function GET(request: NextRequest) {
     }
 
     const payload = rows.map((r: any) => ({ ...r, user_name: userMap[r.user_id] ?? null }));
+    // The Redis copy is server-side only, so it keeps `user_id` — every read
+    // path runs it back through stripForeignUserIds before it leaves the box.
     UpstashService.set(cacheKey, payload, 900).catch(() => {});
 
-    return NextResponse.json(payload, {
+    return NextResponse.json(stripForeignUserIds(payload, viewerId), {
       status: 200,
       headers: {
         "X-Cache-Status": "MISS",
         "X-Data-Source": "SUPABASE_DATABASE",
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": cacheControl,
       },
     });
   } catch (error) {

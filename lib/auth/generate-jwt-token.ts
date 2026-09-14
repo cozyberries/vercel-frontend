@@ -2,12 +2,17 @@
  * Client-side helpers for minting the session user's JWT against
  * `POST /api/auth/generate-token`.
  *
- * The server route is fronted by `blockIfImpersonating` — whenever the
- * admin's `acting_as` cookie is present, the endpoint refuses with 403
- * "Forbidden while impersonating" regardless of which userId is in the
- * body. That is intentional: `/api/auth/generate-token` accepts an
- * arbitrary `userId` in the body without cross-checking the session, so
- * during impersonation it is a live privilege-escalation surface.
+ * The server route now derives the token subject from the Supabase session
+ * it verifies itself; the `userId` / `userEmail` sent here are legacy body
+ * fields that the route ignores. They are still sent so older deployments
+ * keep working, and because the route logs a mismatch as a signal.
+ *
+ * The route is also fronted by `blockIfImpersonating` — whenever the admin's
+ * `acting_as` cookie is present, the endpoint refuses with 403 "Forbidden
+ * while impersonating" regardless of what is in the body. That guard stays:
+ * during impersonation the browser's Supabase session is still the admin's,
+ * so minting from it would hand out an admin-role JWT under a customer's
+ * apparent identity.
  *
  * The client therefore:
  *   1. MUST NOT call the endpoint while impersonation is active

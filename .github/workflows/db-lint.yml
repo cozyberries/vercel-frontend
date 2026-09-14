@@ -4,7 +4,19 @@
 
 name: Database lint
 
+# This project merges feature branches straight into develop and main without
+# pull requests, so a `pull_request`-only trigger would never fire. The `push`
+# trigger is the real gate; `pull_request` is kept for the occasional PR.
 on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/sql/**'
+      - 'scripts/db-lint.mjs'
   pull_request:
     paths:
       - 'supabase/migrations/**'

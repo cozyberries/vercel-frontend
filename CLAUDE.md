@@ -10,7 +10,12 @@ Customers browse products, manage their cart, checkout, pay via UPI, and track o
 The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.cozyberries.com, port 4000).
 That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
 Do not add admin-only operations here. Do not use `JWT_SECRET` in this repo.
-`SUPABASE_SERVICE_ROLE_KEY` is allowed **only** in server-side API routes that (1) verify the user session with `getUser()` first and (2) scope every query by `user_id` — the notifications API (`/api/notifications`) follows this pattern to avoid RLS/GRANT drift. Do not use it for any other purpose in this repo.
+`SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Three shapes qualify, and nothing else does:
+- **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
+- **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
+- **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
+
+Never reach for it to skip writing a policy, and never let a client-supplied id be the scope key.
 `IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
 
 ## Commands
@@ -133,8 +138,11 @@ The `public` schema is deny-by-default. `ALTER DEFAULT PRIVILEGES` grants
 `anon` and `authenticated` nothing; every privilege is granted explicitly.
 Run `npm run db:lint` (Supabase's splinter linter) and `npm run db:probe`
 (reachability assertions) before merging any migration. CI runs `db:lint`
-on PRs that touch `supabase/migrations/**` or `scripts/sql/**`, gated on the
+on pushes to `main`, `develop` and `feature/**` — and on the occasional PR —
+that touch `supabase/migrations/**` or `scripts/sql/**`, gated on the
 `POSTGRES_URL_NON_POOLING` repo secret; see `.github/workflows/db-lint.yml`.
+The `push` trigger is the one that matters: this project merges directly to
+`develop` and `main` without PRs, so a PR-only trigger would never fire.
 Supabase Postgres on the free tier has no IP allow-listing, so the
 GitHub-hosted runner can reach the database directly — this is a real gate,
 not an informational job. As of Task 11 the linter reports `ERROR=0, WARN=1,
@@ -162,6 +170,25 @@ Policy rules, each of which was a root cause of a linter finding class:
   use `SET search_path = ''` and fully qualify every reference.
 - `SECURITY DEFINER` functions get `REVOKE ALL ... FROM anon, authenticated`
   unless they are deliberately part of the public RPC surface.
+
+**Known residual gap — default privileges owned by `supabase_admin`.**
+Default privileges in Postgres are per-grantor. The `postgres` grantor was
+fixed: it now grants `anon` nothing. But the `supabase_admin` grantor still
+carries Supabase's stock defaults — `arwdDxt` on tables and `rwU` on
+sequences to `anon` and `authenticated`, `X` on functions. That cannot be
+changed from our connection: `ALTER DEFAULT PRIVILEGES FOR ROLE
+supabase_admin ...` fails with `must be member of role "supabase_admin"`, and
+the free tier gives us no way to become that role. Do not attempt the `ALTER`;
+it will only fail again.
+
+What this means in practice: a table created *by* `supabase_admin` would land
+wide open to `anon`. The creation paths we actually use are safe — migrations
+run as `postgres`, and the Dashboard SQL editor also runs as `postgres`, so
+both inherit the corrected defaults. The exposure is limited to objects
+created by Supabase's own internal tooling under `supabase_admin`. `npm run
+db:lint` is the control that catches it: a table that slips through with
+`anon` privileges surfaces as an ERROR-level finding, and the `db-lint`
+workflow fails the build.
 
 ### Admin impersonation E2E
 - Run: `npm run test:admin-impersonation` (Desktop Chrome, reuses `purchase-auth-setup`).

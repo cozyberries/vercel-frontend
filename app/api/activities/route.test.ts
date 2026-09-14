@@ -35,7 +35,7 @@ describe('POST /api/activities', () => {
   it('rejects an unauthenticated caller with 401', async () => {
     getUserMock.mockResolvedValue({ data: { user: null }, error: null });
 
-    const res = await POST(request({ type: 't', title: 'x', metadata: {} }));
+    const res = await POST(request({ type: 'rating_submission_success', title: 'x', metadata: 'slug' }));
 
     expect(res.status).toBe(401);
     expect(insertMock).not.toHaveBeenCalled();
@@ -44,7 +44,7 @@ describe('POST /api/activities', () => {
   it('writes through the service-role client when authenticated', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
 
-    const res = await POST(request({ type: 't', title: 'x', metadata: { a: 1 } }));
+    const res = await POST(request({ type: 'rating_submission_success', title: 'x', metadata: { a: 1 } }));
 
     expect(res.status).toBe(200);
     expect(adminClientMock).toHaveBeenCalled();
@@ -54,7 +54,38 @@ describe('POST /api/activities', () => {
   it('still validates the payload before touching the database', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
 
-    const res = await POST(request({ type: 't' }));
+    const res = await POST(request({ type: 'rating_submission_success' }));
+
+    expect(res.status).toBe(400);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an activity type the app never sends', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+
+    const res = await POST(request({ type: 'admin_note', title: 'x', metadata: 'slug' }));
+
+    expect(res.status).toBe(400);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an over-long title', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+
+    const res = await POST(
+      request({ type: 'rating_submission_success', title: 'x'.repeat(501), metadata: 'slug' })
+    );
+
+    expect(res.status).toBe(400);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects metadata larger than the serialized size bound', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+
+    const res = await POST(
+      request({ type: 'rating_submission_success', title: 'x', metadata: 'y'.repeat(4096) })
+    );
 
     expect(res.status).toBe(400);
     expect(insertMock).not.toHaveBeenCalled();

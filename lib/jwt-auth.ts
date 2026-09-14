@@ -2,7 +2,17 @@ import { sign, verify, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken
 import { createAdminSupabaseClient } from './supabase-server';
 
 // JWT secret key - in production, use a strong secret from environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
+// Resolved lazily (never at module load) so a missing secret fails the request that
+// needs it rather than crashing the production build. Mirrors the admin repo's
+// lib/jwt-auth.ts: there is deliberately NO hardcoded fallback — a published default
+// would let anyone mint an admin-role token offline.
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+  return secret;
+}
 
 export interface UserPayload {
   id: string;
@@ -39,7 +49,7 @@ export async function generateAuthToken(userId: string, userEmail?: string): Pro
       isAnonymous: false,
     };
 
-    return sign(payload, JWT_SECRET, {
+    return sign(payload, getJwtSecret(), {
       expiresIn: '7d',
       issuer: 'your-app-name',
       audience: 'your-app-users',
@@ -65,7 +75,7 @@ export function generateAnonymousToken(): string {
     createdAt: new Date().toISOString(),
   };
 
-  return sign(payload, JWT_SECRET, {
+  return sign(payload, getJwtSecret(), {
     expiresIn: '30d', // Anonymous tokens last longer
     issuer: 'your-app-name',
     audience: 'your-app-anonymous',
@@ -77,7 +87,7 @@ export function generateAnonymousToken(): string {
  */
 export function verifyToken(token: string): UserPayload | AnonymousUserPayload {
   try {
-    const decoded = verify(token, JWT_SECRET) as UserPayload | AnonymousUserPayload;
+    const decoded = verify(token, getJwtSecret()) as UserPayload | AnonymousUserPayload;
     return decoded;
   } catch (error) {
     if (error instanceof JsonWebTokenError) {
@@ -178,7 +188,7 @@ export function generateAdminToken(userId: string, email: string): string {
     isAnonymous: false,
   };
 
-  return sign(payload, JWT_SECRET, {
+  return sign(payload, getJwtSecret(), {
     expiresIn: '7d',
     issuer: 'your-app-name',
     audience: 'your-app-users',
@@ -196,7 +206,7 @@ export function generateSuperAdminToken(userId: string, email: string): string {
     isAnonymous: false,
   };
 
-  return sign(payload, JWT_SECRET, {
+  return sign(payload, getJwtSecret(), {
     expiresIn: '7d',
     issuer: 'your-app-name',
     audience: 'your-app-users',
