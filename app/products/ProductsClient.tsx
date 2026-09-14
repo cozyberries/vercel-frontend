@@ -11,7 +11,7 @@ import FilterSheet from "@/components/FilterSheet";
 import SortSheet from "@/components/SortSheet";
 import type { Product } from "@/lib/services/api";
 import { useCatalog, useRanking } from "@/hooks/useCatalog";
-import { MIN_QUERY_LENGTH, applyFilters, filtersKey, normalizeQuery, parseFilters } from "@/lib/catalog/filter";
+import { MIN_QUERY_LENGTH, ageFilterOptions, applyFilters, filtersKey, normalizeQuery, parseFilters } from "@/lib/catalog/filter";
 import { colourOptionsFor, designOptionsFor } from "@/lib/catalog/colours";
 import type { Snapshot } from "@/lib/catalog/types";
 import type { FilterValues } from "@/components/FilterSheet";
@@ -120,18 +120,16 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
         .map((c) => ({ id: c.slug, name: c.name, slug: c.slug })),
     [snapshot.reference.categories],
   );
-  const sizeOptions = useMemo(
-    () => snapshot.reference.sizes.map((s) => ({ id: s.slug, name: s.name, display_order: s.display_order })),
-    [snapshot.reference.sizes],
-  );
   const genderOptions = useMemo(
     () => snapshot.reference.genders.map((g) => ({ id: g.slug, name: g.name, display_order: g.display_order })),
     [snapshot.reference.genders],
   );
-  // Ages come from the age list (each size plus multi-size groups such as 3-6y), not from sizes.
+  // Age doubles as size here: the sheet shows the homepage bands (single sizes folded into their
+  // group, e.g. 3-4Y/4-5Y/5-6Y → "3-6 Years") and there is no separate Size group. `?size=` from
+  // old links is still honoured by the filter engine.
   const ageOptions = useMemo(
-    () => snapshot.reference.ages.map((a) => ({ id: a.slug, slug: a.slug, name: a.name, display_order: a.display_order })),
-    [snapshot.reference.ages],
+    () => ageFilterOptions(snapshot.reference).map((a) => ({ id: a.slug, slug: a.slug, name: a.name, display_order: a.display_order })),
+    [snapshot.reference],
   );
   // Design = prints, Colour = the prints' base colours; only those some product actually uses.
   const designOptions = useMemo(
@@ -282,7 +280,6 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
   const handleApplyFilters = useCallback(
     (values: FilterValues) =>
       setParams((p) => {
-        setOrDelete(p, "size", values.size);
         setOrDelete(p, "gender", values.gender);
         setOrDelete(p, "age", values.age);
         setOrDelete(p, "design", values.design);
@@ -339,12 +336,10 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
       {/* Filters + Sort + item count */}
       <div className="flex items-center gap-2">
         <FilterSheet
-          sizeOptions={sizeOptions}
           genderOptions={genderOptions}
           ageOptions={ageOptions}
           designOptions={designOptions}
           colourOptions={colourOptions}
-          currentSize={filters.size}
           currentGender={filters.gender}
           currentAge={filters.age}
           currentDesign={filters.design}

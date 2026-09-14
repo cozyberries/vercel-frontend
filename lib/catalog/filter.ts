@@ -1,6 +1,6 @@
 // Pure filter/sort/paginate engine. Client-safe: no node or Next imports.
 // Semantics mirror app/api/products/route.ts so the URL contract does not change.
-import type { Filters, ListCard, ProductListResponse, SortBy, SortOrder } from "./types";
+import type { Filters, ListCard, ProductListResponse, Reference, ReferenceAge, SortBy, SortOrder } from "./types";
 
 export const DEFAULT_FILTERS: Filters = {
   category: "all",
@@ -62,6 +62,16 @@ export function resolveAgeSizeSlugs(age: string): string[] {
   const normalized = age.trim().toLowerCase();
   if (normalized === "3-6y" || normalized === "3-6-years") return ["3-4y", "4-5y", "5-6y"];
   return [normalized];
+}
+
+/**
+ * Age options for the Filters sheet. Size and age are the same axis here, so the sheet shows Age
+ * only, as the homepage "Shop by Age" bands: a single size that belongs to a multi-size group
+ * (3-4Y, 4-5Y, 5-6Y → "3-6 Years") is folded into the group. Order follows the reference.
+ */
+export function ageFilterOptions(reference: Reference): ReferenceAge[] {
+  const grouped = new Set(reference.ages.filter((a) => a.sizeSlugs.length > 1).flatMap((a) => a.sizeSlugs));
+  return reference.ages.filter((a) => a.sizeSlugs.length > 1 || !grouped.has(a.slug));
 }
 
 export function normalizeText(value: string): string {

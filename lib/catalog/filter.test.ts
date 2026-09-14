@@ -4,6 +4,7 @@ import { productRows, ratingRows, referenceRows } from "./__fixtures__/catalog-r
 import {
   DEFAULT_FILTERS,
   MIN_QUERY_LENGTH,
+  ageFilterOptions,
   applyFilters,
   filtersKey,
   localSearchMatch,
@@ -54,6 +55,18 @@ describe("gender and age resolution (parity with app/api/products/route.ts)", ()
     expect(resolveAgeSizeSlugs("3-6y")).toEqual(["3-4y", "4-5y", "5-6y"]);
     expect(resolveAgeSizeSlugs("3-6-years")).toEqual(["3-4y", "4-5y", "5-6y"]);
     expect(resolveAgeSizeSlugs("0-3m")).toEqual(["0-3m"]);
+  });
+});
+
+describe("ageFilterOptions", () => {
+  // Size and age are one axis in this store, so the sheet shows Age only, as the homepage bands:
+  // single sizes that belong to a multi-size group (3-4Y/4-5Y/5-6Y → "3-6 Years") are folded into it.
+  it("hides single sizes covered by a group and keeps the group and the rest, in display order", () => {
+    expect(ageFilterOptions(reference).map((a) => a.slug)).toEqual(["0-3m", "3-6m", "3-6y"]);
+  });
+  it("keeps every size when no group covers it", () => {
+    const noGroups = { ...reference, ages: reference.ages.filter((a) => a.sizeSlugs.length === 1) };
+    expect(ageFilterOptions(noGroups).map((a) => a.slug)).toEqual(["0-3m", "3-6m", "3-4y", "4-5y", "5-6y"]);
   });
 });
 

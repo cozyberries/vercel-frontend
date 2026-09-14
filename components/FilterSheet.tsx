@@ -23,8 +23,8 @@ interface AgeOption extends Option {
 }
 
 export interface FilterValues {
-  size: string;
   gender: string;
+  /** Age slug ("0-3m", "3-6y") or "all". Size is the same axis and is not offered separately. */
   age: string;
   /** Print slug ("petal-pops") or "all". */
   design: string;
@@ -33,14 +33,13 @@ export interface FilterValues {
 }
 
 interface FilterSheetProps {
-  sizeOptions: Option[];
   genderOptions: Option[];
+  /** From lib/catalog/filter ageFilterOptions: the homepage bands, groups folded in. */
   ageOptions: AgeOption[];
   /** Prints in the catalog, from lib/catalog/colours designOptionsFor. */
   designOptions: DesignOption[];
   /** Base colours in the catalog, from lib/catalog/colours colourOptionsFor. */
   colourOptions: ColourOption[];
-  currentSize: string;
   currentGender: string;
   currentAge: string;
   currentDesign: string;
@@ -55,12 +54,10 @@ const MIN_PRICE = 250;
 const MAX_PRICE = 2000;
 
 export default function FilterSheet({
-  sizeOptions,
   genderOptions,
   ageOptions,
   designOptions,
   colourOptions,
-  currentSize,
   currentGender,
   currentAge,
   currentDesign,
@@ -73,7 +70,6 @@ export default function FilterSheet({
   const [open, setOpen] = useState(false);
 
   // Local pending state — only sent to parent on "Show N items"
-  const [pendingSize, setPendingSize] = useState(currentSize);
   const [pendingGender, setPendingGender] = useState(currentGender);
   const [pendingAge, setPendingAge] = useState(currentAge);
   const [pendingDesign, setPendingDesign] = useState(currentDesign);
@@ -83,7 +79,6 @@ export default function FilterSheet({
 
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen) {
-      setPendingSize(currentSize);
       setPendingGender(currentGender);
       setPendingAge(currentAge);
       setPendingDesign(currentDesign);
@@ -95,7 +90,6 @@ export default function FilterSheet({
 
   const handleApplyFilters = () => {
     onApplyFilters({
-      size: pendingSize,
       gender: pendingGender,
       age: pendingAge,
       design: pendingDesign,
@@ -113,7 +107,6 @@ export default function FilterSheet({
   };
 
   const hasPending =
-    pendingSize !== "all" ||
     pendingGender !== "all" ||
     pendingAge !== "all" ||
     pendingDesign !== "all" ||
@@ -157,7 +150,7 @@ export default function FilterSheet({
               </div>
             </div>
 
-            {/* Age */}
+            {/* Age — also the size axis in this store, so there is no separate Size group */}
             <div>
               <h3 className="text-sm font-bold mb-3">Age</h3>
               <div className="flex flex-wrap gap-2">
@@ -168,22 +161,6 @@ export default function FilterSheet({
                     onClick={() => setPendingAge(pendingAge === a.slug ? "all" : a.slug)}
                   >
                     {a.name}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-
-            {/* Size */}
-            <div>
-              <h3 className="text-sm font-bold mb-3">Size</h3>
-              <div className="flex flex-wrap gap-2">
-                {sizeOptions.map((s) => (
-                  <Chip
-                    key={s.id}
-                    active={pendingSize === s.name}
-                    onClick={() => setPendingSize(pendingSize === s.name ? "all" : s.name)}
-                  >
-                    {s.name}
                   </Chip>
                 ))}
               </div>

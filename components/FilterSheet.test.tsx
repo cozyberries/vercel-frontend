@@ -8,9 +8,11 @@ import FilterSheet from "./FilterSheet";
 // They must render the catalog's prints and base colours and be applied like every other group.
 
 const baseProps = {
-  sizeOptions: [{ id: "0-3m", name: "0-3M", display_order: 1 }],
   genderOptions: [{ id: "girl", name: "Girl", display_order: 1 }],
-  ageOptions: [{ id: "0-3m", slug: "0-3m", name: "0-3M", display_order: 1 }],
+  ageOptions: [
+    { id: "0-3m", slug: "0-3m", name: "0-3M", display_order: 1 },
+    { id: "3-6y", slug: "3-6y", name: "3-6 Years", display_order: 1000 },
+  ],
   designOptions: [
     { slug: "lilac-blossom", name: "Lilac Blossom" },
     { slug: "petal-pops", name: "Petal Pops" },
@@ -19,7 +21,6 @@ const baseProps = {
     { slug: "lilac", name: "Lilac", hex: "#dccbe3" },
     { slug: "white", name: "White", hex: "#f7f5f0" },
   ],
-  currentSize: "all",
   currentGender: "all",
   currentAge: "all",
   currentDesign: "all",
@@ -55,7 +56,6 @@ describe("FilterSheet design and colour groups", () => {
     fireEvent.click(within(sheet).getByRole("button", { name: "White" }));
     fireEvent.click(within(sheet).getByRole("button", { name: /show 12 items/i }));
     expect(onApplyFilters).toHaveBeenCalledWith({
-      size: "all",
       gender: "all",
       age: "all",
       design: "petal-pops",
@@ -72,6 +72,19 @@ describe("FilterSheet design and colour groups", () => {
     fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
     fireEvent.click(within(sheet).getByRole("button", { name: /show 12 items/i }));
     expect(onApplyFilters).toHaveBeenCalledWith(expect.objectContaining({ design: "all", colour: "all" }));
+  });
+
+  // Regression (2026-09-14): Age and Size listed the same values twice. Size and age are one axis
+  // in this store, so the sheet offers Age only (the homepage bands) and applies it as `age`.
+  it("offers Age but no separate Size group, and applies the chosen age band", () => {
+    const onApplyFilters = vi.fn();
+    const sheet = openSheet({ onApplyFilters });
+    expect(within(sheet).getByText("Age", { exact: true })).toBeInTheDocument();
+    expect(within(sheet).queryByText("Size", { exact: true })).toBeNull();
+    fireEvent.click(within(sheet).getByRole("button", { name: "3-6 Years" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: /show 12 items/i }));
+    expect(onApplyFilters).toHaveBeenCalledWith(expect.objectContaining({ age: "3-6y" }));
+    expect(onApplyFilters.mock.calls[0]![0]).not.toHaveProperty("size");
   });
 
   it("hides a group whose option list is empty instead of showing placeholders", () => {

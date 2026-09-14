@@ -112,7 +112,7 @@ test.describe("Products Page", () => {
     await expect(firstCard.getByText(/₹\s?\d[\d,]*/).first()).toBeVisible();
   });
 
-  test("Filters sheet lists Gender, Age, Size, plus Design (prints) and Colour (base colours) from the catalog", async ({
+  test("Filters sheet lists Gender, Age bands, plus Design (prints) and Colour (base colours) from the catalog", async ({
     page,
     request,
   }) => {
@@ -131,8 +131,15 @@ test.describe("Products Page", () => {
     for (const gender of ["Unisex", "Girl", "Boy"]) {
       await expect(sheet.getByRole("button", { name: gender, exact: true })).toBeVisible();
     }
+    // Age doubles as size: the six homepage bands, single years folded into "3-6 Years", no Size group.
     await expect(sheet.getByText("Age", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("Size", { exact: true })).toBeVisible();
+    for (const band of ["0-3M", "3-6M", "6-12M", "1-2Y", "2-3Y", "3-6 Years"]) {
+      await expect(sheet.getByRole("button", { name: band, exact: true })).toBeVisible();
+    }
+    for (const folded of ["3-4Y", "4-5Y", "5-6Y"]) {
+      await expect(sheet.getByRole("button", { name: folded, exact: true })).toHaveCount(0);
+    }
+    await expect(sheet.getByText("Size", { exact: true })).toHaveCount(0);
 
     await expect(sheet.getByText("Design", { exact: true })).toBeVisible();
     for (const name of printNames) {

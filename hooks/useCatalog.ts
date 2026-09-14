@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MIN_QUERY_LENGTH, normalizeQuery, rankingKey } from "@/lib/catalog/filter";
 import type { Filters, Snapshot } from "@/lib/catalog/types";
 
@@ -16,14 +16,28 @@ export async function fetchCatalog(): Promise<Snapshot> {
 }
 
 /**
+ * Never let a refetch move the catalog backwards. The service worker answers `/api/catalog`
+ * stale-while-revalidate and the query cache is persisted, so right after a rebuild a fetch can
+ * return an older snapshot than the server-rendered one. `generatedAt` is ISO-8601, so string
+ * order is time order. Same version keeps the current object (structural sharing, no re-render).
+ */
+export function newerSnapshot(current: Snapshot | undefined, fetched: Snapshot): Snapshot {
+  if (!current) return fetched;
+  if (current.version === fetched.version) return current;
+  if (!current.generatedAt || !fetched.generatedAt) return fetched;
+  return fetched.generatedAt < current.generatedAt ? current : fetched;
+}
+
+/**
  * Live catalog snapshot. Starts from the server-rendered copy (no request on mount) and
  * refreshes in the background on focus, on reconnect and every five minutes while visible.
  * An unchanged version produces no re-render thanks to structural sharing.
  */
 export function useCatalog(initialSnapshot?: Snapshot) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: CATALOG_QUERY_KEY,
-    queryFn: fetchCatalog,
+    queryFn: async () => newerSnapshot(queryClient.getQueryData<Snapshot>(CATALOG_QUERY_KEY), await fetchCatalog()),
     initialData: initialSnapshot,
     initialDataUpdatedAt: initialSnapshot ? Date.now() : undefined,
     staleTime: FIVE_MINUTES_MS,
