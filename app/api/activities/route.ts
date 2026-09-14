@@ -1,56 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 
-//  Get recent activities
-export async function GET() {
-  try {
-    const supabase = await createServerSupabaseClient();
+// NOTE: the GET handler was removed deliberately. It was unauthenticated and
+// returned rows whose `title` embeds customer email addresses. Nothing consumed it.
+// `recent_activities` is service-role-only; see the RLS tier design.
 
-    const { data, error } = await supabase
-      .from("recent_activities")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error) throw error;
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Error fetching activities:", error);
-    return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
-  }
-}
-
-// Post a new activity
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    
-    // Safely parse request body
+    const auth = await createServerSupabaseClient();
+    const { data: { user } } = await auth.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     let body;
     try {
       const text = await request.text();
-      if (!text || text.trim() === '') {
+      if (!text || text.trim() === "") {
         return NextResponse.json({ error: "Empty request body" }, { status: 400 });
       }
       body = JSON.parse(text);
-    } catch (parseError) {
-      console.error("Error parsing request body:", parseError);
+    } catch {
       return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
     }
 
     const { type, title, metadata } = body;
-    if(!type || !title || !metadata) {
+    if (!type || !title || !metadata) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const { data, error } = await supabase.from("recent_activities").insert([
-      {
-        type,
-        title,
-        metadata,
-      },
-    ]);
+    // recent_activities is Tier 3 (service-role only), so the anon client cannot write it.
+    const supabase = createAdminSupabaseClient();
+    const { data, error } = await supabase
+      .from("recent_activities")
+      .insert([{ type, title, metadata }]);
 
     if (error) throw error;
 
