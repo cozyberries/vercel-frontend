@@ -20,12 +20,24 @@ const {
   singleOrdersMock,
   fromMock,
   clientMock,
+  sessionOrdersDelete,
+  sessionOrdersDeleteEq,
+  createAdminSupabaseClientMock,
+  adminFromMock,
+  adminOrdersDelete,
+  adminOrdersDeleteEq,
 } = vi.hoisted(() => {
   const singleOrdersMock = vi.fn();
   const selectOrdersMock = vi.fn(() => ({ single: singleOrdersMock }));
   const insertOrdersMock = vi.fn(() => ({ select: selectOrdersMock }));
   const insertItemsMock = vi.fn();
-  const deleteOrdersMock = vi.fn(() => ({ eq: vi.fn(() => ({ error: null })) }));
+
+  // Session (user-scoped) client's delete spy for `orders`. Under
+  // deny-by-default RLS, `authenticated` no longer holds DELETE on `orders`,
+  // so the compensating delete on order_items-insert-failure must NEVER
+  // reach this spy — it must go through the admin client spies below.
+  const sessionOrdersDeleteEq = vi.fn().mockResolvedValue({ error: null });
+  const sessionOrdersDelete = vi.fn(() => ({ eq: sessionOrdersDeleteEq }));
 
   const rangeMock = vi.fn();
   const orderRangeChain = vi.fn(() => ({ range: rangeMock }));
@@ -37,7 +49,7 @@ const {
       return {
         insert: insertOrdersMock,
         select: selectAllMock,
-        delete: deleteOrdersMock,
+        delete: sessionOrdersDelete,
       };
     }
     if (table === 'order_items') {
@@ -45,6 +57,18 @@ const {
     }
     return {};
   });
+
+  // Admin (service-role) client's delete spy for `orders` — the compensating
+  // delete when the order_items insert fails must land here instead.
+  const adminOrdersDeleteEq = vi.fn().mockResolvedValue({ error: null });
+  const adminOrdersDelete = vi.fn(() => ({ eq: adminOrdersDeleteEq }));
+  const adminFromMock = vi.fn((table: string) => {
+    if (table === 'orders') {
+      return { delete: adminOrdersDelete };
+    }
+    return {};
+  });
+  const createAdminSupabaseClientMock = vi.fn(() => ({ from: adminFromMock }));
 
   return {
     getEffectiveUserMock: vi.fn(),
@@ -63,6 +87,12 @@ const {
     singleOrdersMock,
     fromMock,
     clientMock: { from: fromMock },
+    sessionOrdersDelete,
+    sessionOrdersDeleteEq,
+    createAdminSupabaseClientMock,
+    adminFromMock,
+    adminOrdersDelete,
+    adminOrdersDeleteEq,
   };
 });
 
@@ -93,6 +123,10 @@ vi.mock('@/lib/services/admin-order-notifications', () => ({
 
 vi.mock('@/lib/services/telegram', () => ({
   notifyOrderPlaced: notifyOrderPlacedMock,
+}));
+
+vi.mock('@/lib/supabase-server', () => ({
+  createAdminSupabaseClient: createAdminSupabaseClientMock,
 }));
 
 import { POST, GET } from './route';
@@ -264,6 +298,38 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(403);
     expect(insertOrdersMock).not.toHaveBeenCalled();
     expect(applyAdminOverrideMock).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the orphaned order through the admin client, never the session client, when the order_items insert fails', async () => {
+    // `authenticated` no longer holds DELETE on `orders` (deny-by-default RLS
+    // remediation), so the compensating delete on order_items-insert-failure
+    // must go through createAdminSupabaseClient(), not the caller's session
+    // client — see app/api/orders/route.ts around the order_items insert.
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: null,
+      client: clientMock,
+      sessionUser: { id: TARGET_ID, email: 'customer@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'customer@example.com' },
+    });
+
+    insertItemsMock.mockResolvedValue({ error: { message: 'insert failed' } });
+
+    const res = await POST(makeRequest({
+      items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }],
+      shipping_address_id: 'addr-1',
+    }));
+    expect(res.status).toBe(500);
+
+    // Compensating delete goes through the admin (service-role) client...
+    expect(createAdminSupabaseClientMock).toHaveBeenCalled();
+    expect(adminFromMock).toHaveBeenCalledWith('orders');
+    expect(adminOrdersDeleteEq).toHaveBeenCalledWith('id', 'order-1');
+
+    // ...and never through the caller's session client.
+    expect(sessionOrdersDelete).not.toHaveBeenCalled();
+    expect(sessionOrdersDeleteEq).not.toHaveBeenCalled();
   });
 
   it('returns error response via helper when getEffectiveUser rejects with forbidden_not_admin', async () => {
