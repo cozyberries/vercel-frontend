@@ -21,6 +21,9 @@ export function buildSearchFilter(q: string, f: Filters): Record<string, unknown
     must.push({ $or: resolveAgeSizeSlugs(normalizeAgeSlug(f.age)).map((slug) => ({ size_slugs: { $eq: slug } })) });
   }
   if (f.size !== "all") must.push({ size_slugs: { $eq: f.size } });
+  // Design is a print slug and color_slugs is indexed. Colour (base colour) is not in the index,
+  // so it is applied locally by matchesFilters after the ranking comes back.
+  if (f.design !== "all") must.push({ color_slugs: { $eq: f.design } });
   must.push({
     $should: [
       { name: { $smart: q }, $boost: 10 },

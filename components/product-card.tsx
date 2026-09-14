@@ -74,6 +74,10 @@ export default function ProductCard({ product, index, currentView, locale = "en-
           }))
       : [{ price: product.price, label: "Add", stock: product.stock_quantity ?? 0 }];
 
+  // Nothing left to sell: every size/variant is at zero (they are filtered out above), or the
+  // product itself has no stock. Shown as a badge and a disabled Add button.
+  const soldOut = addOptions.length === 0 || addOptions.every((o) => o.stock <= 0);
+
   const { min: minPrice, hasRange } = getMinPrice(product);
 
   const getCartItemForVariant = (size?: string, color?: string) =>
@@ -153,8 +157,18 @@ export default function ProductCard({ product, index, currentView, locale = "en-
       {/* Image Section — fixed 4:5 aspect at every breakpoint, so absolutely-positioned
           icons stay anchored to the actual photo instead of an undefined-height parent */}
       <div className="relative overflow-hidden aspect-[4/5]">
-        {/* Featured Badge — rotated "sticker" shape, matching the design's Sticker primitive */}
-        {product.is_featured && (
+        {/* Sold out takes the sticker slot; Featured is not worth shouting about when it can't be bought */}
+        {soldOut ? (
+          <span
+            className="absolute top-2 left-2 z-20 inline-flex items-center text-white text-[11px] font-extrabold tracking-[0.02em] px-2.5 py-1.5 shadow-md bg-cb-espresso"
+            style={{
+              transform: "rotate(-6deg)",
+              borderRadius: "9999px 9999px 9999px 3px",
+            }}
+          >
+            Sold out
+          </span>
+        ) : product.is_featured && (
           <span
             className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-white text-[11px] font-extrabold tracking-[0.02em] px-2.5 py-1.5 shadow-md bg-cb-amber"
             style={{
@@ -179,7 +193,7 @@ export default function ProductCard({ product, index, currentView, locale = "en-
                 : "(max-width: 1023px) 50vw, 25vw"
             }
             priority={index < 4}
-            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${soldOut ? "opacity-60" : ""}`}
           />
         </Link>
 
@@ -221,17 +235,19 @@ export default function ProductCard({ product, index, currentView, locale = "en-
         <Button
           variant="ghost"
           size="icon"
-          className="absolute bottom-2 right-2 z-10 h-[38px] min-w-[38px] rounded-full shadow-md hover:shadow-lg border-0 bg-cb-terracotta hover:bg-cb-terracotta-deep px-2.5"
+          className="absolute bottom-2 right-2 z-10 h-[38px] min-w-[38px] rounded-full shadow-md hover:shadow-lg border-0 bg-cb-terracotta hover:bg-cb-terracotta-deep px-2.5 disabled:opacity-60 disabled:pointer-events-auto disabled:cursor-not-allowed"
+          disabled={soldOut}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (soldOut) return;
             if (hasVariants) {
               setQuickAddOpen(true);
             } else {
               handleAddVariant(undefined, undefined, undefined, undefined, addOptions[0]?.stock);
             }
           }}
-          aria-label={anyVariantInCart ? "In cart — add more" : "Add to cart"}
+          aria-label={soldOut ? "Sold out" : anyVariantInCart ? "In cart — add more" : "Add to cart"}
         >
           {anyVariantInCart ? (
             <span className="flex items-center gap-1 text-white">

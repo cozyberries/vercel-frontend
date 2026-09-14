@@ -3,6 +3,7 @@ import { normalizeProduct } from "@/lib/utils/product";
 import type { ActiveOfferResponse } from "@/lib/types/order";
 import type { AppNotification } from "@/lib/types/notification";
 import type { NotificationPreferences } from "@/lib/notifications/preferences";
+import type { ProductColorDetail } from "@/lib/catalog/types";
 // ---------- Types ----------
 export interface ProductVariant {
   slug: string;
@@ -52,6 +53,10 @@ export interface Product {
   features: string[];
   images: string[];
   colors: string[];
+  /** Present on catalog (Redis) documents: print name/hex/base colour per colour slug. */
+  color_details?: ProductColorDetail[];
+  /** Present on catalog (Redis) documents: base colour slugs, e.g. ["white"]. */
+  base_colors?: string[];
   sizes: SizeOption[];
   variants: ProductVariant[];
   RelatedProduct?: RelatedProduct[];

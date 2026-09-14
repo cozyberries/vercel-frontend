@@ -26,15 +26,20 @@ describe("parseFilters", () => {
   it("applies the same defaults as ProductsClient and the legacy API", () => {
     expect(parseFilters(new URLSearchParams(""))).toEqual(DEFAULT_FILTERS);
     expect(DEFAULT_FILTERS).toEqual({
-      category: "all", gender: "all", size: "all", age: "all", search: "",
+      category: "all", gender: "all", size: "all", age: "all", design: "all", colour: "all", search: "",
       sortBy: "default", sortOrder: "desc", featured: false,
     });
   });
   it("normalises values and accepts Next searchParams records", () => {
     const f = parseFilters({ category: " Frocks ", gender: ["Girls"], sortBy: "price", sortOrder: "asc", featured: "true", search: "  muslin " });
-    expect(f).toEqual({ category: "frocks", gender: "girls", size: "all", age: "all", search: "muslin", sortBy: "price", sortOrder: "asc", featured: true });
+    expect(f).toEqual({ category: "frocks", gender: "girls", size: "all", age: "all", design: "all", colour: "all", search: "muslin", sortBy: "price", sortOrder: "asc", featured: true });
     expect(parseFilters({ sortBy: "weird", sortOrder: "sideways" }).sortBy).toBe("default");
     expect(parseFilters({ sortBy: "weird", sortOrder: "sideways" }).sortOrder).toBe("desc");
+  });
+  it("reads design (print slug) and colour (base colour slug), accepting the US spelling", () => {
+    expect(parseFilters(new URLSearchParams("design=Petal-Pops&colour=White"))).toMatchObject({ design: "petal-pops", colour: "white" });
+    expect(parseFilters(new URLSearchParams("color=lilac"))).toMatchObject({ colour: "lilac" });
+    expect(parseFilters(new URLSearchParams("colour=lilac&color=white"))).toMatchObject({ colour: "lilac" });
   });
 });
 
@@ -63,6 +68,20 @@ describe("matchesFilters", () => {
     expect(matchesFilters(frock!, { ...DEFAULT_FILTERS, age: "3-6y" })).toBe(false);
     expect(matchesFilters(frock!, { ...DEFAULT_FILTERS, featured: true })).toBe(false);
     expect(matchesFilters(coord!, { ...DEFAULT_FILTERS, featured: true })).toBe(true);
+  });
+  it("filters by design (print) and by colour (base colour of the print)", () => {
+    expect(matchesFilters(frock!, { ...DEFAULT_FILTERS, design: "soft-pear" })).toBe(true);
+    expect(matchesFilters(jhabla!, { ...DEFAULT_FILTERS, design: "soft-pear" })).toBe(false);
+    expect(matchesFilters(coord!, { ...DEFAULT_FILTERS, design: "soft-pear" })).toBe(false);
+    expect(matchesFilters(frock!, { ...DEFAULT_FILTERS, colour: "green" })).toBe(true);
+    expect(matchesFilters(jhabla!, { ...DEFAULT_FILTERS, colour: "white" })).toBe(true);
+    expect(matchesFilters(jhabla!, { ...DEFAULT_FILTERS, colour: "green" })).toBe(false);
+    expect(applyFilters(cards, { ...DEFAULT_FILTERS, colour: "white" }).map((c) => c.slug)).toEqual([jhabla!.slug]);
+  });
+  it("treats cards built before base colours existed as matching no colour", () => {
+    const legacy = { ...frock!, base_colors: undefined } as unknown as typeof frock;
+    expect(matchesFilters(legacy!, { ...DEFAULT_FILTERS, colour: "green" })).toBe(false);
+    expect(matchesFilters(legacy!, DEFAULT_FILTERS)).toBe(true);
   });
 });
 
@@ -106,8 +125,11 @@ describe("paginate", () => {
 
 describe("keys", () => {
   it("builds stable cache keys", () => {
-    expect(filtersKey({ ...DEFAULT_FILTERS, category: "frocks", sortBy: "price" })).toBe("frocks|all|all|all|-|price|desc");
-    expect(rankingKey({ ...DEFAULT_FILTERS, featured: true })).toBe("all|all|all|all|f");
+    expect(filtersKey({ ...DEFAULT_FILTERS, category: "frocks", sortBy: "price" })).toBe("frocks|all|all|all|all|all|-|price|desc");
+    expect(filtersKey({ ...DEFAULT_FILTERS, design: "petal-pops", colour: "beige" })).toBe("all|all|all|all|petal-pops|beige|-|default|desc");
+    expect(rankingKey({ ...DEFAULT_FILTERS, featured: true })).toBe("all|all|all|all|all|f");
+    // Colour is matched locally only (the Redis index has no base-colour field), so it never changes the ranking key.
+    expect(rankingKey({ ...DEFAULT_FILTERS, design: "petal-pops", colour: "beige" })).toBe("all|all|all|all|petal-pops|-");
   });
   it("normalises search queries", () => {
     expect(normalizeQuery("  Muslin   FROCK ")).toBe("muslin frock");

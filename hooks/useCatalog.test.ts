@@ -15,7 +15,8 @@ describe("fetchRanking", () => {
       return new Response(JSON.stringify({ version: "v", q: "frock", slugs: ["a"] }), { status: 200 });
     }) as typeof fetch;
     expect(await fetchRanking("frock", { ...DEFAULT_FILTERS, gender: "girl" })).toEqual(["a"]);
-    expect(calls[0]).toBe("/api/search?q=frock&category=all&gender=girl&size=all&age=all&featured=false");
+    // `design` narrows the ranking; `colour` is applied locally, so it is deliberately not sent.
+    expect(calls[0]).toBe("/api/search?q=frock&category=all&gender=girl&size=all&age=all&design=all&featured=false");
   });
 
   it("returns null when the request fails", async () => {

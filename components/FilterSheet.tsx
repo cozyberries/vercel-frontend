@@ -10,6 +10,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import type { ColourOption, DesignOption } from "@/lib/catalog/colours";
+
 interface Option {
   id: string;
   name: string;
@@ -20,41 +22,34 @@ interface AgeOption extends Option {
   slug: string;
 }
 
-interface FilterValues {
+export interface FilterValues {
   size: string;
   gender: string;
   age: string;
+  /** Print slug ("petal-pops") or "all". */
+  design: string;
+  /** Base colour slug ("white") or "all". */
+  colour: string;
 }
 
 interface FilterSheetProps {
   sizeOptions: Option[];
   genderOptions: Option[];
   ageOptions: AgeOption[];
+  /** Prints in the catalog, from lib/catalog/colours designOptionsFor. */
+  designOptions: DesignOption[];
+  /** Base colours in the catalog, from lib/catalog/colours colourOptionsFor. */
+  colourOptions: ColourOption[];
   currentSize: string;
   currentGender: string;
   currentAge: string;
+  currentDesign: string;
+  currentColour: string;
   itemCount: number;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   disabled?: boolean;
 }
-
-// No backend field for pattern/design — chips are UI-only and don't affect results.
-const PATTERN_OPTIONS = ["Solid", "Stripe", "Polka", "Floral", "Check"];
-
-// No backend color palette exists (the catalog's `colors` table holds print/pattern
-// names like "Petal Pops", not a swatch palette) — these match the design mock's
-// swatch reference exactly but are visual only and don't affect results.
-const SWATCHES = [
-  { name: "Sage", hex: "#aebd9c" },
-  { name: "Oat", hex: "#e4d4ba" },
-  { name: "Clay", hex: "#c98b6b" },
-  { name: "Blush", hex: "#e3c2bd" },
-  { name: "Almond", hex: "#ead7bd" },
-  { name: "Mist", hex: "#c4cdc9" },
-  { name: "Stone", hex: "#d0c7ba" },
-  { name: "Fern", hex: "#8ba27e" },
-];
 
 const MIN_PRICE = 250;
 const MAX_PRICE = 2000;
@@ -63,9 +58,13 @@ export default function FilterSheet({
   sizeOptions,
   genderOptions,
   ageOptions,
+  designOptions,
+  colourOptions,
   currentSize,
   currentGender,
   currentAge,
+  currentDesign,
+  currentColour,
   itemCount,
   onApplyFilters,
   onClearFilters,
@@ -77,9 +76,9 @@ export default function FilterSheet({
   const [pendingSize, setPendingSize] = useState(currentSize);
   const [pendingGender, setPendingGender] = useState(currentGender);
   const [pendingAge, setPendingAge] = useState(currentAge);
-  // Not backed by real data/API — visual only, never sent to the parent.
-  const [pendingColor, setPendingColor] = useState<string | null>(null);
-  const [pendingPattern, setPendingPattern] = useState<string | null>(null);
+  const [pendingDesign, setPendingDesign] = useState(currentDesign);
+  const [pendingColour, setPendingColour] = useState(currentColour);
+  // Not backed by any API param — visual only, never sent to the parent.
   const [pendingMaxPrice, setPendingMaxPrice] = useState(MAX_PRICE);
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -87,21 +86,27 @@ export default function FilterSheet({
       setPendingSize(currentSize);
       setPendingGender(currentGender);
       setPendingAge(currentAge);
-      setPendingColor(null);
-      setPendingPattern(null);
+      setPendingDesign(currentDesign);
+      setPendingColour(currentColour);
       setPendingMaxPrice(MAX_PRICE);
     }
     setOpen(isOpen);
   };
 
   const handleApplyFilters = () => {
-    onApplyFilters({ size: pendingSize, gender: pendingGender, age: pendingAge });
+    onApplyFilters({
+      size: pendingSize,
+      gender: pendingGender,
+      age: pendingAge,
+      design: pendingDesign,
+      colour: pendingColour,
+    });
     setOpen(false);
   };
 
   const handleClearFilters = () => {
-    setPendingColor(null);
-    setPendingPattern(null);
+    setPendingDesign("all");
+    setPendingColour("all");
     setPendingMaxPrice(MAX_PRICE);
     onClearFilters();
     setOpen(false);
@@ -111,8 +116,8 @@ export default function FilterSheet({
     pendingSize !== "all" ||
     pendingGender !== "all" ||
     pendingAge !== "all" ||
-    pendingColor !== null ||
-    pendingPattern !== null ||
+    pendingDesign !== "all" ||
+    pendingColour !== "all" ||
     pendingMaxPrice !== MAX_PRICE;
 
   return (
@@ -184,52 +189,57 @@ export default function FilterSheet({
               </div>
             </div>
 
-            {/* Design — not wired to any real data; visual only */}
-            <div>
-              <h3 className="text-sm font-bold mb-3">Design</h3>
-              <div className="flex flex-wrap gap-2">
-                {PATTERN_OPTIONS.map((p) => (
-                  <Chip
-                    key={p}
-                    active={pendingPattern === p}
-                    onClick={() => setPendingPattern(pendingPattern === p ? null : p)}
-                  >
-                    {p}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-
-            {/* Colour — no backend palette exists (catalog only has print names); visual only */}
-            <div>
-              <h3 className="text-sm font-bold mb-3">Colour</h3>
-              <div className="flex flex-wrap gap-3">
-                {SWATCHES.map((c) => {
-                  const on = pendingColor === c.name;
-                  return (
-                    <button
-                      key={c.name}
-                      type="button"
-                      onClick={() => setPendingColor(on ? null : c.name)}
-                      aria-label={c.name}
-                      title={c.name}
-                      className="flex flex-col items-center gap-1.5 w-14"
+            {/* Design — the catalog's prints (Petal Pops, Lilac Blossom, …) */}
+            {designOptions.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold mb-3">Design</h3>
+                <div className="flex flex-wrap gap-2">
+                  {designOptions.map((d) => (
+                    <Chip
+                      key={d.slug}
+                      active={pendingDesign === d.slug}
+                      onClick={() => setPendingDesign(pendingDesign === d.slug ? "all" : d.slug)}
                     >
-                      <span
-                        className="block h-11 w-11 rounded-full border-2 border-white"
-                        style={{
-                          background: c.hex,
-                          boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
-                        }}
-                      />
-                      <span className={`text-[11.5px] font-medium ${on ? "text-cb-terracotta-deep" : "text-cb-muted-fg"}`}>
-                        {c.name}
-                      </span>
-                    </button>
-                  );
-                })}
+                      {d.name}
+                    </Chip>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Colour — the actual clothing colour each print sits on (White, Lilac, …) */}
+            {colourOptions.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold mb-3">Colour</h3>
+                <div className="flex flex-wrap gap-3">
+                  {colourOptions.map((c) => {
+                    const on = pendingColour === c.slug;
+                    return (
+                      <button
+                        key={c.slug}
+                        type="button"
+                        onClick={() => setPendingColour(on ? "all" : c.slug)}
+                        aria-label={c.name}
+                        aria-pressed={on}
+                        title={c.name}
+                        className="flex flex-col items-center gap-1.5 w-14"
+                      >
+                        <span
+                          className="block h-11 w-11 rounded-full border-2 border-white"
+                          style={{
+                            background: c.hex,
+                            boxShadow: on ? "0 0 0 2px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
+                          }}
+                        />
+                        <span className={`text-[11.5px] font-medium ${on ? "text-cb-terracotta-deep" : "text-cb-muted-fg"}`}>
+                          {c.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Max price — not wired to any real API param; visual only */}
             <div>

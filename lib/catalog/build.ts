@@ -2,6 +2,7 @@
 // version hash, so this module is server/test only (never imported by client code).
 import { createHash } from "node:crypto";
 import { slugToTitle } from "@/lib/utils/product";
+import { baseColourSlug } from "./colours";
 import type {
   ListCard,
   ProductDoc,
@@ -67,7 +68,12 @@ export function buildReference(rows: ReferenceRows): Reference {
 
   const colors = rows.colors
     .filter((c) => normalizeSlug(c.slug) !== "")
-    .map((c) => ({ slug: normalizeSlug(c.slug), name: c.name ?? "", hex: c.hex_code ?? null }));
+    .map((c) => ({
+      slug: normalizeSlug(c.slug),
+      name: c.name ?? "",
+      hex: c.hex_code ?? null,
+      base_color: (c.base_color ?? "").trim() || null,
+    }));
 
   return { categories, genders, sizes, ages, colors };
 }
@@ -158,6 +164,9 @@ export function buildProductDoc(
   const size_slugs = (row.size_slugs ?? []).map(normalizeSlug).filter((s) => s !== "");
   const color_slugs = (row.color_slugs ?? []).map(normalizeSlug).filter((s) => s !== "");
   const colorBySlug = new Map(ctx.reference.colors.map((c) => [c.slug, c]));
+  const base_colors = [
+    ...new Set(color_slugs.map((s) => baseColourSlug(colorBySlug.get(s)?.base_color)).filter((s) => s !== "")),
+  ];
 
   return {
     id: slug,
@@ -175,6 +184,7 @@ export function buildProductDoc(
     gender_slug: normalizeSlug(row.gender_slug),
     size_slugs,
     color_slugs,
+    base_colors,
     age_slugs: deriveAgeSlugs(size_slugs, ctx.reference),
     categories: row.categories ?? null,
     genders: row.genders ?? null,
@@ -186,7 +196,7 @@ export function buildProductDoc(
     features: orderedFeatures(row),
     variants,
     color_details: color_slugs.map(
-      (s) => colorBySlug.get(s) ?? { slug: s, name: slugToTitle(s), hex: null },
+      (s) => colorBySlug.get(s) ?? { slug: s, name: slugToTitle(s), hex: null, base_color: null },
     ),
     rating: ctx.ratings[slug] ?? { average: 0, count: 0 },
   };

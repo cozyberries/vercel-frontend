@@ -30,12 +30,17 @@ type CatalogProduct = {
   description?: string;
   images: string[];
   sizes: ProductSize[];
+  color_slugs: string[];
+  base_colors?: string[];
 };
 
 type Snapshot = {
   version: string;
   products: CatalogProduct[];
-  reference: { categories: Array<{ slug: string; name: string }> };
+  reference: {
+    categories: Array<{ slug: string; name: string }>;
+    colors: Array<{ slug: string; name: string; base_color: string | null }>;
+  };
 };
 
 async function loadSnapshot(request: APIRequestContext): Promise<Snapshot> {
@@ -107,7 +112,18 @@ test.describe("Products Page", () => {
     await expect(firstCard.getByText(/₹\s?\d[\d,]*/).first()).toBeVisible();
   });
 
-  test("Filters sheet lists the Gender, Age, Size and Design option groups", async ({ page }) => {
+  test("Filters sheet lists Gender, Age, Size, plus Design (prints) and Colour (base colours) from the catalog", async ({
+    page,
+    request,
+  }) => {
+    // Regression (2026-09-14): Design/Colour were hardcoded placeholders (Solid/Stripe…, Sage/Oat…)
+    // that matched no product. They must come from the catalog's prints and their base colours.
+    const snapshot = await loadSnapshot(request);
+    const usedPrints = new Set(snapshot.products.flatMap((p) => p.color_slugs ?? []));
+    const printNames = snapshot.reference.colors.filter((c) => usedPrints.has(c.slug)).map((c) => c.name);
+    const baseColours = new Set(snapshot.products.flatMap((p) => p.base_colors ?? []));
+    expect(printNames.length).toBeGreaterThan(0);
+
     await page.getByRole("button", { name: "Filters" }).click();
     const sheet = page.getByRole("dialog", { name: "Filters" });
 
@@ -117,10 +133,38 @@ test.describe("Products Page", () => {
     }
     await expect(sheet.getByText("Age", { exact: true })).toBeVisible();
     await expect(sheet.getByText("Size", { exact: true })).toBeVisible();
+
     await expect(sheet.getByText("Design", { exact: true })).toBeVisible();
-    for (const pattern of ["Solid", "Stripe", "Polka", "Floral", "Check"]) {
-      await expect(sheet.getByRole("button", { name: pattern, exact: true })).toBeVisible();
+    for (const name of printNames) {
+      await expect(sheet.getByRole("button", { name, exact: true })).toBeVisible();
     }
+    for (const placeholder of ["Solid", "Stripe", "Polka", "Floral", "Check", "Sage", "Oat", "Clay"]) {
+      await expect(sheet.getByRole("button", { name: placeholder, exact: true })).toHaveCount(0);
+    }
+    if (baseColours.size > 0) {
+      await expect(sheet.getByText("Colour", { exact: true })).toBeVisible();
+      await expect(sheet.locator('button[aria-pressed]').filter({ has: page.locator("span.rounded-full") })).toHaveCount(
+        baseColours.size,
+      );
+    }
+  });
+
+  test("Choosing a Design filters the grid to that print and writes ?design=", async ({ page, request }) => {
+    const snapshot = await loadSnapshot(request);
+    const counts = new Map<string, number>();
+    for (const p of snapshot.products) for (const slug of p.color_slugs ?? []) counts.set(slug, (counts.get(slug) ?? 0) + 1);
+    const [slug, expected] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
+    const name = snapshot.reference.colors.find((c) => c.slug === slug)?.name ?? slug;
+    expect(expected).toBeLessThan(snapshot.products.length);
+
+    await page.getByRole("button", { name: "Filters" }).click();
+    const sheet = page.getByRole("dialog", { name: "Filters" });
+    await sheet.getByRole("button", { name, exact: true }).click();
+    await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
+
+    await expect(page).toHaveURL(new RegExp(`[?&]design=${slug}(&|$)`));
+    await waitForProductsToLoad(page);
+    expect(await itemsCount(page)).toBe(expected);
   });
 
   test("Sort sheet lists Popular, price options and Top Rated, and sorts the grid by price", async ({ page }) => {

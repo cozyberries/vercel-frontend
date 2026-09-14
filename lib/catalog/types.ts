@@ -10,6 +10,10 @@ export interface Filters {
   gender: string;
   size: string;
   age: string;
+  /** Print slug from the `colors` table (e.g. "petal-pops"). Shown to shoppers as "Design". */
+  design: string;
+  /** Base colour slug derived from `colors.base_color` (e.g. "white", "lilac"). Shown as "Colour". */
+  colour: string;
   search: string;
   sortBy: SortBy;
   sortOrder: SortOrder;
@@ -40,10 +44,12 @@ export interface ReferenceAge {
   sizeSlugs: string[];
   display_order: number;
 }
+/** A print (e.g. "Petal Pops"); `base_color` is the actual clothing colour it sits on ("Beige"). */
 export interface ReferenceColor {
   slug: string;
   name: string;
   hex: string | null;
+  base_color: string | null;
 }
 export interface Reference {
   categories: ReferenceCategory[];
@@ -77,6 +83,7 @@ export interface ProductColorDetail {
   slug: string;
   name: string;
   hex: string | null;
+  base_color: string | null;
 }
 export interface RatingSummary {
   average: number;
@@ -100,6 +107,8 @@ export interface ListCard {
   gender_slug: string;
   size_slugs: string[];
   color_slugs: string[];
+  /** Base colour slugs of the product's prints (deduped), e.g. ["white"]. Drives the Colour filter. */
+  base_colors: string[];
   age_slugs: string[];
   categories: { name: string; slug: string } | null;
   genders: { name: string; slug: string } | null;
@@ -214,6 +223,7 @@ export interface ColorRow {
   slug: string;
   name: string | null;
   hex_code: string | null;
+  base_color: string | null;
 }
 export interface RatingRow {
   product_slug: string;

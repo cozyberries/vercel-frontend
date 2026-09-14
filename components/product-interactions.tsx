@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Chip } from "@/components/ui/chip";
 import { Product, SizeOption } from "@/lib/services/api";
 import { slugToTitle } from "@/lib/utils/product";
+import { BASE_COLOUR_SWATCHES, FALLBACK_SWATCH, baseColourSlug } from "@/lib/catalog/colours";
 import { useCart, getCartItemKey } from "./cart-context";
 import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
@@ -29,14 +30,6 @@ const TRUST_BADGES = [
   { icon: Leaf, label: "100% Organic" },
   { icon: Truck, label: "Ships in 2–4 days" },
   { icon: RotateCcw, label: "Easy returns" },
-];
-
-// No backend hex per colour (each print is a separate product, not a switchable
-// variant) — these are decorative swatches matching the design, not real options.
-const DECORATIVE_SWATCHES = [
-  { name: "Sage", hex: "#aebd9c" },
-  { name: "Oat", hex: "#e4d4ba" },
-  { name: "Clay", hex: "#c98b6b" },
 ];
 
 function AccordionSection({
@@ -122,7 +115,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [pendingSwatch, setPendingSwatch] = useState<string | null>(null);
   const [bundleChecked, setBundleChecked] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
   const { addToCart, cart } = useCart();
@@ -279,6 +271,11 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
 
   const availableStock = selectedSize != null ? (selectedSize.stock_quantity ?? 0) : (product?.stock_quantity ?? 0);
+  // Every size at zero (or, without sizes, the product itself): nothing can be added to the cart.
+  const soldOut =
+    (product.sizes?.length ?? 0) > 0
+      ? !product.sizes.some((s) => (s.stock_quantity ?? 0) > 0)
+      : (product.stock_quantity ?? 0) <= 0;
   const currentVariantKey = getCartItemKey({
     id: product?.id ?? "",
     size: selectedSize?.name,
@@ -712,8 +709,13 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
           {staticContent}
 
           {/* Price: hero = MRP strikethrough + large payable + badge on one row */}
-          <div className="mt-3 mb-2">
+          <div className="mt-3 mb-2 flex flex-wrap items-center gap-3">
             <DiscountedPrice price={displayPrice} variant="hero" />
+            {soldOut && (
+              <span className="inline-flex items-center rounded-full bg-cb-espresso px-3 py-1 text-xs font-extrabold tracking-[0.02em] text-white">
+                Sold out
+              </span>
+            )}
           </div>
 
           <p className="flex items-center gap-2 text-sm text-cb-success mb-2">
@@ -744,33 +746,29 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
 
           <div className="space-y-5 mb-6">
             {product.colors && product.colors.length > 0 && (() => {
-              const realColorName = slugToTitle(product.colors[0]);
-              const defaultSwatch =
-                DECORATIVE_SWATCHES.find((s) => s.name.toLowerCase() === realColorName.toLowerCase())?.name
-                ?? DECORATIVE_SWATCHES[0].name;
-              const activeSwatch = pendingSwatch ?? defaultSwatch;
+              // Each print is its own product, so this is information, not a choice: the print's
+              // name ("Petal Pops") and the actual clothing colour it sits on ("Beige").
+              const detail = product.color_details?.[0];
+              const printName = detail?.name || slugToTitle(product.colors[0]);
+              const baseColour = detail?.base_color?.trim() || null;
+              const swatchHex = baseColour ? BASE_COLOUR_SWATCHES[baseColourSlug(baseColour)] ?? FALLBACK_SWATCH : null;
               return (
                 <div>
-                  <p className="text-sm font-bold text-cb-fg mb-3">
-                    Colour — <span className="font-normal text-cb-muted-fg">{realColorName}</span>
+                  <p className="text-sm font-bold text-cb-fg mb-2">
+                    Design — <span className="font-normal text-cb-muted-fg">{printName}</span>
                   </p>
-                  <div className="flex gap-3">
-                    {DECORATIVE_SWATCHES.map((s) => (
-                      <button
-                        key={s.name}
-                        type="button"
-                        onClick={() => setPendingSwatch(s.name)}
-                        aria-label={s.name}
-                        title={s.name}
-                        className="h-9 w-9 rounded-full border-2"
-                        style={{
-                          background: s.hex,
-                          borderColor: activeSwatch === s.name ? "var(--cb-terracotta)" : "white",
-                          boxShadow: activeSwatch === s.name ? "0 0 0 1px var(--cb-terracotta)" : "0 0 0 1px var(--cb-border)",
-                        }}
+                  {baseColour && swatchHex && (
+                    <p className="flex items-center gap-2 text-sm text-cb-muted-fg">
+                      <span
+                        aria-hidden="true"
+                        className="inline-block h-5 w-5 rounded-full border-2 border-white"
+                        style={{ background: swatchHex, boxShadow: "0 0 0 1px var(--cb-border)" }}
                       />
-                    ))}
-                  </div>
+                      <span>
+                        Colour — <span className="text-cb-fg">{baseColour}</span>
+                      </span>
+                    </p>
+                  )}
                 </div>
               );
             })()}
@@ -1093,7 +1091,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
           ) : (
             <Button
               size="lg"
-              className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
+              className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2 disabled:opacity-60"
+              disabled={soldOut}
               onClick={() =>
                 selectedSize
                   ? handleQuickAddConfirm(selectedSize.name, quantity)
@@ -1101,7 +1100,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               }
             >
               <ShoppingBag className="h-4 w-4" />
-              {selectedSize ? "Add to cart" : "Choose size & add"}
+              {soldOut ? "Sold out" : selectedSize ? "Add to cart" : "Choose size & add"}
             </Button>
           )}
         </motion.div>

@@ -12,7 +12,9 @@ import SortSheet from "@/components/SortSheet";
 import type { Product } from "@/lib/services/api";
 import { useCatalog, useRanking } from "@/hooks/useCatalog";
 import { MIN_QUERY_LENGTH, applyFilters, filtersKey, normalizeQuery, parseFilters } from "@/lib/catalog/filter";
+import { colourOptionsFor, designOptionsFor } from "@/lib/catalog/colours";
 import type { Snapshot } from "@/lib/catalog/types";
+import type { FilterValues } from "@/components/FilterSheet";
 import { Loader, Search, X, LayoutGrid, LayoutList } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { trackSearch } from "@/lib/analytics/meta-pixel";
@@ -130,6 +132,15 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
   const ageOptions = useMemo(
     () => snapshot.reference.ages.map((a) => ({ id: a.slug, slug: a.slug, name: a.name, display_order: a.display_order })),
     [snapshot.reference.ages],
+  );
+  // Design = prints, Colour = the prints' base colours; only those some product actually uses.
+  const designOptions = useMemo(
+    () => designOptionsFor(snapshot.reference, snapshot.products),
+    [snapshot.reference, snapshot.products],
+  );
+  const colourOptions = useMemo(
+    () => colourOptionsFor(snapshot.reference, snapshot.products),
+    [snapshot.reference, snapshot.products],
   );
 
   // ── URL state ──
@@ -269,11 +280,14 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
       }
     });
   const handleApplyFilters = useCallback(
-    (values: { size: string; gender: string; age: string }) =>
+    (values: FilterValues) =>
       setParams((p) => {
         setOrDelete(p, "size", values.size);
         setOrDelete(p, "gender", values.gender);
         setOrDelete(p, "age", values.age);
+        setOrDelete(p, "design", values.design);
+        setOrDelete(p, "colour", values.colour);
+        p.delete("color");
       }),
     [setParams],
   );
@@ -289,6 +303,8 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     filters.size !== "all" ||
     filters.gender !== "all" ||
     filters.age !== "all" ||
+    filters.design !== "all" ||
+    filters.colour !== "all" ||
     currentSort !== "default" ||
     filters.featured ||
     filters.search !== "";
@@ -326,9 +342,13 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
           sizeOptions={sizeOptions}
           genderOptions={genderOptions}
           ageOptions={ageOptions}
+          designOptions={designOptions}
+          colourOptions={colourOptions}
           currentSize={filters.size}
           currentGender={filters.gender}
           currentAge={filters.age}
+          currentDesign={filters.design}
+          currentColour={filters.colour}
           itemCount={totalItems}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}

@@ -108,6 +108,7 @@ app/
   - Freshness is event-driven: Supabase triggers → `POST /api/catalog/events` (secret header, Redis debounce 8s, burst collapse) → QStash → `POST /api/catalog/rebuild` (signed) → `revalidateTag`. Nightly QStash schedule plus two daily Vercel crons as backstops. A change is live in about 10 seconds.
   - Nothing under `lib/catalog/` may import `next/headers`; that is what keeps `/`, `/products/[id]` and `/api/catalog` static.
   - Free tiers only (Upstash Redis/QStash Free, Vercel Hobby, Supabase Free). Budget: under 3,000 Redis commands and 1,000 QStash messages per day.
+- Product filters `design` and `colour` (`/products?design=petal-pops&colour=white`): a "design" is a row of the `colors` table (a print such as Petal Pops); a "colour" is that row's `base_color` (the actual clothing colour). `lib/catalog/colours.ts` derives the options and swatches. Every print needs `base_color` filled in or it will not appear under Colour.
 - Browser: `hooks/useCatalog.ts` keeps the snapshot in TanStack Query (persisted to localStorage) and `/products` filters locally; the service worker caches `/api/catalog` stale-while-revalidate.
 - Per-user data (cart, wishlist, orders, profile) keeps its existing Redis caches in `lib/services/cache.ts`.
 - `CATALOG_SOURCE` (`legacy` default) gates the compatibility API routes and the product/home pages; `/products` and `/api/catalog` always read the catalog. Removed in the cleanup task.

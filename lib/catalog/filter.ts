@@ -7,6 +7,8 @@ export const DEFAULT_FILTERS: Filters = {
   gender: "all",
   size: "all",
   age: "all",
+  design: "all",
+  colour: "all",
   search: "",
   sortBy: "default",
   sortOrder: "desc",
@@ -36,6 +38,9 @@ export function parseFilters(src: ParamSource): Filters {
     gender: normalizeOption(read(src, "gender")),
     size: normalizeOption(read(src, "size")),
     age: normalizeOption(read(src, "age")),
+    design: normalizeOption(read(src, "design")),
+    // British spelling in the UI and URLs; accept the US spelling for hand-typed links.
+    colour: normalizeOption(read(src, "colour") ?? read(src, "color")),
     search: (read(src, "search") ?? "").trim(),
     sortBy,
     sortOrder,
@@ -89,6 +94,9 @@ export function matchesFilters(card: ListCard, f: Filters): boolean {
     if (!sizes.some((s) => card.size_slugs.includes(s))) return false;
   }
   if (f.size !== "all" && !card.size_slugs.includes(f.size)) return false;
+  if (f.design !== "all" && !(card.color_slugs ?? []).includes(f.design)) return false;
+  // Cards cached before base colours existed have no `base_colors`; they match no colour rather than all.
+  if (f.colour !== "all" && !(card.base_colors ?? []).includes(f.colour)) return false;
   return true;
 }
 
@@ -148,10 +156,13 @@ export function normalizeQuery(search: string): string {
 
 /** Key for anything that depends on the full filter set (including sort). */
 export function filtersKey(f: Filters): string {
-  return [f.category, f.gender, f.size, f.age, f.featured ? "f" : "-", f.sortBy, f.sortOrder].join("|");
+  return [f.category, f.gender, f.size, f.age, f.design, f.colour, f.featured ? "f" : "-", f.sortBy, f.sortOrder].join("|");
 }
 
-/** Key for the server ranking, which ignores sort. */
+/**
+ * Key for the server ranking, which ignores sort. Colour is excluded on purpose: the Redis
+ * index has no base-colour field, so the ranking never depends on it (the local filter applies it).
+ */
 export function rankingKey(f: Filters): string {
-  return [f.category, f.gender, f.size, f.age, f.featured ? "f" : "-"].join("|");
+  return [f.category, f.gender, f.size, f.age, f.design, f.featured ? "f" : "-"].join("|");
 }

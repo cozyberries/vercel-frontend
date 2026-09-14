@@ -19,7 +19,9 @@ describe("normalizeQuery", () => {
 
 describe("buildSearchFilter", () => {
   it("requires every active filter and at least one text match", () => {
-    const filter = buildSearchFilter("frock", { ...DEFAULT_FILTERS, category: "frocks", gender: "girls", age: "3-6-years", size: "0-3m", featured: true });
+    const filter = buildSearchFilter("frock", {
+      ...DEFAULT_FILTERS, category: "frocks", gender: "girls", age: "3-6-years", size: "0-3m", design: "soft-pear", colour: "green", featured: true,
+    });
     expect(filter).toEqual({
       $must: [
         { is_featured: { $eq: true } },
@@ -27,6 +29,8 @@ describe("buildSearchFilter", () => {
         { $or: [{ gender_slug: { $eq: "girl" } }, { gender_slug: { $eq: "unisex" } }] },
         { $or: [{ size_slugs: { $eq: "3-4y" } }, { size_slugs: { $eq: "4-5y" } }, { size_slugs: { $eq: "5-6y" } }] },
         { size_slugs: { $eq: "0-3m" } },
+        // Design narrows the ranking (color_slugs is indexed); colour is left to the local filter.
+        { color_slugs: { $eq: "soft-pear" } },
         {
           $should: [
             { name: { $smart: "frock" }, $boost: 10 },
@@ -50,6 +54,8 @@ describe("rankProducts", () => {
     // "shorts" appears only in the coord set's description; "collar" would also match the frock.
     expect(await rankProducts(store, "shorts", { ...DEFAULT_FILTERS, gender: "boy" })).toEqual(["coords-set-chinese-collar-soft-pear"]);
     expect(await rankProducts(store, "shorts", { ...DEFAULT_FILTERS, gender: "girl" })).toEqual([]);
+    expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, design: "soft-pear" })).toEqual(["frock-japanese-soft-pear"]);
+    expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, design: "moon-and-stars" })).toEqual([]);
     expect(await rankProducts(store, "f", DEFAULT_FILTERS)).toEqual([]);
   });
 });

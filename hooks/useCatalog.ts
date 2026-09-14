@@ -42,6 +42,7 @@ export async function fetchRanking(q: string, filters: Filters): Promise<string[
     gender: filters.gender,
     size: filters.size,
     age: filters.age,
+    design: filters.design,
     featured: String(filters.featured),
   });
   const res = await fetch(`/api/search?${params.toString()}`, { headers: { accept: "application/json" } });

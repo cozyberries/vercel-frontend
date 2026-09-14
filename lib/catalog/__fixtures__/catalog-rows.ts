@@ -19,7 +19,11 @@ export const referenceRows: ReferenceRows = {
     { slug: "4-5y", name: "4-5Y", display_order: 8 },
     { slug: "5-6y", name: "5-6Y", display_order: 9 },
   ],
-  colors: [{ slug: "soft-pear", name: "Soft Pear", hex_code: "#d9e8c5" }],
+  colors: [
+    { slug: "soft-pear", name: "Soft Pear", hex_code: "#d9e8c5", base_color: "Green" },
+    { slug: "moon-and-stars", name: "Moon and Stars", hex_code: null, base_color: "White" },
+    { slug: "naugthy-nuts", name: "Naugthy Nuts", hex_code: null, base_color: null },
+  ],
 };
 
 export const frockRow: ProductRow = {
@@ -56,7 +60,7 @@ export const frockRow: ProductRow = {
       size_slug: "0-3m",
       color_slug: "soft-pear",
       sizes: { slug: "0-3m", name: "0-3M", display_order: 1 },
-      colors: { slug: "soft-pear", name: "Soft Pear", hex_code: "#d9e8c5", base_color: "green" },
+      colors: { slug: "soft-pear", name: "Soft Pear", hex_code: "#d9e8c5", base_color: "Green" },
     },
     {
       slug: "frock-japanese-soft-pear-3-6m",
@@ -65,7 +69,7 @@ export const frockRow: ProductRow = {
       size_slug: "3-6m",
       color_slug: "soft-pear",
       sizes: { slug: "3-6m", name: "3-6M", display_order: 2 },
-      colors: { slug: "soft-pear", name: "Soft Pear", hex_code: "#d9e8c5", base_color: "green" },
+      colors: { slug: "soft-pear", name: "Soft Pear", hex_code: "#d9e8c5", base_color: "Green" },
     },
   ],
 };
@@ -123,7 +127,7 @@ export const jhablaRow: ProductRow = {
   category_slug: "jhabla",
   gender_slug: "unisex",
   size_slugs: ["0-3m"],
-  color_slugs: [],
+  color_slugs: ["moon-and-stars"],
   categories: { name: "Jhabla", slug: "jhabla" },
   genders: { name: "Unisex", slug: "unisex" },
   product_images: [],

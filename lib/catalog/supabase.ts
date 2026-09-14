@@ -71,7 +71,7 @@ export async function fetchReferenceRows(): Promise<ReferenceRows> {
       .select("slug, name, display_order")
       .order("display_order", { ascending: true })
       .order("name", { ascending: true }),
-    supabase.from("colors").select("slug, name, hex_code"),
+    supabase.from("colors").select("slug, name, hex_code, base_color"),
   ]);
   if (categories.error) fail("categories", categories.error);
   if (genders.error) fail("genders", genders.error);

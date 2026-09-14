@@ -32,6 +32,13 @@ describe("buildReference", () => {
     expect(reference.ages.filter((a) => a.slug === "0-3m")[0]?.sizeSlugs).toEqual(["0-3m"]);
     expect(AGE_GROUPS).toHaveLength(1);
   });
+  it("carries each print's base colour so the storefront can filter by actual clothing colour", () => {
+    expect(reference.colors).toEqual([
+      { slug: "soft-pear", name: "Soft Pear", hex: "#d9e8c5", base_color: "Green" },
+      { slug: "moon-and-stars", name: "Moon and Stars", hex: null, base_color: "White" },
+      { slug: "naugthy-nuts", name: "Naugthy Nuts", hex: null, base_color: null },
+    ]);
+  });
 });
 
 describe("deriveAgeSlugs / normalizeAgeSlug", () => {
@@ -84,11 +91,19 @@ describe("buildProductDoc", () => {
     expect(coord.age_slugs).toEqual(["3-4y", "4-5y", "3-6y"]);
     expect(frock.category).toBe("Frocks");
     expect(frock.colors).toEqual(["soft-pear"]);
-    expect(frock.color_details).toEqual([{ slug: "soft-pear", name: "Soft Pear", hex: "#d9e8c5" }]);
+    expect(frock.color_details).toEqual([{ slug: "soft-pear", name: "Soft Pear", hex: "#d9e8c5", base_color: "Green" }]);
     expect(frock.rating).toEqual({ average: 4.5, count: 2 });
     expect(jhabla.rating).toEqual({ average: 0, count: 0 });
     expect(frock.features).toEqual(["Pan collar", "Breathable"]);
     expect(frock.id).toBe(frock.slug);
+  });
+  it("derives base colour slugs from the reference, skipping prints without a base colour", () => {
+    expect(frock.base_colors).toEqual(["green"]);
+    expect(jhabla.base_colors).toEqual(["white"]);
+    expect(coord.base_colors).toEqual([]);
+    const unknownPrint = buildProductDoc({ ...frockRow, color_slugs: ["naugthy-nuts", "soft-pear", "not-a-print"] }, ctx);
+    expect(unknownPrint.base_colors).toEqual(["green"]);
+    expect(unknownPrint.color_details[2]).toEqual({ slug: "not-a-print", name: "Not A Print", hex: null, base_color: null });
   });
 });
 
@@ -99,6 +114,7 @@ describe("toListCard", () => {
     expect("variants" in card).toBe(false);
     expect("features" in card).toBe(false);
     expect(card.sizes[1]?.price).toBe(849);
+    expect(card.base_colors).toEqual(["green"]);
   });
 });
 
