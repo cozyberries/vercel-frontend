@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient, createPublicSupabaseClient } from "@/lib/supabase-server";
+import { createPublicSupabaseClient } from "@/lib/supabase-server";
 import { UpstashService } from "@/lib/upstash";
 import {
   isSearchConfigured,
@@ -683,80 +683,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ─── POST /api/products ──────────────────────────────────────────────────────
-
-export async function POST(request: NextRequest) {
-  try {
-    const body: ProductCreate = await request.json();
-
-    if (!body.name || typeof body.price !== "number") {
-      return NextResponse.json(
-        { error: "Name and price are required fields" },
-        { status: 400 }
-      );
-    }
-
-    const slug = body.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    const supabase = await createServerSupabaseClient();
-
-    const { data: existingSlugs } = await supabase
-      .from("products")
-      .select("slug")
-      .or(`slug.eq.${slug},slug.like.${slug}-%`);
-
-    let uniqueSlug = slug;
-    if (existingSlugs && existingSlugs.length > 0) {
-      const slugSet = new Set(existingSlugs.map((p: { slug: string }) => p.slug));
-      if (slugSet.has(slug)) {
-        let counter = 1;
-        while (slugSet.has(`${slug}-${counter}`)) {
-          counter++;
-        }
-        uniqueSlug = `${slug}-${counter}`;
-      }
-    }
-
-    const productData = {
-      name: body.name,
-      description: body.description || null,
-      price: body.price,
-      slug: uniqueSlug,
-      stock_quantity: 0,
-      is_featured: false,
-    };
-
-    const { data, error } = await supabase
-      .from("products")
-      .insert([productData])
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json(
-        { error: `Failed to create product: ${error.message}` },
-        { status: 500 }
-      );
-    }
-
-    if (!data) {
-      return NextResponse.json(
-        { error: "No data returned from database" },
-        { status: 500 }
-      );
-    }
-
-    await UpstashService.deletePattern("products:*");
-    inMemoryProductsCache.clear();
-
-    return NextResponse.json(data, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
+// There is deliberately no POST/PUT/PATCH/DELETE here. Catalogue writes belong to the
+// admin surface and run through the service-role client behind an admin auth check.
+// This route is reached with the public anon key and is read-only.

@@ -49,19 +49,11 @@ export const createServerSupabaseClient = async (cookieStore?: any) => {
         timeoutId = null;
       }
       
-      // If next/headers is not available or timed out (e.g., in API routes),
-      // fall back to service role key for faster operations
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (serviceRoleKey) {
-        // Use service role key for faster auth operations in API routes
-        return createClient(supabaseUrl, serviceRoleKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        });
-      }
-      
+      // Deliberately falls back to the ANON key, never the service-role key.
+      // A service-role client bypasses RLS entirely (rolbypassrls), so returning
+      // one here would silently disable every row-level policy for any request
+      // that trips the 200ms cookie-import timeout. Failing closed with no auth
+      // context is correct; failing open with full privileges is not.
       // Last resort: create client without auth context
       return createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
