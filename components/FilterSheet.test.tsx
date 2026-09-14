@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import FilterSheet from "./FilterSheet";
+import { DEFAULT_FILTERS } from "@/lib/catalog/filter";
+import type { ListCard } from "@/lib/catalog/types";
 
 // Regression (2026-09-14): the Design chips (Solid/Stripe/Polka/Floral/Check) and Colour swatches
 // (Sage/Oat/Clay…) were hardcoded and never sent to the parent, so choosing one filtered nothing.
@@ -29,7 +32,8 @@ const baseProps = {
   onClearFilters: vi.fn(),
 };
 
-function openSheet(props: Partial<typeof baseProps> & { onApplyFilters: (v: unknown) => void }) {
+type SheetProps = Partial<ComponentProps<typeof FilterSheet>> & { onApplyFilters: (v: unknown) => void };
+function openSheet(props: SheetProps) {
   render(<FilterSheet {...baseProps} {...props} />);
   fireEvent.click(screen.getByRole("button", { name: /filters/i }));
   return screen.getByRole("dialog", { name: "Filters" });
@@ -117,6 +121,57 @@ describe("FilterSheet design and colour groups", () => {
     expect(girl).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(within(sheet).getByRole("button", { name: /show 12 items/i }));
     expect(onApplyFilters).toHaveBeenCalledWith(expect.objectContaining({ gender: "all" }));
+  });
+
+  // 2026-09-14: options are re-counted against the pending choices; dead ends are greyed out.
+  describe("dynamic availability", () => {
+    const card = (slug: string, gender: string, sizes: string[], print: string, colour: string): ListCard =>
+      ({
+        id: slug, slug, name: slug, description: "", price: 500, min_price: 500, stock_quantity: 1, in_stock: true,
+        is_featured: false, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z",
+        category_slug: "frocks", gender_slug: gender, size_slugs: sizes, color_slugs: [print], base_colors: [colour],
+        age_slugs: sizes, categories: null, genders: null, category: "Frocks", images: [], sizes: [], colors: [print],
+      }) as ListCard;
+    // Lilac Blossom exists only as a 0-3M girls' romper; Petal Pops only as a 3-4Y unisex coord set.
+    const products = [
+      card("lilac-romper", "girl", ["0-3m"], "lilac-blossom", "lilac"),
+      card("petal-coord", "unisex", ["3-4y"], "petal-pops", "white"),
+    ];
+    const withProducts = { products, baseFilters: DEFAULT_FILTERS };
+
+    it("greys out options that would leave zero products once a colour is chosen", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn(), ...withProducts });
+      expect(within(sheet).getByRole("button", { name: "3-6 Years" })).toBeEnabled();
+      fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+      expect(within(sheet).getByRole("button", { name: "3-6 Years" })).toBeDisabled();
+      expect(within(sheet).getByRole("button", { name: "0-3M" })).toBeEnabled();
+      expect(within(sheet).getByRole("button", { name: "Petal Pops" })).toBeDisabled();
+      expect(within(sheet).getByRole("button", { name: "Lilac Blossom" })).toBeEnabled();
+      // Other colours stay selectable so the shopper can switch rather than clear first.
+      expect(within(sheet).getByRole("button", { name: "White" })).toBeEnabled();
+    });
+
+    it("never disables the selected option and re-enables everything when it is cleared", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn(), ...withProducts, currentDesign: "petal-pops" });
+      expect(within(sheet).getByRole("button", { name: "Petal Pops" })).toBeEnabled();
+      expect(within(sheet).getByRole("button", { name: "Lilac" })).toBeDisabled();
+      fireEvent.click(within(sheet).getByRole("button", { name: "Petal Pops" }));
+      expect(within(sheet).getByRole("button", { name: "Lilac" })).toBeEnabled();
+    });
+
+    it("honours filters applied outside the sheet, such as the category chips", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn(), products, baseFilters: { ...DEFAULT_FILTERS, category: "pyjamas" } });
+      // Nothing is in "pyjamas", so every option is a dead end.
+      expect(within(sheet).getByRole("button", { name: "Lilac" })).toBeDisabled();
+      expect(within(sheet).getByRole("button", { name: "Girl" })).toBeDisabled();
+    });
+
+    it("disables nothing when no catalogue is provided", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn() });
+      for (const name of ["Girl", "3-6 Years", "Petal Pops", "White"]) {
+        expect(within(sheet).getByRole("button", { name })).toBeEnabled();
+      }
+    });
   });
 
   it("hides a group whose option list is empty instead of showing placeholders", () => {

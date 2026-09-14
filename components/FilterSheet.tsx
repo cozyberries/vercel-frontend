@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -11,6 +11,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { ColourOption, DesignOption } from "@/lib/catalog/colours";
+import { facetCounts, isOptionAvailable } from "@/lib/catalog/facets";
+import type { Filters, ListCard } from "@/lib/catalog/types";
 
 interface Option {
   id: string;
@@ -45,6 +47,12 @@ interface FilterSheetProps {
   currentDesign: string;
   currentColour: string;
   itemCount: number;
+  /**
+   * Catalogue and the filters currently applied outside the sheet (category, search…). Options
+   * that would leave zero products given the pending choices are disabled. Omit to disable nothing.
+   */
+  products?: ListCard[];
+  baseFilters?: Filters;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   disabled?: boolean;
@@ -63,6 +71,8 @@ export default function FilterSheet({
   currentDesign,
   currentColour,
   itemCount,
+  products,
+  baseFilters,
   onApplyFilters,
   onClearFilters,
   disabled = false,
@@ -106,6 +116,22 @@ export default function FilterSheet({
     setOpen(false);
   };
 
+  // Re-count every option against the pending choices so dead ends are greyed out up front.
+  const counts = useMemo(() => {
+    if (!products || products.length === 0 || !baseFilters) return null;
+    return facetCounts(
+      products,
+      baseFilters,
+      { gender: pendingGender, age: pendingAge, design: pendingDesign, colour: pendingColour },
+      {
+        genders: genderOptions.map((g) => g.name),
+        ages: ageOptions.map((a) => a.slug),
+        designs: designOptions.map((d) => d.slug),
+        colours: colourOptions.map((c) => c.slug),
+      },
+    );
+  }, [products, baseFilters, pendingGender, pendingAge, pendingDesign, pendingColour, genderOptions, ageOptions, designOptions, colourOptions]);
+
   const hasPending =
     pendingGender !== "all" ||
     pendingAge !== "all" ||
@@ -142,7 +168,12 @@ export default function FilterSheet({
                   // The URL keeps the name but parseFilters lowercases it, so compare case-insensitively.
                   const on = pendingGender.toLowerCase() === g.name.toLowerCase();
                   return (
-                    <Chip key={g.id} active={on} onClick={() => setPendingGender(on ? "all" : g.name)}>
+                    <Chip
+                      key={g.id}
+                      active={on}
+                      disabled={!isOptionAvailable(counts, "gender", g.name, pendingGender)}
+                      onClick={() => setPendingGender(on ? "all" : g.name)}
+                    >
                       {g.name}
                     </Chip>
                   );
@@ -158,6 +189,7 @@ export default function FilterSheet({
                   <Chip
                     key={a.id}
                     active={pendingAge === a.slug}
+                    disabled={!isOptionAvailable(counts, "age", a.slug, pendingAge)}
                     onClick={() => setPendingAge(pendingAge === a.slug ? "all" : a.slug)}
                   >
                     {a.name}
@@ -175,6 +207,7 @@ export default function FilterSheet({
                     <Chip
                       key={d.slug}
                       active={pendingDesign === d.slug}
+                      disabled={!isOptionAvailable(counts, "design", d.slug, pendingDesign)}
                       onClick={() => setPendingDesign(pendingDesign === d.slug ? "all" : d.slug)}
                     >
                       {d.name}
@@ -191,6 +224,7 @@ export default function FilterSheet({
                 <div className="flex flex-wrap gap-3">
                   {colourOptions.map((c) => {
                     const on = pendingColour === c.slug;
+                    const available = isOptionAvailable(counts, "colour", c.slug, pendingColour);
                     return (
                       <button
                         key={c.slug}
@@ -198,8 +232,9 @@ export default function FilterSheet({
                         onClick={() => setPendingColour(on ? "all" : c.slug)}
                         aria-label={c.name}
                         aria-pressed={on}
-                        title={c.name}
-                        className="flex flex-col items-center gap-1.5 w-14"
+                        disabled={!available}
+                        title={available ? c.name : `${c.name} — no products with the other filters`}
+                        className="flex flex-col items-center gap-1.5 w-14 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {/* Visible neutral border so pale swatches (White, Cream) read on the white sheet */}
                         <span

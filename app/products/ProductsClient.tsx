@@ -372,6 +372,8 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
           currentDesign={filters.design}
           currentColour={filters.colour}
           itemCount={totalItems}
+          products={snapshot.products}
+          baseFilters={filters}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}
         />

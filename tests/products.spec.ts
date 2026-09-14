@@ -271,6 +271,38 @@ test.describe("Products Page", () => {
       expect(await itemsCount(page)).toBe(snapshot.products.filter((p) => p.base_colors?.includes(slug)).length);
     });
 
+    test("Options that would give zero results are greyed out once another choice is pending", async ({ page, request }) => {
+      const snapshot = await loadSnapshot(request);
+      // The rarest base colour leaves the most dead ends in the other groups.
+      const counts = new Map<string, number>();
+      for (const p of snapshot.products) for (const c of p.base_colors ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
+      const [slug] = [...counts.entries()].sort((a, b) => a[1] - b[1])[0]!;
+      const name = snapshot.reference.colors.map((c) => c.base_color?.trim() ?? "").find((n) => n && baseColourSlug(n) === slug) ?? slug;
+      const withColour = snapshot.products.filter((p) => p.base_colors?.includes(slug));
+      const bands: Array<[label: string, matches: (p: CatalogProduct) => boolean]> = [
+        ["0-3M", (p) => p.size_slugs.includes("0-3m")],
+        ["3-6M", (p) => p.size_slugs.includes("3-6m")],
+        ["6-12M", (p) => p.size_slugs.includes("6-12m")],
+        ["1-2Y", (p) => p.size_slugs.includes("1-2y")],
+        ["2-3Y", (p) => p.size_slugs.includes("2-3y")],
+        ["3-6 Years", inAgeBand],
+      ];
+      const dead = bands.filter(([, m]) => !withColour.some(m)).map(([label]) => label);
+      const alive = bands.filter(([, m]) => withColour.some(m)).map(([label]) => label);
+      test.skip(dead.length === 0, `every age band has a ${name} product`);
+
+      await page.getByRole("button", { name: "Filters", exact: true }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      for (const label of dead) await expect(sheet.getByRole("button", { name: label, exact: true })).toBeEnabled();
+      await sheet.getByRole("button", { name, exact: true }).click();
+      for (const label of dead) await expect(sheet.getByRole("button", { name: label, exact: true })).toBeDisabled();
+      for (const label of alive) await expect(sheet.getByRole("button", { name: label, exact: true })).toBeEnabled();
+      // The chosen colour itself stays enabled so it can be deselected; deselecting re-enables the rest.
+      await expect(sheet.getByRole("button", { name, exact: true })).toBeEnabled();
+      await sheet.getByRole("button", { name, exact: true }).click();
+      for (const label of dead) await expect(sheet.getByRole("button", { name: label, exact: true })).toBeEnabled();
+    });
+
     test("Re-opening the sheet pre-selects the applied options; tapping one again deselects it", async ({ page }) => {
       await applyFromSheet(page, (sheet) => sheet.getByRole("button", { name: "Boy", exact: true }).click());
       await page.getByRole("button", { name: "Filters", exact: true }).click();
