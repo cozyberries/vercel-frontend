@@ -127,6 +127,42 @@ app/
 - Static pages must ship their content in the HTML: no `useSearchParams()` in components rendered by `/` or `/products/[id]` (read `window.location` in an effect instead), and no `ssr: false` for content sections. `tests/catalog.spec.ts` "Static HTML carries real content" enforces it.
 - Env vars for the catalog pipeline: CATALOG_BASE_URL, CATALOG_WEBHOOK_SECRET, QSTASH_TOKEN, QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY, QSTASH_URL (server-only). The QStash account is regional (`https://qstash-us-east-1.upstash.io`); without QSTASH_URL the SDK hits the default endpoint and fails with "user not found in this region". QStash deduplication ids must not contain ':'. Vercel functions are pinned to bom1 in vercel.json.
 
+### Database Security Conventions
+
+The `public` schema is deny-by-default. `ALTER DEFAULT PRIVILEGES` grants
+`anon` and `authenticated` nothing; every privilege is granted explicitly.
+Run `npm run db:lint` (Supabase's splinter linter) and `npm run db:probe`
+(reachability assertions) before merging any migration. CI runs `db:lint`
+on PRs that touch `supabase/migrations/**` or `scripts/sql/**`, gated on the
+`POSTGRES_URL_NON_POOLING` repo secret; see `.github/workflows/db-lint.yml`.
+Supabase Postgres on the free tier has no IP allow-listing, so the
+GitHub-hosted runner can reach the database directly — this is a real gate,
+not an informational job. As of Task 11 the linter reports `ERROR=0, WARN=1,
+INFO=17`; the one remaining warning is a `duplicate_index` on `sizes`
+(`sizes_slug_key`) that is permanent by design because
+`product_variants_size_slug_fkey` is backed by it — do not chase it.
+
+Every new table must be assigned a tier in its migration:
+
+- **Catalogue** — public data. `GRANT SELECT` to `anon, authenticated`, plus a
+  `FOR SELECT TO anon, authenticated USING (true)` policy. Writes via
+  `service_role` only.
+- **User-owned** — `GRANT` to `authenticated` only, never `anon`. RLS enabled
+  and `FORCE`d, policy `TO authenticated USING (user_id = (select auth.uid()))`.
+- **Admin/internal** — no grants, no policies. `service_role` only. Choose this
+  for anything holding PII.
+
+Policy rules, each of which was a root cause of a linter finding class:
+
+- Always name the roles with `TO`. Omitting it targets the `public` role, which
+  includes `anon`, `authenticator` and `dashboard_user`.
+- Always write `(select auth.uid())`, never bare `auth.uid()`, so Postgres
+  hoists it into an InitPlan instead of re-evaluating it per row.
+- Every function declares `SET search_path`. `SECURITY DEFINER` functions must
+  use `SET search_path = ''` and fully qualify every reference.
+- `SECURITY DEFINER` functions get `REVOKE ALL ... FROM anon, authenticated`
+  unless they are deliberately part of the public RPC surface.
+
 ### Admin impersonation E2E
 - Run: `npm run test:admin-impersonation` (Desktop Chrome, reuses `purchase-auth-setup`).
 - Env vars: `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` (same as other e2e specs); the user must have `user_metadata.role = 'admin'` in Supabase.
