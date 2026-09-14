@@ -141,16 +141,28 @@ The `public` schema is deny-by-default. `ALTER DEFAULT PRIVILEGES` grants
 Run `npm run db:lint` (Supabase's splinter linter) and `npm run db:probe`
 (reachability assertions) before merging any migration. CI runs `db:lint`
 on pushes to `main`, `develop` and `feature/**` — and on the occasional PR —
-that touch `supabase/migrations/**` or `scripts/sql/**`, gated on the
-`POSTGRES_URL_NON_POOLING` repo secret; see `.github/workflows/db-lint.yml`.
+that touch `supabase/migrations/**` or `scripts/sql/**`; see
+`.github/workflows/db-lint.yml`. The job only enforces once
+`POSTGRES_URL_NON_POOLING` is added as a repository secret — until then it
+emits a `::warning::` annotation saying the guard is inactive and exits 0, so
+it never blocks pushes on a secret nobody has added yet.
 The `push` trigger is the one that matters: this project merges directly to
 `develop` and `main` without PRs, so a PR-only trigger would never fire.
 Supabase Postgres on the free tier has no IP allow-listing, so the
-GitHub-hosted runner can reach the database directly — this is a real gate,
-not an informational job. As of Task 11 the linter reports `ERROR=0, WARN=1,
-INFO=17`; the one remaining warning is a `duplicate_index` on `sizes`
-(`sizes_slug_key`) that is permanent by design because
-`product_variants_size_slug_fkey` is backed by it — do not chase it.
+GitHub-hosted runner can reach the database directly — once the secret is
+set, this is a real gate, not an informational job. As of Task 11 the linter
+reports `ERROR=0, WARN=1, INFO=17`; the one remaining warning is a
+`duplicate_index` on `sizes` (`sizes_slug_key`) that is permanent by design
+because `product_variants_size_slug_fkey` is backed by it — do not chase it.
+A scoped read-only role is sufficient for `POSTGRES_URL_NON_POOLING` in CI:
+`CONNECT` on the database, `USAGE` on `public` and `storage`, and `SELECT` on
+`storage.buckets` lets the linter read every catalog it needs (`pg_class`,
+`pg_policies`, `pg_proc`, `pg_default_acl`, `pg_stat_user_indexes`,
+`pg_extension`) while reading zero application tables — much safer to hand
+to CI than the full `postgres` connection string, since anyone who can edit
+a workflow file can read whatever secret is wired into it. The one gap: RLS
+hides all rows from that role in `storage.buckets`, so the public-bucket
+check will false-negative under it.
 
 Every new table must be assigned a tier in its migration:
 

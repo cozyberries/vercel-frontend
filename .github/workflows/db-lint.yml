@@ -41,7 +41,24 @@ jobs:
       - name: Install psql
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
+      - name: Check whether the guard can run
+        id: guard
+        env:
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          if [ -n "$POSTGRES_URL_NON_POOLING" ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run the Supabase linter
+        if: steps.guard.outputs.active == 'true'
         env:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: node scripts/db-lint.mjs
+
+      - name: Warn that the guard is inactive
+        if: steps.guard.outputs.active != 'true'
+        run: |
+          echo "::warning::Database lint guard is INACTIVE: POSTGRES_URL_NON_POOLING is not configured as a repository secret. This job is passing without checking anything. Add POSTGRES_URL_NON_POOLING (a read-only Postgres connection string) as a repo secret to make this guard enforce."
