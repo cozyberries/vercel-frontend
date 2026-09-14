@@ -166,6 +166,20 @@ describe("FilterSheet design and colour groups", () => {
       expect(within(sheet).getByRole("button", { name: "Girl" })).toBeDisabled();
     });
 
+    it("counts the pending choices live on the Show button, with a singular for one", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn(), ...withProducts });
+      expect(within(sheet).getByRole("button", { name: "Show 2 items" })).toBeInTheDocument();
+      fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+      expect(within(sheet).getByRole("button", { name: "Show 1 item" })).toBeInTheDocument();
+      fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+      expect(within(sheet).getByRole("button", { name: "Show 2 items" })).toBeInTheDocument();
+    });
+
+    it("falls back to the applied item count when no catalogue is provided", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn(), itemCount: 12 });
+      expect(within(sheet).getByRole("button", { name: "Show 12 items" })).toBeInTheDocument();
+    });
+
     it("disables nothing when no catalogue is provided", () => {
       const sheet = openSheet({ onApplyFilters: vi.fn() });
       for (const name of ["Girl", "3-6 Years", "Petal Pops", "White"]) {

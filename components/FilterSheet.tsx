@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import type { ColourOption, DesignOption } from "@/lib/catalog/colours";
 import { facetCounts, isOptionAvailable } from "@/lib/catalog/facets";
+import { applyFilters } from "@/lib/catalog/filter";
 import type { Filters, ListCard } from "@/lib/catalog/types";
 
 interface Option {
@@ -131,6 +132,16 @@ export default function FilterSheet({
       },
     );
   }, [products, baseFilters, pendingGender, pendingAge, pendingDesign, pendingColour, genderOptions, ageOptions, designOptions, colourOptions]);
+
+  // The button shows how many products the pending choices would leave, not the applied count.
+  const pendingCount = useMemo(() => {
+    if (!products || products.length === 0 || !baseFilters) return itemCount;
+    return applyFilters(
+      products,
+      { ...baseFilters, gender: pendingGender, age: pendingAge, design: pendingDesign, colour: pendingColour },
+      null,
+    ).length;
+  }, [products, baseFilters, itemCount, pendingGender, pendingAge, pendingDesign, pendingColour]);
 
   const hasPending =
     pendingGender !== "all" ||
@@ -304,7 +315,7 @@ export default function FilterSheet({
               onClick={handleApplyFilters}
               className="ml-auto flex-1 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white h-12"
             >
-              Show {itemCount} items
+              Show {pendingCount} item{pendingCount === 1 ? "" : "s"}
             </Button>
           </div>
         </div>

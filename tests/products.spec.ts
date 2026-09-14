@@ -170,7 +170,7 @@ test.describe("Products Page", () => {
     await page.getByRole("button", { name: "Filters", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Filters" });
     await sheet.getByRole("button", { name, exact: true }).click();
-    await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
+    await sheet.getByRole("button", { name: /^Show \d+ items?$/ }).click();
 
     await expect(page).toHaveURL(new RegExp(`[?&]design=${slug}(&|$)`));
     await waitForProductsToLoad(page);
@@ -197,7 +197,7 @@ test.describe("Products Page", () => {
       await page.getByRole("button", { name: "Filters", exact: true }).click();
       const sheet = page.getByRole("dialog", { name: "Filters" });
       await pick(sheet);
-      await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
+      await sheet.getByRole("button", { name: /^Show \d+ items?$/ }).click();
       await expect(sheet).toBeHidden();
       await waitForProductsToLoad(page);
     }
@@ -297,6 +297,8 @@ test.describe("Products Page", () => {
       await sheet.getByRole("button", { name, exact: true }).click();
       for (const label of dead) await expect(sheet.getByRole("button", { name: label, exact: true })).toBeDisabled();
       for (const label of alive) await expect(sheet.getByRole("button", { name: label, exact: true })).toBeEnabled();
+      // The Show button counts the pending choice live, before anything is applied.
+      await expect(sheet.getByRole("button", { name: `Show ${withColour.length} item${withColour.length === 1 ? "" : "s"}`, exact: true })).toBeVisible();
       // The chosen colour itself stays enabled so it can be deselected; deselecting re-enables the rest.
       await expect(sheet.getByRole("button", { name, exact: true })).toBeEnabled();
       await sheet.getByRole("button", { name, exact: true }).click();
@@ -311,7 +313,7 @@ test.describe("Products Page", () => {
       await expect(boy).toHaveAttribute("aria-pressed", "true");
       await boy.click();
       await expect(boy).toHaveAttribute("aria-pressed", "false");
-      await sheet.getByRole("button", { name: /^Show \d+ items$/ }).click();
+      await sheet.getByRole("button", { name: /^Show \d+ items?$/ }).click();
       await expect(page).not.toHaveURL(/[?&]gender=/);
     });
 
