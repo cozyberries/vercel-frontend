@@ -3,7 +3,14 @@
 
 import type { ProductDoc, ProductVariantDoc } from "@/lib/catalog/types";
 import { COLUMN_COUNT, COLUMNS, columnIndex, mandatoryColumns } from "./columns";
-import { BRAND_SIZE, IDEAL_FOR, PRIMARY_COLOR, SLEEVE_LENGTH } from "./enums";
+import {
+  BRAND_SIZE,
+  IDEAL_FOR,
+  NUMBER_OF_APPAREL_COMBO,
+  PATTERN_PRINT_TYPE,
+  PRIMARY_COLOR,
+  SLEEVE_LENGTH,
+} from "./enums";
 import { CONFIG, PLACEHOLDER, type FlipkartConfig } from "./config";
 
 /** Flipkart separates multiple values in one cell with a double colon. */
@@ -11,6 +18,22 @@ export const MULTI = "::";
 
 const MAX_SKU_LENGTH = 64;
 const FORBIDDEN = /[\t\n\r]/;
+
+/**
+ * Dropdown-backed columns that can end up blank because the mapping missed, as
+ * opposed to free-text columns that just carry whatever the config/catalog gives
+ * them. Mandatory ones here already surface through `blanks`; the rest are what
+ * `unmappedOptional` reports, so a missed optional dropdown never blanks silently.
+ */
+const DROPDOWN_COLUMNS = [
+  "Brand Size",
+  "Label Size",
+  "Ideal For",
+  "Primary Color",
+  "Sleeve Length",
+  "Pattern/Print Type",
+  "Number of Apparel Combo",
+];
 
 export class MappingError extends Error {
   constructor(message: string) {
@@ -30,6 +53,8 @@ export interface MappedRow {
   cells: string[];
   /** Mandatory columns left empty because no value could be justified. */
   blanks: string[];
+  /** Optional dropdown-backed columns left empty because no value could be justified. */
+  unmappedOptional: string[];
 }
 
 export type MappingResult =
@@ -41,9 +66,18 @@ function fromEnum(value: string | undefined, allowed: readonly string[]): string
   return value && allowed.includes(value) ? value : "";
 }
 
-function sleeveLength(slug: string, config: FlipkartConfig): string {
+/**
+ * Same idea as `fromEnum` for a multi-valued cell: any value outside the vocabulary
+ * is dropped rather than guessed, so a bad config entry blanks instead of shipping
+ * a plausible-but-wrong print type.
+ */
+function fromEnumMulti(values: readonly string[], allowed: readonly string[]): string {
+  return values.filter((v) => allowed.includes(v)).join(MULTI);
+}
+
+function sleeveLengthValue(slug: string, config: FlipkartConfig): string {
   const hit = config.sleeveLengthTokens.find(([token]) => slug.includes(token));
-  return fromEnum(hit ? hit[1] : config.defaultSleeveLength, SLEEVE_LENGTH);
+  return hit ? hit[1] : config.defaultSleeveLength;
 }
 
 function mapVariant(
@@ -57,8 +91,6 @@ function mapVariant(
   const set = (name: string, value: string | number) => {
     cells[columnIndex(name)] = String(value);
   };
-  // A config value still holding the marker is not a real value.
-  const real = (value: string) => (value === PLACEHOLDER ? "" : value);
 
   set("Seller SKU ID", variant.slug);
   set("Group ID", product.slug);
@@ -79,11 +111,11 @@ function mapVariant(
   set("Weight (KG)", config.weightKg);
   set("HSN", config.hsn);
   set("Country Of Origin", config.countryOfOrigin);
-  set("Manufacturer Details", real(config.manufacturerDetails));
-  set("Packer Details", real(config.packerDetails));
+  set("Manufacturer Details", config.manufacturerDetails);
+  set("Packer Details", config.packerDetails);
   set("Tax Code", config.taxCode);
   set("Minimum Order Quantity (MinOQ)", config.minimumOrderQuantity);
-  set("Brand", real(config.brand));
+  set("Brand", config.brand);
 
   const brandSize = fromEnum(config.sizeMap[variant.size_slug ?? ""], BRAND_SIZE);
   set("Brand Size", brandSize);
@@ -106,16 +138,28 @@ function mapVariant(
   set("Other Image URL 3", existing.images[3] ?? "");
 
   set("Character", config.character);
-  set("Number of Apparel Combo", config.numberOfApparelCombo);
-  set("Pattern/Print Type", config.pattern.join(MULTI));
+  set(
+    "Number of Apparel Combo",
+    fromEnum(String(config.numberOfApparelCombo), NUMBER_OF_APPAREL_COMBO),
+  );
+  set("Pattern/Print Type", fromEnumMulti(config.patternPrintType, PATTERN_PRINT_TYPE));
   set("Suitable for Gifting", config.suitableForGifting);
   set("Model Name", variant.color ?? "");
   set("Net Quantity", category.itemsIncluded.length);
   set("Description", product.description ?? "");
   set("Search Keywords", [product.name, product.category, variant.color].filter(Boolean).join(MULTI));
   set("Key Features", (product.features ?? []).join(MULTI));
-  set("Sleeve Length", sleeveLength(product.slug, config));
+  set("Sleeve Length", fromEnum(sleeveLengthValue(product.slug, config), SLEEVE_LENGTH));
   set("Ornamentation Type", config.ornamentationType.join(MULTI));
+
+  // A config value still holding the placeholder marker is not a real value, no matter
+  // which field it came from. Scrubbing every cell generically (instead of guarding each
+  // `set()` call site individually) means a future config field that defaults to
+  // PLACEHOLDER can't leak the literal into an exported cell just because nobody
+  // remembered to wrap that one call site.
+  for (let i = 0; i < cells.length; i++) {
+    if (cells[i] === PLACEHOLDER) cells[i] = "";
+  }
 
   if (variant.slug.length > MAX_SKU_LENGTH) {
     throw new MappingError(
@@ -129,11 +173,17 @@ function mapVariant(
     );
   }
 
-  const blanks = mandatoryColumns()
+  const mandatoryColumnList = mandatoryColumns();
+  const blanks = mandatoryColumnList
     .filter((col) => cells[col.index] === "")
     .map((col) => col.name);
 
-  return { cells, blanks };
+  const mandatoryNames = new Set(mandatoryColumnList.map((col) => col.name));
+  const unmappedOptional = DROPDOWN_COLUMNS.filter(
+    (name) => !mandatoryNames.has(name) && cells[columnIndex(name)] === "",
+  );
+
+  return { cells, blanks, unmappedOptional };
 }
 
 function columnName(index: number): string {

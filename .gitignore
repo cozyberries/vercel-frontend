@@ -40,6 +40,10 @@ next-env.d.ts
 public/sw.js
 public/sw.js.map
 
+# Flipkart bulk-listing template (downloaded from Seller Hub — see
+# scripts/flipkart-export.mjs for where to get a fresh copy)
+C_kids-apparel-combo_*.xls
+
 # Generated Flipkart upload rows
 exports/flipkart/
 

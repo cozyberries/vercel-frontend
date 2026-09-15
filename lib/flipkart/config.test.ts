@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { CONFIG, PLACEHOLDER, placeholderFields } from "./config";
 import {
   CHARACTER, FABRIC, FABRIC_CARE, IDEAL_FOR, OCCASION, ORNAMENTATION_TYPE, PATTERN,
-  PRIMARY_COLOR, PRIMARY_PRODUCT_TYPE, SECONDARY_PRODUCT_TYPE, SLEEVE_LENGTH,
-  BRAND_SIZE, TAX_CODE,
+  PATTERN_PRINT_TYPE, PRIMARY_COLOR, PRIMARY_PRODUCT_TYPE, SECONDARY_PRODUCT_TYPE,
+  SLEEVE_LENGTH, BRAND_SIZE, TAX_CODE,
 } from "./enums";
 
 describe("CONFIG", () => {
@@ -22,6 +22,13 @@ describe("CONFIG", () => {
     CONFIG.pattern.forEach((v) => expect(PATTERN).toContain(v));
     CONFIG.fabricCare.forEach((v) => expect(FABRIC_CARE).toContain(v));
     CONFIG.ornamentationType.forEach((v) => expect(ORNAMENTATION_TYPE).toContain(v));
+    CONFIG.patternPrintType.forEach((v) => expect(PATTERN_PRINT_TYPE).toContain(v));
+  });
+
+  it("leaves Pattern/Print Type empty rather than guessing a single print for every product", () => {
+    // Vacuously true while patternPrintType is [], but locks the guard in: if someone
+    // adds a value later, it still has to be a legal PATTERN_PRINT_TYPE member.
+    expect(CONFIG.patternPrintType).toEqual([]);
   });
 
   it("maps every catalog size to a legal Brand Size", () => {

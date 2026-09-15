@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { COLUMNS, COLUMN_COUNT, columnIndex, mandatoryColumns } from "./columns";
-import { BRAND_SIZE, PRIMARY_COLOR, TAX_CODE } from "./enums";
+import {
+  BRAND_SIZE, CHARACTER, DETAIL_PLACEMENT, NUMBER_OF_APPAREL_COMBO, PATTERN_PRINT_TYPE,
+  PRIMARY_COLOR, SECONDARY_COLOR, TAX_CODE,
+} from "./enums";
 
 describe("COLUMNS", () => {
   it("has exactly 69 columns in template order", () => {
@@ -65,5 +68,36 @@ describe("enums", () => {
 
   it("offers the apparel tax code", () => {
     expect(TAX_CODE).toContain("GST_APPAREL");
+  });
+
+  it("has all 41 template Character values, including Flipkart's own spellings", () => {
+    expect(CHARACTER).toHaveLength(41);
+    expect(CHARACTER).toContain("Minnions");
+    expect(CHARACTER).toContain("Looney Toons");
+    expect(CHARACTER).toContain("NA");
+    expect(CHARACTER).toContain("No Character");
+  });
+
+  it("has the 16 Pattern/Print Type values, distinct from Pattern's vocabulary", () => {
+    expect(PATTERN_PRINT_TYPE).toHaveLength(16);
+    // "Printed" is a legal Pattern value (column 38) but not a legal Pattern/Print
+    // Type value (column 53) — the two dropdowns were conflated once already.
+    expect(PATTERN_PRINT_TYPE).not.toContain("Printed");
+    expect(PATTERN_PRINT_TYPE).toContain("Floral Print");
+  });
+
+  it("has the 10 Number of Apparel Combo values in the sheet's own order", () => {
+    expect(NUMBER_OF_APPAREL_COMBO).toEqual(["1", "10", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  });
+
+  it("has the 8 Detail Placement values", () => {
+    expect(DETAIL_PLACEMENT).toEqual([
+      "All - Over", "Back", "Front Panel", "Hemline", "Neckline", "Sleeve", "Slits", "Yoke",
+    ]);
+  });
+
+  it("shares its 20 values with Primary Color for Secondary Color", () => {
+    expect(SECONDARY_COLOR).toEqual(PRIMARY_COLOR);
+    expect(SECONDARY_COLOR).toHaveLength(20);
   });
 });

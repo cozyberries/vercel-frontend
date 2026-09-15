@@ -17,6 +17,9 @@ import {
   TAX_CODE,
 } from "./enums";
 
+// PATTERN_PRINT_TYPE itself isn't imported here — config.ts only declares the shape;
+// config.test.ts is what checks CONFIG.patternPrintType against it.
+
 /** Marks a value that must be replaced with a real one before upload. */
 export const PLACEHOLDER = "<<PLACEHOLDER>>";
 
@@ -49,6 +52,8 @@ export interface FlipkartConfig {
   minimumOrderQuantity: number;
   fabric: string[];
   pattern: string[];
+  /** Column 53 dropdown — separate vocabulary from `pattern` (column 38). */
+  patternPrintType: string[];
   occasion: string;
   fabricCare: string[];
   ornamentationType: string[];
@@ -90,6 +95,11 @@ export const CONFIG: FlipkartConfig = {
   minimumOrderQuantity: 1,
   fabric: ["Muslin"],
   pattern: ["Printed"],
+  // Deliberately empty, not an oversight: our prints aren't uniformly one print type
+  // (Petal Pops and Lilac Blossom are floral; Moons and Stars and Rocket Rangers are
+  // not), so any single default here would be a guess. Blank is correct — and
+  // reported as such — until someone maps Pattern/Print Type per print.
+  patternPrintType: [],
   occasion: "Casual",
   fabricCare: ["Gentle Machine Wash", "Do not bleach", "Dry in shade", "Wash with like colors"],
   ornamentationType: ["None"],

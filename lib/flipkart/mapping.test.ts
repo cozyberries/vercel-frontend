@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { columnIndex, COLUMN_COUNT, mandatoryColumns } from "./columns";
-import { BRAND_SIZE, PRIMARY_COLOR } from "./enums";
-import { CONFIG } from "./config";
+import { BRAND_SIZE, NUMBER_OF_APPAREL_COMBO, PATTERN_PRINT_TYPE, PRIMARY_COLOR } from "./enums";
+import { CONFIG, PLACEHOLDER } from "./config";
 import { mapProduct, MappingError, MULTI } from "./mapping";
 import { comboProduct, existingRow, singleGarmentProduct } from "./__fixtures__/catalog-products";
 
@@ -146,5 +146,69 @@ describe("mapProduct", () => {
     if (result.status !== "mapped") throw new Error("expected mapped");
     expect(result.rows[0].cells[columnIndex("Manufacturer Details")]).toBe("");
     expect(result.rows[0].blanks).toEqual(["Manufacturer Details", "Packer Details"]);
+  });
+
+  it("scrubs a placeholder leaking from any field, not just the three call sites once wrapped by hand", () => {
+    // Regression for the old real() helper, which only guarded manufacturerDetails,
+    // packerDetails and brand. HSN never went through it, so a placeholder there
+    // used to leak the literal "<<PLACEHOLDER>>" straight into the exported cell.
+    const leaky = { ...filledConfig, hsn: PLACEHOLDER };
+    const result = mapProduct(comboProduct, existingRow, leaky);
+    if (result.status !== "mapped") throw new Error("expected mapped");
+    expect(cell(result.rows[0], "HSN")).toBe("");
+    expect(result.rows[0].blanks).toContain("HSN");
+  });
+
+  describe("Pattern/Print Type (column 53, separate from Pattern)", () => {
+    it("is blank by default because CONFIG.patternPrintType is deliberately []", () => {
+      const result = mapProduct(comboProduct, existingRow, filledConfig);
+      if (result.status !== "mapped") throw new Error("expected mapped");
+      expect(cell(result.rows[0], "Pattern/Print Type")).toBe("");
+      expect(result.rows[0].unmappedOptional).toContain("Pattern/Print Type");
+    });
+
+    it("never writes 'Printed' (a Pattern value) or any other value outside PATTERN_PRINT_TYPE", () => {
+      // "Printed" is legal for column 38 (Pattern) but not for column 53. Before the
+      // fix, mapping.ts set Pattern/Print Type from config.pattern.join(MULTI), which
+      // put "Printed" here on every row — an illegal value that still passes QC.
+      const misconfigured = { ...filledConfig, patternPrintType: ["Printed", "Floral Print"] };
+      const result = mapProduct(comboProduct, existingRow, misconfigured);
+      if (result.status !== "mapped") throw new Error("expected mapped");
+      for (const row of result.rows) {
+        const value = cell(row, "Pattern/Print Type");
+        expect(value).not.toBe("Printed");
+        for (const v of value.split(MULTI).filter(Boolean)) {
+          expect(PATTERN_PRINT_TYPE).toContain(v);
+        }
+      }
+      expect(cell(result.rows[0], "Pattern/Print Type")).toBe("Floral Print");
+    });
+
+    it("passes through every legal value configured", () => {
+      const withPrintType = { ...filledConfig, patternPrintType: ["Floral Print", "Solid"] };
+      const result = mapProduct(comboProduct, existingRow, withPrintType);
+      if (result.status !== "mapped") throw new Error("expected mapped");
+      expect(cell(result.rows[0], "Pattern/Print Type")).toBe(`Floral Print${MULTI}Solid`);
+      expect(result.rows[0].unmappedOptional).not.toContain("Pattern/Print Type");
+    });
+  });
+
+  it("routes Number of Apparel Combo through enum validation instead of trusting the config number", () => {
+    const bad = { ...filledConfig, numberOfApparelCombo: 99 };
+    const result = mapProduct(comboProduct, existingRow, bad);
+    if (result.status !== "mapped") throw new Error("expected mapped");
+    expect(cell(result.rows[0], "Number of Apparel Combo")).toBe("");
+    expect(result.rows[0].unmappedOptional).toContain("Number of Apparel Combo");
+    expect(NUMBER_OF_APPAREL_COMBO).toContain(String(filledConfig.numberOfApparelCombo));
+  });
+
+  it("reports a blanked optional dropdown column via unmappedOptional instead of blanking silently", () => {
+    const badSleeve = { ...filledConfig, defaultSleeveLength: "Not A Real Sleeve Length" };
+    const result = mapProduct(comboProduct, existingRow, badSleeve);
+    if (result.status !== "mapped") throw new Error("expected mapped");
+    expect(cell(result.rows[0], "Sleeve Length")).toBe("");
+    expect(result.rows[0].unmappedOptional).toContain("Sleeve Length");
+    // unmappedOptional never duplicates what `blanks` already reports.
+    expect(result.rows[0].blanks).not.toContain("Sleeve Length");
   });
 });

@@ -94,4 +94,32 @@ export const TAX_CODE = [
   "GST_Old_28_New_5", "GST_Old_5_New_0", "GST_Old_5_New_18",
 ] as const satisfies readonly string[];
 
-export const CHARACTER = ["NA", "No Character"] as const satisfies readonly string[];
+export const CHARACTER = [
+  "Angry Birds", "Avengers", "Barbie", "Batman", "Ben 10", "Captain America", "Chhota Bheem",
+  "Daisy", "Dinosaur", "Disney Princess", "Donald", "Dora", "Doraemon", "Frozen", "Garfield",
+  "Goofy", "Hello Kitty", "Hulk", "Iron Man", "Jungle Book", "Kung Fu Panda", "Looney Toons",
+  "Mickey", "Minnie", "Minnions", "Motu Patlu", "NA", "Ninja Hattori", "No Character",
+  "Peppa Pig", "Pluto", "Pokemon", "Spiderman", "Sponge Bob", "Steffi Love", "Superman",
+  "Tom & Jerry", "Transformers", "Tweety", "WWE", "Winnie the Pooh",
+  // "Minnions" and "Looney Toons" are Flipkart's own spellings — preserve them verbatim.
+] as const satisfies readonly string[];
+
+// A separate 16-value dropdown from `Pattern` (column 38). Conflating the two would
+// pass Flipkart QC while writing a value the dropdown doesn't actually offer.
+export const PATTERN_PRINT_TYPE = [
+  "Animal Print", "Applique", "Argyle", "Characters", "Checkered", "Chevron", "Floral Print",
+  "Geometric Print", "Graphic Print", "Herringbone", "Houndstooth", "Paisley", "Polka Print",
+  "Solid", "Striped", "Woven Design",
+] as const satisfies readonly string[];
+
+// Sheet order, not numeric order — this is how Flipkart's own dropdown lists it.
+export const NUMBER_OF_APPAREL_COMBO = [
+  "1", "10", "2", "3", "4", "5", "6", "7", "8", "9",
+] as const satisfies readonly string[];
+
+export const DETAIL_PLACEMENT = [
+  "All - Over", "Back", "Front Panel", "Hemline", "Neckline", "Sleeve", "Slits", "Yoke",
+] as const satisfies readonly string[];
+
+/** Same 20 values as Primary Color — Flipkart backs both columns with one vocabulary. */
+export const SECONDARY_COLOR = PRIMARY_COLOR;
