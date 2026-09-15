@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CONFIG, PLACEHOLDER, placeholderFields } from "./config";
 import {
-  FABRIC, FABRIC_CARE, IDEAL_FOR, OCCASION, ORNAMENTATION_TYPE, PATTERN,
+  CHARACTER, FABRIC, FABRIC_CARE, IDEAL_FOR, OCCASION, ORNAMENTATION_TYPE, PATTERN,
   PRIMARY_COLOR, PRIMARY_PRODUCT_TYPE, SECONDARY_PRODUCT_TYPE, SLEEVE_LENGTH,
   BRAND_SIZE, TAX_CODE,
 } from "./enums";
@@ -17,6 +17,7 @@ describe("CONFIG", () => {
   it("uses only legal dropdown values", () => {
     expect(TAX_CODE).toContain(CONFIG.taxCode);
     expect(OCCASION).toContain(CONFIG.occasion);
+    expect(CHARACTER).toContain(CONFIG.character);
     CONFIG.fabric.forEach((v) => expect(FABRIC).toContain(v));
     CONFIG.pattern.forEach((v) => expect(PATTERN).toContain(v));
     CONFIG.fabricCare.forEach((v) => expect(FABRIC_CARE).toContain(v));
