@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { COLUMNS, COLUMN_COUNT, columnIndex, mandatoryColumns } from "./columns";
+import {
+  COLUMNS,
+  COLUMN_COUNT,
+  columnIndex,
+  layoutForTemplate,
+  mandatoryColumns,
+  valuesByName,
+} from "./columns";
 import {
   BRAND_SIZE, CHARACTER, DETAIL_PLACEMENT, NUMBER_OF_APPAREL_COMBO, PATTERN_PRINT_TYPE,
   PRIMARY_COLOR, SECONDARY_COLOR, TAX_CODE,
@@ -99,5 +106,45 @@ describe("enums", () => {
   it("shares its 20 values with Primary Color for Secondary Color", () => {
     expect(SECONDARY_COLOR).toEqual(PRIMARY_COLOR);
     expect(SECONDARY_COLOR).toHaveLength(20);
+  });
+});
+
+describe("layoutForTemplate", () => {
+  // The 15 Sep template: "Parent Variant FSN" inserted at 8, blank pushed to 9,
+  // everything after shifted one right versus the 13 Sep download.
+  const NEW_HEADER = [
+    ...COLUMNS.slice(0, 8).map((c) => c.name),
+    "Parent Variant FSN",
+    "",
+    ...COLUMNS.slice(9).map((c) => c.name),
+  ];
+
+  const cells = COLUMNS.map((c) => c.name || "");
+
+  it("places every value under its own header, whatever the index", () => {
+    const row = layoutForTemplate(cells, NEW_HEADER);
+    expect(row).toHaveLength(NEW_HEADER.length);
+    NEW_HEADER.forEach((name, i) => {
+      if (name && name !== "Parent Variant FSN") expect(row[i]).toBe(name);
+    });
+  });
+
+  it("leaves unknown and blank columns empty rather than guessing", () => {
+    const row = layoutForTemplate(cells, NEW_HEADER);
+    expect(row[NEW_HEADER.indexOf("Parent Variant FSN")]).toBe("");
+    expect(row[9]).toBe("");
+  });
+
+  it("survives a reissue that moves Listing Status again", () => {
+    const shifted = ["", ...NEW_HEADER];
+    const row = layoutForTemplate(cells, shifted);
+    expect(row[shifted.indexOf("Listing Status")]).toBe("Listing Status");
+    expect(row[shifted.indexOf("MRP (INR)")]).toBe("MRP (INR)");
+  });
+
+  it("keys our values by name, skipping the unnamed column", () => {
+    const byName = valuesByName(cells);
+    expect(byName.get("Seller SKU ID")).toBe("Seller SKU ID");
+    expect(byName.size).toBe(COLUMN_COUNT - 1); // the one blank has no name
   });
 });

@@ -33,7 +33,9 @@
     "test:e2e:prod": "PLAYWRIGHT_TEST_BASE_URL=https://cozyberries.in playwright test tests/catalog.spec.ts tests/pages-coverage.spec.ts tests/homepage-and-pages.spec.ts --project=chromium",
     "db:lint": "node scripts/db-lint.mjs",
     "db:probe": "node scripts/db-probe.mjs",
-    "flipkart:export": "tsx scripts/flipkart-export.mjs"
+    "flipkart:export": "tsx scripts/flipkart-export.mjs",
+    "flipkart:validate": "tsx scripts/flipkart-validate.mjs",
+    "flipkart:write": "tsx scripts/flipkart-write-xls.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

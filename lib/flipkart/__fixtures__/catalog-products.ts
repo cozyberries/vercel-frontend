@@ -36,7 +36,14 @@ export const comboProduct = {
   categories: { name: "Boys Coord Sets", slug: "boys-coord-sets" },
   genders: { name: "Boy", slug: "boy" },
   category: "Boys Coord Sets",
-  images: ["https://cdn.example/1.jpg"],
+  // Five, so tests can prove the mapping takes only the first four.
+  images: [
+    "https://cdn.example/1.jpg",
+    "https://cdn.example/2.jpg",
+    "https://cdn.example/3.jpg",
+    "https://cdn.example/4.jpg",
+    "https://cdn.example/5.jpg",
+  ],
   care_instructions: "",
   features: ["Lightweight muslin fabric", "Charming prints"],
   variants: [variant("6-12m", "6-12M", 839, 10), variant("1-2y", "1-2Y", 839, 15)],

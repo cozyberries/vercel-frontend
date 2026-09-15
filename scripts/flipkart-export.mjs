@@ -2,9 +2,10 @@
 // Generate Flipkart bulk-listing rows from the live catalog. Usage:
 //   npm run flipkart:export -- --slug=coords-set-chinese-collar-soft-pear
 //   npm run flipkart:export -- --all
-// Writes a TSV to paste into the template (row 5 onward) plus a report of
-// everything a human still has to resolve. Never rewrites the .xls, because
-// that would destroy its dropdowns and Flipkart's CTRL+SHIFT+S validate macro.
+// Writes a TSV to paste into the template at cell G5 (columns A-F are locked,
+// Flipkart fills them) plus a report of everything a human still has to
+// resolve. Never rewrites the .xls, because that would destroy its
+// data-validation dropdowns and its colour-coded headers.
 //
 // The template itself (default: C_kids-apparel-combo_*.xls, gitignored) is
 // downloaded from Flipkart Seller Hub -> Listings -> Bulk Upload -> the
@@ -17,7 +18,7 @@ import { fileURLToPath } from "node:url";
 // CJS interop (cjs-module-lexer doesn't statically see them) — default import
 // gets the whole CommonJS module.exports object instead.
 import XLSX from "xlsx";
-import { COLUMN_COUNT, COLUMNS, columnIndex } from "../lib/flipkart/columns.ts";
+import { COLUMN_COUNT, COLUMNS, columnIndex, FIRST_SELLER_COLUMN } from "../lib/flipkart/columns.ts";
 import { CONFIG, placeholderFields } from "../lib/flipkart/config.ts";
 import { mapProduct, MappingError } from "../lib/flipkart/mapping.ts";
 
@@ -37,6 +38,9 @@ const TEMPLATE = args.template ?? DEFAULT_TEMPLATE;
 const TEMPLATE_PATH = path.resolve(REPO_ROOT, TEMPLATE);
 const SHEET = "kids_apparel_combo";
 const FIRST_DATA_ROW = 4;
+/** First seller-editable column: "Seller SKU ID", spreadsheet column G. */
+const PASTE_FROM_INDEX = FIRST_SELLER_COLUMN;
+const PASTE_FROM_CELL = `${String.fromCharCode(65 + PASTE_FROM_INDEX)}5`;
 const BASE = (args.url ?? "https://cozyberries.in").replace(/\/$/, "");
 const OUT_DIR = "exports/flipkart";
 
@@ -129,8 +133,19 @@ export function buildReport({
   judgementCalls,
   skipped,
   orphans,
+  noTemplateRow = [],
+  unmappedPrints = [],
+  pasteCell = "G5",
+  columnCount = 63,
 }) {
   const placeholders = placeholderFields(config);
+  // Fields filled in so no cell ships blank, but carrying an invented value the
+  // EDIT_ME marker flags. These still block upload — a wrong manufacturer
+  // address is a false legal declaration, not a cosmetic gap.
+  const editMe = Object.entries(config)
+    .filter(([, v]) => typeof v === "string" && v.includes("EDIT_ME"))
+    .map(([k]) => k);
+  const blocking = placeholders.length || editMe.length || blanks.size;
   return [
     "# Flipkart export report",
     "",
@@ -139,14 +154,27 @@ export function buildReport({
     "",
     "## Paste instructions",
     "",
-    `Open \`${template}\`, go to sheet \`${sheet}\`, click cell A5, paste the TSV,`,
-    "then press CTRL+SHIFT+S to run Flipkart's own validation.",
+    "Do not paste this by hand. Run:",
+    "",
+    "    npm run flipkart:validate   # checks vocabulary, grouping, widths",
+    "    npm run flipkart:write      # fills the template and writes the upload file",
+    "",
+    "and upload `exports/flipkart/kids-apparel-combo-upload.xls`.",
+    "",
+    `Pasting the ${columnCount} columns manually at ${pasteCell} is what failed QC on the first`,
+    "attempt: every value landed one column right of where it belonged, so ACTIVE sat in",
+    "MRP and the HSN in Luxury Cess. Writing the cells by index cannot drift that way.",
+    "",
+    "There is no CTRL+SHIFT+S macro to run — this template ships no VBA at all.",
     "",
     "## Must be fixed before upload",
     "",
-    ...(placeholders.length || blanks.size
+    ...(blocking
       ? [
           ...placeholders.map((f) => `- config \`${f}\` is still a placeholder`),
+          ...editMe.map(
+            (f) => `- config \`${f}\` still contains EDIT_ME — the value is invented, replace it`,
+          ),
           ...[...blanks].map(([name, n]) => `- mandatory column \`${name}\` is blank on ${n} row(s)`),
         ]
       : ["- none"]),
@@ -177,19 +205,45 @@ export function buildReport({
     "dimensions or weight cost money on every shipment; a brand string that doesn't",
     "match what's approved on Seller Hub fails QC on every row.",
     "",
-    `- Length (CM): ${config.lengthCm}`,
-    `- Breadth (CM): ${config.breadthCm}`,
-    `- Height (CM): ${config.heightCm}`,
-    `- Weight (KG): ${config.weightKg}`,
+    `- Default package: ${config.lengthCm} x ${config.breadthCm} x ${config.heightCm} cm @ ${config.weightKg} kg`,
+    ...Object.entries(config.comboCategories)
+      .filter(([, c]) => c.lengthCm ?? c.breadthCm ?? c.heightCm ?? c.weightKg)
+      .map(
+        ([slug, c]) =>
+          `- ${slug} overrides it: ${c.lengthCm ?? config.lengthCm} x ${c.breadthCm ?? config.breadthCm} x ${c.heightCm ?? config.heightCm} cm @ ${c.weightKg ?? config.weightKg} kg`,
+      ),
     `- Brand: ${config.brand}`,
     "",
     "## Skipped",
     "",
     ...(skipped.length ? skipped.map((s) => `- ${s}`) : ["- none"]),
     "",
+    "## Prints with no mapped motif",
+    "",
+    "These fell back to the generic Pattern and left Pattern/Print Type blank,",
+    "because their names read like colours rather than motifs — they may be solids.",
+    "Add them to `printPatternMap` in lib/flipkart/config.ts once you know.",
+    "",
+    ...(unmappedPrints.length ? unmappedPrints.map((s) => `- ${s}`) : ["- none"]),
+    "",
+    "## Images",
+    "",
+    "Every image URL is one of our own originals (2000x2000 public JPEG), not the",
+    "flixcart URL the template shipped with — those are Flipkart's re-processed",
+    "copies, whose resolution and cropping we do not control. Flipkart accepts at",
+    "most 4 per listing and re-downloads them at QC, so the URLs must stay public.",
+    "",
+    "## Products with no row in the template",
+    "",
+    "Exported anyway — they no longer need a template row, since the images come",
+    "from our catalog. Listed only so the count is explainable.",
+    "",
+    ...(noTemplateRow.length ? noTemplateRow.map((s) => `- ${s}`) : ["- none"]),
+    "",
     "## Template rows with no catalog match",
     "",
-    "Renamed or junk. Resolve by hand — guessing would attach our data to the wrong images.",
+    "Renamed or junk. These are draft rows from an earlier snapshot; pasting over",
+    "row 5 onward replaces them. Resolve by hand if any should be kept.",
     "",
     ...(orphans.length ? orphans.map((s) => `- ${s}`) : ["- none"]),
     "",
@@ -201,7 +255,10 @@ async function main() {
   const catalog = await getJson(`${BASE}/api/catalog`);
   const bySlug = new Map(catalog.products.map((p) => [p.slug, p]));
 
-  const wanted = args.all
+  // --skus=a,b lets us re-export just the rows a previous upload left
+  // unprocessed, without touching the ones Flipkart already approved.
+  const onlySkus = args.skus ? new Set(args.skus.split(",").map((s) => s.trim())) : null;
+  const wanted = args.all || onlySkus
     ? [...bySlug.keys()]
     : [args.slug].filter(Boolean);
   if (wanted.length === 0) {
@@ -214,17 +271,18 @@ async function main() {
   const blanks = new Map();
   const unmappedOptional = new Map();
   const judgementCalls = new Map(); // "cream → Beige" -> Set<slug>
+  const noTemplateRow = [];
+  const unmappedPrintSet = new Set();
 
   for (const slug of wanted) {
     if (!bySlug.has(slug)) {
       skipped.push(`${slug} — not in the catalog`);
       continue;
     }
-    const existing = existingRows.get(slug);
-    if (!existing) {
-      skipped.push(`${slug} — no row in the template, so no Flipkart image URLs to carry forward`);
-      continue;
-    }
+    // A missing template row is no longer disqualifying: images come from our
+    // own originals, not from the row. Noted in the report, not skipped.
+    const existing = existingRows.get(slug) ?? null;
+    if (!existing) noTemplateRow.push(slug);
     const product = await getJson(`${BASE}/api/products/${slug}`).then((d) => d.product ?? d);
     const result = mapProduct(product, existing, CONFIG);
     if (result.status === "skipped") {
@@ -239,9 +297,16 @@ async function main() {
       judgementCalls.get(key).add(slug);
     }
 
+    for (const slug2 of product.color_slugs ?? []) {
+      if (!CONFIG.printPatternMap[slug2]) unmappedPrintSet.add(slug2);
+    }
     for (const row of result.rows) {
+      if (onlySkus && !onlySkus.has(row.cells[columnIndex("Seller SKU ID")])) continue;
       if (row.cells.length !== COLUMN_COUNT) throw new Error(`bad row width for ${slug}`);
-      tsvRows.push(row.cells.join("\t"));
+      // Our internal 69-column row, from Seller SKU ID onward. Placement into a
+      // real template happens by header NAME in flipkart-write-xls.mjs, because
+      // Flipkart reissues the template with columns inserted.
+      tsvRows.push(row.cells.slice(FIRST_SELLER_COLUMN).join("\t"));
       for (const name of row.blanks) blanks.set(name, (blanks.get(name) ?? 0) + 1);
       for (const name of row.unmappedOptional) {
         unmappedOptional.set(name, (unmappedOptional.get(name) ?? 0) + 1);
@@ -257,6 +322,7 @@ async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(path.join(OUT_DIR, "kids-apparel-combo.tsv"), tsvRows.join("\n") + "\n", "utf8");
 
+  const unmappedPrints = [...unmappedPrintSet].sort();
   const report = buildReport({
     generatedAt: new Date().toISOString(),
     base: BASE,
@@ -269,12 +335,17 @@ async function main() {
     judgementCalls,
     skipped,
     orphans,
+    noTemplateRow,
+    unmappedPrints,
+    pasteCell: PASTE_FROM_CELL,
+    columnCount: COLUMN_COUNT - FIRST_SELLER_COLUMN,
   });
   await writeFile(path.join(OUT_DIR, "report.md"), report, "utf8");
 
   console.log(`Wrote ${tsvRows.length} row(s) to ${OUT_DIR}/kids-apparel-combo.tsv`);
   console.log(`Report: ${OUT_DIR}/report.md`);
-  if (blanks.size || placeholderFields(CONFIG).length) {
+  const editMe = Object.values(CONFIG).some((v) => typeof v === "string" && v.includes("EDIT_ME"));
+  if (blanks.size || placeholderFields(CONFIG).length || editMe) {
     console.log("NOT upload-ready — see the report.");
     // A wrapper script must not be able to mistake this for a clean run.
     process.exitCode = 1;

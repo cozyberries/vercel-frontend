@@ -96,6 +96,41 @@ export function columnIndex(name: string): number {
   return index;
 }
 
+/** First seller-editable column: "Seller SKU ID", spreadsheet column G. */
+export const FIRST_SELLER_COLUMN = 6;
+
+/**
+ * Our values keyed by the template's own column NAME.
+ *
+ * Index-based placement failed four uploads running. Flipkart reissues the
+ * template with columns inserted — the download of 13 Sep has 69 columns with
+ * an unlabelled one at index 8, the download of 15 Sep has 70 with "Parent
+ * Variant FSN" at 8 and the blank pushed to 9 — so any index baked into this
+ * repo is correct only until the next reissue. Names are stable; positions are
+ * not. Everything that writes a sheet resolves position from the target
+ * template's header row at run time.
+ */
+export function valuesByName(cells: readonly string[]): Map<string, string> {
+  const byName = new Map<string, string>();
+  COLUMNS.forEach((col) => {
+    if (col.name) byName.set(col.name, cells[col.index] ?? "");
+  });
+  return byName;
+}
+
+/**
+ * Lay our values out for a specific template, given that template's header row.
+ * A column we have no value for — including ones this repo has never heard of,
+ * like "Parent Variant FSN" — is left empty rather than guessed at.
+ */
+export function layoutForTemplate(
+  cells: readonly string[],
+  targetHeader: readonly string[],
+): string[] {
+  const byName = valuesByName(cells);
+  return targetHeader.map((name) => byName.get(String(name).trim()) ?? "");
+}
+
 /** Mandatory columns the seller must fill — excludes the two Flipkart fills blue. */
 export function mandatoryColumns(): readonly ColumnSpec[] {
   return COLUMNS.filter((c) => c.obligation === "mandatory");

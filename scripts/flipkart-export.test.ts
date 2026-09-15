@@ -118,11 +118,30 @@ describe("buildReport", () => {
   it("always reports package dimensions, weight and brand as unverified", () => {
     const report = buildReport(base);
     expect(report).toContain("## Unverified config");
-    expect(report).toContain(`Length (CM): ${CONFIG.lengthCm}`);
-    expect(report).toContain(`Breadth (CM): ${CONFIG.breadthCm}`);
-    expect(report).toContain(`Height (CM): ${CONFIG.heightCm}`);
-    expect(report).toContain(`Weight (KG): ${CONFIG.weightKg}`);
+    expect(report).toContain(
+      `Default package: ${CONFIG.lengthCm} x ${CONFIG.breadthCm} x ${CONFIG.heightCm} cm @ ${CONFIG.weightKg} kg`,
+    );
     expect(report).toContain(`Brand: ${CONFIG.brand}`);
+  });
+
+  it("reports a category's package-size override alongside the default", () => {
+    const report = buildReport(base);
+    // Newborn kits are several garments in a taller box, not a flat two-piece bag.
+    expect(report).toContain("newborn-essentials overrides it: 30 x 20 x 5 cm @ 0.6 kg");
+  });
+
+  it("blocks upload while a config value still carries the EDIT_ME marker", () => {
+    // A filled-but-invented address is a false legal declaration, so a report
+    // that reads as upload-ready would be worse than a blank cell.
+    const invented = {
+      ...base,
+      config: { ...CONFIG, manufacturerDetails: "CozyBerries, EDIT_ME street, Bengaluru" },
+    };
+    expect(buildReport(invented)).toContain("manufacturerDetails` still contains EDIT_ME");
+  });
+
+  it("says nothing blocks upload for the shipped config", () => {
+    expect(buildReport(base)).toContain("## Must be fixed before upload\n\n- none");
   });
 
   it("lists optional dropdown columns left blank, separately from mandatory blanks", () => {

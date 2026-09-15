@@ -102,3 +102,6 @@ logs
 .playwright-mcp/
 .mcp.json
 node-compile-cache/
+
+# tsx compile cache, created when the flipkart scripts run
+tsx-*/
