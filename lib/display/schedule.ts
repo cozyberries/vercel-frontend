@@ -2,6 +2,8 @@
 export const SLIDE_MS = 7000;
 /** Crossfade between slides; the outgoing slide is unmounted after this. */
 export const FADE_MS = 1000;
+/** While any slide's photo is missing (a download failed), try the photo sync again this often. */
+export const PHOTO_RETRY_MS = 5 * 60 * 1000;
 /** Local hour at which an online display reloads itself (new deploys, fresh memory). */
 export const NIGHTLY_RELOAD_HOUR = 4;
 

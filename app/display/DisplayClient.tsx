@@ -7,7 +7,7 @@ import { useCatalog } from "@/hooks/useCatalog";
 import type { Snapshot } from "@/lib/catalog/types";
 import modelPhotoTags from "@/lib/display/model-photos.json";
 import { createPhotoCache, type PhotoCache } from "@/lib/display/photo-cache";
-import { FADE_MS, SLIDE_MS, msUntilNextReload } from "@/lib/display/schedule";
+import { FADE_MS, PHOTO_RETRY_MS, SLIDE_MS, msUntilNextReload } from "@/lib/display/schedule";
 import { nextCycle } from "@/lib/display/shuffle";
 import { selectSlides, type DisplaySlide, type ModelPhotoTags } from "@/lib/display/slides";
 
@@ -118,18 +118,32 @@ export default function DisplayClient({
     if (readStarted()) setStarted(true);
   }, []);
 
+  // Syncs are queued one behind another so overlapping runs never race on the same cache entries.
+  const syncChainRef = useRef<Promise<void>>(Promise.resolve());
+  const runSync = useCallback(() => {
+    syncChainRef.current = syncChainRef.current
+      .then(() => cache.sync(slidesRef.current, () => setReadyTick((t) => t + 1)))
+      .catch(() => {});
+  }, [cache]);
+
   // Keep the photo cache in step with the slides; runs before the tap too, so photos download early.
   useEffect(() => {
-    let cancelled = false;
-    cache
-      .sync(slidesRef.current, () => {
-        if (!cancelled) setReadyTick((t) => t + 1);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
+    runSync();
+  }, [runSync, photoKey]);
+
+  // A download that failed (a Wi-Fi blip) is retried when the connection returns, and every few
+  // minutes while any photo is still missing, instead of leaving that product out until a reload.
+  useEffect(() => {
+    const retryIfMissing = () => {
+      if (slidesRef.current.some((s) => !cache.photoFor(s.photoUrl))) runSync();
     };
-  }, [cache, photoKey]);
+    window.addEventListener("online", runSync);
+    const id = setInterval(retryIfMissing, PHOTO_RETRY_MS);
+    return () => {
+      window.removeEventListener("online", runSync);
+      clearInterval(id);
+    };
+  }, [cache, runSync]);
 
   // One timer drives the loop while started.
   useEffect(() => {
@@ -200,7 +214,8 @@ export default function DisplayClient({
     <div
       data-testid="display-root"
       onClick={handleTap}
-      className="fixed inset-0 z-[100] cursor-none select-none overflow-hidden bg-[#2b1d14]"
+      // touch-none: shoppers poke the tablet; a pinch or double-tap must not leave the loop zoomed in.
+      className="fixed inset-0 z-[100] cursor-none touch-none select-none overflow-hidden bg-[#2b1d14]"
     >
       {current === null && <EmptySlide />}
       {layers.map(({ slide, seq }) => {

@@ -67,6 +67,16 @@ describe("Slide", () => {
   });
 });
 
+describe("Slide price on a TV", () => {
+  it("sizes every part of the price to read across a room", () => {
+    offer.value.enabled = true;
+    render(<Slide slide={{ ...slide, hasRange: true }} photoSrc="blob:a" />);
+    for (const text of ["Starts at", "₹450", "₹405", "10% OFF"]) {
+      expect(screen.getByText(text).className).toMatch(/vmin/);
+    }
+  });
+});
+
 describe("EmptySlide", () => {
   it("offers a Scan to shop QR code for the homepage", () => {
     render(<EmptySlide />);

@@ -1,5 +1,5 @@
-import DiscountedPrice from "@/components/discounted-price";
 import type { DisplaySlide } from "@/lib/display/slides";
+import DisplayPrice from "./DisplayPrice";
 import Qr from "./Qr";
 
 interface SlideProps {
@@ -34,12 +34,7 @@ export default function Slide({ slide, photoSrc }: SlideProps) {
               CozyBerries
             </p>
             <h2 className="mt-[1.5vmin] font-serif text-[max(18px,4vmin)] leading-tight">{slide.name}</h2>
-            <DiscountedPrice
-              price={slide.minPrice}
-              showStartsAt={slide.hasRange}
-              variant="hero"
-              className="mt-[1.5vmin]"
-            />
+            <DisplayPrice price={slide.minPrice} showStartsAt={slide.hasRange} />
           </div>
           <div className="flex items-center gap-[2vmin] landscape:flex-row portrait:flex-col">
             <Qr value={slide.productUrl} className="landscape:w-[min(16vw,28vh)] portrait:w-[min(24vw,18vh)]" />

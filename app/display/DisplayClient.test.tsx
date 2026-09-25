@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Snapshot } from "@/lib/catalog/types";
 import { SUPABASE_PRODUCTS, displayCard, displaySnapshot } from "@/lib/display/__fixtures__/cards";
 import type { PhotoCache, PhotoSource } from "@/lib/display/photo-cache";
-import { FADE_MS, SLIDE_MS } from "@/lib/display/schedule";
+import { FADE_MS, PHOTO_RETRY_MS, SLIDE_MS } from "@/lib/display/schedule";
 import type { ModelPhotoTags } from "@/lib/display/slides";
 
 // useCatalog returns the server snapshot unless a test simulates a background refresh.
@@ -25,13 +25,21 @@ const snapshot = displaySnapshot([displayCard("a"), displayCard("b"), displayCar
 const inOrder = () => 0.999;
 const photoOf = (slug: string) => `${SUPABASE_PRODUCTS}/${slug}/1_detail.webp`;
 
-function fakePhotoCache(readySlugs: string[]) {
+/**
+ * Stand-in for the photo cache. `readySlugs` are cached from the start; a slug in `downloadable`
+ * becomes cached the next time `sync` runs (i.e. its download now succeeds).
+ */
+function fakePhotoCache(readySlugs: string[], downloadable: Set<string> = new Set()) {
   const ready = new Set(readySlugs.map(photoOf));
   let notify: ((photoUrl: string) => void) | undefined;
   const cache: PhotoCache & { markReady(slug: string): void } = {
     sync: vi.fn(async (slides: readonly PhotoSource[], onReady?: (photoUrl: string) => void) => {
       notify = onReady;
-      for (const s of slides) if (ready.has(s.photoUrl)) onReady?.(s.photoUrl);
+      for (const s of slides) {
+        const slug = s.photoUrl.split("/").at(-2) ?? "";
+        if (downloadable.has(slug)) ready.add(s.photoUrl);
+        if (ready.has(s.photoUrl)) onReady?.(s.photoUrl);
+      }
     }),
     photoFor: (photoUrl) => (ready.has(photoUrl) ? `blob:${photoUrl}` : null),
     markReady(slug) {
@@ -162,6 +170,43 @@ describe("DisplayClient", () => {
     rerender(<DisplayClient snapshot={snapshot} tags={tags} random={inOrder} photoCache={photoCache} onReload={onReload} />);
     await tick(SLIDE_MS);
     expect(shownSlug()).toBe("c");
+  });
+
+  it("retries photos that failed to download once the connection comes back", async () => {
+    localStorage.setItem(STARTED_KEY, "1");
+    const downloadable = new Set<string>();
+    renderDisplay({ photoCache: fakePhotoCache(["a"], downloadable) });
+    await tick(0);
+    await tick(SLIDE_MS);
+    expect(shownSlug()).toBe("a"); // b and c failed to download; only a plays
+    downloadable.add("b");
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await tick(SLIDE_MS);
+    expect(shownSlug()).toBe("b");
+  });
+
+  it("keeps retrying missing photos every five minutes, and stops once all are cached", async () => {
+    localStorage.setItem(STARTED_KEY, "1");
+    const downloadable = new Set<string>();
+    const photoCache = fakePhotoCache(["a"], downloadable);
+    renderDisplay({ photoCache });
+    await tick(0);
+    downloadable.add("b");
+    downloadable.add("c");
+    await tick(PHOTO_RETRY_MS);
+    expect(photoCache.photoFor(photoOf("b"))).not.toBeNull();
+    expect(photoCache.photoFor(photoOf("c"))).not.toBeNull();
+    const calls = vi.mocked(photoCache.sync).mock.calls.length;
+    await tick(PHOTO_RETRY_MS);
+    expect(vi.mocked(photoCache.sync).mock.calls.length).toBe(calls);
+  });
+
+  it("ignores pinch and double-tap zoom so a shopper cannot leave it zoomed in", async () => {
+    renderDisplay();
+    await tick(0);
+    expect(screen.getByTestId("display-root")).toHaveClass("touch-none");
   });
 
   it("still starts when localStorage is blocked", async () => {

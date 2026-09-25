@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FADE_MS, SLIDE_MS, msUntilNextReload } from "./schedule";
+import { FADE_MS, PHOTO_RETRY_MS, SLIDE_MS, msUntilNextReload } from "./schedule";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -29,5 +29,9 @@ describe("timing constants", () => {
   it("shows each slide for 7 s with a 1 s crossfade", () => {
     expect(SLIDE_MS).toBe(7000);
     expect(FADE_MS).toBe(1000);
+  });
+
+  it("retries photos that failed to download every five minutes", () => {
+    expect(PHOTO_RETRY_MS).toBe(5 * 60 * 1000);
   });
 });
