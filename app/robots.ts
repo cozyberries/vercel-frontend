@@ -18,6 +18,7 @@ export default function robots(): MetadataRoute.Robots {
         "/offline/",
         "/orders/",
         "/track-order/",
+        "/display",
       ],
     },
     sitemap: "https://cozyberries.in/sitemap.xml",

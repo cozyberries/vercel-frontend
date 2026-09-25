@@ -20,8 +20,8 @@ interface ConditionalLayoutProps {
 export default function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const pathname = usePathname();
 
-  // Sign-in/sign-up flow is a standalone full-screen page — no site header/nav/footer.
-  if (pathname?.startsWith("/login") || pathname?.startsWith("/signup")) {
+  // Sign-in/sign-up and the stall display are standalone full-screen pages — no site header/nav/footer.
+  if (pathname?.startsWith("/login") || pathname?.startsWith("/signup") || pathname?.startsWith("/display")) {
     return <>{children}</>;
   }
 

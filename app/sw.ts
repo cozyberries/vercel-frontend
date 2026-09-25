@@ -7,6 +7,7 @@ import {
   CacheFirst,
   ExpirationPlugin,
 } from "serwist";
+import { isDisplayNavigation } from "../lib/pwa/matchers";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -40,6 +41,22 @@ const serwist = new Serwist({
   // requests causes a double-fetch race condition that crashes the service worker.
   navigationPreload: false,
   runtimeCaching: [
+    // ── Stall display ─────────────────────────────────────────────────────────
+    // /display must open even after a tablet restarts without Wi-Fi: its HTML carries the
+    // catalog snapshot, so keep it 30 days instead of the 24 h used for other pages.
+    // Versioned like pages-cache so it never outlives the JS chunks it references.
+    {
+      matcher: isDisplayNavigation,
+      handler: new NetworkFirst({
+        cacheName: `display-page-${v}`,
+        networkTimeoutSeconds: 10,
+        plugins: [
+          cacheablePlugin,
+          new ExpirationPlugin({ maxEntries: 2, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+        ],
+      }),
+    },
+
     // ── Page navigations ──────────────────────────────────────────────────────
     // NetworkFirst: always try the network first; fall back to cache on failure.
     // 10 s timeout prevents a slow server from showing the offline page too early.
@@ -167,6 +184,7 @@ serwist.addEventListeners();
 // known prefixes but carry a different build ID suffix.
 const MANAGED_PREFIXES = [
   "pages-cache-",
+  "display-page-",
   "api-reference-cache-",
   "api-catalog-",
   "api-search-",
