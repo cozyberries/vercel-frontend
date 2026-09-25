@@ -123,6 +123,12 @@ app/
 - Per-user data (cart, wishlist, orders, profile) keeps its existing Redis caches in `lib/services/cache.ts`.
 - `CATALOG_SOURCE` (`legacy` default) gates the compatibility API routes and the product/home pages; `/products` and `/api/catalog` always read the catalog. Removed in the cleanup task.
 
+### Stall display (`/display`)
+- Endless product-photo loop for the offline stall (spec: `docs/superpowers/specs/2026-09-25-stall-display-loop-design.md`). It reads the catalog snapshot exactly like `/products`; it makes no Redis or Supabase calls of its own.
+- Only in-stock products listed under `withBaby` in `lib/display/model-photos.json` appear (their first photo shows a baby). New products stay hidden until tagged: run `npm run display:untagged`, look at the first photos it lists, add each slug to `withBaby` or `withoutBaby`, then deploy.
+- Photos are the `1_detail.webp` variants, cached by the page itself in Cache Storage `display-photos` (refreshed after 7 days). Do not replace this with a service-worker `CacheFirst` rule on `*_detail.webp`: that would pin product-detail images for every customer. The `/display` HTML is kept 30 days in the SW cache `display-page-${v}`.
+- Staff setup: open `https://cozyberries.in/display` on Wi-Fi → "Add to Home screen" / "Install app" → open **CozyBerries Display** → tap "Tap to start" once → set the device's screen timeout to "never" and exempt the browser from battery saver → leave it on Wi-Fi for a minute so all photos download (about 5 MB). After that it plays offline, resumes by itself after deploys, and reloads nightly at 4 am when online.
+
 ### Path Aliases
 - `@/*` maps to project root (configured in `tsconfig.json`)
 
