@@ -16,4 +16,21 @@ describe("FulfilmentPicker", () => {
     fireEvent.click(screen.getByRole("radio", { name: /pick up from our stall/i }));
     expect(onChange).toHaveBeenCalledWith("pickup");
   });
+
+  it("keeps one tab stop on the checked option", () => {
+    render(<FulfilmentPicker value="pickup" onChange={() => {}} />);
+    expect(screen.getByRole("radio", { name: /pick up from our stall/i })).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("radio", { name: /home delivery/i })).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("moves the choice with arrow keys, wrapping around", () => {
+    const onChange = vi.fn();
+    render(<FulfilmentPicker value="delivery" onChange={onChange} />);
+    const delivery = screen.getByRole("radio", { name: /home delivery/i });
+    fireEvent.keyDown(delivery, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenLastCalledWith("pickup");
+    fireEvent.keyDown(delivery, { key: "ArrowLeft" });
+    expect(onChange).toHaveBeenLastCalledWith("pickup");
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: /pick up from our stall/i }));
+  });
 });
