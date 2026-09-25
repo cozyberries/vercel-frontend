@@ -81,7 +81,7 @@ export default function InvoicePage() {
         </button>
       </div>
 
-      <div className="mx-auto max-w-3xl px-4 sm:px-8 py-8 text-gray-900">
+      <div className="invoice-print mx-auto max-w-3xl px-4 sm:px-8 py-8 text-gray-900">
         {!issued && (
           <p className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
             Order summary — the tax invoice is issued once your payment is confirmed.
@@ -200,12 +200,17 @@ export default function InvoicePage() {
           <p className="text-sm mb-6"><span className="text-gray-500">Paid by:</span> {invoice.paymentMethod}</p>
         )}
         <p className="text-center text-xs text-gray-400 mt-10">
-          Prices are inclusive of GST. This is a computer-generated invoice and needs no signature.
+          {issued
+            ? "Prices are inclusive of GST. This is a computer-generated invoice and needs no signature."
+            : "Prices are inclusive of GST. This order summary is not a tax invoice."}
         </p>
       </div>
 
       <style>{`
         @media print {
+          body * { visibility: hidden !important; }
+          .invoice-print, .invoice-print * { visibility: visible !important; }
+          .invoice-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none; }
           .no-print { display: none !important; }
           body { margin: 0; }
         }
