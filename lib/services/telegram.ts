@@ -141,29 +141,45 @@ export type NewOrderData = {
   discountCode: string | null;
   discountAmount: number;
   items: Array<{ name: string; quantity: number; size: string | null }>;
+  fulfilmentMethod?: "delivery" | "pickup";
+  paymentMethod?: "upi" | "cash";
+  customerName?: string | null;
+  /** Staff email when an admin placed the order or recorded the payment. */
+  placedByEmail?: string | null;
 };
 
 /** Builds the order message body. Pass a different header to re-use after confirmation. */
 export function buildNewOrderText(data: NewOrderData, header: string, ts?: string): string {
   const timestamp = ts ?? toIST(new Date());
 
+  const tags = [
+    data.fulfilmentMethod === "pickup" ? "🏬 <b>PICKUP</b>" : null,
+    data.paymentMethod === "cash" ? "💵 <b>CASH</b>" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const contactSection =
+    (data.customerName ? `🙍 ${escapeHtml(data.customerName)}\n` : "") +
     `👤 ${escapeHtml(data.email)}\n` +
     (data.phone ? `📱 ${escapeHtml(data.phone)}` : "");
 
-  const a = data.shippingAddress;
-  const cityState = [escapeHtml(a?.city), escapeHtml(a?.state)].filter(Boolean).join(", ");
-  const addressLines = [
-    escapeHtml(a?.full_name),
-    escapeHtml(a?.address_line_1),
-    escapeHtml(a?.address_line_2),
-    cityState,
-    escapeHtml(a?.postal_code),
-    escapeHtml(a?.country),
-  ].filter(Boolean);
-  const addressSection = addressLines.length
-    ? `📍 Deliver to:\n${addressLines.join("\n")}`
-    : null;
+  let addressSection: string | null;
+  if (data.fulfilmentMethod === "pickup") {
+    addressSection = "📍 Collect at stall";
+  } else {
+    const a = data.shippingAddress;
+    const cityState = [escapeHtml(a?.city), escapeHtml(a?.state)].filter(Boolean).join(", ");
+    const addressLines = [
+      escapeHtml(a?.full_name),
+      escapeHtml(a?.address_line_1),
+      escapeHtml(a?.address_line_2),
+      cityState,
+      escapeHtml(a?.postal_code),
+      escapeHtml(a?.country),
+    ].filter(Boolean);
+    addressSection = addressLines.length ? `📍 Deliver to:\n${addressLines.join("\n")}` : null;
+  }
 
   const circled = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩"];
   const itemRows = data.items.map((i, idx) => {
@@ -175,35 +191,41 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
   const discountLine = data.discountCode
     ? `🏷️ Discount (${escapeHtml(data.discountCode)}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
     : "";
-  const deliveryLine = data.deliveryCharge > 0
-    ? `🚚 Delivery: ₹${data.deliveryCharge.toLocaleString("en-IN")}\n`
-    : `🚚 Delivery: Free\n`;
+  const deliveryLine = data.fulfilmentMethod === "pickup"
+    ? `🚚 Delivery: None (pickup)\n`
+    : data.deliveryCharge > 0
+      ? `🚚 Delivery: ₹${data.deliveryCharge.toLocaleString("en-IN")}\n`
+      : `🚚 Delivery: Free\n`;
   const pricingSection =
     `💰 Subtotal: ₹${data.subtotal.toLocaleString("en-IN")}\n` +
     discountLine +
     deliveryLine +
     `💵 Total: ₹${data.totalAmount.toLocaleString("en-IN")}`;
 
+  const placedBy = data.placedByEmail ? `👩‍💼 Placed by ${escapeHtml(data.placedByEmail)}\n\n` : "";
+
   return (
     `${header}\n\n` +
+    (tags ? `${tags}\n\n` : "") +
     `📋 <code>${escapeHtml(data.orderNumber)}</code>\n\n` +
     contactSection + "\n\n" +
     (addressSection ? addressSection + "\n\n" : "") +
     `📦 Items (${data.items.length}):\n\n` +
     itemRows.join("\n\n") + "\n\n" +
     pricingSection + "\n\n" +
+    placedBy +
     `📌 Order ID: <code>${escapeHtml(data.orderId)}</code>\n\n` +
     `⏰ ${timestamp}`
   );
 }
 
 /**
- * Combined "New Order Placed + Payment in Review" notification with an inline "Confirm Payment" button.
- * Replaces the separate notifyOrderPlaced + notifyPaymentConfirmed calls in the session flow.
- * callback_data format: `confirm_payment:{orderId}` (max 64 bytes — UUID is 36 + 16 prefix = 52 ✓)
+ * Order notification with the inline "✅ Confirm Payment" button. Tapping it
+ * is the only customer-independent way an order becomes paid (see
+ * /api/telegram/webhook). callback_data: `confirm_payment:{orderId}` (52 bytes).
  */
-export function notifyNewOrder(data: NewOrderData): void {
-  const text = buildNewOrderText(data, `🛒 <b>New Order Placed + Payment in Review</b>`);
+export function notifyNewOrder(data: NewOrderData, opts?: { header?: string }): void {
+  const text = buildNewOrderText(data, opts?.header ?? `🛒 <b>New Order Placed + Payment in Review</b>`);
   const replyMarkup = {
     inline_keyboard: [[
       { text: "✅ Confirm Payment", callback_data: `confirm_payment:${data.orderId}` },
