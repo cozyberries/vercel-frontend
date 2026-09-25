@@ -87,7 +87,7 @@ export function computeGst(input: {
     const share =
       index === goods.length - 1
         ? discount - allocated
-        : Math.floor((discount * l.grossPaise) / goodsTotal);
+        : goodsTotal === 0 ? 0 : Math.floor((discount * l.grossPaise) / goodsTotal);
     allocated += share;
     return splitLine(l.description, l.hsn, l.quantity, toPaise(l.unitPrice), l.grossPaise - share, share, input.mode);
   });

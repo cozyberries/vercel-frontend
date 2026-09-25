@@ -83,4 +83,16 @@ describe("computeGst", () => {
       }
     }
   });
+
+  it("never produces NaN when the goods total is zero", () => {
+    const { lines, totals } = computeGst({ lines: [line(0), line(0)], discountRupees: 50, deliveryChargeRupees: 0, mode: "intra" });
+    expect(lines.every((l) => Number.isFinite(l.amountPaise) && l.amountPaise === 0)).toBe(true);
+    expect(totals).toEqual({ taxablePaise: 0, cgstPaise: 0, sgstPaise: 0, igstPaise: 0, discountPaise: 0, totalPaise: 0 });
+  });
+
+  it("returns empty totals for no lines", () => {
+    const { lines, totals } = computeGst({ lines: [], discountRupees: 0, deliveryChargeRupees: 0, mode: "inter" });
+    expect(lines).toEqual([]);
+    expect(totals.totalPaise).toBe(0);
+  });
 });
