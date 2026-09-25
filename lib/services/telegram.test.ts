@@ -53,6 +53,14 @@ describe("buildNewOrderText", () => {
   });
 });
 
+describe("escapeTelegramHtml", () => {
+  it("escapes the characters Telegram HTML treats as markup", async () => {
+    const { escapeTelegramHtml } = await import("./telegram");
+    expect(escapeTelegramHtml("<b>Tom & Jerry</b>")).toBe("&lt;b&gt;Tom &amp; Jerry&lt;/b&gt;");
+    expect(escapeTelegramHtml(null)).toBe("");
+  });
+});
+
 describe("notifyNewOrder", () => {
   it("always attaches the confirm-payment button and uses the given header", async () => {
     vi.resetModules();

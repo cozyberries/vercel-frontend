@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { answerCallbackQuery, editTelegramMessage, buildNewOrderText } from "@/lib/services/telegram";
+import {
+  answerCallbackQuery,
+  editTelegramMessage,
+  buildNewOrderText,
+  escapeTelegramHtml,
+} from "@/lib/services/telegram";
 
 const UNPAID_STATUSES = ["payment_pending", "verifying_payment"];
 const STOCK_ERROR = /^(OUT_OF_STOCK|VARIANT_NOT_FOUND):(.*)$/;
@@ -78,7 +83,7 @@ export async function POST(request: NextRequest) {
   // Ignore non-callback updates (message events, etc.)
   const callbackQuery = body.callback_query as {
     id: string;
-    from: { username?: string; first_name: string };
+    from: { id: number; username?: string; first_name: string };
     message: { message_id: number; chat: { id: number } };
     data?: string;
   } | undefined;
@@ -91,6 +96,19 @@ export async function POST(request: NextRequest) {
 
   if (!callbackData?.startsWith("confirm_payment:")) {
     await answerCallbackQuery(callbackId);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Only the order chat, and (when TELEGRAM_CONFIRMER_IDS is set) only the
+  // listed people, may confirm a payment. Read lazily, like the secret above.
+  const allowedChat = process.env.TELEGRAM_CHAT_ID?.trim();
+  if (!allowedChat || String(message.chat.id) !== allowedChat) {
+    await answerCallbackQuery(callbackId, "⚠️ Not allowed");
+    return NextResponse.json({ ok: true });
+  }
+  const confirmers = (process.env.TELEGRAM_CONFIRMER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (confirmers.length > 0 && !confirmers.includes(String(from.id))) {
+    await answerCallbackQuery(callbackId, "⚠️ Only the owner can confirm payments");
     return NextResponse.json({ ok: true });
   }
 
@@ -211,7 +229,7 @@ export async function POST(request: NextRequest) {
         `✅ <b>Payment Confirmed</b>`
       ) +
       (invoiceNumber ? `\n\n🧾 Invoice <code>${invoiceNumber}</code>` : "") +
-      `\n\n✅ <b>Confirmed by ${adminName}</b>`;
+      `\n\n✅ <b>Confirmed by ${escapeTelegramHtml(adminName)}</b>`;
 
     await editTelegramMessage(message.chat.id, message.message_id, updatedText);
   }

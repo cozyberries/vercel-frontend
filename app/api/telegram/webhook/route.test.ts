@@ -66,6 +66,7 @@ const h = vi.hoisted(() => {
     answerCallbackQuery: vi.fn(async () => {}),
     editTelegramMessage: vi.fn(async () => {}),
     buildNewOrderText: vi.fn(() => 'text'),
+    escapeTelegramHtml: vi.fn((s: string) => s),
   };
 });
 
@@ -74,20 +75,25 @@ vi.mock('@/lib/services/telegram', () => ({
   answerCallbackQuery: h.answerCallbackQuery,
   editTelegramMessage: h.editTelegramMessage,
   buildNewOrderText: h.buildNewOrderText,
+  escapeTelegramHtml: h.escapeTelegramHtml,
 }));
 
 import { POST } from './route';
 import { NextRequest } from 'next/server';
 
-function tap(secret = 's3cret', data = 'confirm_payment:order-1') {
+function tap(
+  secret = 's3cret',
+  data = 'confirm_payment:order-1',
+  opts: { chatId?: number; from?: Record<string, unknown> } = {}
+) {
   return new NextRequest('http://localhost/api/telegram/webhook', {
     method: 'POST',
     headers: { 'X-Telegram-Bot-Api-Secret-Token': secret, 'content-type': 'application/json' },
     body: JSON.stringify({
       callback_query: {
         id: 'cb-1',
-        from: { username: 'owner', first_name: 'Owner' },
-        message: { message_id: 7, chat: { id: 42 } },
+        from: opts.from ?? { id: 7, username: 'owner', first_name: 'Owner' },
+        message: { message_id: 7, chat: { id: opts.chatId ?? 42 } },
         data,
       },
     }),
@@ -100,6 +106,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.reset();
   vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', 's3cret');
+  vi.stubEnv('TELEGRAM_CHAT_ID', '42');
+  vi.stubEnv('TELEGRAM_CONFIRMER_IDS', '');
 });
 
 describe('POST /api/telegram/webhook — confirm payment', () => {
@@ -164,6 +172,41 @@ describe('POST /api/telegram/webhook — confirm payment', () => {
     expect(h.calls.orderUpdates).toEqual([{ status: 'processing' }, { status: 'payment_pending' }]);
     expect(h.calls.orderEqs[1]).toEqual([['id', 'order-1'], ['status', 'processing']]);
     expect(lastAnswer()).toBe('❌ Payment update failed — please retry');
+  });
+
+  it('ignores a tap from any chat other than the order chat', async () => {
+    await POST(tap('s3cret', 'confirm_payment:order-1', { chatId: 99 }));
+    expect(h.calls.orderUpdates).toHaveLength(0);
+    expect(lastAnswer()).toBe('⚠️ Not allowed');
+  });
+
+  it('ignores every tap when TELEGRAM_CHAT_ID is not set', async () => {
+    vi.stubEnv('TELEGRAM_CHAT_ID', '');
+    await POST(tap());
+    expect(h.calls.orderUpdates).toHaveLength(0);
+    expect(lastAnswer()).toBe('⚠️ Not allowed');
+  });
+
+  it('ignores a tap from someone outside TELEGRAM_CONFIRMER_IDS', async () => {
+    vi.stubEnv('TELEGRAM_CONFIRMER_IDS', '1,2');
+    await POST(tap());
+    expect(h.calls.orderUpdates).toHaveLength(0);
+    expect(lastAnswer()).toBe('⚠️ Only the owner can confirm payments');
+  });
+
+  it('confirms a tap from someone listed in TELEGRAM_CONFIRMER_IDS', async () => {
+    vi.stubEnv('TELEGRAM_CONFIRMER_IDS', ' 3, 7 ');
+    await POST(tap());
+    expect(h.calls.orderUpdates[0]).toEqual({ status: 'processing' });
+    expect(lastAnswer()).toBe('✅ Payment confirmed · CB/26-27/0001');
+  });
+
+  it('escapes the confirmer name before putting it in the HTML message', async () => {
+    h.escapeTelegramHtml.mockImplementationOnce(() => '&lt;b&gt;Eve&lt;/b&gt;');
+    await POST(tap('s3cret', 'confirm_payment:order-1', { from: { id: 7, first_name: '<b>Eve</b>' } }));
+    expect(h.escapeTelegramHtml).toHaveBeenCalledWith('<b>Eve</b>');
+    expect(h.editTelegramMessage).toHaveBeenCalledWith(42, 7, expect.stringContaining('Confirmed by &lt;b&gt;Eve&lt;/b&gt;'));
+    expect(h.editTelegramMessage).not.toHaveBeenCalledWith(42, 7, expect.stringContaining('<b>Eve</b>'));
   });
 
   it('confirms a fully discounted order without writing a zero-amount payment', async () => {

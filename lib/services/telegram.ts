@@ -23,6 +23,7 @@ function escapeHtml(val: string | null | undefined): string {
   if (!val) return "";
   return val.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+export { escapeHtml as escapeTelegramHtml };
 
 /** Raw HTTP POST to Telegram Bot API. Never throws. */
 async function sendToTelegram(text: string, replyMarkup?: object): Promise<void> {
