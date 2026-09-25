@@ -3,10 +3,15 @@ export type OrderStatus =
   | 'verifying_payment'
   | 'payment_confirmed'
   | 'processing'
+  | 'ready_for_pickup'
+  | 'collected'
   | 'shipped'
   | 'delivered'
   | 'cancelled'
   | 'refunded';
+
+/** How the customer gets the goods. Pickup has no address and no delivery charge. */
+export type FulfilmentMethod = 'delivery' | 'pickup';
 
 export type PaymentStatus = 
   | 'pending'
@@ -25,7 +30,8 @@ export type PaymentMethod =
   | 'wallet'
   | 'cod'
   | 'emi'
-  | 'bank_transfer';
+  | 'bank_transfer'
+  | 'cash';
 
 export type PaymentGateway = 
   | 'razorpay'
@@ -72,7 +78,7 @@ export interface OrderBase {
   user_id: string;
   customer_email: string;
   customer_phone?: string;
-  shipping_address: ShippingAddress;
+  shipping_address: ShippingAddress | null;
   billing_address?: ShippingAddress;
   subtotal: number;
   delivery_charge: number;
@@ -85,6 +91,12 @@ export interface OrderBase {
   /** Admin user id when the order was placed on behalf of the customer by an
    *  admin (impersonation / shadow mode). Null for all direct customer orders. */
   placed_by_admin_id?: string | null;
+  /** Defaults to 'delivery' in the database. */
+  fulfilment_method?: FulfilmentMethod;
+  /** Buyer name frozen at order time (address name for delivery, account name for pickup). */
+  customer_name?: string | null;
+  /** 2-digit GST state code; null when the address state could not be resolved. */
+  place_of_supply?: string | null;
 }
 
 /** Shape inserted into the orders table (no items — stored separately). */
@@ -94,6 +106,10 @@ export interface Order extends OrderBase {
   id: string;
   order_number: string;
   status: OrderStatus;
+  fulfilment_method: FulfilmentMethod;
+  /** Set by the database when payment is confirmed, e.g. "CB/26-27/0001". */
+  invoice_number?: string | null;
+  invoice_date?: string | null;
   /** Populated via join from order_items table. */
   items: OrderItem[];
   estimated_delivery_date?: string;
@@ -153,11 +169,12 @@ export interface AdminOverride {
 
 export interface CreateOrderRequest {
   items: OrderItemInput[];
-  shipping_address_id: string;
+  shipping_address_id?: string;
   billing_address_id?: string;
   coupon_code?: string;
   notes?: string;
   admin_override?: AdminOverride;
+  fulfilment_method?: FulfilmentMethod;
 }
 
 export interface CreateOrderResponse {

@@ -239,19 +239,21 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* Delivery address */}
-        <div className="bg-white rounded-2xl border border-cb-border p-5">
-          <p className="flex items-center gap-2 text-sm font-bold text-cb-fg mb-3">
-            <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
-            Delivery address
-          </p>
-          <p className="text-sm font-bold text-cb-fg">{order.shipping_address.full_name}</p>
-          <p className="text-sm text-cb-muted-fg">
-            {[order.shipping_address.address_line_1, order.shipping_address.area].filter(Boolean).join(", ")}
-          </p>
-          <p className="text-sm text-cb-muted-fg">
-            {order.shipping_address.city} – {order.shipping_address.postal_code}
-          </p>
-        </div>
+        {order.shipping_address && (
+          <div className="bg-white rounded-2xl border border-cb-border p-5">
+            <p className="flex items-center gap-2 text-sm font-bold text-cb-fg mb-3">
+              <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
+              Delivery address
+            </p>
+            <p className="text-sm font-bold text-cb-fg">{order.shipping_address.full_name}</p>
+            <p className="text-sm text-cb-muted-fg">
+              {[order.shipping_address.address_line_1, order.shipping_address.area].filter(Boolean).join(", ")}
+            </p>
+            <p className="text-sm text-cb-muted-fg">
+              {order.shipping_address.city} – {order.shipping_address.postal_code}
+            </p>
+          </div>
+        )}
 
         {/* Bill details */}
         <div className="bg-white rounded-2xl border border-cb-border p-5">

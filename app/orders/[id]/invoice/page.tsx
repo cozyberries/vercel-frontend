@@ -94,14 +94,14 @@ export default function InvoicePage() {
 
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">Billed to</p>
-          <p className="text-sm font-semibold text-gray-900">{order.shipping_address.full_name}</p>
+          <p className="text-sm font-semibold text-gray-900">{order.shipping_address?.full_name}</p>
           <p className="text-sm text-gray-600">
-            {[order.shipping_address.address_line_1, order.shipping_address.area].filter(Boolean).join(", ")}
+            {[order.shipping_address?.address_line_1, order.shipping_address?.area].filter(Boolean).join(", ")}
           </p>
           <p className="text-sm text-gray-600">
-            {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}
+            {order.shipping_address?.city}, {order.shipping_address?.state} {order.shipping_address?.postal_code}
           </p>
-          <p className="text-sm text-gray-600">{order.shipping_address.country}</p>
+          <p className="text-sm text-gray-600">{order.shipping_address?.country}</p>
         </div>
 
         <table className="w-full text-sm mb-8">
