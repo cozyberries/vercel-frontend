@@ -55,6 +55,14 @@ vi.mock('@/lib/services/effective-user', () => ({
 }));
 vi.mock('@/lib/services/telegram', () => ({ notifyNewOrder: h.notifyNewOrder }));
 
+// `after()` keeps the function alive until the Telegram send settles. Run the
+// callback inline so the notifyNewOrder assertions still see the call.
+const afterMock = vi.hoisted(() => vi.fn((run: () => unknown) => run()));
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: afterMock,
+}));
+
 import { POST } from './route';
 import { NextRequest } from 'next/server';
 
@@ -115,6 +123,15 @@ describe('POST /api/payments/cash', () => {
       expect.objectContaining({ orderId: 'order-1', paymentMethod: 'cash', fulfilmentMethod: 'pickup', placedByEmail: 'staff@cozyberries.in' }),
       expect.objectContaining({ header: expect.stringContaining('Cash received') })
     );
+  });
+
+  it('sends the confirm-payment message through after() so it outlives the response', async () => {
+    asStaff();
+    const sent = Promise.resolve();
+    h.notifyNewOrder.mockReturnValueOnce(sent);
+    await POST(req({ orderId: 'order-1' }));
+    expect(afterMock).toHaveBeenCalledTimes(1);
+    expect(afterMock.mock.results[0].value).toBe(sent);
   });
 
   it('removes the payment again when the order moved on concurrently', async () => {

@@ -72,4 +72,26 @@ describe("notifyNewOrder", () => {
       callback_data: "confirm_payment:order-1",
     });
   });
+
+  it("returns the send so a route can keep running until Telegram answers", async () => {
+    vi.resetModules();
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "bot-token");
+    vi.stubEnv("TELEGRAM_CHAT_ID", "chat-1");
+    let answer!: (v: unknown) => void;
+    const fetchMock = vi.fn(() => new Promise((resolve) => { answer = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { notifyNewOrder } = await import("./telegram");
+
+    let settled = false;
+    const sent = notifyNewOrder(base);
+    expect(sent).toBeInstanceOf(Promise);
+    void sent.then(() => { settled = true; });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    answer({ ok: true, text: async () => "" });
+    await sent;
+    expect(settled).toBe(true);
+  });
 });

@@ -223,15 +223,19 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
  * Order notification with the inline "✅ Confirm Payment" button. Tapping it
  * is the only customer-independent way an order becomes paid (see
  * /api/telegram/webhook). callback_data: `confirm_payment:{orderId}` (52 bytes).
+ *
+ * Returns the send (it never rejects). Route handlers should pass it to
+ * `after()` so the function stays alive until Telegram answers — this message
+ * is the only way the owner learns there is a payment to confirm.
  */
-export function notifyNewOrder(data: NewOrderData, opts?: { header?: string }): void {
+export function notifyNewOrder(data: NewOrderData, opts?: { header?: string }): Promise<void> {
   const text = buildNewOrderText(data, opts?.header ?? `🛒 <b>New Order Placed + Payment in Review</b>`);
   const replyMarkup = {
     inline_keyboard: [[
       { text: "✅ Confirm Payment", callback_data: `confirm_payment:${data.orderId}` },
     ]],
   };
-  void sendToTelegram(text, replyMarkup);
+  return sendToTelegram(text, replyMarkup);
 }
 
 export function notifyOrderPlaced(data: {

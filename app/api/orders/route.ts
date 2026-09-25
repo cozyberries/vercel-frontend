@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest, OrderCreate, OrderStatus, ShippingAddress } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
@@ -299,7 +299,9 @@ export async function POST(request: NextRequest) {
       customer_email: email,
       customer_name: customerName ?? email,
     });
-    notifyNewOrder(
+    // after(): the owner confirms from this message, so it must not be lost
+    // when the function is frozen after the response.
+    after(() => notifyNewOrder(
       {
         orderId: order.id,
         orderNumber: order.order_number,
@@ -317,7 +319,7 @@ export async function POST(request: NextRequest) {
         placedByEmail: actingAdminId ? sessionUser.email ?? null : null,
       },
       { header: "🛒 <b>New Order Placed</b>" }
-    );
+    ));
 
     const orderWithItems = {
       ...order,

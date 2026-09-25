@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import {
   effectiveUserErrorResponse,
   getEffectiveUser,
@@ -118,7 +118,9 @@ export async function POST(request: NextRequest) {
       console.error("[payments/cash] audit insert failed:", { eventError, orderId });
     }
 
-    notifyNewOrder(
+    // after(): the owner confirms from this message, so it must not be lost
+    // when the function is frozen after the response.
+    after(() => notifyNewOrder(
       {
         orderId,
         orderNumber: order.order_number,
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
         placedByEmail: sessionUser.email ?? null,
       },
       { header: "💵 <b>Cash received at stall — confirm</b>" }
-    );
+    ));
 
     return NextResponse.json({ success: true, status: "verifying_payment" });
   } catch (error) {
