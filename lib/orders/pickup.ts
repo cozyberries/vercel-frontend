@@ -58,6 +58,6 @@ export interface PickupOrderRow {
   invoice_number: string | null;
   created_at: string;
   updated_at: string;
-  order_items: { name: string; size: string | null; color: string | null; quantity: number }[];
+  order_items: { name: string; size: string | null; color: string | null; quantity: number; price: number }[];
   payments: { payment_method: string; status: string }[];
 }

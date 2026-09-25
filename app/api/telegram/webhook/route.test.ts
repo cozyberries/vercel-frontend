@@ -143,6 +143,14 @@ describe('POST /api/telegram/webhook — confirm payment', () => {
     expect(h.calls.paymentInserts).toHaveLength(0);
   });
 
+  it('replies items mismatch and writes no payment when the lines no longer match the order', async () => {
+    h.state.confirm = { data: null, error: { code: 'P0001', message: 'ITEMS_MISMATCH:ORD-1' } };
+    await POST(tap());
+    expect(lastAnswer()).toBe("❌ Items don't match the order total — check the order before confirming");
+    expect(h.calls.paymentUpdates).toHaveLength(0);
+    expect(h.calls.paymentInserts).toHaveLength(0);
+  });
+
   it('does nothing for an order that is no longer awaiting payment (e.g. cancelled)', async () => {
     h.state.order.status = 'cancelled';
     await POST(tap());

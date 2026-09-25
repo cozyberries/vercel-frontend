@@ -7,7 +7,7 @@ import { getIndianPhoneDigits } from "@/lib/utils/validation";
 
 const SELECT =
   "id, order_number, status, total_amount, customer_name, customer_phone, invoice_number, created_at, updated_at, " +
-  "order_items(name, size, color, quantity), payments(payment_method, status)";
+  "order_items(name, size, color, quantity, price), payments(payment_method, status)";
 
 /** Admin-gated: getUser() + isAdmin() before any service-role query. */
 export async function GET(request: NextRequest) {

@@ -134,6 +134,15 @@ export async function POST(request: NextRequest) {
       await answerCallbackQuery(callbackId, `❌ Out of stock: ${stock[2].trim()}`);
       return NextResponse.json({ ok: true });
     }
+    // The trigger refuses when the lines no longer add up to the subtotal
+    // (e.g. a ₹0 line added after checkout).
+    if ((orderError.message ?? "").startsWith("ITEMS_MISMATCH:")) {
+      await answerCallbackQuery(
+        callbackId,
+        "❌ Items don't match the order total — check the order before confirming"
+      );
+      return NextResponse.json({ ok: true });
+    }
     console.error("[Webhook] Failed to update order:", orderError);
     await answerCallbackQuery(callbackId, "❌ Failed to update order");
     return NextResponse.json({ ok: true });

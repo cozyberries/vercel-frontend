@@ -143,6 +143,7 @@ export default function PickupOrdersClient() {
                       {item.quantity} × {item.name}
                       {item.size ? ` · ${item.size}` : ""}
                       {item.color ? ` · ${item.color}` : ""}
+                      {` — ₹${Number(item.price) * item.quantity}`}
                     </li>
                   ))}
                 </ul>

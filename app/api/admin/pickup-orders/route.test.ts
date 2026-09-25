@@ -43,6 +43,12 @@ describe('GET /api/admin/pickup-orders', () => {
     expect(h.calls).toContainEqual(['in', 'status', ['payment_confirmed', 'processing']]);
   });
 
+  it('selects each line price so staff can check the card against the bill', async () => {
+    await get('?tab=handover');
+    const select = String(h.calls.find((c) => c[0] === 'select')?.[1] ?? '');
+    expect(select).toMatch(/order_items\([^)]*\bprice\b[^)]*\)/);
+  });
+
   it('limits the collected tab to today in IST', async () => {
     await get('?tab=collected');
     expect(h.calls.find((c) => c[0] === 'gte')?.[1]).toBe('updated_at');

@@ -1,4 +1,5 @@
--- Behavioural tests for supabase/migrations/20260925000000_stall_pickup_orders.sql.
+-- Behavioural tests for supabase/migrations/20260925000000_stall_pickup_orders.sql
+-- and 20260925020000_pickup_items_integrity.sql.
 -- Loads the migration inside one transaction, runs every assertion, then rolls
 -- back, so it is safe to run against the production database and mutates
 -- nothing. Prints 'PASS <name>' or 'FAIL <name>: <reason>' per assertion.
@@ -9,6 +10,7 @@ begin;
 -- order numbering, not on the guards under test. Both files are idempotent.
 \ir ../../supabase/migrations/20260924120000_order_reference_triggers_definer.sql
 \ir ../../supabase/migrations/20260925000000_stall_pickup_orders.sql
+\ir ../../supabase/migrations/20260925020000_pickup_items_integrity.sql
 
 create temporary table t_result(name text, ok boolean, reason text) on commit drop;
 create temporary table t_ctx(k text primary key, v text) on commit drop;
@@ -331,6 +333,34 @@ begin
     v_err := sqlerrm;
   end;
   insert into t_result values ('cash_is_a_valid_payment_method', v_err is null, coalesce(v_err,''));
+end $$;
+
+-- 12. Items that don't add up to the subtotal (or carry no price) cannot be confirmed.
+do $$
+declare v_o uuid; v_err text;
+begin
+  update public.product_variants set stock_quantity = 5 where slug = 'zz-test-frock-v';
+  v_o := pg_temp.make_order('pickup', 1);
+  insert into public.order_items (order_id, product_id, name, price, quantity, size, sku)
+  values (v_o, 'zz-test-frock', 'ZZ Free Extra', 0, 1, upper((select v from t_ctx where k = 'size')), 'zz-test-frock-v');
+  begin
+    update public.orders set status = 'processing' where id = v_o;
+  exception when others then
+    v_err := sqlerrm;
+  end;
+  insert into t_result values ('zero_price_line_blocks_confirmation',
+    v_err like 'ITEMS_MISMATCH:%' and pg_temp.stock() = 5, 'err='||coalesce(v_err,'none')||' stock='||pg_temp.stock());
+
+  v_err := null;
+  v_o := pg_temp.make_order('pickup', 1);
+  update public.order_items set price = 400 where order_id = v_o;
+  begin
+    update public.orders set status = 'processing' where id = v_o;
+  exception when others then
+    v_err := sqlerrm;
+  end;
+  insert into t_result values ('items_not_matching_subtotal_block_confirmation',
+    v_err like 'ITEMS_MISMATCH:%', 'err='||coalesce(v_err,'none'));
 end $$;
 
 select case when ok then 'PASS ' else 'FAIL ' end || name
