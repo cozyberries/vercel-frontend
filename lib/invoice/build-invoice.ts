@@ -34,7 +34,12 @@ export interface InvoiceOrderRow {
 }
 
 export interface InvoiceDocument {
-  status: "pending" | "issued";
+  /**
+   * pending: not paid yet, an order summary only. issued: a tax invoice.
+   * receipt: paid before invoice numbers existed. cancelled: cancelled or
+   * refunded (the invoice number, if any, is kept).
+   */
+  status: "pending" | "issued" | "receipt" | "cancelled";
   invoiceNumber: string | null;
   invoiceDate: string | null;
   orderNumber: string;
@@ -51,6 +56,8 @@ export interface InvoiceDocument {
 }
 
 const PAYMENT_LABEL: Record<string, string> = { upi: "UPI", cash: "Cash" };
+const UNPAID = ["payment_pending", "verifying_payment"];
+const VOIDED = ["cancelled", "refunded"];
 
 export function buildInvoice(input: {
   order: InvoiceOrderRow;
@@ -76,7 +83,9 @@ export function buildInvoice(input: {
   const completed = order.payments.find((p) => p.status === "completed");
 
   return {
-    status: order.invoice_number ? "issued" : "pending",
+    status: VOIDED.includes(order.status) ? "cancelled"
+      : UNPAID.includes(order.status) ? "pending"
+      : order.invoice_number ? "issued" : "receipt",
     invoiceNumber: order.invoice_number,
     invoiceDate: order.invoice_date,
     orderNumber: order.order_number,

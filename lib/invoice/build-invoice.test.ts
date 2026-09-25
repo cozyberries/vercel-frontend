@@ -74,4 +74,24 @@ describe("buildInvoice", () => {
     expect(inv.invoiceNumber).toBeNull();
     expect(inv.paymentMethod).toBeNull();
   });
+
+  it("stays an order summary while payment is re-verified, even with an invoice number kept", () => {
+    const inv = build({ status: "verifying_payment" });
+    expect(inv.status).toBe("pending");
+  });
+
+  it("is a payment receipt for an order paid before invoice numbers existed", () => {
+    const inv = build({ status: "processing", invoice_number: null, invoice_date: null });
+    expect(inv.status).toBe("receipt");
+    expect(inv.invoiceNumber).toBeNull();
+    expect(build({ status: "delivered", invoice_number: null, invoice_date: null, fulfilment_method: "delivery" }).status)
+      .toBe("receipt");
+  });
+
+  it("is cancelled for a cancelled or refunded order, keeping its invoice number", () => {
+    const inv = build({ status: "cancelled" });
+    expect(inv.status).toBe("cancelled");
+    expect(inv.invoiceNumber).toBe("CB/26-27/0001");
+    expect(build({ status: "refunded", invoice_number: null }).status).toBe("cancelled");
+  });
 });

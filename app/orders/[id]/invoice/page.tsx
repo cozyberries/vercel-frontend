@@ -62,7 +62,21 @@ export default function InvoicePage() {
     );
   }
 
-  const issued = invoice.status === "issued";
+  const { status } = invoice;
+  const issued = status === "issued";
+  const cancelled = status === "cancelled";
+  // A cancelled order keeps its invoice number, so the cancelled document still names it.
+  const showInvoiceNumber = issued || (cancelled && Boolean(invoice.invoiceNumber));
+  const heading =
+    status === "issued" ? "TAX INVOICE"
+    : status === "receipt" ? "PAYMENT RECEIPT"
+    : status === "cancelled" ? (invoice.invoiceNumber ? "TAX INVOICE — CANCELLED" : "ORDER SUMMARY — CANCELLED")
+    : "ORDER SUMMARY";
+  const footer =
+    status === "issued" ? "Prices are inclusive of GST. This is a computer-generated invoice and needs no signature."
+    : status === "receipt" ? "Prices are inclusive of GST. This receipt is not a tax invoice."
+    : status === "cancelled" ? "This document has been cancelled."
+    : "Prices are inclusive of GST. This order summary is not a tax invoice.";
   const intra = invoice.mode === "intra";
 
   return (
@@ -82,9 +96,19 @@ export default function InvoicePage() {
       </div>
 
       <div className="invoice-print mx-auto max-w-3xl px-4 sm:px-8 py-8 text-gray-900">
-        {!issued && (
+        {status === "pending" && (
           <p className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
             Order summary — the tax invoice is issued once your payment is confirmed.
+          </p>
+        )}
+        {status === "receipt" && (
+          <p className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
+            This order was paid before online tax invoices were introduced. Message us on WhatsApp if you need a GST invoice.
+          </p>
+        )}
+        {status === "cancelled" && (
+          <p className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+            This order was cancelled or refunded.
           </p>
         )}
 
@@ -99,9 +123,9 @@ export default function InvoicePage() {
             <p className="text-sm font-semibold">GSTIN: {invoice.seller.gstin}</p>
           </div>
           <div className="text-right">
-            <h2 className="text-lg font-bold">{issued ? "TAX INVOICE" : "ORDER SUMMARY"}</h2>
-            {issued && <p className="text-sm">Invoice No: <span className="font-semibold">{invoice.invoiceNumber}</span></p>}
-            {issued && <p className="text-sm">Invoice date: {date(invoice.invoiceDate)}</p>}
+            <h2 className="text-lg font-bold">{heading}</h2>
+            {showInvoiceNumber && <p className="text-sm">Invoice No: <span className="font-semibold">{invoice.invoiceNumber}</span></p>}
+            {showInvoiceNumber && <p className="text-sm">Invoice date: {date(invoice.invoiceDate)}</p>}
             <p className="text-sm text-gray-600">Order: {invoice.orderNumber}</p>
             <p className="text-sm text-gray-600">Order date: {date(invoice.orderDate)}</p>
           </div>
@@ -199,11 +223,7 @@ export default function InvoicePage() {
         {invoice.paymentMethod && (
           <p className="text-sm mb-6"><span className="text-gray-500">Paid by:</span> {invoice.paymentMethod}</p>
         )}
-        <p className="text-center text-xs text-gray-400 mt-10">
-          {issued
-            ? "Prices are inclusive of GST. This is a computer-generated invoice and needs no signature."
-            : "Prices are inclusive of GST. This order summary is not a tax invoice."}
-        </p>
+        <p className="text-center text-xs text-gray-400 mt-10">{footer}</p>
       </div>
 
       <style>{`

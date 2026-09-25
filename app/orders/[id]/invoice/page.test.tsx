@@ -59,6 +59,35 @@ describe("invoice page", () => {
     expect(screen.getByText(/not a tax invoice/)).toBeInTheDocument();
   });
 
+  it("calls an order paid before tax invoices existed a payment receipt", async () => {
+    serve({ ...base, status: "receipt", invoiceNumber: null, invoiceDate: null });
+    render(<InvoicePage />);
+    expect(await screen.findByText("PAYMENT RECEIPT")).toBeInTheDocument();
+    expect(screen.queryByText("TAX INVOICE")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invoice No/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/issued once your payment is confirmed/)).not.toBeInTheDocument();
+    expect(screen.getByText(/paid before online tax invoices were introduced/)).toBeInTheDocument();
+    expect(screen.getByText("Prices are inclusive of GST. This receipt is not a tax invoice.")).toBeInTheDocument();
+  });
+
+  it("marks a cancelled order's invoice as cancelled", async () => {
+    serve({ ...base, status: "cancelled", invoiceNumber: "CB/26-27/0001" });
+    render(<InvoicePage />);
+    expect(await screen.findByText("TAX INVOICE — CANCELLED")).toBeInTheDocument();
+    expect(screen.queryByText("TAX INVOICE")).not.toBeInTheDocument();
+    expect(screen.getByText("CB/26-27/0001")).toBeInTheDocument();
+    expect(screen.getByText("This order was cancelled or refunded.")).toBeInTheDocument();
+    expect(screen.getByText("This document has been cancelled.")).toBeInTheDocument();
+    expect(screen.queryByText(/computer-generated invoice/)).not.toBeInTheDocument();
+  });
+
+  it("calls a cancelled order without an invoice number a cancelled order summary", async () => {
+    serve({ ...base, status: "cancelled", invoiceNumber: null, invoiceDate: null });
+    render(<InvoicePage />);
+    expect(await screen.findByText("ORDER SUMMARY — CANCELLED")).toBeInTheDocument();
+    expect(screen.queryByText(/Invoice No/)).not.toBeInTheDocument();
+  });
+
   it("prints only the invoice, not the site chrome", async () => {
     serve({ ...base, status: "issued", invoiceNumber: "CB/26-27/0001" });
     const { container } = render(<InvoicePage />);
