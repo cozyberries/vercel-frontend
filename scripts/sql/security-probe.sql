@@ -218,6 +218,41 @@ begin
     bad||' policy/policies call auth.uid() bare');
 end $$;
 
+-- stall pickup: admin/internal tables are unreachable from client roles.
+-- A table that does not exist yet (migration not applied) exposes nothing.
+do $$
+declare leaked text[] := '{}'; t text; r text; rel regclass;
+begin
+  foreach t in array array['invoice_counters', 'order_status_events'] loop
+    rel := to_regclass('public.' || t);
+    if rel is null then continue; end if;
+    foreach r in array array['anon', 'authenticated'] loop
+      if pg_temp.priv_any(r, rel, 'SELECT') or pg_temp.priv_any(r, rel, 'INSERT')
+         or pg_temp.priv_any(r, rel, 'UPDATE') or has_table_privilege(r, rel, 'DELETE') then
+        leaked := leaked || (r || ' on ' || t);
+      end if;
+    end loop;
+  end loop;
+  insert into probe_result values ('pickup_internal_tables_unreachable', cardinality(leaked) = 0,
+    'client roles can reach: ' || array_to_string(leaked, ', '));
+end $$;
+
+-- stall pickup: the definer functions are not callable as RPC
+do $$
+declare callable text[] := '{}'; f text; r text;
+begin
+  foreach f in array array['public.orders_on_status_change()', 'public.gst_financial_year(timestamptz)'] loop
+    if to_regprocedure(f) is null then continue; end if;
+    foreach r in array array['anon', 'authenticated'] loop
+      if has_function_privilege(r, f, 'EXECUTE') then
+        callable := callable || (r || ' on ' || f);
+      end if;
+    end loop;
+  end loop;
+  insert into probe_result values ('pickup_functions_not_rpc', cardinality(callable) = 0,
+    'EXECUTE held by: ' || array_to_string(callable, ', '));
+end $$;
+
 select case when ok then 'PASS ' else 'FAIL ' end || name
        || case when ok then '' else ': ' || coalesce(reason,'') end
   from probe_result order by name;

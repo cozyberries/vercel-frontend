@@ -34,6 +34,7 @@
     "db:lint": "node scripts/db-lint.mjs",
     "db:probe": "node scripts/db-probe.mjs",
     "db:test-orders": "node scripts/db-test-orders.mjs",
+    "db:test-pickup": "node scripts/db-test-pickup.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {
