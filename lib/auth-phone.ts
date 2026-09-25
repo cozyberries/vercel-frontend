@@ -1,4 +1,5 @@
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
+import { getIndianPhoneDigits } from "@/lib/utils/validation";
 
 const PHONE_PLACEHOLDER_DOMAIN =
   process.env.VERIFYNOW_PHONE_PLACEHOLDER_EMAIL_DOMAIN || "phone.cozyberries.local";
@@ -10,12 +11,15 @@ function normalizePhone(phone: string): string {
 export type PhoneUserResult = { userId: string; email: string };
 
 /**
- * Find a user by phone number. Scans auth users by normalized phone number.
- * Returns null if no matching user found.
+ * Find a user by phone number. Compares the 10-digit Indian number on both
+ * sides, so accounts stored as `+91…`/`91…` (staff-created customers) match a
+ * bare 10-digit login. Returns null if no matching user found, or when the
+ * input is not a 10-digit number.
  */
 export async function findUserIdByPhone(phone: string): Promise<PhoneUserResult | null> {
+  const digits = getIndianPhoneDigits(phone);
+  if (digits.length !== 10) return null;
   const supabase = createAdminSupabaseClient();
-  const digits = normalizePhone(phone);
 
   let page = 1;
   const perPage = 1000;
@@ -24,7 +28,7 @@ export async function findUserIdByPhone(phone: string): Promise<PhoneUserResult 
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
     if (error) return null;
     if (!data?.users?.length) break;
-    const user = data.users.find((u) => normalizePhone(u.phone ?? "") === digits);
+    const user = data.users.find((u) => getIndianPhoneDigits(u.phone ?? "") === digits);
     if (user?.email) return { userId: user.id, email: user.email };
     if (data.users.length < perPage) break;
     page++;
