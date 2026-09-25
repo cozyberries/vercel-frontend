@@ -59,6 +59,22 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const FILE = path.resolve(REPO_ROOT, args.file ?? "exports/flipkart/kids-apparel-combo.tsv");
 /** "upload" (what we generate) or "template" (a file Flipkart echoed back). */
 const LAYOUT = args.layout ?? "upload";
+/** Optional: the template a TSV was generated for, so fields map back by name. */
+const TEMPLATE = args.template ? path.resolve(REPO_ROOT, args.template) : null;
+
+/** Header row of the target template, trimmed at the last column we recognise. */
+function templateHeader(file) {
+  const book = XLSX.readFile(file);
+  const sheet = book.Sheets[SHEET];
+  if (!sheet) throw new Error(`Sheet ${SHEET} not found in ${file}`);
+  const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+  const known = new Set(COLUMNS.map((c) => c.name).filter(Boolean));
+  let last = -1;
+  (grid[0] ?? []).forEach((h, i) => {
+    if (known.has(String(h ?? "").trim())) last = i;
+  });
+  return (grid[0] ?? []).slice(0, last + 1).map((h) => String(h ?? "").trim());
+}
 
 /** Column name -> the vocabulary its value must belong to. */
 const DROPDOWN_COLUMNS = {
@@ -297,10 +313,28 @@ async function readRows(file) {
       return cells;
     });
   }
-  return (await readFile(file, "utf8"))
+  const tsv = (await readFile(file, "utf8"))
     .split("\n")
     .filter((line) => line.trim() !== "")
     .map((line) => line.split("\t"));
+
+  // With a template, map each field back to our internal indexing by the
+  // template's own header name — the field count follows the template
+  // (69-column sheet: 63 fields; 70-column: 64), so position alone is not
+  // enough to know which attribute a field holds.
+  if (TEMPLATE) {
+    const header = templateHeader(TEMPLATE);
+    return tsv.map((fields) => {
+      const cells = new Array(COLUMN_COUNT).fill("");
+      header.slice(FIRST_SELLER_COLUMN).forEach((name, f) => {
+        if (!name) return;
+        const col = COLUMNS.find((c) => c.name === name);
+        if (col) cells[col.index] = (fields[f] ?? "").trim();
+      });
+      return cells;
+    });
+  }
+  return tsv;
 }
 
 async function main() {

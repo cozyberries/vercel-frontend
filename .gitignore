@@ -105,3 +105,6 @@ node-compile-cache/
 
 # tsx compile cache, created when the flipkart scripts run
 tsx-*/
+
+# Downloaded product images (hundreds of MB, reproducible from the catalog)
+exports/images/

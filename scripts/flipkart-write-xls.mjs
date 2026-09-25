@@ -110,7 +110,9 @@ async function main() {
     .filter((line) => line.trim() !== "")
     .map((line) => line.split("\t"));
 
-  const expectedWidth = COLUMN_COUNT - FIRST_SELLER_COLUMN;
+  // The TSV is generated FOR this template, so its field count follows the
+  // template, not this repo's own column spec.
+  const expectedWidth = targetWidth - FIRST_SELLER_COLUMN;
   rows.forEach((cells, i) => {
     if (cells.length !== expectedWidth) {
       throw new Error(`TSV row ${i + 1} has ${cells.length} fields, expected ${expectedWidth}`);
@@ -132,13 +134,13 @@ async function main() {
     // omitting them leaves gaps in the row's cell records — Flipkart's parser
     // walks those sequentially, so a gap shifts every later value. That is what
     // put ACTIVE into the MRP column and read back as "ACTIVE1039".
-    // Re-expand the upload row to our full internal indexing, then lay it out
-    // under the TARGET template's headers by name.
-    const full = new Array(COLUMN_COUNT).fill("");
-    cells.forEach((v, f) => {
-      full[FIRST_SELLER_COLUMN + f] = v;
+    // The TSV already carries this template's layout (flipkart-export.mjs maps
+    // by header name), so field f belongs at column 6 + f. Columns A-F are
+    // Flipkart's and stay empty.
+    const laid = targetHeader.map((_, c) => {
+      const f = c - FIRST_SELLER_COLUMN;
+      return f >= 0 && f < cells.length ? cells[f] : "";
     });
-    const laid = layoutForTemplate(full, targetHeader);
     laid.forEach((value, c) => {
       const numeric = NUMERIC_NAMES.has(targetHeader[c]);
       const address = XLSX.utils.encode_cell({ r, c });

@@ -18,7 +18,13 @@ import { fileURLToPath } from "node:url";
 // CJS interop (cjs-module-lexer doesn't statically see them) — default import
 // gets the whole CommonJS module.exports object instead.
 import XLSX from "xlsx";
-import { COLUMN_COUNT, COLUMNS, columnIndex, FIRST_SELLER_COLUMN } from "../lib/flipkart/columns.ts";
+import {
+  COLUMN_COUNT,
+  COLUMNS,
+  columnIndex,
+  FIRST_SELLER_COLUMN,
+  layoutForTemplate,
+} from "../lib/flipkart/columns.ts";
 import { CONFIG, placeholderFields } from "../lib/flipkart/config.ts";
 import { mapProduct, MappingError } from "../lib/flipkart/mapping.ts";
 
@@ -76,7 +82,14 @@ export function readTemplate(file) {
   const sheet = book.Sheets[SHEET];
   if (!sheet) throw new Error(`Sheet ${SHEET} not found in ${file}`);
   const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
-  assertTemplateShape(grid);
+
+  // Trim at the last column we recognise; an annotated file carries ~255.
+  const knownNames = new Set(COLUMNS.map((c) => c.name).filter(Boolean));
+  let lastNamed = -1;
+  grid[0]?.forEach((h, i) => {
+    if (knownNames.has(String(h ?? "").trim())) lastNamed = i;
+  });
+  const header = (grid[0] ?? []).slice(0, lastNamed + 1).map((h) => String(h ?? "").trim());
 
   const skuColumn = columnIndex("Seller SKU ID");
   const imageColumns = [
@@ -87,6 +100,7 @@ export function readTemplate(file) {
   ];
 
   const rows = new Map();
+  rows.header = header;
   for (let i = FIRST_DATA_ROW; i < grid.length; i++) {
     const sku = String(grid[i]?.[skuColumn] ?? "").trim();
     if (!sku) continue;
@@ -252,6 +266,7 @@ export function buildReport({
 
 async function main() {
   const existingRows = readTemplate(TEMPLATE_PATH);
+  const templateHeader = existingRows.header;
   const catalog = await getJson(`${BASE}/api/catalog`);
   const bySlug = new Map(catalog.products.map((p) => [p.slug, p]));
 
@@ -303,10 +318,13 @@ async function main() {
     for (const row of result.rows) {
       if (onlySkus && !onlySkus.has(row.cells[columnIndex("Seller SKU ID")])) continue;
       if (row.cells.length !== COLUMN_COUNT) throw new Error(`bad row width for ${slug}`);
-      // Our internal 69-column row, from Seller SKU ID onward. Placement into a
-      // real template happens by header NAME in flipkart-write-xls.mjs, because
-      // Flipkart reissues the template with columns inserted.
-      tsvRows.push(row.cells.slice(FIRST_SELLER_COLUMN).join("\t"));
+      // Laid out for THIS template by header name, then sliced to the
+      // seller-editable range. The template is reissued with columns inserted
+      // (13 Sep: 69 columns; 16 Sep: 70, "Parent Variant FSN" at 8), so the
+      // field count follows the target rather than this repo's own spec.
+      tsvRows.push(
+        layoutForTemplate(row.cells, templateHeader).slice(FIRST_SELLER_COLUMN).join("\t"),
+      );
       for (const name of row.blanks) blanks.set(name, (blanks.get(name) ?? 0) + 1);
       for (const name of row.unmappedOptional) {
         unmappedOptional.set(name, (unmappedOptional.get(name) ?? 0) + 1);
@@ -338,7 +356,7 @@ async function main() {
     noTemplateRow,
     unmappedPrints,
     pasteCell: PASTE_FROM_CELL,
-    columnCount: COLUMN_COUNT - FIRST_SELLER_COLUMN,
+    columnCount: templateHeader.length - FIRST_SELLER_COLUMN,
   });
   await writeFile(path.join(OUT_DIR, "report.md"), report, "utf8");
 

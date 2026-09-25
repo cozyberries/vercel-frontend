@@ -3,6 +3,7 @@ import {
   COLUMNS,
   COLUMN_COUNT,
   columnIndex,
+  FIRST_SELLER_COLUMN,
   layoutForTemplate,
   mandatoryColumns,
   valuesByName,
@@ -146,5 +147,39 @@ describe("layoutForTemplate", () => {
     const byName = valuesByName(cells);
     expect(byName.get("Seller SKU ID")).toBe("Seller SKU ID");
     expect(byName.size).toBe(COLUMN_COUNT - 1); // the one blank has no name
+  });
+});
+
+describe("paste fields for a target template", () => {
+  // The 16 Sep template: 70 columns, "Parent Variant FSN" at 8, blank at 9,
+  // Listing Status at 10. A TSV pasted at G5 must have a field per column
+  // from 6 onward, including the two we leave empty — otherwise every later
+  // value lands one column short.
+  const SEP_16_HEADER = [
+    ...COLUMNS.slice(0, 8).map((c) => c.name),
+    "Parent Variant FSN",
+    "",
+    ...COLUMNS.slice(9).map((c) => c.name),
+  ];
+
+  it("emits one field per target column from Seller SKU ID onward", () => {
+    const cells = COLUMNS.map((c) => c.name || "");
+    const fields = layoutForTemplate(cells, SEP_16_HEADER).slice(FIRST_SELLER_COLUMN);
+    expect(fields).toHaveLength(SEP_16_HEADER.length - FIRST_SELLER_COLUMN); // 64
+    expect(fields[0]).toBe("Seller SKU ID");
+    expect(fields[1]).toBe("Group ID");
+    expect(fields[2]).toBe(""); // Parent Variant FSN — Flipkart's to fill
+    expect(fields[3]).toBe(""); // the unnamed gap
+    expect(fields[4]).toBe("Listing Status");
+    expect(fields[5]).toBe("MRP (INR)");
+  });
+
+  it("differs from the 69-column layout by exactly one field", () => {
+    const cells = COLUMNS.map((c) => c.name || "");
+    const old = layoutForTemplate(cells, COLUMNS.map((c) => c.name)).slice(FIRST_SELLER_COLUMN);
+    const fresh = layoutForTemplate(cells, SEP_16_HEADER).slice(FIRST_SELLER_COLUMN);
+    expect(fresh.length - old.length).toBe(1);
+    expect(old[3]).toBe("Listing Status"); // where it sat in the 69-column sheet
+    expect(fresh[4]).toBe("Listing Status"); // where it sits now
   });
 });

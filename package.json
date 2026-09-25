@@ -35,7 +35,8 @@
     "db:probe": "node scripts/db-probe.mjs",
     "flipkart:export": "tsx scripts/flipkart-export.mjs",
     "flipkart:validate": "tsx scripts/flipkart-validate.mjs",
-    "flipkart:write": "tsx scripts/flipkart-write-xls.mjs"
+    "flipkart:write": "tsx scripts/flipkart-write-xls.mjs",
+    "images:download": "node scripts/download-product-images.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
