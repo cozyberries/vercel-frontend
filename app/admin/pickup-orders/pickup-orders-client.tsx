@@ -46,6 +46,12 @@ export default function PickupOrdersClient() {
     return () => clearTimeout(t);
   }, [load, query]);
 
+  const readyLink = (order: PickupOrderRow) =>
+    whatsappLink(
+      order.customer_phone,
+      `Hi${order.customer_name ? ` ${order.customer_name}` : ""}! Your CozyBerries order ${order.order_number} is ready to collect at ${STALL.name}, ${STALL.addressLines.join(", ")}. Hours: ${STALL.hours}.`
+    );
+
   const act = async (order: PickupOrderRow, action: PickupAction) => {
     setBusyId(order.id);
     try {
@@ -58,10 +64,7 @@ export default function PickupOrdersClient() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || "Update failed");
       if (action === "ready") {
-        const link = whatsappLink(
-          order.customer_phone,
-          `Hi ${order.customer_name ?? ""}! Your CozyBerries order ${order.order_number} is ready to collect at ${STALL.name}, ${STALL.addressLines.join(", ")}. Hours: ${STALL.hours}.`
-        );
+        const link = readyLink(order);
         if (link) window.open(link, "_blank", "noopener,noreferrer");
       }
       toast.success(action === "ready" ? "Marked ready" : "Marked collected");
@@ -159,6 +162,14 @@ export default function PickupOrdersClient() {
                     <Button size="sm" disabled={busy} onClick={() => act(order, "collected")}>
                       <PackageCheck className="h-4 w-4 mr-1.5" />
                       Mark collected
+                    </Button>
+                  )}
+                  {order.status === "ready_for_pickup" && readyLink(order) && (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={readyLink(order)!} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="h-4 w-4 mr-1.5" />
+                        Send ready message
+                      </a>
                     </Button>
                   )}
                   {bill && (

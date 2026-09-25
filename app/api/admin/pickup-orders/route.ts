@@ -3,6 +3,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
 import { isAdmin } from "@/lib/services/effective-user";
 import { parsePickupTab, PICKUP_SEARCH_STATUSES, PICKUP_TAB_STATUSES, startOfIstDay } from "@/lib/orders/pickup";
+import { getIndianPhoneDigits } from "@/lib/utils/validation";
 
 const SELECT =
   "id, order_number, status, total_amount, customer_name, customer_phone, invoice_number, created_at, updated_at, " +
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       const looksLikePhone = /^[+\d\s-]+$/.test(q) && digits.length >= 4;
       query = query.in("status", PICKUP_SEARCH_STATUSES);
       query = looksLikePhone
-        ? query.ilike("customer_phone", `%${digits}%`)
+        ? query.ilike("customer_phone", `%${digits.length > 10 ? getIndianPhoneDigits(digits) : digits}%`)
         : query.ilike("order_number", `%${q}%`);
     } else {
       query = query.in("status", PICKUP_TAB_STATUSES[tab]);

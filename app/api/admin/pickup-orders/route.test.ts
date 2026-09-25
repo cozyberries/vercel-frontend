@@ -59,6 +59,11 @@ describe('GET /api/admin/pickup-orders', () => {
     expect(h.calls).toContainEqual(['ilike', 'order_number', '%ORD-2026%']);
   });
 
+  it('finds a 10-digit stored phone when searched with the +91 country code', async () => {
+    await get('?q=%2B91%2098765%2043210');
+    expect(h.calls).toContainEqual(['ilike', 'customer_phone', '%9876543210%']);
+  });
+
   it('rejects an unknown tab', async () => {
     expect((await get('?tab=bogus')).status).toBe(400);
   });
