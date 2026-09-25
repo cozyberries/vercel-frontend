@@ -117,6 +117,8 @@ export default function PaymentPage() {
       }
       toast.success("Cash recorded — confirm it on Telegram");
       await fetchOrderAndLinks();
+    } catch {
+      toast.error("Network error — check the connection and try again");
     } finally {
       setRecordingCash(false);
     }

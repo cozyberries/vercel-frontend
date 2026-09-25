@@ -92,8 +92,13 @@ export async function POST(request: NextRequest) {
 
     if (moveError || !moved || moved.length !== 1) {
       // Compensating delete: the order moved on (or the update failed), so the
-      // cash row must not linger as a phantom payment.
-      const { error: rollbackError } = await client.from("payments").delete().eq("id", payment.id);
+      // cash row must not linger as a phantom payment. Only while it is still
+      // processing — never remove a payment the webhook has just completed.
+      const { error: rollbackError } = await client
+        .from("payments")
+        .delete()
+        .eq("id", payment.id)
+        .eq("status", "processing");
       if (rollbackError) {
         console.error("[payments/cash] rollback failed — orphaned payment needs manual cleanup:", {
           rollbackError,

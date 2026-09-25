@@ -20,6 +20,7 @@ const h = vi.hoisted(() => {
     calls.paymentInserts = [];
     calls.orderUpdates = [];
     calls.paymentDeletes = [];
+    calls.paymentDeleteEqs = [];
     calls.events = [];
   };
   reset();
@@ -40,7 +41,20 @@ const h = vi.hoisted(() => {
             calls.paymentInserts.push(values);
             return { select: () => ({ single: async () => state.paymentInsert }) };
           },
-          delete: () => ({ eq: async (_col: string, id: string) => { calls.paymentDeletes.push(id); return { error: null }; } }),
+          delete: () => {
+            const eqs: [string, unknown][] = [];
+            calls.paymentDeleteEqs.push(eqs);
+            const chain: any = {
+              eq: (col: string, val: unknown) => {
+                eqs.push([col, val]);
+                if (col === 'id') calls.paymentDeletes.push(val);
+                return chain;
+              },
+              then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                Promise.resolve({ error: null }).then(resolve, reject),
+            };
+            return chain;
+          },
         };
       }
       return { insert: async (values: unknown) => { calls.events.push(values); return { error: null }; } };
@@ -141,6 +155,13 @@ describe('POST /api/payments/cash', () => {
     expect(res.status).toBe(409);
     expect(h.calls.paymentDeletes).toEqual(['pay-1']);
     expect(h.notifyNewOrder).not.toHaveBeenCalled();
+  });
+
+  it('only removes the payment while it is still processing, never one the webhook completed', async () => {
+    asStaff();
+    h.state.move = { data: [], error: null };
+    await POST(req({ orderId: 'order-1' }));
+    expect(h.calls.paymentDeleteEqs).toEqual([[['id', 'pay-1'], ['status', 'processing']]]);
   });
 
   it('refuses to record cash for a fully discounted order', async () => {
