@@ -187,17 +187,23 @@ describe("DisplayClient", () => {
   });
 
   it("starts when fullscreen and wake lock reject", async () => {
-    const requestFullscreen = vi.fn(() => Promise.reject(new Error("denied")));
+    // Plain functions, not vi.fn: vitest attaches handlers to promises a mock returns, which would
+    // hide exactly the unhandled rejection this test guards against.
+    let fullscreenCalls = 0;
+    const requestFullscreen = () => {
+      fullscreenCalls++;
+      return Promise.reject(new Error("denied"));
+    };
     Object.defineProperty(document.documentElement, "requestFullscreen", { configurable: true, value: requestFullscreen });
     Object.defineProperty(navigator, "wakeLock", {
       configurable: true,
-      value: { request: vi.fn(() => Promise.reject(new Error("denied"))) },
+      value: { request: () => Promise.reject(new Error("denied")) },
     });
     renderDisplay();
     await tick(0);
     tap();
     await tick(0);
-    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(fullscreenCalls).toBe(1);
     expect(shownSlug()).toBe("a");
   });
 
