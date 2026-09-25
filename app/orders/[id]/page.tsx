@@ -16,6 +16,7 @@ import {
   Download,
   Loader2,
   AlertCircle,
+  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
@@ -23,9 +24,10 @@ import { orderService } from "@/lib/services/orders";
 import { useOrderShipmentTracking } from "@/hooks/useApiQueries";
 import { ShipmentTrackingSection } from "@/components/orders/ShipmentTrackingSection";
 import { useReorder } from "@/hooks/useReorder";
-import { getOrderStageInfo, STEPPER_STEPS, type OrderStageKey } from "@/lib/utils/order-stage";
+import { getOrderStageInfo, getStepperSteps, type OrderStageKey } from "@/lib/utils/order-stage";
 import { UPI_ID, UPI_PHONE_NUMBER } from "@/lib/constants";
 import type { Order } from "@/lib/types/order";
+import { StallCard } from "@/components/checkout/StallCard";
 
 const STAGE_ICON: Record<OrderStageKey, typeof Receipt> = {
   order_placed: Receipt,
@@ -34,6 +36,8 @@ const STAGE_ICON: Record<OrderStageKey, typeof Receipt> = {
   shipped: Package,
   out_for_delivery: Truck,
   delivered: CheckCircle,
+  ready_for_pickup: Store,
+  collected: CheckCircle,
   cancelled: Receipt,
   refunded: Receipt,
 };
@@ -47,7 +51,13 @@ function getContextLine(order: Order, stageKey: OrderStageKey): string {
     case "order_placed":
       return "Order placed — confirming your payment";
     case "payment_confirmed":
-      return "Payment confirmed — packing soon";
+      return order.fulfilment_method === "pickup"
+        ? "Payment confirmed — we'll message you when it's ready"
+        : "Payment confirmed — packing soon";
+    case "ready_for_pickup":
+      return "Ready — collect it at our stall";
+    case "collected":
+      return "Collected — thank you!";
     case "packed":
       return "Packed — shipping soon";
     case "shipped":
@@ -133,7 +143,8 @@ export default function OrderDetailsPage() {
     );
   }
 
-  const stage = getOrderStageInfo(order.status, tracking?.currentStatus);
+  const stage = getOrderStageInfo(order.status, tracking?.currentStatus, order.fulfilment_method);
+  const steps = getStepperSteps(order.fulfilment_method);
   const StageIcon = STAGE_ICON[stage.key];
   const contextLine = getContextLine(order, stage.key);
   const isPaymentPending = order.status === "payment_pending" || order.status === "verifying_payment";
@@ -160,10 +171,10 @@ export default function OrderDetailsPage() {
           <p className="text-sm font-semibold text-cb-terracotta-deep mb-5">{contextLine}</p>
 
           <div className="flex items-start">
-            {STEPPER_STEPS.map((step, index) => {
+            {steps.map((step, index) => {
               const Icon = STAGE_ICON[step.key];
               const isDone = stage.stepIndex !== null && index <= stage.stepIndex;
-              const isLast = index === STEPPER_STEPS.length - 1;
+              const isLast = index === steps.length - 1;
               return (
                 <div key={step.key} className={`flex flex-col items-center ${isLast ? "" : "flex-1"}`}>
                   <div className="flex w-full items-center">
@@ -239,20 +250,24 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* Delivery address */}
-        {order.shipping_address && (
-          <div className="bg-white rounded-2xl border border-cb-border p-5">
-            <p className="flex items-center gap-2 text-sm font-bold text-cb-fg mb-3">
-              <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
-              Delivery address
-            </p>
-            <p className="text-sm font-bold text-cb-fg">{order.shipping_address.full_name}</p>
-            <p className="text-sm text-cb-muted-fg">
-              {[order.shipping_address.address_line_1, order.shipping_address.area].filter(Boolean).join(", ")}
-            </p>
-            <p className="text-sm text-cb-muted-fg">
-              {order.shipping_address.city} – {order.shipping_address.postal_code}
-            </p>
-          </div>
+        {order.fulfilment_method === "pickup" ? (
+          <StallCard title="Collect from" />
+        ) : (
+          order.shipping_address && (
+            <div className="bg-white rounded-2xl border border-cb-border p-5">
+              <p className="flex items-center gap-2 text-sm font-bold text-cb-fg mb-3">
+                <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
+                Delivery address
+              </p>
+              <p className="text-sm font-bold text-cb-fg">{order.shipping_address.full_name}</p>
+              <p className="text-sm text-cb-muted-fg">
+                {[order.shipping_address.address_line_1, order.shipping_address.area].filter(Boolean).join(", ")}
+              </p>
+              <p className="text-sm text-cb-muted-fg">
+                {order.shipping_address.city} – {order.shipping_address.postal_code}
+              </p>
+            </div>
+          )
         )}
 
         {/* Bill details */}
@@ -275,7 +290,7 @@ export default function OrderDetailsPage() {
             <div className="flex items-center justify-between">
               <span className="text-cb-muted-fg">Delivery</span>
               <span className={`font-semibold ${order.delivery_charge === 0 ? "text-cb-success" : "text-cb-fg"}`}>
-                {order.delivery_charge === 0 ? "Free" : `₹${order.delivery_charge.toFixed(0)}`}
+                {order.fulfilment_method === "pickup" ? "Free (pickup)" : order.delivery_charge === 0 ? "Free" : `₹${order.delivery_charge.toFixed(0)}`}
               </span>
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-cb-border text-base">

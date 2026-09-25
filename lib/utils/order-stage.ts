@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@/lib/types/order";
+import type { FulfilmentMethod, OrderStatus } from "@/lib/types/order";
 
 /**
  * Customer-facing order journey display — distinct from ORDER_STATUS_COLORS
@@ -22,6 +22,8 @@ export type OrderStageKey =
   | "shipped"
   | "out_for_delivery"
   | "delivered"
+  | "ready_for_pickup"
+  | "collected"
   | "cancelled"
   | "refunded";
 
@@ -43,14 +45,44 @@ export const STEPPER_STEPS: { key: OrderStageKey; label: string }[] = [
   { key: "delivered", label: "Delivered" },
 ];
 
+/** Pickup orders are never shipped: paid → ready at the stall → collected. */
+export const PICKUP_STEPPER_STEPS: { key: OrderStageKey; label: string }[] = [
+  { key: "order_placed", label: "Order placed" },
+  { key: "payment_confirmed", label: "Paid" },
+  { key: "ready_for_pickup", label: "Ready at stall" },
+  { key: "collected", label: "Collected" },
+];
+
+export function getStepperSteps(fulfilment: FulfilmentMethod = "delivery") {
+  return fulfilment === "pickup" ? PICKUP_STEPPER_STEPS : STEPPER_STEPS;
+}
+
 const PEACH_PILL = "bg-cb-peach text-cb-terracotta-deep";
 const GREEN_PILL = "bg-green-100 text-green-800";
 const RED_PILL = "bg-red-100 text-red-800";
 
 export function getOrderStageInfo(
   status: OrderStatus,
-  trackingCurrentStatus?: string
+  trackingCurrentStatus?: string,
+  fulfilment: FulfilmentMethod = "delivery"
 ): OrderStageInfo {
+  if (fulfilment === "pickup") {
+    switch (status) {
+      case "payment_pending":
+      case "verifying_payment":
+        return { key: "order_placed", label: "Payment processing", pillClass: PEACH_PILL, stepIndex: 0 };
+      case "payment_confirmed":
+      case "processing":
+        return { key: "payment_confirmed", label: "Paid", pillClass: GREEN_PILL, stepIndex: 1 };
+      case "ready_for_pickup":
+        return { key: "ready_for_pickup", label: "Ready at stall", pillClass: GREEN_PILL, stepIndex: 2 };
+      case "collected":
+        return { key: "collected", label: "Collected", pillClass: GREEN_PILL, stepIndex: 3 };
+      default:
+        break;
+    }
+  }
+
   switch (status) {
     case "payment_pending":
     case "verifying_payment":

@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Star,
   RotateCcw,
+  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -45,6 +46,8 @@ const STAGE_ICON: Record<OrderStageKey, typeof Clock> = {
   shipped: Package,
   out_for_delivery: Truck,
   delivered: CheckCircle,
+  ready_for_pickup: Store,
+  collected: CheckCircle,
   cancelled: Clock,
   refunded: Clock,
 };
@@ -329,7 +332,7 @@ export default function OrdersPage() {
 }
 
 function CompactOrderRow({ order }: { order: Order }) {
-  const stage = getOrderStageInfo(order.status);
+  const stage = getOrderStageInfo(order.status, undefined, order.fulfilment_method);
   const Icon = STAGE_ICON[stage.key];
   return (
     <Link href={`/orders/${order.id}`} className="block bg-white rounded-2xl border border-cb-border p-4">
@@ -361,7 +364,7 @@ function DeliveredOrderCard({
   onRate: (productSlug: string) => void;
   onReorder: () => void;
 }) {
-  const stage = getOrderStageInfo(order.status);
+  const stage = getOrderStageInfo(order.status, undefined, order.fulfilment_method);
   const Icon = STAGE_ICON[stage.key];
   return (
     <div className="bg-white rounded-2xl border border-cb-border overflow-hidden">

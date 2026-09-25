@@ -1,0 +1,41 @@
+"use client";
+
+import { Home, Store } from "lucide-react";
+import type { FulfilmentMethod } from "@/lib/types/order";
+
+const OPTIONS = [
+  { value: "delivery", label: "Home delivery", hint: "Delivered by courier", Icon: Home },
+  { value: "pickup", label: "Pick up from our stall", hint: "Free · no address needed", Icon: Store },
+] as const;
+
+export function FulfilmentPicker({
+  value,
+  onChange,
+}: {
+  value: FulfilmentMethod;
+  onChange: (method: FulfilmentMethod) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label="How would you like to get your order?" className="grid grid-cols-2 gap-3">
+      {OPTIONS.map(({ value: option, label, hint, Icon }) => {
+        const selected = option === value;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option)}
+            className={`rounded-2xl border p-4 text-left ${
+              selected ? "border-cb-terracotta bg-cb-peach/40" : "border-cb-border bg-white"
+            }`}
+          >
+            <Icon className="h-4 w-4 text-cb-terracotta-deep mb-2" aria-hidden />
+            <span className="block text-sm font-bold text-cb-fg">{label}</span>
+            <span className="block text-xs text-cb-muted-fg">{hint}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

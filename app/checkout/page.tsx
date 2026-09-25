@@ -27,8 +27,12 @@ import { useProfile } from "@/hooks/useProfile";
 import { useCartTotals } from "@/hooks/useCartTotals";
 import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
-import { STATIC_QR_CODE_URL, UPI_ID, UPI_PHONE_NUMBER, DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { STATIC_QR_CODE_URL, UPI_ID, UPI_PHONE_NUMBER } from "@/lib/constants";
 import { getActiveOffer } from "@/lib/utils/discount";
+import type { FulfilmentMethod } from "@/lib/types/order";
+import { canContinueCheckout, deliveryChargeFor } from "@/lib/utils/fulfilment";
+import { FulfilmentPicker } from "@/components/checkout/FulfilmentPicker";
+import { StallCard } from "@/components/checkout/StallCard";
 
 const ADMIN_OVERRIDE_NOTE_MIN_LEN = 3;
 const ADMIN_OVERRIDE_NOTE_MAX_LEN = 500;
@@ -71,6 +75,7 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<Step>("address");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [fulfilment, setFulfilment] = useState<FulfilmentMethod>("delivery");
   const [adminOverrideEnabled, setAdminOverrideEnabled] = useState(false);
   const [adminOverrideAmount, setAdminOverrideAmount] = useState("");
   const [adminOverrideNote, setAdminOverrideNote] = useState("");
@@ -114,8 +119,8 @@ export default function CheckoutPage() {
 
   const discountAmount = overrideActive ? overrideAmountInt : organicDiscount;
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-  const deliveryCharge =
-    cart.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_CHARGE_INR : 0;
+  const deliveryCharge = deliveryChargeFor(discountedSubtotal, fulfilment, cart.length);
+  const readyToContinue = canContinueCheckout({ fulfilment, selectedAddressId });
   const total = discountedSubtotal + deliveryCharge;
 
   // Redirect if user is not authenticated; preserve redirect so post-login returns to checkout
@@ -151,7 +156,7 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    if (!selectedAddressId) {
+    if (!readyToContinue) {
       toast.error("Please select a delivery address");
       return;
     }
@@ -175,7 +180,8 @@ export default function CheckoutPage() {
             ...(item.size ? { size: item.size } : {}),
             ...(item.color ? { color: item.color } : {}),
           })),
-          shipping_address_id: selectedAddressId,
+          fulfilment_method: fulfilment,
+          ...(fulfilment === "delivery" ? { shipping_address_id: selectedAddressId } : {}),
           ...(overrideActive
             ? { admin_override: { discount_amount: overrideAmountInt, note: trimmedOverrideNote } }
             : offer
@@ -245,68 +251,77 @@ export default function CheckoutPage() {
         {step === "address" ? (
           <>
             <div className="bg-white rounded-2xl border border-cb-border p-5">
-              <h2 className="flex items-center gap-2 text-base font-bold text-cb-fg mb-4">
-                <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
-                Delivery address
-              </h2>
-
-              <div className="space-y-3">
-                {addresses.map((address) => {
-                  const Icon = TYPE_ICON[address.address_type] ?? MapPin;
-                  const typeLabel =
-                    address.label?.trim() ||
-                    (address.address_type === "home" ? "Home" : address.address_type === "work" ? "Work" : "Other");
-                  const selected = selectedAddressId === address.id;
-                  return (
-                    <button
-                      key={address.id}
-                      type="button"
-                      onClick={() => setSelectedAddressId(address.id)}
-                      className={`w-full text-left rounded-2xl border p-4 ${
-                        selected ? "border-cb-terracotta bg-cb-peach/40" : "border-cb-border bg-white"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span
-                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                            selected ? "border-cb-terracotta" : "border-cb-border"
-                          }`}
-                        >
-                          {selected && <span className="h-2 w-2 rounded-full bg-cb-terracotta" />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Icon className="h-3.5 w-3.5 text-cb-fg" />
-                            <span className="font-bold text-cb-fg">{typeLabel}</span>
-                            {address.is_default && (
-                              <span className="rounded-full bg-cb-peach px-2 py-0.5 text-[11px] font-bold text-cb-terracotta-deep">
-                                Default
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-semibold text-cb-fg">
-                            {address.full_name} · +91 {address.phone}
-                          </p>
-                          <p className="text-sm text-cb-muted-fg">
-                            {[address.address_line_1, address.area].filter(Boolean).join(", ")}, {address.city} –{" "}
-                            {address.postal_code}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAddAddress(true)}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-cb-border py-3 text-sm font-semibold text-cb-fg"
-              >
-                <Plus className="h-4 w-4" />
-                Add new address
-              </button>
+              <h2 className="text-base font-bold text-cb-fg mb-4">How would you like to get it?</h2>
+              <FulfilmentPicker value={fulfilment} onChange={setFulfilment} />
             </div>
+
+            {fulfilment === "delivery" ? (
+              <div className="bg-white rounded-2xl border border-cb-border p-5">
+                <h2 className="flex items-center gap-2 text-base font-bold text-cb-fg mb-4">
+                  <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
+                  Delivery address
+                </h2>
+
+                <div className="space-y-3">
+                  {addresses.map((address) => {
+                    const Icon = TYPE_ICON[address.address_type] ?? MapPin;
+                    const typeLabel =
+                      address.label?.trim() ||
+                      (address.address_type === "home" ? "Home" : address.address_type === "work" ? "Work" : "Other");
+                    const selected = selectedAddressId === address.id;
+                    return (
+                      <button
+                        key={address.id}
+                        type="button"
+                        onClick={() => setSelectedAddressId(address.id)}
+                        className={`w-full text-left rounded-2xl border p-4 ${
+                          selected ? "border-cb-terracotta bg-cb-peach/40" : "border-cb-border bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                              selected ? "border-cb-terracotta" : "border-cb-border"
+                            }`}
+                          >
+                            {selected && <span className="h-2 w-2 rounded-full bg-cb-terracotta" />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <Icon className="h-3.5 w-3.5 text-cb-fg" />
+                              <span className="font-bold text-cb-fg">{typeLabel}</span>
+                              {address.is_default && (
+                                <span className="rounded-full bg-cb-peach px-2 py-0.5 text-[11px] font-bold text-cb-terracotta-deep">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-semibold text-cb-fg">
+                              {address.full_name} · +91 {address.phone}
+                            </p>
+                            <p className="text-sm text-cb-muted-fg">
+                              {[address.address_line_1, address.area].filter(Boolean).join(", ")}, {address.city} –{" "}
+                              {address.postal_code}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddAddress(true)}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-cb-border py-3 text-sm font-semibold text-cb-fg"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add new address
+                </button>
+              </div>
+            ) : (
+              <StallCard />
+            )}
 
             <OrderSummary
               cart={cart}
@@ -315,52 +330,57 @@ export default function CheckoutPage() {
               deliveryCharge={deliveryCharge}
               total={total}
               offerCode={overrideActive ? null : offer?.code ?? null}
+              fulfilment={fulfilment}
               showItems
             />
           </>
         ) : (
           <>
-            <div className="bg-white rounded-2xl border border-cb-border p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="flex items-center gap-2 text-base font-bold text-cb-fg">
-                  <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
-                  Deliver to
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setStep("address")}
-                  className="flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep"
-                >
-                  Change
-                  <ChevronLeft className="h-3.5 w-3.5 rotate-180" />
-                </button>
-              </div>
-              {selectedAddress && (
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-cb-fg">
-                    {(() => {
-                      const Icon = TYPE_ICON[selectedAddress.address_type] ?? MapPin;
-                      return <Icon className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />;
-                    })()}
-                    {selectedAddress.label?.trim() ||
-                      (selectedAddress.address_type === "home"
-                        ? "Home"
-                        : selectedAddress.address_type === "work"
-                          ? "Work"
-                          : "Other")}{" "}
-                    · {selectedAddress.full_name}
-                  </p>
-                  <p className="text-sm text-cb-muted-fg">
-                    {[selectedAddress.address_line_1, selectedAddress.area].filter(Boolean).join(", ")},{" "}
-                    {selectedAddress.city} – {selectedAddress.postal_code}
-                  </p>
-                  <p className="flex items-center gap-1.5 text-sm text-cb-muted-fg">
-                    <Phone className="h-3.5 w-3.5" />
-                    +91 {selectedAddress.phone}
-                  </p>
+            {fulfilment === "delivery" ? (
+              <div className="bg-white rounded-2xl border border-cb-border p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="flex items-center gap-2 text-base font-bold text-cb-fg">
+                    <MapPin className="h-4 w-4 text-cb-terracotta-deep" />
+                    Deliver to
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setStep("address")}
+                    className="flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep"
+                  >
+                    Change
+                    <ChevronLeft className="h-3.5 w-3.5 rotate-180" />
+                  </button>
                 </div>
-              )}
-            </div>
+                {selectedAddress && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-cb-fg">
+                      {(() => {
+                        const Icon = TYPE_ICON[selectedAddress.address_type] ?? MapPin;
+                        return <Icon className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />;
+                      })()}
+                      {selectedAddress.label?.trim() ||
+                        (selectedAddress.address_type === "home"
+                          ? "Home"
+                          : selectedAddress.address_type === "work"
+                            ? "Work"
+                            : "Other")}{" "}
+                      · {selectedAddress.full_name}
+                    </p>
+                    <p className="text-sm text-cb-muted-fg">
+                      {[selectedAddress.address_line_1, selectedAddress.area].filter(Boolean).join(", ")},{" "}
+                      {selectedAddress.city} – {selectedAddress.postal_code}
+                    </p>
+                    <p className="flex items-center gap-1.5 text-sm text-cb-muted-fg">
+                      <Phone className="h-3.5 w-3.5" />
+                      +91 {selectedAddress.phone}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <StallCard title="Collect from" />
+            )}
 
             <div className="bg-white rounded-2xl border border-cb-border p-5">
               <h2 className="flex items-center gap-2 text-base font-bold text-cb-fg mb-3">
@@ -505,6 +525,7 @@ export default function CheckoutPage() {
               deliveryCharge={deliveryCharge}
               total={total}
               offerCode={overrideActive ? null : offer?.code ?? null}
+              fulfilment={fulfilment}
               showItems={false}
             />
           </>
@@ -520,7 +541,7 @@ export default function CheckoutPage() {
           {step === "address" ? (
             <Button
               className="ml-auto flex-1 max-w-xs h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
-              disabled={!selectedAddressId}
+              disabled={!readyToContinue}
               onClick={() => setStep("payment")}
             >
               Continue to payment
@@ -529,7 +550,7 @@ export default function CheckoutPage() {
           ) : (
             <Button
               className="ml-auto flex-1 max-w-xs h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white"
-              disabled={isPlacingOrder || !selectedAddressId || (overrideActive && !overrideValid)}
+              disabled={isPlacingOrder || !readyToContinue || (overrideActive && !overrideValid)}
               onClick={handlePlaceOrder}
             >
               {isPlacingOrder ? "Placing order..." : "Place Order"}
@@ -563,6 +584,7 @@ function OrderSummary({
   deliveryCharge,
   total,
   offerCode,
+  fulfilment,
   showItems,
 }: {
   cart: { id: string; name: string; price: number; quantity: number; image?: string; size?: string; color?: string }[];
@@ -571,6 +593,7 @@ function OrderSummary({
   deliveryCharge: number;
   total: number;
   offerCode: string | null;
+  fulfilment: FulfilmentMethod;
   showItems: boolean;
 }) {
   return (
@@ -613,7 +636,7 @@ function OrderSummary({
         <div className="flex items-center justify-between text-sm">
           <span className="text-cb-muted-fg">Delivery</span>
           <span className={`font-semibold ${deliveryCharge === 0 ? "text-cb-success" : "text-cb-fg"}`}>
-            {deliveryCharge === 0 ? "Free" : `₹${deliveryCharge.toFixed(0)}`}
+            {fulfilment === "pickup" ? "Free (pickup)" : deliveryCharge === 0 ? "Free" : `₹${deliveryCharge.toFixed(0)}`}
           </span>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-cb-border text-base">
