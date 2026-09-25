@@ -1,0 +1,11 @@
+/* Stall display loop (app/display). Timings match SLIDE_MS / FADE_MS in lib/display/schedule.ts. */
+@keyframes display-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes display-zoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
+}
+.display-fade-in { animation: display-fade-in 1s ease-in-out both; }
+.display-zoom { animation: display-zoom 7s linear both; }
