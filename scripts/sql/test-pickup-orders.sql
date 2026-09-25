@@ -148,19 +148,52 @@ begin
     'before='||v_before||' after='||coalesce(v_after,'null')||' stock='||pg_temp.stock());
 end $$;
 
--- 6. A line without a resolved variant cannot be confirmed.
+-- 5b. Paid → paid moves never take stock again.
 do $$
-declare v_o uuid; v_err text;
+declare v_o uuid := (select v::uuid from t_ctx where k = 'o2'); v_before int;
 begin
+  v_before := pg_temp.stock();
+  update public.orders set status = 'ready_for_pickup' where id = v_o;
+  update public.orders set status = 'collected' where id = v_o;
+  insert into t_result values ('paid_to_paid_moves_keep_stock', pg_temp.stock() = v_before,
+    'before='||v_before||' after='||pg_temp.stock());
+end $$;
+
+-- 5c. Reinstating a cancelled order takes its stock again and keeps its invoice number.
+do $$
+declare v_o uuid := (select v::uuid from t_ctx where k = 'o1'); v_inv text;
+begin
+  update public.product_variants set stock_quantity = 3 where slug = 'zz-test-frock-v';
+  update public.orders set status = 'processing' where id = v_o;
+  select invoice_number into v_inv from public.orders where id = v_o;
+  insert into t_result values ('reinstated_cancelled_order_recommits_stock',
+    pg_temp.stock() = 2 and v_inv = (select v from t_ctx where k = 'inv1'),
+    'stock='||pg_temp.stock()||' invoice='||coalesce(v_inv,'null'));
+end $$;
+
+-- 6. A sku-less line falls back to (product, size); a line that resolves to no
+--    variant is left untracked instead of blocking the confirmation.
+do $$
+declare v_o uuid; v_err text; v_status text;
+begin
+  update public.product_variants set stock_quantity = 2 where slug = 'zz-test-frock-v';
   v_o := pg_temp.make_order('pickup', 1);
   update public.order_items set sku = null where order_id = v_o;
+  update public.orders set status = 'processing' where id = v_o;
+  insert into t_result values ('sku_less_line_resolves_by_size', pg_temp.stock() = 1,
+    'stock='||pg_temp.stock()||', expected 1');
+
+  v_o := pg_temp.make_order('pickup', 1);
+  update public.order_items set sku = null, size = 'NO-SUCH-SIZE' where order_id = v_o;
   begin
     update public.orders set status = 'processing' where id = v_o;
   exception when others then
     v_err := sqlerrm;
   end;
-  insert into t_result values ('missing_variant_blocks_confirmation',
-    v_err like 'VARIANT_NOT_FOUND:%', 'err='||coalesce(v_err,'none'));
+  select status into v_status from public.orders where id = v_o;
+  insert into t_result values ('unresolvable_line_is_left_untracked',
+    v_err is null and v_status = 'processing' and pg_temp.stock() = 1,
+    'err='||coalesce(v_err,'none')||' status='||v_status||' stock='||pg_temp.stock());
 end $$;
 
 -- 7. Shape constraints.
@@ -254,6 +287,12 @@ begin
     'insert into public.payments (order_id, user_id, payment_reference, payment_method, gateway_provider, amount, status) '
     'values (%L, %L, %L, %L, %L, 500, %L)', v_o, v_uid, 'zz-ref-2', 'upi', 'manual', 'processing'));
   insert into t_result values ('customer_can_insert_processing_payment', v_err is null, coalesce(v_err,''));
+
+  v_err := pg_temp.as_customer(format(
+    'update public.payments set notes = %L where payment_reference = %L', 'paid by gpay', 'zz-ref-2'));
+  insert into t_result values ('customer_can_edit_payment_notes',
+    v_err is null and (select notes from public.payments where payment_reference = 'zz-ref-2') = 'paid by gpay',
+    coalesce(v_err, 'notes not updated'));
 
   v_err := pg_temp.as_customer(format(
     'update public.payments set status = %L where payment_reference = %L', 'completed', 'zz-ref-2'));

@@ -241,7 +241,8 @@ end $$;
 do $$
 declare callable text[] := '{}'; f text; r text;
 begin
-  foreach f in array array['public.orders_on_status_change()', 'public.gst_financial_year(timestamptz)'] loop
+  foreach f in array array['public.orders_on_status_change()', 'public.gst_financial_year(timestamptz)',
+                           'public.order_item_variant_slug(text,text,text)'] loop
     if to_regprocedure(f) is null then continue; end if;
     foreach r in array array['anon', 'authenticated'] loop
       if has_function_privilege(r, f, 'EXECUTE') then

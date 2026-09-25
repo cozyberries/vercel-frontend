@@ -3,4 +3,4 @@
 // migration inside a transaction and rolls back, so it mutates nothing.
 import { runPsqlAssertions } from "./lib/run-psql-assertions.mjs";
 
-runPsqlAssertions({ file: "scripts/sql/test-pickup-orders.sql", expected: 24 });
+runPsqlAssertions({ file: "scripts/sql/test-pickup-orders.sql", expected: 28 });

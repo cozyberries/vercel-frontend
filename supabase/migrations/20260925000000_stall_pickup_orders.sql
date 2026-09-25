@@ -113,6 +113,27 @@ $$;
 revoke all on function public.gst_financial_year(timestamptz) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 4b. Order line → variant. The server-resolved sku first, then
+--     (product, size) for lines written before sku was populated. Null when
+--     the line matches no variant (e.g. an admin-app item without a size).
+-- ---------------------------------------------------------------------------
+create or replace function public.order_item_variant_slug(p_sku text, p_product_id text, p_size text)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(
+    (select v.slug from public.product_variants v where v.slug = p_sku),
+    (select v.slug from public.product_variants v
+      where v.product_slug = p_product_id and v.size_slug = lower(p_size)
+      order by v.slug
+      limit 1)
+  )
+$$;
+revoke all on function public.order_item_variant_slug(text, text, text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 5. Stock + invoice on payment confirmation
 --    Unpaid → paid: decrement each line's variant (never below 0) and issue
 --    the invoice number. Paid → unpaid/cancelled/refunded: return the stock.
@@ -124,7 +145,6 @@ security definer
 set search_path = ''
 as $$
 declare
-  unpaid constant text[] := array['payment_pending', 'verifying_payment'];
   paid   constant text[] := array['payment_confirmed', 'processing', 'ready_for_pickup',
                                   'collected', 'shipped', 'delivered'];
   item record;
@@ -135,20 +155,23 @@ begin
     return new;
   end if;
 
-  if old.status = any(unpaid) and new.status = any(paid) then
+  -- Entering a paid state from any unpaid one (payment_pending,
+  -- verifying_payment, or a reinstated cancelled/refunded order).
+  if not (old.status = any(paid)) and new.status = any(paid) then
     if new.stock_committed_at is null then
       for item in
-        select oi.name, oi.size, oi.sku, oi.quantity
+        select oi.name, oi.size, oi.quantity,
+               public.order_item_variant_slug(oi.sku, oi.product_id, oi.size) as variant_slug
           from public.order_items oi
          where oi.order_id = new.id
+         order by variant_slug
       loop
-        if item.sku is null then
-          raise exception 'VARIANT_NOT_FOUND:%', trim(item.name || ' ' || coalesce(item.size, ''))
-            using errcode = 'P0001';
-        end if;
+        -- A line that matches no variant is left untracked rather than
+        -- blocking the confirmation of a real payment.
+        continue when item.variant_slug is null;
         update public.product_variants v
            set stock_quantity = v.stock_quantity - item.quantity
-         where v.slug = item.sku
+         where v.slug = item.variant_slug
            and v.stock_quantity >= item.quantity;
         if not found then
           raise exception 'OUT_OF_STOCK:%', trim(item.name || ' ' || coalesce(item.size, ''))
@@ -169,18 +192,21 @@ begin
     end if;
   end if;
 
+  -- Leaving a paid state (webhook revert, cancel, refund): return the stock.
   if old.status = any(paid)
-     and (new.status = any(unpaid) or new.status in ('cancelled', 'refunded'))
+     and not (new.status = any(paid))
      and new.stock_committed_at is not null then
     for item in
-      select oi.sku, oi.quantity
+      select oi.quantity,
+             public.order_item_variant_slug(oi.sku, oi.product_id, oi.size) as variant_slug
         from public.order_items oi
        where oi.order_id = new.id
-         and oi.sku is not null
+       order by variant_slug
     loop
+      continue when item.variant_slug is null;
       update public.product_variants v
          set stock_quantity = v.stock_quantity + item.quantity
-       where v.slug = item.sku;
+       where v.slug = item.variant_slug;
     end loop;
     new.stock_committed_at := null;
   end if;
@@ -248,8 +274,11 @@ language plpgsql
 set search_path = ''
 as $$
 declare
+  -- net_amount is a stored generated column: NULL in NEW inside a BEFORE
+  -- trigger, so it must be ignored or every customer update looks like an edit.
   editable constant text[] := array['gateway_response', 'failure_reason', 'card_last_four',
-    'card_brand', 'card_type', 'upi_id', 'bank_name', 'bank_reference', 'notes', 'updated_at'];
+    'card_brand', 'card_type', 'upi_id', 'bank_name', 'bank_reference', 'notes', 'updated_at',
+    'net_amount'];
 begin
   if current_user not in ('authenticated', 'anon') then
     return new;
