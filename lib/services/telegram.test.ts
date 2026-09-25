@@ -55,6 +55,7 @@ describe("buildNewOrderText", () => {
 
 describe("notifyNewOrder", () => {
   it("always attaches the confirm-payment button and uses the given header", async () => {
+    vi.resetModules();
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "bot-token");
     vi.stubEnv("TELEGRAM_CHAT_ID", "chat-1");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => "" });
