@@ -9,6 +9,7 @@ const {
   createUserMock,
   generateLinkMock,
   checkRateLimitMock,
+  validateOtpMock,
 } = vi.hoisted(() => {
   return {
     getUserMock: vi.fn(),
@@ -16,6 +17,7 @@ const {
     createUserMock: vi.fn(),
     generateLinkMock: vi.fn(),
     checkRateLimitMock: vi.fn(),
+    validateOtpMock: vi.fn(),
   };
 });
 
@@ -36,6 +38,11 @@ vi.mock('@/lib/supabase-server', () => ({
 
 vi.mock('@/lib/upstash', () => ({
   UpstashService: { checkRateLimit: checkRateLimitMock },
+}));
+
+vi.mock('@/lib/verifynow', () => ({
+  getAuthTokenFromEnv: vi.fn(() => 'tok'),
+  validateOtp: validateOtpMock,
 }));
 
 import { POST } from './route';
@@ -70,6 +77,8 @@ function validBody(overrides: Record<string, unknown> = {}) {
     email: 'new.user@example.com',
     phone: '9876543210',
     full_name: 'New User',
+    verification_id: 'vid-1',
+    otp_code: '1234',
     ...overrides,
   };
 }
@@ -109,6 +118,7 @@ beforeEach(() => {
   listUsersMock.mockResolvedValue({ data: { users: [] }, error: null });
   createUserMock.mockResolvedValue({ data: createdUserRow(), error: null });
   generateLinkMock.mockResolvedValue({ data: {}, error: null });
+  validateOtpMock.mockResolvedValue(undefined);
 });
 
 describe('POST /api/admin/users/create', () => {
@@ -268,7 +278,7 @@ describe('POST /api/admin/users/create', () => {
         email: 'new.user@example.com',
         phone: '+919876543210',
         email_confirm: true,
-        phone_confirm: false,
+        phone_confirm: true,
         user_metadata: { full_name: 'New User' },
       })
     );
@@ -278,6 +288,7 @@ describe('POST /api/admin/users/create', () => {
         email: 'new.user@example.com',
       })
     );
+    expect(validateOtpMock).toHaveBeenCalledWith('tok', '9876543210', 'vid-1', '1234');
   });
 
   it('response body never contains action_link or password fields', async () => {
@@ -345,5 +356,22 @@ describe('POST /api/admin/users/create', () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toMatch(/could not insert|Failed to create user/);
+  });
+
+  it('returns 400 without an OTP and never creates the user', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    const res = await POST(makeRequest(validBody({ verification_id: undefined, otp_code: undefined })));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Verify the customer\'s phone with an OTP first');
+    expect(createUserMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for a wrong or expired OTP and never creates the user', async () => {
+    getUserMock.mockResolvedValue({ data: { user: adminUser() }, error: null });
+    validateOtpMock.mockRejectedValue(new Error('VerifyNow validateOtp failed: 400 (code: 702)'));
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Invalid or expired OTP');
+    expect(createUserMock).not.toHaveBeenCalled();
   });
 });
