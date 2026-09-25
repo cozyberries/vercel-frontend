@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
-import type { CreateOrderRequest, OrderCreate, OrderStatus } from "@/lib/types/order";
+import type { CreateOrderRequest, OrderCreate, OrderStatus, ShippingAddress } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
 import {
   validateAndFetchAddresses,
@@ -9,9 +9,13 @@ import {
   applyAdminOverride,
 } from "@/lib/utils/checkout-helpers";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
-import { DELIVERY_CHARGE_INR, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { deliveryChargeFor, parseFulfilmentMethod } from "@/lib/utils/fulfilment";
+import { resolveOrderVariants } from "@/lib/utils/variant-resolver";
+import { resolveGstStateCode } from "@/lib/invoice/state-codes";
+import { getIndianPhoneDigits } from "@/lib/utils/validation";
+import { SELLER } from "@/lib/config/business";
 import { notifyAdminsOrderPlacedFromCheckout } from "@/lib/services/admin-order-notifications";
-import { notifyOrderPlaced } from "@/lib/services/telegram";
+import { notifyNewOrder } from "@/lib/services/telegram";
 import {
   effectiveUserErrorResponse,
   getEffectiveUser,
@@ -47,6 +51,7 @@ export async function POST(request: NextRequest) {
       coupon_code,
       notes,
       admin_override,
+      fulfilment_method,
     } = body;
 
     if (admin_override && !actingAdminId) {
@@ -63,25 +68,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!shipping_address_id) {
+    const fulfilment = parseFulfilmentMethod(fulfilment_method);
+    if (!fulfilment) {
       return NextResponse.json(
-        { error: "Shipping address is required" },
+        { error: "Invalid fulfilment method" },
         { status: 400 }
       );
     }
 
-    const addressResult = await validateAndFetchAddresses(
-      client,
-      userId,
-      shipping_address_id,
-      billing_address_id
-    );
+    let shippingAddress: (ShippingAddress & { phone?: string }) | null = null;
+    let billingAddress: (ShippingAddress & { phone?: string }) | null = null;
+    let customerPhone: string | null;
+    let customerName: string | null;
+    let placeOfSupply: string | null;
 
-    if ("error" in addressResult) {
-      return NextResponse.json(
-        { error: addressResult.error },
-        { status: 400 }
+    if (fulfilment === "delivery") {
+      if (!shipping_address_id) {
+        return NextResponse.json(
+          { error: "Shipping address is required" },
+          { status: 400 }
+        );
+      }
+
+      const addressResult = await validateAndFetchAddresses(
+        client,
+        userId,
+        shipping_address_id,
+        billing_address_id
       );
+
+      if ("error" in addressResult) {
+        return NextResponse.json(
+          { error: addressResult.error },
+          { status: 400 }
+        );
+      }
+
+      shippingAddress = addressResult.data.shippingAddress;
+      billingAddress = addressResult.data.billingAddress;
+      customerPhone = addressResult.data.shippingRow.phone ?? null;
+      customerName = shippingAddress.full_name ?? null;
+      placeOfSupply = resolveGstStateCode(shippingAddress.state);
+    } else {
+      // Pickup: no address. The phone is the account's OTP-verified number,
+      // which staff use to hand over the order and send the bill.
+      const phoneDigits = getIndianPhoneDigits(effectiveUser.phone ?? "");
+      if (phoneDigits.length !== 10) {
+        return NextResponse.json(
+          { error: "Add a phone number to your account to choose pickup" },
+          { status: 400 }
+        );
+      }
+      customerPhone = phoneDigits;
+      const metaName = (effectiveUser.user_metadata as { full_name?: unknown } | undefined)?.full_name;
+      customerName = typeof metaName === "string" && metaName.trim() ? metaName.trim() : null;
+      placeOfSupply = SELLER.stateCode;
     }
 
     const priceError = await validateItemPrices(client, items);
@@ -89,6 +130,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: priceError },
         { status: 400 }
+      );
+    }
+
+    const variants = await resolveOrderVariants(client, items);
+    if (!variants.ok) {
+      return NextResponse.json(
+        { error: variants.error },
+        { status: variants.status }
       );
     }
 
@@ -135,20 +184,16 @@ export async function POST(request: NextRequest) {
     }
 
     const discountedSubtotal = orderSummary.subtotal - discountAmount;
-    const serverDeliveryCharge =
-      items.length > 0 && discountedSubtotal < FREE_DELIVERY_THRESHOLD
-        ? DELIVERY_CHARGE_INR
-        : 0;
+    const serverDeliveryCharge = deliveryChargeFor(discountedSubtotal, fulfilment, items.length);
     const finalTotal = discountedSubtotal + serverDeliveryCharge;
-
-    const { shippingAddress, billingAddress, shippingRow } = addressResult.data;
 
     const orderData: OrderCreate = {
       user_id: userId,
       customer_email: email,
-      customer_phone: shippingRow.phone,
+      customer_phone: customerPhone ?? undefined,
+      customer_name: customerName,
       shipping_address: shippingAddress,
-      billing_address: billingAddress,
+      billing_address: billingAddress ?? undefined,
       subtotal: orderSummary.subtotal,
       discount_code: discountCode ?? undefined,
       discount_amount: discountAmount,
@@ -158,6 +203,8 @@ export async function POST(request: NextRequest) {
       currency: orderSummary.currency,
       notes: orderNotes ?? undefined,
       placed_by_admin_id: actingAdminId,
+      fulfilment_method: fulfilment,
+      place_of_supply: placeOfSupply,
     };
 
     const { data: order, error: orderError } = await client
@@ -174,7 +221,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const itemRows = items.map((item) => ({
+    const itemRows = items.map((item, index) => ({
       order_id: order.id,
       product_id: item.id,
       name: item.name,
@@ -183,7 +230,7 @@ export async function POST(request: NextRequest) {
       image: item.image ?? null,
       size: item.size ?? null,
       color: item.color ?? null,
-      sku: item.sku ?? null,
+      sku: variants.skus[index],
     }));
 
     const { error: itemsError } = await client
@@ -250,21 +297,27 @@ export async function POST(request: NextRequest) {
       total_amount: order.total_amount,
       currency: order.currency,
       customer_email: email,
-      customer_name: shippingAddress.full_name,
+      customer_name: customerName ?? email,
     });
-    notifyOrderPlaced({
-      orderNumber: order.order_number,
-      orderStatus: order.status,
-      email,
-      phone: shippingRow.phone ?? null,
-      shippingAddress,
-      totalAmount: order.total_amount,
-      subtotal: orderSummary.subtotal,
-      deliveryCharge: serverDeliveryCharge,
-      discountCode: discountCode,
-      discountAmount: discountAmount,
-      items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
-    });
+    notifyNewOrder(
+      {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        email,
+        phone: customerPhone,
+        shippingAddress,
+        totalAmount: order.total_amount,
+        subtotal: orderSummary.subtotal,
+        deliveryCharge: serverDeliveryCharge,
+        discountCode,
+        discountAmount,
+        items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
+        fulfilmentMethod: fulfilment,
+        customerName,
+        placedByEmail: actingAdminId ? sessionUser.email ?? null : null,
+      },
+      { header: "🛒 <b>New Order Placed</b>" }
+    );
 
     const orderWithItems = {
       ...order,

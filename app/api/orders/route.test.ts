@@ -12,7 +12,8 @@ const {
   applyAdminOverrideMock,
   validateAndApplyOfferMock,
   notifyAdminsOrderPlacedFromCheckoutMock,
-  notifyOrderPlacedMock,
+  notifyNewOrderMock,
+  resolveOrderVariantsMock,
   logImpersonationEventMock,
   extractRequestMetadataMock,
   insertOrdersMock,
@@ -79,7 +80,8 @@ const {
     applyAdminOverrideMock: vi.fn(),
     validateAndApplyOfferMock: vi.fn(),
     notifyAdminsOrderPlacedFromCheckoutMock: vi.fn(),
-    notifyOrderPlacedMock: vi.fn(),
+    notifyNewOrderMock: vi.fn(),
+    resolveOrderVariantsMock: vi.fn(),
     logImpersonationEventMock: vi.fn().mockResolvedValue(undefined),
     extractRequestMetadataMock: vi.fn(() => ({ ip: '1.2.3.4', user_agent: 'ua' })),
     insertOrdersMock,
@@ -122,7 +124,11 @@ vi.mock('@/lib/services/admin-order-notifications', () => ({
 }));
 
 vi.mock('@/lib/services/telegram', () => ({
-  notifyOrderPlaced: notifyOrderPlacedMock,
+  notifyNewOrder: notifyNewOrderMock,
+}));
+
+vi.mock('@/lib/utils/variant-resolver', () => ({
+  resolveOrderVariants: resolveOrderVariantsMock,
 }));
 
 vi.mock('@/lib/supabase-server', () => ({
@@ -156,6 +162,7 @@ describe('POST /api/orders', () => {
       },
     });
     validateItemPricesMock.mockResolvedValue(null);
+    resolveOrderVariantsMock.mockResolvedValue({ ok: true, skus: ['p1-v'] });
     singleOrdersMock.mockResolvedValue({
       data: {
         id: 'order-1',
@@ -395,5 +402,111 @@ describe('GET /api/orders', () => {
     const res = await GET(new NextRequest('http://localhost/api/orders'));
     expect(res.status).toBe(403);
     expect(effectiveUserErrorResponseMock).toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/orders — stall pickup', () => {
+  const customer = (userOverrides: Record<string, unknown> = {}) => ({
+    ok: true,
+    userId: TARGET_ID,
+    actingAdminId: null,
+    client: clientMock,
+    sessionUser: { id: TARGET_ID, email: 'asha@example.com' },
+    effectiveUser: {
+      id: TARGET_ID,
+      email: 'asha@example.com',
+      phone: '919876543210',
+      user_metadata: { full_name: 'Asha Rao' },
+      ...userOverrides,
+    },
+  });
+  const frock = { id: 'p1', name: 'Prod', price: 1000, quantity: 1, size: '3-4Y' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    calculateOrderSummaryMock.mockReturnValue({ subtotal: 1000, tax_amount: 0, total_amount: 1000, currency: 'INR' });
+    validateItemPricesMock.mockResolvedValue(null);
+    resolveOrderVariantsMock.mockResolvedValue({ ok: true, skus: ['p1-v'] });
+    singleOrdersMock.mockResolvedValue({
+      data: { id: 'order-1', order_number: 'CB-0001', status: 'payment_pending', total_amount: 1000, currency: 'INR' },
+      error: null,
+    });
+    insertItemsMock.mockResolvedValue({ error: null });
+  });
+
+  it('skips the address, charges no delivery, and stores the verified phone and account name', async () => {
+    getEffectiveUserMock.mockResolvedValue(customer());
+    const res = await POST(makeRequest({ items: [frock], fulfilment_method: 'pickup' }));
+    expect(res.status).toBe(200);
+
+    expect(validateAndFetchAddressesMock).not.toHaveBeenCalled();
+    const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+    expect(inserted).toMatchObject({
+      fulfilment_method: 'pickup',
+      shipping_address: null,
+      delivery_charge: 0,
+      total_amount: 1000,
+      place_of_supply: '29',
+      customer_phone: '9876543210',
+      customer_name: 'Asha Rao',
+    });
+    const items = (insertItemsMock.mock.calls[0] as any[])[0];
+    expect(items[0].sku).toBe('p1-v');
+    expect(notifyNewOrderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fulfilmentMethod: 'pickup', deliveryCharge: 0, customerName: 'Asha Rao', orderId: 'order-1' }),
+      expect.objectContaining({ header: expect.stringContaining('New Order Placed') })
+    );
+  });
+
+  it('refuses pickup for an account without a phone', async () => {
+    getEffectiveUserMock.mockResolvedValue(customer({ phone: undefined }));
+    const res = await POST(makeRequest({ items: [frock], fulfilment_method: 'pickup' }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Add a phone number to your account to choose pickup');
+    expect(insertOrdersMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown fulfilment method', async () => {
+    getEffectiveUserMock.mockResolvedValue(customer());
+    const res = await POST(makeRequest({ items: [frock], fulfilment_method: 'drone' }));
+    expect(res.status).toBe(400);
+    expect(insertOrdersMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps delivery charging below the threshold and resolves the place of supply', async () => {
+    getEffectiveUserMock.mockResolvedValue(customer());
+    validateAndFetchAddressesMock.mockResolvedValue({
+      data: {
+        shippingAddress: { full_name: 'Asha Rao', address_line_1: 'x', city: 'Chennai', state: 'Tamil Nadu ', postal_code: '600001', country: 'India' },
+        billingAddress: { full_name: 'Asha Rao', address_line_1: 'x', city: 'Chennai', state: 'Tamil Nadu ', postal_code: '600001', country: 'India' },
+        shippingRow: { phone: '9876543210' },
+      },
+    });
+    const res = await POST(makeRequest({ items: [frock], shipping_address_id: 'addr-1' }));
+    expect(res.status).toBe(200);
+    const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+    expect(inserted).toMatchObject({
+      fulfilment_method: 'delivery',
+      delivery_charge: 90,
+      total_amount: 1090,
+      place_of_supply: '33',
+      customer_name: 'Asha Rao',
+    });
+  });
+
+  it('stops before inserting when stock is short', async () => {
+    getEffectiveUserMock.mockResolvedValue(customer());
+    resolveOrderVariantsMock.mockResolvedValue({ ok: false, status: 409, error: 'Only 1 left of Prod (3-4Y)' });
+    const res = await POST(makeRequest({ items: [{ ...frock, quantity: 2 }], fulfilment_method: 'pickup' }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('Only 1 left of Prod (3-4Y)');
+    expect(insertOrdersMock).not.toHaveBeenCalled();
+  });
+
+  it('takes the sku from the resolver, never from the client', async () => {
+    getEffectiveUserMock.mockResolvedValue(customer());
+    await POST(makeRequest({ items: [{ ...frock, sku: 'client-sku' }], fulfilment_method: 'pickup' }));
+    const items = (insertItemsMock.mock.calls[0] as any[])[0];
+    expect(items[0].sku).toBe('p1-v');
   });
 });
