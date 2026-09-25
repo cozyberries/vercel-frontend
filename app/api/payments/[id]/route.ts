@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { PaymentStatus } from "@/lib/types/order";
 import CacheService from "@/lib/services/cache";
 
 interface RouteParams {
@@ -108,10 +107,9 @@ export async function PATCH(
     // Prepare update data based on what's allowed to be updated
     const updateData: any = {};
 
-    // Status updates (typically done by payment gateway webhooks)
-    if (body.status && isValidStatusTransition(currentPayment.status, body.status)) {
-      updateData.status = body.status;
-    }
+    // `status` is deliberately not accepted: a customer must never move their
+    // own payment. Payments are confirmed only by the Telegram webhook or the
+    // admin app (service role). The DB guard enforces the same rule.
 
     // Gateway response updates
     if (body.gateway_response) {
@@ -195,18 +193,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
-
-function isValidStatusTransition(currentStatus: PaymentStatus, newStatus: PaymentStatus): boolean {
-  const validTransitions: Record<PaymentStatus, PaymentStatus[]> = {
-    pending: ['processing', 'completed', 'failed', 'cancelled'],
-    processing: ['completed', 'failed', 'cancelled'],
-    completed: ['refunded', 'partially_refunded'],
-    failed: ['pending'], // Allow retry
-    cancelled: [], // Final state
-    refunded: [], // Final state
-    partially_refunded: ['refunded'], // Can be fully refunded
-  };
-
-  return validTransitions[currentStatus]?.includes(newStatus) || false;
 }

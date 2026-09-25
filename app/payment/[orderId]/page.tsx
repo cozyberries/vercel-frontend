@@ -37,10 +37,12 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Delivered",
   cancelled: "Cancelled",
   refunded: "Refunded",
+  ready_for_pickup: "Ready for pickup",
+  collected: "Collected",
 };
 
 export default function PaymentPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, impersonation } = useAuth();
   const { clearCart } = useCart();
   const router = useRouter();
   const params = useParams();
@@ -50,6 +52,7 @@ export default function PaymentPage() {
   const [upiLinks, setUpiLinks] = useState<UpiLinks | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [orderLoading, setOrderLoading] = useState(true);
+  const [recordingCash, setRecordingCash] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -96,6 +99,26 @@ export default function PaymentPage() {
       toast.success("Copied to clipboard!");
     } catch {
       toast.error("Failed to copy. Please copy manually.");
+    }
+  };
+
+  const recordCash = async () => {
+    setRecordingCash(true);
+    try {
+      const res = await fetch("/api/payments/cash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || "Could not record the cash payment");
+        return;
+      }
+      toast.success("Cash recorded — confirm it on Telegram");
+      await fetchOrderAndLinks();
+    } finally {
+      setRecordingCash(false);
     }
   };
 
@@ -159,6 +182,16 @@ export default function PaymentPage() {
             </p>
 
             <div className="space-y-3 mb-4">
+              {impersonation.active && (
+                <Button
+                  className="w-full h-12 rounded-full bg-amber-600 hover:bg-amber-700 text-white gap-2"
+                  disabled={recordingCash}
+                  onClick={recordCash}
+                >
+                  {recordingCash ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                  Received cash ₹{order.total_amount.toFixed(0)}
+                </Button>
+              )}
               <Button
                 className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
                 disabled={!upiLinks}
@@ -221,7 +254,9 @@ export default function PaymentPage() {
           </>
         ) : (
           <p className="text-cb-muted-fg mb-6">
-            Thanks for your order — we&apos;re taking it from here. You can track its progress anytime in My Orders.
+            {order.fulfilment_method === "pickup"
+              ? "Thanks! We'll message you on WhatsApp when it's ready to collect at our stall."
+              : "Thanks for your order — we're taking it from here. You can track its progress anytime in My Orders."}
           </p>
         )}
 
