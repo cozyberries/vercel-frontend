@@ -12,10 +12,11 @@ That app handles product/order/user management, expense tracking, shipment creat
 Do not add admin-only operations here.
 
 `JWT_SECRET` **is** used in this repo, and it is shared with the admin app — the token `lib/jwt-auth.ts` signs carries `app_metadata.role`, and the admin app's `authenticateRequest` + `isAdminUser` treat that role as the gate in front of a service-role client. Two rules follow. First, `lib/jwt-auth.ts` is the only place that reads it, through the lazy `getJwtSecret()` accessor that throws when the variable is missing; never add a fallback default and never touch `process.env.JWT_SECRET` at module load. Second, anything that mints a token must derive the subject from a server-verified Supabase session — `/api/auth/generate-token` calls `getUser()` and ignores any caller-supplied `userId`, because a caller-chosen subject here is a full admin bypass over there.
-`SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Three shapes qualify, and nothing else does:
+`SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Four shapes qualify, and nothing else does:
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
+- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
 
 Never reach for it to skip writing a policy, and never let a client-supplied id be the scope key.
 `IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
@@ -43,6 +44,8 @@ npm test                                 # Playwright, chromium project (needs a
 npm run test:catalog                     # catalog + page-coverage specs only
 npm run test:e2e:prod                    # catalog/page/homepage specs against https://cozyberries.in
 npx playwright test tests/foo.spec.ts    # Single test file
+npm run db:test-orders                   # customer session can place an order (rolled back)
+npm run db:test-pickup                   # stall-pickup trigger + guard SQL tests (rolled back)
 ```
 
 ## Architecture
@@ -108,6 +111,15 @@ app/
 - Env vars: `DELIVERY_API_KEY` (shared with pincode); `DELHIVERY_BASE_URL` / optional `DELHIVERY_TRACKING_BASE_URL` for carrier host (defaults to `https://track.delhivery.com`)
 - Shipment creation remains in the admin app; storefront only displays tracking when `tracking_number` is set
 
+### Stall pickup orders
+- `orders.fulfilment_method` is `delivery` (default) or `pickup`. Pickup has no `shipping_address` and `delivery_charge = 0`; both are enforced by CHECK constraints, and `deliveryChargeFor()` (`lib/utils/fulfilment.ts`) is the only place the charge is computed.
+- **Only the Telegram ✅ button (or the admin app) makes an order paid.** `orders_on_status_change` (security definer) commits stock and assigns the GST invoice number (`CB/yy-yy/0001`) on any unpaid → paid move, and returns stock on paid → unpaid/cancelled/refunded. `guard_client_order_write` / `guard_client_payment_write` stop the customer's own session from confirming, editing money, recording cash, or adding items to a paid order.
+- `order_items.sku` holds the variant slug resolved server-side (`resolveOrderVariants`). The stock trigger resolves each line with `order_item_variant_slug(sku, product_id, size)`: `sku` first, then `(product, lower(size))`. Lines that match no variant are left out of stock tracking rather than blocking a payment.
+- Staff flow: admin creates the customer with an OTP (`/api/admin/users/send-otp` → `/create`), impersonates, checks out with pickup, taps "Received cash" (`/api/payments/cash`), and the owner confirms on Telegram. `/admin/pickup-orders` is the hand-over queue.
+- GST: `BUSINESS_GSTIN` (server-only, `getBusinessGstin()`, no fallback). Home state 29 (Karnataka) → CGST+SGST; else IGST. Invoice: `GET /api/orders/[id]/invoice`.
+- Tests: `npm run db:test-pickup` runs the trigger/guard SQL tests inside a rolled-back transaction.
+- Live DB fix (2026-09-25): `set_order_number()` / `set_payment_reference()` are SECURITY DEFINER (migration 20260924120000) — customer sessions have no sequence privileges after the deny-by-default migration; `npm run db:test-orders` guards it.
+
 ### Caching Strategy
 - **Catalog (products, categories, sizes, ages, genders, colours) is served from Upstash Redis in Mumbai**, never from Supabase on a request. Module: `lib/catalog/` (see `docs/CATALOG_CACHE.md`).
   - Keys live under `cat:` (`cat:product:{slug}` JSON docs, `cat:snapshot`, `cat:reference`, `cat:version`, `cat:meta`). One Redis Search index `cozyberries-search`.
@@ -156,8 +168,8 @@ The `push` trigger is the one that matters: this project merges directly to
 `develop` and `main` without PRs, so a PR-only trigger would never fire.
 Supabase Postgres on the free tier has no IP allow-listing, so the
 GitHub-hosted runner can reach the database directly — once the secret is
-set, this is a real gate, not an informational job. As of Task 11 the linter
-reports `ERROR=0, WARN=1, INFO=17`; the one remaining warning is a
+set, this is a real gate, not an informational job. As of the stall-pickup
+migration (2026-09-25) the linter reports `ERROR=0, WARN=1, INFO=21`; the one remaining warning is a
 `duplicate_index` on `sizes` (`sizes_slug_key`) that is permanent by design
 because `product_variants_size_slug_fkey` is backed by it — do not chase it.
 A scoped read-only role is sufficient for `POSTGRES_URL_NON_POOLING` in CI:
@@ -213,7 +225,7 @@ workflow fails the build.
 ### Admin impersonation E2E
 - Run: `npm run test:admin-impersonation` (Desktop Chrome, reuses `purchase-auth-setup`).
 - Env vars: `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` (same as other e2e specs); the user must have `user_metadata.role = 'admin'` in Supabase.
-- Flow: create new user → impersonate → checkout with admin override → "I Have Paid" → Exit → verify row on `/admin/on-behalf-orders`.
+- Flow: create new user → impersonate → checkout with admin override → "I Have Paid" → Exit → verify row on `/admin/on-behalf-orders`. **Stale since 2026-09-25:** admin customer creation now requires an SMS OTP (`/api/admin/users/send-otp` → `/create` with `verification_id` + `otp_code`) and the button reads "Send OTP" / "Verify OTP & continue", so `tests/admin-impersonation.spec.ts` needs a VerifyNow stub or an existing test user before it can run again.
 - By design the test leaves the newly-created Supabase auth user behind (timestamped email, no auto-cleanup — parallel runs must not race on deletion). Clean up manually in Supabase Dashboard → Auth → Users if the list gets noisy.
 
 ### Playwright MCP (Cursor)
