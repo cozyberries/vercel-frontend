@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { User, LogIn, ChevronRight, LogOut, UserPlus, ClipboardList } from "lucide-react";
+import { User, LogIn, ChevronRight, LogOut, UserPlus, ClipboardList, Store } from "lucide-react";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import { formatIndianPhoneDisplay } from "@/lib/utils/validation";
@@ -173,6 +173,12 @@ export default function ProfilePage() {
             <Link href="/admin/on-behalf-orders">
               <ClipboardList className="w-4 h-4 mr-2" />
               On-behalf orders
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="w-full rounded-full border-cb-border">
+            <Link href="/admin/pickup-orders">
+              <Store className="w-4 h-4 mr-2" />
+              Stall pickups
             </Link>
           </Button>
         </div>
