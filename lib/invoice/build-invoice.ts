@@ -1,7 +1,7 @@
 import { HSN_BABY_GARMENTS, SELLER, STALL } from "@/lib/config/business";
 import { amountInWords } from "./amount-in-words";
 import { computeGst, taxModeFor, type InvoiceLine, type InvoiceTotals, type TaxMode } from "./gst";
-import { gstStateName } from "./state-codes";
+import { gstStateName, resolveGstStateCode } from "./state-codes";
 
 /** The orders row (with embedded items and payments) that the invoice route selects. */
 export interface InvoiceOrderRow {
@@ -44,7 +44,7 @@ export interface InvoiceDocument {
   invoiceDate: string | null;
   orderNumber: string;
   orderDate: string;
-  seller: { legalName: string; tradeName: string; gstin: string; addressLines: string[]; stateName: string; stateCode: string };
+  seller: { legalName: string; gstin: string; addressLines: string[]; stateName: string; stateCode: string };
   buyer: { name: string; phone: string | null; email: string | null };
   shipTo: { kind: "pickup"; label: string } | { kind: "delivery"; lines: string[] };
   placeOfSupply: { code: string | null; name: string };
@@ -56,6 +56,14 @@ export interface InvoiceDocument {
 }
 
 const PAYMENT_LABEL: Record<string, string> = { upi: "UPI", cash: "Cash" };
+
+/** Colours are stored as slugs ("petal-pops"); print them as "Petal Pops". Other values are kept as-is. */
+function readableColour(value: string | null): string | null {
+  if (!value) return null;
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)
+    ? value.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+    : value;
+}
 const UNPAID = ["payment_pending", "verifying_payment"];
 const VOIDED = ["cancelled", "refunded"];
 
@@ -67,10 +75,13 @@ export function buildInvoice(input: {
   const { order, gstin, homeStateCode } = input;
   const address = order.shipping_address;
 
-  const mode = taxModeFor(order.place_of_supply, homeStateCode);
+  // Orders placed before place_of_supply was stored fall back to the address's state.
+  const placeOfSupply =
+    order.place_of_supply ?? (order.fulfilment_method === "pickup" ? null : resolveGstStateCode(address?.state));
+  const mode = taxModeFor(placeOfSupply, homeStateCode);
   const gst = computeGst({
     lines: order.order_items.map((item) => ({
-      description: [item.name, item.size ? `Size ${item.size}` : null, item.color].filter(Boolean).join(" · "),
+      description: [item.name, item.size ? `Size ${item.size}` : null, readableColour(item.color)].filter(Boolean).join(" · "),
       hsn: HSN_BABY_GARMENTS,
       quantity: item.quantity,
       unitPrice: Number(item.price),
@@ -92,7 +103,6 @@ export function buildInvoice(input: {
     orderDate: order.created_at,
     seller: {
       legalName: SELLER.legalName,
-      tradeName: SELLER.tradeName,
       gstin,
       addressLines: [...SELLER.addressLines],
       stateName: SELLER.stateName,
@@ -116,8 +126,8 @@ export function buildInvoice(input: {
             ].filter((l): l is string => Boolean(l && l.trim())),
           },
     placeOfSupply: {
-      code: order.place_of_supply,
-      name: (order.place_of_supply && gstStateName(order.place_of_supply)) || address?.state?.trim() || "—",
+      code: placeOfSupply,
+      name: (placeOfSupply && gstStateName(placeOfSupply)) || address?.state?.trim() || "—",
     },
     mode,
     lines: gst.lines,

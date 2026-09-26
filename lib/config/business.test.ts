@@ -8,7 +8,6 @@ const ownerValues = [
   STALL.hours,
   STALL.mapUrl,
   SELLER.legalName,
-  SELLER.tradeName,
   ...SELLER.addressLines,
   SELLER.stateName,
 ];

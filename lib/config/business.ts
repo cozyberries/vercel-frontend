@@ -20,7 +20,6 @@ export const STALL = {
 
 export const SELLER = {
   legalName: "Cozyberries",
-  tradeName: "CozyBerries",
   addressLines: [
     "15, CN Enclave, Sultanpalya Main Rd, next to BDA Park",
     "Bengaluru 560032, Karnataka, India",

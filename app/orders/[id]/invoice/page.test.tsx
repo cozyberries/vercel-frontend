@@ -21,7 +21,7 @@ const base = {
   invoiceDate: "2026-09-25T06:05:00.000Z",
   orderNumber: "ORD-1",
   orderDate: "2026-09-25T06:00:00.000Z",
-  seller: { legalName: "Cozyberries", tradeName: "CozyBerries", gstin: "29EPDPR9174E1ZB", addressLines: ["15, CN Enclave"], stateName: "Karnataka", stateCode: "29" },
+  seller: { legalName: "Cozyberries", gstin: "29EPDPR9174E1ZB", addressLines: ["15, CN Enclave"], stateName: "Karnataka", stateCode: "29" },
   buyer: { name: "Asha Rao", phone: "9876543210", email: "a@b.c" },
   shipTo: { kind: "pickup", label: "Self-pickup at Cozyberries Stall" },
   placeOfSupply: { code: "29", name: "Karnataka" },
@@ -47,6 +47,7 @@ describe("invoice page", () => {
     expect(screen.getByText("CB/26-27/0001")).toBeInTheDocument();
     expect(screen.getByText(/GSTIN: 29EPDPR9174E1ZB/)).toBeInTheDocument();
     expect(screen.getByText(/computer-generated invoice/)).toBeInTheDocument();
+    expect(screen.queryByText(/Trade name/)).not.toBeInTheDocument();
   });
 
   it("never looks like a tax invoice before payment is confirmed", async () => {

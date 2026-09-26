@@ -34,7 +34,7 @@ describe("buildInvoice", () => {
     expect(inv.shipTo).toEqual({ kind: "pickup", label: expect.stringContaining("Self-pickup") });
     expect(inv.seller.gstin).toBe("29EPDPR9174E1ZB");
     expect(inv.buyer).toEqual({ name: "Asha Rao", phone: "9876543210", email: "asha@example.com" });
-    expect(inv.lines[0]).toMatchObject({ description: "Frock · Size 3-4Y · pink", hsn: "6111", cgstPaise: 2500, sgstPaise: 2500 });
+    expect(inv.lines[0]).toMatchObject({ description: "Frock · Size 3-4Y · Pink", hsn: "6111", cgstPaise: 2500, sgstPaise: 2500 });
     expect(inv.totals.totalPaise).toBe(105000);
     expect(inv.amountInWords).toBe("Rupees One Thousand Fifty Only");
     expect(inv.paymentMethod).toBe("Cash");
@@ -56,6 +56,16 @@ describe("buildInvoice", () => {
     expect(inv.totals.totalPaise).toBe(114000);
     expect(inv.shipTo).toEqual({ kind: "delivery", lines: ["Asha Rao", "1 Anna Salai", "Chennai, Tamil Nadu 600002", "India"] });
     expect(inv.paymentMethod).toBe("UPI");
+  });
+
+  it("resolves the place of supply from the address for orders placed before it was stored", () => {
+    const inv = build({
+      fulfilment_method: "delivery",
+      place_of_supply: null,
+      shipping_address: { full_name: "A", address_line_1: "x", city: "Bengaluru", state: "Karnataka", postal_code: "560005", country: "India" },
+    });
+    expect(inv.mode).toBe("intra");
+    expect(inv.placeOfSupply).toEqual({ code: "29", name: "Karnataka" });
   });
 
   it("falls back to IGST and prints the raw state when the state could not be resolved", () => {

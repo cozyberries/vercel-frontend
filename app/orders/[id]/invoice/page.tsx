@@ -115,7 +115,6 @@ export default function InvoicePage() {
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="text-xl font-bold">{invoice.seller.legalName}</h1>
-            <p className="text-sm text-gray-600">Trade name: {invoice.seller.tradeName}</p>
             {invoice.seller.addressLines.map((l) => (
               <p key={l} className="text-sm text-gray-600">{l}</p>
             ))}
