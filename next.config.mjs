@@ -50,6 +50,14 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // pdfkit (drawn with by @react-pdf/renderer for the /bill PDFs) loads its
+  // built-in fonts through package subpath imports (#standard-fonts/*), which
+  // output file tracing cannot follow. Without this the fonts are missing from
+  // the Vercel function and every bill link 500s. Guarded by
+  // scripts/check-bill-trace.mjs (postbuild).
+  outputFileTracingIncludes: {
+    '/bill/**': ['./node_modules/pdfkit/js/standard-fonts/**'],
+  },
   images: {
     unoptimized: true,
     // minimumCacheTTL has no effect when unoptimized: true (/_next/image is bypassed).

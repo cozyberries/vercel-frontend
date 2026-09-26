@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/check-bill-trace.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "playwright test --project=chromium",
