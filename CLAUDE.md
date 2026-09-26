@@ -12,14 +12,16 @@ That app handles product/order/user management, expense tracking, shipment creat
 Do not add admin-only operations here.
 
 `JWT_SECRET` **is** used in this repo, and it is shared with the admin app — the token `lib/jwt-auth.ts` signs carries `app_metadata.role`, and the admin app's `authenticateRequest` + `isAdminUser` treat that role as the gate in front of a service-role client. Two rules follow. First, `lib/jwt-auth.ts` is the only place that reads it, through the lazy `getJwtSecret()` accessor that throws when the variable is missing; never add a fallback default and never touch `process.env.JWT_SECRET` at module load. Second, anything that mints a token must derive the subject from a server-verified Supabase session — `/api/auth/generate-token` calls `getUser()` and ignores any caller-supplied `userId`, because a caller-chosen subject here is a full admin bypass over there.
-`SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Four shapes qualify, and nothing else does:
+`SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Five shapes qualify, and nothing else does:
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
 - **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
+- **Signed public bill links** — `GET /bill/[orderId]/[sig]` only. There is no session: the HMAC over that exact order id (`INVOICE_LINK_SECRET`, compared with `timingSafeEqual`) is verified first, and the service role then reads that one order, read-only. The signature, not the client, is what authorises the id; never reuse this shape for anything that writes.
 
 Never reach for it to skip writing a policy, and never let a client-supplied id be the scope key.
 `IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
+`INVOICE_LINK_SECRET` signs the public `/bill/<orderId>/<sig>` PDF links sent to customers on WhatsApp (`lib/invoice/bill-link.ts`). Server-only, 32+ characters, distinct from the other secrets. Rotating it revokes every bill link ever sent.
 
 ## Commands
 
@@ -118,6 +120,7 @@ app/
 - `order_items.sku` holds the variant slug resolved server-side (`resolveOrderVariants`). The stock trigger resolves each line with `order_item_variant_slug(sku, product_id, size)`: `sku` first, then `(product, lower(size))`. Lines that match no variant are left out of stock tracking rather than blocking a payment.
 - Staff flow: admin creates the customer with an OTP (`/api/admin/users/send-otp` → `/create`), impersonates, checks out with pickup, taps "Received cash" (`/api/payments/cash`), and the owner confirms on Telegram. `/admin/pickup-orders` is the hand-over queue.
 - GST: `BUSINESS_GSTIN` (server-only, `getBusinessGstin()`, no fallback). Home state 29 (Karnataka) → CGST+SGST; else IGST. Invoice: `GET /api/orders/[id]/invoice`.
+- WhatsApp bill: "Send bill" on `/admin/pickup-orders` opens the customer's chat with a signed public link to the bill PDF (`/bill/<orderId>/<sig>`, rendered by `lib/invoice/pdf.tsx` with `@react-pdf/renderer`, same content as the web invoice). The PDF is generated fresh per open, served `Cache-Control: private, no-store` and `noindex`, disallowed in `robots.txt`, and network-only in the service worker. The pickup list API builds `bill_url` server-side.
 - Tests: `npm run db:test-pickup` runs the trigger/guard SQL tests inside a rolled-back transaction.
 - Live DB fix (2026-09-25): `set_order_number()` / `set_payment_reference()` are SECURITY DEFINER (migration 20260924120000) — customer sessions have no sequence privileges after the deny-by-default migration; `npm run db:test-orders` guards it.
 

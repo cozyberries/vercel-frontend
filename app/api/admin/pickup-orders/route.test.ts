@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => {
   const state: Record<string, any> = {};
@@ -23,11 +23,16 @@ vi.mock('@/lib/supabase-server', () => ({
 }));
 
 import { GET } from './route';
+import { billUrl } from '@/lib/invoice/bill-link';
 import { NextRequest } from 'next/server';
 
 const get = (qs = '') => GET(new NextRequest(`http://localhost/api/admin/pickup-orders${qs}`));
 
-beforeEach(() => h.reset());
+beforeEach(() => {
+  h.reset();
+  vi.stubEnv('INVOICE_LINK_SECRET', 's'.repeat(40));
+});
+afterEach(() => vi.unstubAllEnvs());
 
 describe('GET /api/admin/pickup-orders', () => {
   it('requires an admin', async () => {
@@ -38,9 +43,16 @@ describe('GET /api/admin/pickup-orders', () => {
   it('lists paid pickup orders for the hand-over tab', async () => {
     const res = await get('?tab=handover');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orders: [{ id: 'order-1' }] });
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1') }] });
     expect(h.calls).toContainEqual(['eq', 'fulfilment_method', 'pickup']);
     expect(h.calls).toContainEqual(['in', 'status', ['payment_confirmed', 'processing']]);
+  });
+
+  it('still lists orders, without bill links, when the signing secret is missing', async () => {
+    vi.stubEnv('INVOICE_LINK_SECRET', '');
+    const res = await get('?tab=handover');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: null }] });
   });
 
   it('selects each line price so staff can check the card against the bill', async () => {

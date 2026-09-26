@@ -60,4 +60,6 @@ export interface PickupOrderRow {
   updated_at: string;
   order_items: { name: string; size: string | null; color: string | null; quantity: number; price: number }[];
   payments: { payment_method: string; status: string }[];
+  /** Signed public link to the bill PDF; null when INVOICE_LINK_SECRET is not configured. */
+  bill_url: string | null;
 }

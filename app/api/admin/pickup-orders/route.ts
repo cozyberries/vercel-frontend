@@ -4,6 +4,7 @@ import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/sup
 import { isAdmin } from "@/lib/services/effective-user";
 import { parsePickupTab, PICKUP_SEARCH_STATUSES, PICKUP_TAB_STATUSES, startOfIstDay } from "@/lib/orders/pickup";
 import { getIndianPhoneDigits } from "@/lib/utils/validation";
+import { billUrl } from "@/lib/invoice/bill-link";
 
 const SELECT =
   "id, order_number, status, total_amount, customer_name, customer_phone, invoice_number, created_at, updated_at, " +
@@ -55,7 +56,16 @@ export async function GET(request: NextRequest) {
       console.error("[pickup-orders] list failed:", error);
       return NextResponse.json({ error: "Failed to load pickup orders" }, { status: 500 });
     }
-    return NextResponse.json({ orders: data ?? [] });
+    const rows = (data ?? []) as unknown as { id: string }[];
+    let orders;
+    try {
+      // Signed public bill link per order, built here because the secret is server-only.
+      orders = rows.map((row) => ({ ...row, bill_url: billUrl(row.id) }));
+    } catch (configError) {
+      console.error("[pickup-orders] INVOICE_LINK_SECRET misconfigured:", configError instanceof Error ? configError.message : configError);
+      orders = rows.map((row) => ({ ...row, bill_url: null }));
+    }
+    return NextResponse.json({ orders });
   } catch (error) {
     console.error("[pickup-orders] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

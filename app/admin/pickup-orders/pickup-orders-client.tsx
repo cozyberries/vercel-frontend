@@ -77,10 +77,12 @@ export default function PickupOrdersClient() {
   };
 
   const billLink = (order: PickupOrderRow) =>
-    whatsappLink(
-      order.customer_phone,
-      `Your CozyBerries bill for order ${order.order_number}${order.invoice_number ? ` (invoice ${order.invoice_number})` : ""}: ${window.location.origin}/orders/${order.id}/invoice`
-    );
+    order.bill_url
+      ? whatsappLink(
+          order.customer_phone,
+          `Your CozyBerries bill for order ${order.order_number}${order.invoice_number ? ` (invoice ${order.invoice_number})` : ""}. Download the PDF: ${order.bill_url}`
+        )
+      : null;
 
   return (
     <div className="space-y-4">

@@ -10,4 +10,13 @@ describe("robots.txt", () => {
     );
     expect(disallow).toContain("/display");
   });
+
+  it("keeps public bill links out of search engines", () => {
+    const { rules } = robots();
+    const list = Array.isArray(rules) ? rules : [rules];
+    const disallow = list.flatMap((rule) =>
+      Array.isArray(rule.disallow) ? rule.disallow : rule.disallow ? [rule.disallow] : [],
+    );
+    expect(disallow).toContain("/bill/");
+  });
 });

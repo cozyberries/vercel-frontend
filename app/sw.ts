@@ -3,11 +3,12 @@ import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import {
   Serwist,
   NetworkFirst,
+  NetworkOnly,
   StaleWhileRevalidate,
   CacheFirst,
   ExpirationPlugin,
 } from "serwist";
-import { isDisplayNavigation } from "../lib/pwa/matchers";
+import { isBillRequest, isDisplayNavigation } from "../lib/pwa/matchers";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -55,6 +56,14 @@ const serwist = new Serwist({
           new ExpirationPlugin({ maxEntries: 2, maxAgeSeconds: 30 * 24 * 60 * 60 }),
         ],
       }),
+    },
+
+    // ── Bill PDFs ─────────────────────────────────────────────────────────────
+    // Signed public bill links carry customer PII and change when an order is
+    // cancelled: always network, never stored in any cache on the device.
+    {
+      matcher: isBillRequest,
+      handler: new NetworkOnly(),
     },
 
     // ── Page navigations ──────────────────────────────────────────────────────
