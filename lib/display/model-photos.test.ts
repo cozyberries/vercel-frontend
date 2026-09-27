@@ -17,6 +17,14 @@ describe("model-photos.json", () => {
     for (const slug of all) expect(slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
   });
 
+  // Pyjama slugs say "classic" or "ribbed", but only the product name says which one has the rib:
+  // pyjamas-classic-popsicles is "With Rib" (0-3M, 3-6M) and pyjamas-ribbed-popsicles is "Without Rib".
+  // The model photo shows ribbed cuffs, so it is the first photo of the classic slug.
+  it("tags the Popsicles pyjama model photo on the With Rib product", () => {
+    expect(tags.withBaby).toContain("pyjamas-classic-popsicles");
+    expect(tags.withoutBaby).toContain("pyjamas-ribbed-popsicles");
+  });
+
   it("records the tagging date as an ISO date", () => {
     expect(tags.checkedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(Number.isNaN(Date.parse(tags.checkedAt))).toBe(false);
