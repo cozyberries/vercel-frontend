@@ -50,6 +50,7 @@ npm run db:test-orders                   # customer session can place an order (
 npm run db:test-pickup                   # stall-pickup trigger + guard SQL tests (rolled back)
 npm run db:test-refills                  # stall-refills table + functions SQL tests (rolled back)
 npm run db:test-split-frocks             # Frocks → four style categories migration (rolled back)
+npm run db:test-category-data            # Girls Coord Sets gender + category descriptions fix (rolled back)
 ```
 
 ## Architecture

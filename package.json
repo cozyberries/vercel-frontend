@@ -38,6 +38,7 @@
     "db:test-pickup": "node scripts/db-test-pickup.mjs",
     "db:test-refills": "node scripts/db-test-refills.mjs",
     "db:test-split-frocks": "node scripts/db-test-split-frocks.mjs",
+    "db:test-category-data": "node scripts/db-test-category-data.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {

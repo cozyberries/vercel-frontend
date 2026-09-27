@@ -58,6 +58,23 @@ check("/products answers under 600ms from here", products.res.status === 200 && 
 
 let snapshot = {};
 try { snapshot = JSON.parse(catalog.text); } catch {}
+
+// A "Girls …" or "Boys …" category holds only that gender. The Boys filter also matches
+// unisex, so girls' co-ords tagged unisex were listed under Boys (fixed 2026-09-27).
+const categoryGender = Object.fromEntries(
+  (snapshot.reference?.categories ?? []).flatMap((c) => {
+    const m = /^(girl|boy)s?\b/i.exec(c.name ?? "");
+    return m ? [[c.slug, m[1].toLowerCase()]] : [];
+  }),
+);
+const mistagged = (snapshot.products ?? []).filter(
+  (p) => categoryGender[p.category_slug] && p.gender_slug !== categoryGender[p.category_slug],
+);
+check(
+  "Girls/Boys categories hold only that gender",
+  Object.keys(categoryGender).length > 0 && mistagged.length === 0,
+  mistagged.map((p) => `${p.slug}=${p.gender_slug}`).join(", ") || Object.keys(categoryGender).join(", "),
+);
 const slug = snapshot.products?.[0]?.slug;
 if (slug) {
   await timed(`/products/${slug}`);
