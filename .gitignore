@@ -95,3 +95,7 @@ logs
 .playwright-mcp/
 .mcp.json
 node-compile-cache/
+node-jiti/
+
+# Marketplace export sheets and product photos (local only)
+exports/
