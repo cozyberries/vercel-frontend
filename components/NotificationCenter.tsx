@@ -9,12 +9,15 @@ import { Bell, X, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useNotifications } from "@/hooks/useApiQueries";
+import { useHydrated } from "@/hooks/useHydrated";
 
 export default function NotificationCenter() {
     const { user } = useAuth();
     const router = useRouter();
     const { data: notifications } = useNotifications(user?.id);
     const unreadCount = (notifications ?? []).filter((n) => !n.is_read).length;
+    // Render as signed out until hydrated: the server HTML never knows the user.
+    const signedIn = useHydrated() && !!user;
     const [guestPromptOpen, setGuestPromptOpen] = useState(false);
 
     const handleClick = () => {
@@ -68,10 +71,10 @@ export default function NotificationCenter() {
                 size="icon"
                 onClick={handleClick}
                 className="h-8 w-8 lg:h-7 lg:w-7 relative rounded-full hover:bg-transparent"
-                aria-label={user ? "Go to notifications" : "Toggle notifications"}
+                aria-label={signedIn ? "Go to notifications" : "Toggle notifications"}
             >
                 <Bell className="!w-5 !h-5 text-cb-fg" />
-                {user && unreadCount > 0 && (
+                {signedIn && unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-cb-terracotta text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                         {unreadCount}
                     </span>

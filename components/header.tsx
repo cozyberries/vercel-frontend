@@ -13,6 +13,7 @@ import { useWishlist } from "@/components/wishlist-context";
 import { useCart } from "@/components/cart-context";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfileCombined } from "@/hooks/useApiQueries";
+import { useHydrated } from "@/hooks/useHydrated";
 import { HamburgerSheet } from "./HamburgerSheet";
 import HeaderLinks from "./HeaderLinks";
 
@@ -28,6 +29,8 @@ export default function Header() {
     .trim()
     .charAt(0)
     .toUpperCase();
+  // The server HTML never knows the user; show the initials only after hydration.
+  const hydrated = useHydrated();
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 border-b backdrop-blur-sm">
@@ -121,7 +124,7 @@ export default function Header() {
               </Button>
             </Link>
             <Link href="/profile">
-              {user && initials ? (
+              {hydrated && user && initials ? (
                 <span
                   className="flex h-8 w-8 lg:h-7 lg:w-7 items-center justify-center rounded-full bg-cb-taupe text-white text-xs font-semibold ring-2 ring-cb-terracotta/40"
                   aria-label="Go to profile"
