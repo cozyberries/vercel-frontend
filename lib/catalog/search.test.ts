@@ -20,12 +20,12 @@ describe("normalizeQuery", () => {
 describe("buildSearchFilter", () => {
   it("requires every active filter and at least one text match", () => {
     const filter = buildSearchFilter("frock", {
-      ...DEFAULT_FILTERS, category: "frocks", gender: "girls", age: "3-6-years", size: "0-3m", design: "soft-pear", colour: "green", featured: true,
+      ...DEFAULT_FILTERS, category: "japanese-muslin", gender: "girls", age: "3-6-years", size: "0-3m", design: "soft-pear", colour: "green", featured: true,
     });
     expect(filter).toEqual({
       $must: [
         { is_featured: { $eq: true } },
-        { category_slug: { $eq: "frocks" } },
+        { category_slug: { $eq: "japanese-muslin" } },
         { $or: [{ gender_slug: { $eq: "girl" } }, { gender_slug: { $eq: "unisex" } }] },
         { $or: [{ size_slugs: { $eq: "3-4y" } }, { size_slugs: { $eq: "4-5y" } }, { size_slugs: { $eq: "5-6y" } }] },
         { size_slugs: { $eq: "0-3m" } },
@@ -40,6 +40,16 @@ describe("buildSearchFilter", () => {
         },
       ],
     });
+  });
+  it("ranks old Frocks links across the categories Frocks was split into", () => {
+    const [category] = buildSearchFilter("pear", { ...DEFAULT_FILTERS, category: "frocks" }).$must as unknown[];
+    expect(category).toEqual({
+      $or: ["frocks", "frill-sleeve-muslin", "japanese-muslin", "sleeveless-muslin", "muslin-collar"].map((slug) => ({ category_slug: { $eq: slug } })),
+    });
+  });
+  it("accepts a comma-separated list of categories, like gender", () => {
+    const [category] = buildSearchFilter("pear", { ...DEFAULT_FILTERS, category: "pyjamas,rompers" }).$must as unknown[];
+    expect(category).toEqual({ $or: [{ category_slug: { $eq: "pyjamas" } }, { category_slug: { $eq: "rompers" } }] });
   });
 });
 
@@ -56,6 +66,9 @@ describe("rankProducts", () => {
     expect(await rankProducts(store, "shorts", { ...DEFAULT_FILTERS, gender: "girl" })).toEqual([]);
     expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, design: "soft-pear" })).toEqual(["frock-japanese-soft-pear"]);
     expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, design: "moon-and-stars" })).toEqual([]);
+    // The fixture frock is still in "frocks"; an old link keeps finding it, a new category does not.
+    expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, category: "frocks" })).toEqual(["frock-japanese-soft-pear"]);
+    expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, category: "japanese-muslin" })).toEqual([]);
     expect(await rankProducts(store, "f", DEFAULT_FILTERS)).toEqual([]);
   });
 });

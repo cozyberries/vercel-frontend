@@ -49,6 +49,7 @@ npx playwright test tests/foo.spec.ts    # Single test file
 npm run db:test-orders                   # customer session can place an order (rolled back)
 npm run db:test-pickup                   # stall-pickup trigger + guard SQL tests (rolled back)
 npm run db:test-refills                  # stall-refills table + functions SQL tests (rolled back)
+npm run db:test-split-frocks             # Frocks → four style categories migration (rolled back)
 ```
 
 ## Architecture
@@ -151,6 +152,7 @@ app/
 - `/products` on mobile defaults to the list view; `?view=grid` opts into the grid; desktop is always a grid (`lib/utils/product-view.ts`). The card container is `[data-testid="product-grid"]` in both views; do not select it by `.grid`.
 - Filters sheet options are re-counted against the pending choices (`lib/catalog/facets.ts`); an option that would leave zero products is disabled, never hidden, and the selected option is never disabled. Counting reuses `applyFilters`, so it always agrees with the grid.
 - The Filters sheet has no Size group: size and age are one axis, so it shows Age as the homepage bands via `ageFilterOptions` (single sizes folded into their group, e.g. 3-4Y/4-5Y/5-6Y → 3-6 Years). `?size=` in URLs is still honoured by the filter engine. `useCatalog` never replaces a snapshot with an older `generatedAt` (service worker / persisted cache can hand back a stale copy right after a rebuild).
+- `?category=` takes one slug or a comma list. A category that was split up keeps its old links working through `RETIRED_CATEGORIES` in `lib/catalog/filter.ts` (read by `resolveCategorySlugs`, used by both the local filter and the Redis ranking): `frocks` → Frill Sleeve Muslin, Japanese Muslin, Sleeveless Muslin, Muslin Collar (split 2026-09-27, migration 20260927120000, `npm run db:test-split-frocks`).
 - Product filters `design` and `colour` (`/products?design=petal-pops&colour=white`): a "design" is a row of the `colors` table (a print such as Petal Pops); a "colour" is that row's `base_color` (the actual clothing colour). `lib/catalog/colours.ts` derives the options and swatches. Every print needs `base_color` filled in or it will not appear under Colour.
 - Browser: `hooks/useCatalog.ts` keeps the snapshot in TanStack Query (persisted to localStorage) and `/products` filters locally; the service worker caches `/api/catalog` stale-while-revalidate.
 - Per-user data (cart, wishlist, orders, profile) keeps its existing Redis caches in `lib/services/cache.ts`.

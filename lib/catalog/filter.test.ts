@@ -14,6 +14,7 @@ import {
   parseFilters,
   rankingKey,
   resolveAgeSizeSlugs,
+  resolveCategorySlugs,
   resolveGenderSlugs,
   sortCards,
 } from "./filter";
@@ -58,6 +59,17 @@ describe("gender and age resolution (parity with app/api/products/route.ts)", ()
   });
 });
 
+describe("category resolution", () => {
+  it("resolves the retired Frocks slug to itself and the four categories it was split into", () => {
+    expect(resolveCategorySlugs("frocks")).toEqual(["frocks", "frill-sleeve-muslin", "japanese-muslin", "sleeveless-muslin", "muslin-collar"]);
+    expect(resolveCategorySlugs(" Frocks ")).toEqual(resolveCategorySlugs("frocks"));
+  });
+  it("passes every other category through", () => {
+    expect(resolveCategorySlugs("japanese-muslin")).toEqual(["japanese-muslin"]);
+    expect(resolveCategorySlugs("pyjamas")).toEqual(["pyjamas"]);
+  });
+});
+
 describe("ageFilterOptions", () => {
   // Size and age are one axis in this store, so the sheet shows Age only, as the homepage bands:
   // single sizes that belong to a multi-size group (3-4Y/4-5Y/5-6Y → "3-6 Years") are folded into it.
@@ -90,6 +102,24 @@ describe("matchesFilters", () => {
     expect(matchesFilters(jhabla!, { ...DEFAULT_FILTERS, colour: "white" })).toBe(true);
     expect(matchesFilters(jhabla!, { ...DEFAULT_FILTERS, colour: "green" })).toBe(false);
     expect(applyFilters(cards, { ...DEFAULT_FILTERS, colour: "white" }).map((c) => c.slug)).toEqual([jhabla!.slug]);
+  });
+  it("keeps old Frocks links (?category=frocks) showing every frock after the split", () => {
+    const split = [
+      { ...frock!, slug: "frock-butterfly-sleeve-pine-cone", category_slug: "frill-sleeve-muslin" },
+      { ...frock!, slug: "frock-japanese-soft-pear", category_slug: "japanese-muslin" },
+      { ...frock!, slug: "frock-sleeveless-moons-and-stars", category_slug: "sleeveless-muslin" },
+      { ...frock!, slug: "frock-modern-peach", category_slug: "muslin-collar" },
+    ];
+    const oldLink = parseFilters(new URLSearchParams("category=frocks"));
+    expect(applyFilters([...split, coord!, jhabla!], oldLink).map((c) => c.slug).sort()).toEqual(split.map((c) => c.slug).sort());
+    // Before the data migration runs the products are still in "frocks", and the link must not go empty.
+    expect(matchesFilters(frock!, oldLink)).toBe(true);
+    // A new category shows only its own frocks.
+    expect(applyFilters(split, { ...DEFAULT_FILTERS, category: "japanese-muslin" }).map((c) => c.slug)).toEqual(["frock-japanese-soft-pear"]);
+  });
+  it("accepts a comma-separated list of categories, like gender", () => {
+    const f = { ...DEFAULT_FILTERS, category: `${coord!.category_slug}, ${jhabla!.category_slug}` };
+    expect(applyFilters(cards, f).map((c) => c.slug).sort()).toEqual([coord!.slug, jhabla!.slug].sort());
   });
   it("treats cards built before base colours existed as matching no colour", () => {
     const legacy = { ...frock!, base_colors: undefined } as unknown as typeof frock;

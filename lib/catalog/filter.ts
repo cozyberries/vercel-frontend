@@ -57,6 +57,21 @@ export function resolveGenderSlugs(gender: string): string[] {
   return [normalized];
 }
 
+/**
+ * Categories that were split up, so old links (Instagram, WhatsApp, Google) still find their
+ * products. A retired slug keeps itself so its links work on either side of the data migration.
+ */
+const RETIRED_CATEGORIES: Record<string, string[]> = {
+  // 2026-09-27: Frocks became one category per frock style.
+  frocks: ["frocks", "frill-sleeve-muslin", "japanese-muslin", "sleeveless-muslin", "muslin-collar"],
+};
+
+/** A retired category → the categories it was split into; any other category → itself. */
+export function resolveCategorySlugs(category: string): string[] {
+  const normalized = category.trim().toLowerCase();
+  return RETIRED_CATEGORIES[normalized] ?? [normalized];
+}
+
 /** "3-6y" (or the legacy "3-6-years") spans three sizes; any other age is its own size slug. */
 export function resolveAgeSizeSlugs(age: string): string[] {
   const normalized = age.trim().toLowerCase();
@@ -94,7 +109,7 @@ export function localSearchMatch(card: ListCard, search: string): boolean {
 
 export function matchesFilters(card: ListCard, f: Filters): boolean {
   if (f.featured && !card.is_featured) return false;
-  if (f.category !== "all" && card.category_slug !== f.category) return false;
+  if (f.category !== "all" && !f.category.split(",").flatMap(resolveCategorySlugs).includes(card.category_slug)) return false;
   if (f.gender !== "all") {
     const wanted = f.gender.split(",").flatMap(resolveGenderSlugs);
     if (!wanted.includes(card.gender_slug)) return false;

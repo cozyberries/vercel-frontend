@@ -50,11 +50,26 @@ const CATEGORY_PATTERNS = [
     categorySlug: 'pyjamas',
     categoryName: 'Pyjamas'
   },
-  // Frocks - various types
+  // Frocks - one category per style; a frock of any other style stays unmapped
   {
-    pattern: /frock/i,
-    categorySlug: 'frocks',
-    categoryName: 'Frocks'
+    pattern: /(frill|butterfly).*frock|frock.*(frill|butterfly)/i,
+    categorySlug: 'frill-sleeve-muslin',
+    categoryName: 'Frill Sleeve Muslin'
+  },
+  {
+    pattern: /japanese.*frock|frock.*japanese/i,
+    categorySlug: 'japanese-muslin',
+    categoryName: 'Japanese Muslin'
+  },
+  {
+    pattern: /sleeveless.*frock|frock.*sleeveless/i,
+    categorySlug: 'sleeveless-muslin',
+    categoryName: 'Sleeveless Muslin'
+  },
+  {
+    pattern: /collar.*frock|frock.*collar/i,
+    categorySlug: 'muslin-collar',
+    categoryName: 'Muslin Collar'
   },
   // Coord Sets - distinguish boys and girls
   {

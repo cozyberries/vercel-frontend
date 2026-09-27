@@ -199,12 +199,14 @@ function resolveCopyKey(product) {
   switch (category_slug) {
     case "boys-coord-sets":
       return "boys-coord-sets";
-    case "frocks":
-      if (slug.startsWith("frock-japanese")) return "frock-japanese";
-      if (slug.startsWith("frock-modern")) return "frock-collar";
-      if (slug.startsWith("frock-butterfly-sleeve")) return "frock-frill";
-      if (slug.startsWith("frock-sleeveless")) return "frock-sleeveless";
-      return null;
+    case "frill-sleeve-muslin":
+      return "frock-frill";
+    case "japanese-muslin":
+      return "frock-japanese";
+    case "sleeveless-muslin":
+      return "frock-sleeveless";
+    case "muslin-collar":
+      return "frock-collar";
     case "girls-coord-sets":
       if (slug.startsWith("coords-set-ruffle") || slug === "jhabla-shorts-half-sleeve-soft-pear")
         return "girls-coord-ruffle";

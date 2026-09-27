@@ -1,7 +1,7 @@
 // Text ranking via the Redis Search index. Filters mirror lib/catalog/filter.ts so the
 // server ranking and the browser's local filtering agree on the candidate set.
 import { normalizeAgeSlug } from "./build";
-import { MIN_QUERY_LENGTH, normalizeQuery, resolveAgeSizeSlugs, resolveGenderSlugs } from "./filter";
+import { MIN_QUERY_LENGTH, normalizeQuery, resolveAgeSizeSlugs, resolveCategorySlugs, resolveGenderSlugs } from "./filter";
 import { KEYS, type CatalogStore } from "./store";
 import type { Filters } from "./types";
 
@@ -13,7 +13,10 @@ export const RANK_LIMIT = 100;
 export function buildSearchFilter(q: string, f: Filters): Record<string, unknown> {
   const must: unknown[] = [];
   if (f.featured) must.push({ is_featured: { $eq: true } });
-  if (f.category !== "all") must.push({ category_slug: { $eq: f.category } });
+  if (f.category !== "all") {
+    const slugs = f.category.split(",").flatMap(resolveCategorySlugs);
+    must.push(slugs.length === 1 ? { category_slug: { $eq: slugs[0] } } : { $or: slugs.map((slug) => ({ category_slug: { $eq: slug } })) });
+  }
   if (f.gender !== "all") {
     must.push({ $or: f.gender.split(",").flatMap(resolveGenderSlugs).map((slug) => ({ gender_slug: { $eq: slug } })) });
   }
