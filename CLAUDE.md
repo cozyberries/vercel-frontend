@@ -48,6 +48,7 @@ npm run test:e2e:prod                    # catalog/page/homepage specs against h
 npx playwright test tests/foo.spec.ts    # Single test file
 npm run db:test-orders                   # customer session can place an order (rolled back)
 npm run db:test-pickup                   # stall-pickup trigger + guard SQL tests (rolled back)
+npm run db:test-refills                  # stall-refills table + functions SQL tests (rolled back)
 ```
 
 ## Architecture
@@ -73,6 +74,7 @@ app/
   (public)    /  /products  /about  /register
   (protected) /profile  /checkout  /complete-profile
   /payment/[orderId]         # Custom UPI payment flow
+  /admin/stall-refills       # Admin: what sold today/yesterday, shelf refill ticks
   /api/products/*            # Product data APIs
   /api/payments/*            # UPI link generation + confirmation
   /api/shipping/pincode-check   # Delhivery serviceability check
@@ -123,6 +125,13 @@ app/
 - WhatsApp bill: "Send bill" on `/admin/pickup-orders` opens the customer's chat with a signed public link to the bill PDF (`/bill/<orderId>/<sig>`, rendered by `lib/invoice/pdf.tsx` with `@react-pdf/renderer`, same content as the web invoice). The PDF is generated fresh per open, served `Cache-Control: private, no-store` and `noindex`, disallowed in `robots.txt`, and network-only in the service worker. The pickup list API builds `bill_url` server-side.
 - Tests: `npm run db:test-pickup` runs the trigger/guard SQL tests inside a rolled-back transaction.
 - Live DB fix (2026-09-25): `set_order_number()` / `set_payment_reference()` are SECURITY DEFINER (migration 20260924120000) — customer sessions have no sequence privileges after the deny-by-default migration; `npm run db:test-orders` guards it.
+
+### Stall refills (`/admin/stall-refills`)
+- Shelf-refill list for the stall. It shows every paid order's lines (stall and online) for today and yesterday (IST), one line per variant, with a photo, units sold and stock left. It refetches every 30 s while visible (TanStack Query). No Supabase Realtime.
+- A sale counts when it is paid: `orders.stock_committed_at` falls on that IST day and the status is paid. Orders awaiting ✅ are not listed. A cancelled paid order drops off, because the trigger clears `stock_committed_at`.
+- **Refilled** ticks units off without touching stock. **No stock left** sets `product_variants.stock_quantity = 0`, and the catalog rebuilds in about 10 s. Undo puts the old count back only while the stock is still 0.
+- Ticks live in `shelf_refills` (admin/internal tier). It is read and written only through `stall_refill_lines` / `stall_refill_record` / `stall_refill_undo` (service_role only), which `/api/admin/stall-refills` calls after `requireAdmin()` (`lib/services/admin-gate.ts`). `stall_refill_record` takes an advisory lock per day and variant, so two phones cannot tick the same units twice.
+- Tests: `npm run db:test-refills` (rolled back), plus vitest for `lib/orders/stall-refills.ts`, both routes, the page guard and the list.
 
 ### MRP display (display-only)
 - Every price is shown as a struck-through MRP plus the catalogue price with a "10% OFF" badge. The MRP is `mrpFor(price) = round(price ÷ (1 − rate))` in `lib/utils/discount.ts`, and `products.price` / `product_variants.price` stay the price charged. There is no MRP column.
