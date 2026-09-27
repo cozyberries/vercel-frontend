@@ -30,6 +30,7 @@ import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toast } from "sonner";
 import { SOCIAL_CONTACTS } from "@/lib/constants/social";
+import { mrpTotals } from "@/lib/utils/discount";
 
 interface RatingFormData {
   user_id: string;
@@ -366,6 +367,7 @@ function DeliveredOrderCard({
 }) {
   const stage = getOrderStageInfo(order.status, undefined, order.fulfilment_method);
   const Icon = STAGE_ICON[stage.key];
+  const { mrpSavings } = mrpTotals(order.items, order.created_at);
   return (
     <div className="bg-white rounded-2xl border border-cb-border overflow-hidden">
       <Link href={`/orders/${order.id}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -409,6 +411,9 @@ function DeliveredOrderCard({
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-cb-border bg-cb-linen px-4 py-3">
         <p className="text-sm text-cb-muted-fg">
           {order.items.length} item{order.items.length === 1 ? "" : "s"} · Total <span className="font-bold text-cb-fg">₹{order.total_amount.toFixed(0)}</span>
+          {mrpSavings > 0 && (
+            <> · <span className="font-semibold text-cb-terracotta">Saved ₹{mrpSavings.toFixed(0)} on MRP</span></>
+          )}
         </p>
         <div className="flex items-center gap-2 shrink-0">
           {order.items.length > 0 && (

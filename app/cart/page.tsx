@@ -10,6 +10,7 @@ import CartItemRow from "@/components/CartItem";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 import { useCartTotals } from "@/hooks/useCartTotals";
 import { getActiveOffer } from "@/lib/utils/discount";
+import MrpSummaryRows from "@/components/MrpSummaryRows";
 
 export default function CartPage() {
     const { cart, updateQuantity, removeFromCart, isLoading } = useCart();
@@ -121,6 +122,7 @@ export default function CartPage() {
                 )}
 
                 <div className="rounded-2xl bg-cb-linen p-4 space-y-2.5">
+                    <MrpSummaryRows items={cart} />
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-cb-muted-fg">Subtotal</span>
                         <span className="font-semibold text-cb-fg">₹{subtotal.toFixed(0)}</span>

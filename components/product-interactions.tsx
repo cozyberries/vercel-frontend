@@ -265,9 +265,9 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     }
   }, [product, initialSize]);
 
-  // Base variant price (MRP). Cart always stores the original catalog price so the backend
+  // Catalogue variant price (what the customer pays). Cart always stores it so the backend
   // can validate against the DB and apply the coupon discount at order level.
-  // getDiscountedPrice is used only for display (hero, chips, DiscountedPrice component).
+  // getDiscountedPrice adds the display-only MRP (hero, chips, DiscountedPrice component).
   const displayPrice = selectedSize?.price ?? product?.price ?? 0;
 
   const availableStock = selectedSize != null ? (selectedSize.stock_quantity ?? 0) : (product?.stock_quantity ?? 0);

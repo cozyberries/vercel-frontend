@@ -18,9 +18,9 @@ export default function DiscountedPrice({
   className = '',
   variant = 'default',
 }: DiscountedPriceProps) {
-  const { original, discounted, offer } = getDiscountedPrice(price)
+  const { original, discounted, badgeText } = getDiscountedPrice(price)
 
-  if (!offer) {
+  if (!badgeText) {
     const singleClass =
       variant === 'hero'
         ? `text-4xl sm:text-5xl font-bold text-gray-900 tracking-tight tabular-nums ${className}`
@@ -48,7 +48,7 @@ export default function DiscountedPrice({
           ₹{discounted.toFixed(0)}
         </span>
         <span className="bg-[#fef3ec] text-[#c47c5a] text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-          {offer.badgeText}
+          {badgeText}
         </span>
       </div>
     )
@@ -66,7 +66,7 @@ export default function DiscountedPrice({
         ₹{discounted.toFixed(0)}
       </span>
       <span className="bg-[#fef3ec] text-[#c47c5a] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-        {offer.badgeText}
+        {badgeText}
       </span>
     </span>
   )

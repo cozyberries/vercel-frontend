@@ -124,6 +124,13 @@ app/
 - Tests: `npm run db:test-pickup` runs the trigger/guard SQL tests inside a rolled-back transaction.
 - Live DB fix (2026-09-25): `set_order_number()` / `set_payment_reference()` are SECURITY DEFINER (migration 20260924120000) — customer sessions have no sequence privileges after the deny-by-default migration; `npm run db:test-orders` guards it.
 
+### MRP display (display-only)
+- Every price is shown as a struck-through MRP plus the catalogue price with a "10% OFF" badge. The MRP is `mrpFor(price) = round(price ÷ (1 − rate))` in `lib/utils/discount.ts`, and `products.price` / `product_variants.price` stay the price charged. There is no MRP column.
+- Config lives in `MRP_DISPLAY` (`lib/config/offers.ts`). `NEXT_PUBLIC_MRP_DISCOUNT_RATE` defaults to `0.1`; set it to `0` and redeploy to hide the MRP everywhere. `NEXT_PUBLIC_MRP_SHOWN_SINCE` defaults to `2026-09-27T00:00:00+05:30`. Orders placed before it show no "Discount on MRP" on `/orders`.
+- The badge is worked out from the numbers shown, so it stays correct when the Early Bird coupon runs as well (it shows the combined %).
+- It appears on product cards, the product page, cart lines, the wishlist, quick-add, `/display`, and the cart, checkout and order summaries (`components/MrpSummaryRows.tsx`).
+- It never appears in cart/order totals, `/api/orders`, the GST invoice (web or PDF), JSON-LD, or the Meta Pixel `value`. Keep it that way: a tax invoice records the real transaction.
+
 ### Caching Strategy
 - **Catalog (products, categories, sizes, ages, genders, colours) is served from Upstash Redis in Mumbai**, never from Supabase on a request. Module: `lib/catalog/` (see `docs/CATALOG_CACHE.md`).
   - Keys live under `cat:` (`cat:product:{slug}` JSON docs, `cat:snapshot`, `cat:reference`, `cat:version`, `cat:meta`). One Redis Search index `cozyberries-search`.

@@ -11,25 +11,25 @@ interface DisplayPriceProps {
  * (including "Starts at" and the offer badge) scales with the screen instead of fixed rem sizes.
  */
 export default function DisplayPrice({ price, showStartsAt }: DisplayPriceProps) {
-  const { original, discounted, offer } = getDiscountedPrice(price);
+  const { original, discounted, badgeText } = getDiscountedPrice(price);
   return (
     <div className="mt-[1.5vmin] flex flex-wrap items-baseline gap-x-[1.5vmin] gap-y-[0.5vmin]">
       {showStartsAt && (
         <span className="w-full text-[max(12px,2vmin)] font-medium text-[#6b5443]">Starts at</span>
       )}
-      {offer && (
+      {badgeText && (
         <span className="text-[max(14px,2.8vmin)] tabular-nums text-[#a0896e] line-through">
           ₹{original.toFixed(0)}
         </span>
       )}
       <span
-        className={`text-[max(24px,6vmin)] font-bold tabular-nums tracking-tight ${offer ? "text-[#c47c5a]" : "text-[#4a3426]"}`}
+        className={`text-[max(24px,6vmin)] font-bold tabular-nums tracking-tight ${badgeText ? "text-[#c47c5a]" : "text-[#4a3426]"}`}
       >
         ₹{discounted.toFixed(0)}
       </span>
-      {offer && (
+      {badgeText && (
         <span className="rounded-full bg-[#fef3ec] px-[1.2vmin] py-[0.4vmin] text-[max(12px,2vmin)] font-bold text-[#c47c5a]">
-          {offer.badgeText}
+          {badgeText}
         </span>
       )}
     </div>

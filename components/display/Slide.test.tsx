@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DisplaySlide } from "@/lib/display/slides";
 
-// Controllable early-bird offer: getActiveOffer() reads these fields on every call.
+// Controllable early-bird offer and MRP display: both are read on every call.
 const offer = vi.hoisted(() => ({
   value: {
     code: "TEST",
@@ -13,8 +13,9 @@ const offer = vi.hoisted(() => ({
     label: "Test Offer",
     badgeText: "10% OFF",
   },
+  mrp: { discountRate: 0.1, shownSince: new Date("2026-09-27T00:00:00+05:30") },
 }));
-vi.mock("@/lib/config/offers", () => ({ EARLY_BIRD_OFFER: offer.value }));
+vi.mock("@/lib/config/offers", () => ({ EARLY_BIRD_OFFER: offer.value, MRP_DISPLAY: offer.mrp }));
 
 import EmptySlide from "./EmptySlide";
 import Slide from "./Slide";
@@ -31,6 +32,7 @@ const slide: DisplaySlide = {
 
 afterEach(() => {
   offer.value.enabled = false;
+  offer.mrp.discountRate = 0.1;
 });
 
 describe("Slide", () => {
@@ -51,6 +53,7 @@ describe("Slide", () => {
   });
 
   it("prices like the product card: plain price, Starts at for ranges", () => {
+    offer.mrp.discountRate = 0;
     const { rerender } = render(<Slide slide={slide} photoSrc="blob:a" />);
     expect(screen.getByText("₹450")).toBeInTheDocument();
     expect(screen.queryByText("Starts at")).not.toBeInTheDocument();
@@ -58,7 +61,15 @@ describe("Slide", () => {
     expect(screen.getByText("Starts at")).toBeInTheDocument();
   });
 
+  it("shows the MRP struck through, the price charged and 10% OFF", () => {
+    render(<Slide slide={slide} photoSrc="blob:a" />);
+    expect(screen.getByText("₹500").className).toMatch(/line-through/);
+    expect(screen.getByText("₹450")).toBeInTheDocument();
+    expect(screen.getByText("10% OFF")).toBeInTheDocument();
+  });
+
   it("shows MRP, the discounted price and the badge while an offer runs", () => {
+    offer.mrp.discountRate = 0;
     offer.value.enabled = true;
     render(<Slide slide={slide} photoSrc="blob:a" />);
     expect(screen.getByText("₹450")).toBeInTheDocument();
@@ -69,9 +80,8 @@ describe("Slide", () => {
 
 describe("Slide price on a TV", () => {
   it("sizes every part of the price to read across a room", () => {
-    offer.value.enabled = true;
     render(<Slide slide={{ ...slide, hasRange: true }} photoSrc="blob:a" />);
-    for (const text of ["Starts at", "₹450", "₹405", "10% OFF"]) {
+    for (const text of ["Starts at", "₹500", "₹450", "10% OFF"]) {
       expect(screen.getByText(text).className).toMatch(/vmin/);
     }
   });

@@ -22,3 +22,19 @@ export const EARLY_BIRD_OFFER: Offer = {
   label:        'Early Bird Offer',
   badgeText:    _discountPct,
 }
+
+// Display-only MRP: every catalogue price is shown as MRP less this share of it, so the price
+// charged never changes. 0 (or anything outside [0, 1)) hides the MRP everywhere.
+export interface MrpDisplay {
+  discountRate: number   // 0.1 = MRP is price ÷ 0.9
+  shownSince: Date       // orders placed before this show no MRP saving
+}
+
+const _DEFAULT_MRP_SINCE = '2026-09-27T00:00:00+05:30'
+const _mrpRate  = parseFloat(process.env.NEXT_PUBLIC_MRP_DISCOUNT_RATE ?? '0.1')
+const _mrpSince = new Date(process.env.NEXT_PUBLIC_MRP_SHOWN_SINCE ?? _DEFAULT_MRP_SINCE)
+
+export const MRP_DISPLAY: MrpDisplay = {
+  discountRate: isNaN(_mrpRate) ? 0.1 : _mrpRate >= 0 && _mrpRate < 1 ? _mrpRate : 0,
+  shownSince:   isNaN(_mrpSince.getTime()) ? new Date(_DEFAULT_MRP_SINCE) : _mrpSince,
+}

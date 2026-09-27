@@ -29,6 +29,7 @@ import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
 import { STATIC_QR_CODE_URL, UPI_ID, UPI_PHONE_NUMBER } from "@/lib/constants";
 import { getActiveOffer } from "@/lib/utils/discount";
+import MrpSummaryRows from "@/components/MrpSummaryRows";
 import type { FulfilmentMethod } from "@/lib/types/order";
 import { canContinueCheckout, deliveryChargeFor } from "@/lib/utils/fulfilment";
 import { FulfilmentPicker } from "@/components/checkout/FulfilmentPicker";
@@ -623,6 +624,7 @@ function OrderSummary({
       )}
 
       <div className="rounded-xl bg-cb-linen p-4 space-y-2">
+        <MrpSummaryRows items={cart} />
         <div className="flex items-center justify-between text-sm">
           <span className="text-cb-muted-fg">Subtotal</span>
           <span className="font-semibold text-cb-fg">₹{subtotal.toFixed(0)}</span>
