@@ -283,6 +283,22 @@ begin
     format('lines=%s record=%s undo=%s', coalesce(v_lines, 'ok'), coalesce(v_record, 'ok'), coalesce(v_undo, 'ok')));
 end $$;
 
+-- 16. A variant slug rename carries a recorded tick's FK reference forward
+--     (ON UPDATE CASCADE) instead of blocking the rename with 23503. Kept last
+--     so the rename cannot affect any assertion above it.
+do $$
+declare
+  v_row public.shelf_refills;
+  v_after text;
+begin
+  perform pg_temp.make_order(1);
+  v_row := public.stall_refill_record(pg_temp.today(), 'zz-refill-frock-v', 'refilled', 1, pg_temp.uid(), 'Asha');
+  update public.product_variants set slug = 'zz-refill-frock-v2' where slug = 'zz-refill-frock-v';
+  select variant_slug into v_after from public.shelf_refills where id = v_row.id;
+  insert into t_result values ('variant_rename_carries_ticks', v_after = 'zz-refill-frock-v2',
+    format('variant_slug=%s', v_after));
+end $$;
+
 select case when ok then 'PASS ' else 'FAIL ' end || name
        || case when ok then '' else ': ' || coalesce(reason, '') end
   from t_result order by name;

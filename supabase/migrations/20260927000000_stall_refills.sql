@@ -8,7 +8,7 @@
 create table if not exists public.shelf_refills (
   id uuid primary key default gen_random_uuid(),
   sale_date date not null,
-  variant_slug text not null references public.product_variants(slug) on delete cascade,
+  variant_slug text not null references public.product_variants(slug) on update cascade on delete cascade,
   action text not null check (action in ('refilled', 'no_stock')),
   quantity integer not null check (quantity > 0),
   -- no_stock only: the stock count before it was set to 0, so Undo can put it back.
@@ -21,8 +21,8 @@ create table if not exists public.shelf_refills (
     check (action = 'no_stock' or previous_stock is null)
 );
 
-create index if not exists shelf_refills_day_variant_idx
-  on public.shelf_refills (sale_date, variant_slug);
+create index if not exists shelf_refills_variant_day_idx
+  on public.shelf_refills (variant_slug, sale_date);
 
 alter table public.shelf_refills enable row level security;
 alter table public.shelf_refills force row level security;
