@@ -5,6 +5,7 @@ describe("pickup transitions", () => {
   it("parses tabs and actions strictly", () => {
     expect(parsePickupTab(null)).toBe("handover");
     expect(parsePickupTab("ready")).toBe("ready");
+    expect(parsePickupTab("awaiting")).toBe("awaiting");
     expect(parsePickupTab("bogus")).toBeNull();
     expect(parsePickupAction("collected")).toBe("collected");
     expect(parsePickupAction("shipped")).toBeNull();

@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
     }
     const q = (searchParams.get("q") ?? "").trim();
 
-    let query = createAdminSupabaseClient()
+    const admin = createAdminSupabaseClient();
+    let query = admin
       .from("orders")
       .select(SELECT)
       .eq("fulfilment_method", "pickup");
@@ -51,11 +52,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { data, error } = await query.order("created_at", { ascending: true }).limit(100);
+    // The awaiting-✅ count rides along with every tab so staff see it without opening that tab.
+    const [{ data, error }, awaiting] = await Promise.all([
+      query.order("created_at", { ascending: true }).limit(100),
+      admin
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("fulfilment_method", "pickup")
+        .in("status", PICKUP_TAB_STATUSES.awaiting),
+    ]);
     if (error) {
       console.error("[pickup-orders] list failed:", error);
       return NextResponse.json({ error: "Failed to load pickup orders" }, { status: 500 });
     }
+    if (awaiting.error) {
+      console.error("[pickup-orders] awaiting count failed:", awaiting.error);
+    }
+    const awaitingCount = awaiting.error ? null : awaiting.count ?? 0;
     const rows = (data ?? []) as unknown as { id: string }[];
     let orders;
     try {
@@ -65,7 +78,7 @@ export async function GET(request: NextRequest) {
       console.error("[pickup-orders] INVOICE_LINK_SECRET misconfigured:", configError instanceof Error ? configError.message : configError);
       orders = rows.map((row) => ({ ...row, bill_url: null }));
     }
-    return NextResponse.json({ orders });
+    return NextResponse.json({ orders, awaiting_count: awaitingCount });
   } catch (error) {
     console.error("[pickup-orders] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

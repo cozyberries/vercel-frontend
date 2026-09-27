@@ -6,15 +6,25 @@ const h = vi.hoisted(() => {
   const reset = () => {
     state.user = { id: 'admin-1', app_metadata: { role: 'admin' } };
     state.rows = [{ id: 'order-1' }];
+    state.count = { count: 0, error: null };
     calls.length = 0;
   };
   reset();
-  const chain: any = {};
-  for (const m of ['select', 'eq', 'in', 'gte', 'ilike', 'order', 'limit']) {
-    chain[m] = (...args: unknown[]) => { calls.push([m, ...args]); return chain; };
-  }
-  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: state.rows, error: null }).then(resolve);
-  return { state, calls, reset, admin: { from: () => chain } };
+  // One chain per from(): a head-count select resolves to state.count, anything else to the rows.
+  const makeChain = () => {
+    const chain: any = { isCount: false };
+    for (const m of ['select', 'eq', 'in', 'gte', 'ilike', 'order', 'limit']) {
+      chain[m] = (...args: unknown[]) => {
+        calls.push([m, ...args]);
+        if (m === 'select' && (args[1] as { head?: boolean } | undefined)?.head) chain.isCount = true;
+        return chain;
+      };
+    }
+    chain.then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve(chain.isCount ? state.count : { data: state.rows, error: null }).then(resolve);
+    return chain;
+  };
+  return { state, calls, reset, admin: { from: () => makeChain() } };
 });
 
 vi.mock('@/lib/supabase-server', () => ({
@@ -43,16 +53,42 @@ describe('GET /api/admin/pickup-orders', () => {
   it('lists paid pickup orders for the hand-over tab', async () => {
     const res = await get('?tab=handover');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1') }] });
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1') }], awaiting_count: 0 });
     expect(h.calls).toContainEqual(['eq', 'fulfilment_method', 'pickup']);
     expect(h.calls).toContainEqual(['in', 'status', ['payment_confirmed', 'processing']]);
+  });
+
+  it('lists unpaid pickup orders for the awaiting tab', async () => {
+    const res = await get('?tab=awaiting');
+    expect(res.status).toBe(200);
+    // Once for the list, once for the tab count.
+    expect(h.calls.filter((c) => c[0] === 'in' && c[1] === 'status')).toEqual([
+      ['in', 'status', ['payment_pending', 'verifying_payment']],
+      ['in', 'status', ['payment_pending', 'verifying_payment']],
+    ]);
+  });
+
+  it('counts pickup orders awaiting confirmation on every tab', async () => {
+    h.state.count = { count: 2, error: null };
+    const res = await get('?tab=ready');
+    expect((await res.json()).awaiting_count).toBe(2);
+    expect(h.calls).toContainEqual(['select', 'id', { count: 'exact', head: true }]);
+    expect(h.calls).toContainEqual(['in', 'status', ['payment_pending', 'verifying_payment']]);
+    expect(h.calls).toContainEqual(['in', 'status', ['ready_for_pickup']]);
+  });
+
+  it('still lists orders when the awaiting count fails', async () => {
+    h.state.count = { count: null, error: { message: 'boom' } };
+    const res = await get('?tab=handover');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1') }], awaiting_count: null });
   });
 
   it('still lists orders, without bill links, when the signing secret is missing', async () => {
     vi.stubEnv('INVOICE_LINK_SECRET', '');
     const res = await get('?tab=handover');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: null }] });
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: null }], awaiting_count: 0 });
   });
 
   it('selects each line price so staff can check the card against the bill', async () => {

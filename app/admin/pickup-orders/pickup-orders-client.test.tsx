@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -31,10 +31,42 @@ afterEach(() => vi.unstubAllGlobals());
 const lineText = (text: string) => (_: string, el: Element | null) =>
   el?.tagName === "LI" && el.textContent === text;
 
+const respond = (body: unknown) =>
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => body }));
+
 describe("pickup orders card", () => {
   it("shows each line's price so staff can check it against the bill", async () => {
     render(<PickupOrdersClient />);
     expect(await screen.findByText(lineText("2 × Frock · 3-4Y · Pink — ₹1000"))).toBeInTheDocument();
     expect(screen.getByText(lineText("1 × Romper — ₹300"))).toBeInTheDocument();
+  });
+
+  it("an order waiting for the owner's ✅ says so and cannot be handed over", async () => {
+    respond({
+      orders: [{ ...order, status: "verifying_payment", invoice_number: null, payments: [{ payment_method: "cash", status: "processing" }] }],
+      awaiting_count: 1,
+    });
+    render(<PickupOrdersClient />);
+    expect(await screen.findByText("Waiting for the owner's ✅ on Telegram")).toBeInTheDocument();
+    expect(screen.getByText(/₹1300 · Cash recorded/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mark collected/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mark ready/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("awaiting tab", () => {
+  it("shows how many orders are waiting for ✅", async () => {
+    respond({ orders: [order], awaiting_count: 2 });
+    render(<PickupOrdersClient />);
+    expect(await screen.findByRole("tab", { name: "Awaiting ✅ 2" })).toBeInTheDocument();
+  });
+
+  it("loads the unpaid pickup orders when opened", async () => {
+    respond({ orders: [], awaiting_count: 0 });
+    render(<PickupOrdersClient />);
+    fireEvent.click(await screen.findByRole("tab", { name: /Awaiting ✅/ }));
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toContain("/api/admin/pickup-orders?tab=awaiting")
+    );
   });
 });

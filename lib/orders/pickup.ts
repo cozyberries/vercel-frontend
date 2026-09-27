@@ -1,12 +1,19 @@
 import type { OrderStatus } from "@/lib/types/order";
 
-export type PickupTab = "handover" | "ready" | "collected";
+export type PickupTab = "awaiting" | "handover" | "ready" | "collected";
 export type PickupAction = "ready" | "collected";
 
 /** Paid covers both confirmation paths: Telegram (processing) and the admin app (payment_confirmed). */
 const PAID: OrderStatus[] = ["payment_confirmed", "processing"];
 
+/**
+ * Not yet confirmed by the owner's Telegram ✅: stall UPI orders (payment_pending) and
+ * cash recorded or "I have paid" (verifying_payment). Listed so they never drop out of sight.
+ */
+const UNPAID: OrderStatus[] = ["payment_pending", "verifying_payment"];
+
 export const PICKUP_TAB_STATUSES: Record<PickupTab, OrderStatus[]> = {
+  awaiting: UNPAID,
   handover: PAID,
   ready: ["ready_for_pickup"],
   collected: ["collected"],
@@ -14,8 +21,7 @@ export const PICKUP_TAB_STATUSES: Record<PickupTab, OrderStatus[]> = {
 
 /** Search looks across every pickup state, for "I ordered online, here to collect". */
 export const PICKUP_SEARCH_STATUSES: OrderStatus[] = [
-  "payment_pending",
-  "verifying_payment",
+  ...UNPAID,
   ...PAID,
   "ready_for_pickup",
   "collected",
@@ -32,7 +38,7 @@ export function allowedFromStatuses(action: PickupAction): OrderStatus[] {
 
 export function parsePickupTab(value: string | null): PickupTab | null {
   if (value === null || value === "") return "handover";
-  return value === "handover" || value === "ready" || value === "collected" ? value : null;
+  return value === "awaiting" || value === "handover" || value === "ready" || value === "collected" ? value : null;
 }
 
 export function parsePickupAction(value: unknown): PickupAction | null {

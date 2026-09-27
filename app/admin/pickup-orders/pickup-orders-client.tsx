@@ -8,20 +8,24 @@ import { Input } from "@/components/ui/input";
 import { STALL } from "@/lib/config/business";
 import { whatsappLink } from "@/lib/utils/whatsapp";
 import { formatOrderStatus, getOrderStatusColor } from "@/lib/utils/order-status";
-import type { PickupAction, PickupOrderRow, PickupTab } from "@/lib/orders/pickup";
+import { PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab } from "@/lib/orders/pickup";
 
 const TABS: { key: PickupTab; label: string }[] = [
+  { key: "awaiting", label: "Awaiting ✅" },
   { key: "handover", label: "To hand over" },
   { key: "ready", label: "Ready" },
   { key: "collected", label: "Collected today" },
 ];
 
 const PAYMENT_LABEL: Record<string, string> = { upi: "UPI", cash: "Cash" };
+/** A payment staff or the customer recorded that the owner has not confirmed yet. */
+const CLAIM_LABEL: Record<string, string> = { upi: "UPI claimed", cash: "Cash recorded" };
 
 export default function PickupOrdersClient() {
   const [tab, setTab] = useState<PickupTab>("handover");
   const [query, setQuery] = useState("");
   const [orders, setOrders] = useState<PickupOrderRow[]>([]);
+  const [awaitingCount, setAwaitingCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -34,6 +38,7 @@ export default function PickupOrdersClient() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || "Failed to load pickup orders");
       setOrders(body.orders ?? []);
+      setAwaitingCount(typeof body.awaiting_count === "number" ? body.awaiting_count : null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load pickup orders");
     } finally {
@@ -97,20 +102,33 @@ export default function PickupOrdersClient() {
       </div>
 
       {!query && (
-        <div className="grid grid-cols-3 gap-2" role="tablist">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              role="tab"
-              aria-selected={tab === t.key}
-              onClick={() => setTab(t.key)}
-              className={`rounded-full px-3 py-2 text-sm font-semibold ${
-                tab === t.key ? "bg-cb-terracotta text-white" : "bg-cb-linen text-cb-fg"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="tablist">
+          {TABS.map((t) => {
+            const count = t.key === "awaiting" && awaitingCount ? awaitingCount : 0;
+            return (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`rounded-full px-3 py-2 text-sm font-semibold ${
+                  tab === t.key
+                    ? "bg-cb-terracotta text-white"
+                    : count
+                      ? "bg-amber-100 text-amber-900"
+                      : "bg-cb-linen text-cb-fg"
+                }`}
+              >
+                {t.label}
+                {count > 0 && (
+                  <>
+                    {" "}
+                    <span className="ml-0.5 rounded-full bg-white/80 px-1.5 text-xs text-amber-900">{count}</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -124,6 +142,10 @@ export default function PickupOrdersClient() {
         <ul className="space-y-3">
           {orders.map((order) => {
             const paidWith = order.payments.find((p) => p.status === "completed")?.payment_method;
+            const awaitingConfirmation = PICKUP_TAB_STATUSES.awaiting.includes(order.status);
+            const claimedWith = awaitingConfirmation
+              ? order.payments.find((p) => p.status === "pending" || p.status === "processing")?.payment_method
+              : undefined;
             const bill = billLink(order);
             const busy = busyId === order.id;
             return (
@@ -152,8 +174,12 @@ export default function PickupOrdersClient() {
                 <p className="mb-3 text-sm text-cb-muted-fg">
                   ₹{Number(order.total_amount).toFixed(0)}
                   {paidWith ? ` · ${PAYMENT_LABEL[paidWith] ?? paidWith}` : ""}
+                  {claimedWith ? ` · ${CLAIM_LABEL[claimedWith] ?? claimedWith}` : ""}
                   {order.invoice_number ? ` · ${order.invoice_number}` : ""}
                 </p>
+                {awaitingConfirmation && (
+                  <p className="mb-3 text-sm font-medium text-amber-800">{"Waiting for the owner's ✅ on Telegram"}</p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {(order.status === "processing" || order.status === "payment_confirmed") && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => act(order, "ready")}>
