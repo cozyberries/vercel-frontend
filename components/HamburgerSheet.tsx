@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, ChevronRight, Home, Mail, Instagram, UserPlus, ClipboardList, Store } from "lucide-react";
+import { Menu, ChevronRight, Home, Mail, Instagram, UserPlus, ClipboardList, Store, PackagePlus } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -305,6 +305,12 @@ export const HamburgerSheet = () => {
                     <div className="flex items-center">
                       <Store className="h-4 w-4 mr-2" />
                       Stall pickups
+                    </div>
+                  </MenuItem>
+                  <MenuItem href="/admin/stall-refills">
+                    <div className="flex items-center">
+                      <PackagePlus className="h-4 w-4 mr-2" />
+                      Stall refills
                     </div>
                   </MenuItem>
                 </motion.div>
