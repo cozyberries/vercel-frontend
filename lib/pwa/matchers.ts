@@ -7,3 +7,12 @@ export function isDisplayNavigation({ request, url }: { request: Pick<Request, "
 export function isBillRequest({ url }: { url: URL }): boolean {
   return url.pathname.startsWith("/bill/");
 }
+
+/**
+ * Admin APIs (/api/admin/*) must never be served from cache: a stale list read as a
+ * normal 200 hides a failed refresh and can show pre-tick data after an action.
+ * Same-origin only, any method.
+ */
+export function isAdminApiRequest({ url, sameOrigin }: { url: URL; sameOrigin: boolean }): boolean {
+  return sameOrigin && url.pathname.startsWith("/api/admin/");
+}

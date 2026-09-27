@@ -8,7 +8,7 @@ import {
   CacheFirst,
   ExpirationPlugin,
 } from "serwist";
-import { isBillRequest, isDisplayNavigation } from "../lib/pwa/matchers";
+import { isAdminApiRequest, isBillRequest, isDisplayNavigation } from "../lib/pwa/matchers";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -63,6 +63,15 @@ const serwist = new Serwist({
     // cancelled: always network, never stored in any cache on the device.
     {
       matcher: isBillRequest,
+      handler: new NetworkOnly(),
+    },
+
+    // ── Admin APIs ────────────────────────────────────────────────────────────
+    // /api/admin/* must never answer from cache: a stall phone offline or on a slow
+    // link would get a stale list back as a normal 200 instead of a visible failure.
+    // Ahead of defaultCache so it wins over the generic same-origin GET NetworkFirst rule.
+    {
+      matcher: isAdminApiRequest,
       handler: new NetworkOnly(),
     },
 

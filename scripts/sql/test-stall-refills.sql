@@ -283,7 +283,68 @@ begin
     format('lines=%s record=%s undo=%s', coalesce(v_lines, 'ok'), coalesce(v_record, 'ok'), coalesce(v_undo, 'ok')));
 end $$;
 
--- 16. A variant slug rename carries a recorded tick's FK reference forward
+-- 16. Undo of an older No stock left must not restore a count a later No stock
+--     left has since superseded: stock 5, a sale of 1 -> tick A (no_stock,
+--     previous_stock 4) -> restocked to 3, a sale of 2 -> tick B (no_stock,
+--     previous_stock 1, stock now 0). Undo A must leave the stock at 0 (a later
+--     tick owns it); undo B must then restore B's own previous_stock.
+do $$
+declare
+  v_tick_a public.shelf_refills;
+  v_tick_b public.shelf_refills;
+  v_after_undo_a int;
+  v_after_undo_b int;
+begin
+  -- Force a known, sufficient stock level first: earlier assertions may have left
+  -- the fixture at 0, and an order for more than what's on hand raises OUT_OF_STOCK.
+  update public.product_variants set stock_quantity = 5 where slug = 'zz-refill-frock-v';
+  perform pg_temp.make_order(1);
+  v_tick_a := public.stall_refill_record(pg_temp.today(), 'zz-refill-frock-v', 'no_stock', 1, pg_temp.uid(), 'Asha');
+
+  update public.product_variants set stock_quantity = 3 where slug = 'zz-refill-frock-v';
+  perform pg_temp.make_order(2);
+  v_tick_b := public.stall_refill_record(pg_temp.today(), 'zz-refill-frock-v', 'no_stock', 2, pg_temp.uid(), 'Asha');
+
+  -- Inside one transaction now() is constant: force tick A earlier than tick B
+  -- so "later" ordering is deterministic without touching clock_timestamp().
+  update public.shelf_refills set acted_at = now() - interval '1 minute' where id = v_tick_a.id;
+
+  perform public.stall_refill_undo(v_tick_a.id);
+  v_after_undo_a := pg_temp.stock();
+
+  perform public.stall_refill_undo(v_tick_b.id);
+  v_after_undo_b := pg_temp.stock();
+
+  insert into t_result values ('undo_older_no_stock_keeps_later_zero',
+    v_after_undo_a = 0 and v_after_undo_b = v_tick_b.previous_stock,
+    format('after_undo_a=%s after_undo_b=%s expected_from_b=%s',
+           v_after_undo_a, v_after_undo_b, v_tick_b.previous_stock));
+end $$;
+
+-- 17. The service role (what the API uses) can run No stock left and its undo
+--     end to end — the only real-role proof of the action that writes
+--     product_variants and fires the catalog trigger.
+do $$
+declare
+  v_before int;
+  v_record text;
+  v_undo text;
+  v_id uuid;
+begin
+  update public.product_variants set stock_quantity = 5 where slug = 'zz-refill-frock-v';
+  perform pg_temp.make_order(1);
+  v_before := pg_temp.stock();
+  v_record := pg_temp.as_service(format('select public.stall_refill_record(%L, %L, %L, 1, %L, %L)',
+    pg_temp.today(), 'zz-refill-frock-v', 'no_stock', pg_temp.uid(), 'ServiceNoStock'));
+  select id into v_id from public.shelf_refills where acted_by_name = 'ServiceNoStock';
+  v_undo := pg_temp.as_service(format('select public.stall_refill_undo(%L)', v_id));
+  insert into t_result values ('service_role_no_stock_and_undo',
+    v_record is null and v_undo is null and v_id is not null and pg_temp.stock() = v_before,
+    format('record=%s undo=%s stock=%s expected=%s',
+           coalesce(v_record, 'ok'), coalesce(v_undo, 'ok'), pg_temp.stock(), v_before));
+end $$;
+
+-- 18. A variant slug rename carries a recorded tick's FK reference forward
 --     (ON UPDATE CASCADE) instead of blocking the rename with 23503. Kept last
 --     so the rename cannot affect any assertion above it.
 do $$

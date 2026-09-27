@@ -206,6 +206,66 @@ describe("stall refills list", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("a 401 on a background refresh shows the log-in prompt, not the refresh banner", async () => {
+    renderPage();
+    await screen.findByTestId("refill-line-frock-moon-0-3m");
+    reply = () => ({ ok: false, status: 401, body: { error: "Unauthorized" } });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText("Signed out. Log in again to see refills.")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Log in again" });
+    expect(link).toHaveAttribute("href", "/login?redirect=/admin/stall-refills");
+    expect(screen.queryByText("Couldn't refresh, retrying")).not.toBeInTheDocument();
+    expect(screen.getByTestId("refill-line-frock-moon-0-3m")).toBeInTheDocument();
+  });
+
+  it("a partly-handled line shows what's left, the prior action, and still offers both buttons", async () => {
+    reply = () => ({
+      ok: true,
+      body: {
+        ...response(),
+        today: {
+          date: "2026-09-27",
+          lines: [
+            {
+              key: "coords-partial-2-3y",
+              variant_slug: "coords-partial-2-3y",
+              name: "Partial Set",
+              size: "2-3Y",
+              image: null,
+              sold: 3,
+              pending: 1,
+              stock_now: 4,
+              actions: [
+                {
+                  id: "22222222-2222-4222-8222-222222222222",
+                  action: "refilled",
+                  quantity: 2,
+                  acted_by_name: "Asha",
+                  acted_at: "2026-09-27T09:00:00.000Z",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    renderPage();
+    const line = await screen.findByTestId("refill-line-coords-partial-2-3y");
+    expect(within(line).getByText("1 more to refill")).toBeInTheDocument();
+    expect(within(line).getByText("Refilled ×2 · 14:30 · Asha")).toBeInTheDocument();
+    expect(within(line).getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(within(line).getByRole("button", { name: "Refilled" })).toBeInTheDocument();
+    expect(within(line).getByRole("button", { name: "No stock left" })).toBeInTheDocument();
+    fireEvent.click(within(line).getByRole("button", { name: "Refilled" }));
+    await waitFor(() => expect(calls("POST")).toHaveLength(1));
+    expect(JSON.parse(String(calls("POST")[0][1]?.body))).toEqual({
+      sale_date: "2026-09-27",
+      variant_slug: "coords-partial-2-3y",
+      action: "refilled",
+      quantity: 1,
+    });
+  });
+
   it("an empty day says so", async () => {
     reply = () => ({ ok: true, body: { ...response(), today: { date: "2026-09-27", lines: [] } } });
     renderPage();

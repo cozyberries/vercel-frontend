@@ -132,6 +132,7 @@ app/
 - **Refilled** ticks units off without touching stock. **No stock left** sets `product_variants.stock_quantity = 0`, and the catalog rebuilds in about 10 s. Undo puts the old count back only while the stock is still 0.
 - Ticks live in `shelf_refills` (admin/internal tier). It is read and written only through `stall_refill_lines` / `stall_refill_record` / `stall_refill_undo` (service_role only), which `/api/admin/stall-refills` calls after `requireAdmin()` (`lib/services/admin-gate.ts`). `stall_refill_record` takes an advisory lock per day and variant, so two phones cannot tick the same units twice.
 - Tests: `npm run db:test-refills` (rolled back), plus vitest for `lib/orders/stall-refills.ts`, both routes, the page guard and the list.
+- `/api/admin/*` is network-only in the service worker (`isAdminApiRequest`), so a failed refresh shows the banner instead of a cached list.
 
 ### MRP display (display-only)
 - Every price is shown as a struck-through MRP plus the catalogue price with a "10% OFF" badge. The MRP is `mrpFor(price) = round(price ÷ (1 − rate))` in `lib/utils/discount.ts`, and `products.price` / `product_variants.price` stay the price charged. There is no MRP column.

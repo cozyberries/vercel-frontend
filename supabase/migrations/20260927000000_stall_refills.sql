@@ -172,7 +172,10 @@ end;
 $$;
 
 -- Removes one tick. Undoing No stock left puts the old count back only while
--- the stock is still 0; if anything changed it since, the tick alone goes.
+-- the stock is still 0 AND no later no_stock tick exists for the same variant
+-- (on any sale_date): a later tick's previous_stock, not this one's, is the count
+-- that matches the stock currently sitting at 0. If either condition fails, the
+-- tick alone goes.
 create or replace function public.stall_refill_undo(p_id uuid)
 returns public.shelf_refills
 language plpgsql
@@ -188,7 +191,15 @@ begin
     raise exception 'NOT_FOUND' using errcode = 'P0001';
   end if;
 
-  if v_row.action = 'no_stock' and v_row.previous_stock > 0 then
+  if v_row.action = 'no_stock' and v_row.previous_stock > 0
+     and not exists (
+       select 1
+         from public.shelf_refills r
+        where r.variant_slug = v_row.variant_slug
+          and r.action = 'no_stock'
+          and (r.acted_at, r.id) > (v_row.acted_at, v_row.id)
+     )
+  then
     update public.product_variants
        set stock_quantity = v_row.previous_stock
      where slug = v_row.variant_slug

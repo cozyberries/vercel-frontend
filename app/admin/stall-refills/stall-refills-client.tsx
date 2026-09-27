@@ -46,6 +46,11 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/** A signed-out or non-admin session: retrying or polling further is pointless until re-auth. */
+function isAuthError(error: unknown): error is ApiError {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+}
+
 interface TickInput {
   sale_date: string;
   variant_slug: string;
@@ -73,10 +78,14 @@ export default function StallRefillsClient() {
   const now = useNow(5_000);
   const [confirming, setConfirming] = useState<{ date: string; line: RefillLine } | null>(null);
 
-  const query = useQuery({
+  const query = useQuery<RefillsResponse, ApiError>({
     queryKey: QUERY_KEY,
     queryFn: () => api<RefillsResponse>("/api/admin/stall-refills"),
-    refetchInterval: REFRESH_MS,
+    // Signed out or not an admin any more: one more attempt won't succeed, so stop
+    // retrying and stop polling instead of hammering the API every 30 s.
+    retry: (failureCount, error) => !isAuthError(error) && failureCount < 1,
+    retryDelay: 0,
+    refetchInterval: (q) => (isAuthError(q.state.error) ? false : REFRESH_MS),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     staleTime: 0,
@@ -144,10 +153,19 @@ export default function StallRefillsClient() {
           <RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
         </Button>
       </div>
-      {query.isError && (
-        <p role="status" className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {"Couldn't refresh, retrying"}
-        </p>
+      {query.isError && isAuthError(query.error) ? (
+        <div className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p>Signed out. Log in again to see refills.</p>
+          <Button asChild size="sm" variant="outline" className="mt-2">
+            <a href="/login?redirect=/admin/stall-refills">Log in again</a>
+          </Button>
+        </div>
+      ) : (
+        query.isError && (
+          <p role="status" className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {"Couldn't refresh, retrying"}
+          </p>
+        )
       )}
 
       <DaySection
