@@ -36,6 +36,7 @@
     "db:probe": "node scripts/db-probe.mjs",
     "db:test-orders": "node scripts/db-test-orders.mjs",
     "db:test-pickup": "node scripts/db-test-pickup.mjs",
+    "db:test-refills": "node scripts/db-test-refills.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {
