@@ -74,7 +74,8 @@ do $$
 declare t text; bad text[] := '{}';
 begin
   foreach t in array array['expenses','expense_categories','admin_users',
-                           'impersonation_events','webhook_events','recent_activities']
+                           'impersonation_events','webhook_events','recent_activities',
+                           'shelf_refills']
   loop
     if pg_temp.priv_any('anon',('public.'||t)::regclass,'SELECT')
     or pg_temp.priv_any('anon',('public.'||t)::regclass,'INSERT')
