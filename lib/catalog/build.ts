@@ -103,7 +103,7 @@ function orderedImages(row: ProductRow): string[] {
   return [...(row.product_images ?? [])]
     .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
     .map((image) => image.url ?? "")
-    .filter((url) => url !== "");
+    .filter((url, i, urls) => url !== "" && urls.indexOf(url) === i);
 }
 
 function orderedFeatures(row: ProductRow): string[] {

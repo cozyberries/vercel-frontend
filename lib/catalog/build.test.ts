@@ -72,6 +72,28 @@ describe("buildProductDoc", () => {
       "https://img/frock/4.jpg",
     ]);
   });
+  // scripts/fix-image-gaps.mjs once left two rows pointing at the same file, and the gallery showed it twice.
+  it("shows an image once when two rows point at the same file", () => {
+    const repeated = buildProductDoc(
+      {
+        ...frockRow,
+        product_images: [
+          { url: "https://img/frock/1.jpg", is_primary: true, display_order: 1 },
+          { url: "https://img/frock/4.jpg", is_primary: false, display_order: 4 },
+          { url: "https://img/frock/2.jpg", is_primary: false, display_order: 2 },
+          { url: "https://img/frock/4.jpg", is_primary: false, display_order: 5 },
+          { url: "https://img/frock/3.jpg", is_primary: false, display_order: 3 },
+        ],
+      },
+      ctx,
+    );
+    expect(repeated.images).toEqual([
+      "https://img/frock/1.jpg",
+      "https://img/frock/2.jpg",
+      "https://img/frock/3.jpg",
+      "https://img/frock/4.jpg",
+    ]);
+  });
   it("aggregates sizes with lowest price and summed stock, sorted by display_order", () => {
     expect(frock.sizes).toEqual([
       { name: "0-3M", slug: "0-3m", price: 899, stock_quantity: 4, display_order: 1 },
