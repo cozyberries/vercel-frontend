@@ -45,6 +45,22 @@ export function parsePickupAction(value: unknown): PickupAction | null {
   return value === "ready" || value === "collected" ? value : null;
 }
 
+/**
+ * When the order was handed over: its latest "collected" status event. updated_at moves on
+ * any later edit, so it is only the fallback for orders the admin app marked collected,
+ * which writes no event.
+ */
+export function collectedAt(order: {
+  updated_at: string;
+  order_status_events?: { to_status: string; created_at: string }[] | null;
+}): string {
+  const times = (order.order_status_events ?? [])
+    .filter((e) => e.to_status === "collected")
+    .map((e) => e.created_at)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return times.at(-1) ?? order.updated_at;
+}
+
 const IST_OFFSET_MS = 330 * 60 * 1000;
 
 /** Midnight Asia/Kolkata of the day containing `now`, as a UTC instant. */

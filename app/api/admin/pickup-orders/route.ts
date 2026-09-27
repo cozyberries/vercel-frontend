@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
 import { isAdmin } from "@/lib/services/effective-user";
-import { parsePickupTab, PICKUP_SEARCH_STATUSES, PICKUP_TAB_STATUSES, startOfIstDay } from "@/lib/orders/pickup";
+import { collectedAt, parsePickupTab, PICKUP_SEARCH_STATUSES, PICKUP_TAB_STATUSES, startOfIstDay } from "@/lib/orders/pickup";
 import { getIndianPhoneDigits } from "@/lib/utils/validation";
 import { billUrl } from "@/lib/invoice/bill-link";
 
 const SELECT =
   "id, order_number, status, total_amount, customer_name, customer_phone, invoice_number, created_at, updated_at, " +
   "order_items(name, size, color, quantity, price), payments(payment_method, status)";
+
+type Row = {
+  id: string;
+  updated_at: string;
+  order_status_events?: { to_status: string; created_at: string }[] | null;
+};
 
 /** Admin-gated: getUser() + isAdmin() before any service-role query. */
 export async function GET(request: NextRequest) {
@@ -30,11 +36,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unknown tab" }, { status: 400 });
     }
     const q = (searchParams.get("q") ?? "").trim();
+    const collectedToday = !q && tab === "collected";
+    const todayStart = startOfIstDay(new Date());
 
     const admin = createAdminSupabaseClient();
     let query = admin
       .from("orders")
-      .select(SELECT)
+      .select(collectedToday ? `${SELECT}, order_status_events(to_status, created_at)` : SELECT)
       .eq("fulfilment_method", "pickup");
 
     if (q) {
@@ -47,8 +55,10 @@ export async function GET(request: NextRequest) {
         : query.ilike("order_number", `%${q}%`);
     } else {
       query = query.in("status", PICKUP_TAB_STATUSES[tab]);
-      if (tab === "collected") {
-        query = query.gte("updated_at", startOfIstDay(new Date()).toISOString());
+      if (collectedToday) {
+        // Collecting stamps updated_at, so every order handed over today is in here;
+        // the collectedAt() filter below drops ones collected earlier and only edited today.
+        query = query.gte("updated_at", todayStart.toISOString());
       }
     }
 
@@ -69,7 +79,16 @@ export async function GET(request: NextRequest) {
       console.error("[pickup-orders] awaiting count failed:", awaiting.error);
     }
     const awaitingCount = awaiting.error ? null : awaiting.count ?? 0;
-    const rows = (data ?? []) as unknown as { id: string }[];
+    let rows = (data ?? []) as unknown as Row[];
+    if (collectedToday) {
+      rows = rows
+        .filter((row) => new Date(collectedAt(row)) >= todayStart)
+        .map((row) => {
+          const out = { ...row };
+          delete out.order_status_events;
+          return out;
+        });
+    }
     let orders;
     try {
       // Signed public bill link per order, built here because the secret is server-only.

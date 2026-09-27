@@ -102,6 +102,32 @@ describe('GET /api/admin/pickup-orders', () => {
     expect(h.calls.find((c) => c[0] === 'gte')?.[1]).toBe('updated_at');
   });
 
+  describe('collected tab uses the time the order was marked collected', () => {
+    // 27 Sep 11:30 IST; the IST day started at 26 Sep 18:30 UTC.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-09-27T06:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('leaves out an order collected yesterday but edited today', async () => {
+      h.state.rows = [
+        { id: 'edited-today', updated_at: '2026-09-27T04:33:10Z', order_status_events: [{ to_status: 'collected', created_at: '2026-09-26T09:54:38Z' }] },
+        { id: 'collected-today', updated_at: '2026-09-27T05:00:00Z', order_status_events: [{ to_status: 'collected', created_at: '2026-09-27T05:00:00Z' }] },
+        { id: 'admin-app', updated_at: '2026-09-27T03:00:00Z', order_status_events: [] },
+      ];
+      const body = await (await get('?tab=collected')).json();
+      expect(body.orders.map((o: { id: string }) => o.id)).toEqual(['collected-today', 'admin-app']);
+      expect(body.orders[0]).not.toHaveProperty('order_status_events');
+    });
+
+    it('reads each order’s status history for the collected tab', async () => {
+      await get('?tab=collected');
+      const select = String(h.calls.find((c) => c[0] === 'select')?.[1] ?? '');
+      expect(select).toMatch(/order_status_events\(to_status, created_at\)/);
+    });
+  });
+
   it('searches by phone digits across every pickup state', async () => {
     await get('?q=98765%2043210');
     expect(h.calls).toContainEqual(['ilike', 'customer_phone', '%9876543210%']);
