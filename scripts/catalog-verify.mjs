@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Post-deploy checks for the catalog cache. Usage:
 //   node scripts/catalog-verify.mjs --url=https://cozyberries.in
+import { pageLatency } from "./lib/page-latency.mjs";
+
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
     const [key, value] = arg.replace(/^--/, "").split("=");
@@ -33,6 +35,10 @@ function check(name, ok, detail) {
   rows.push({ check: name, ok: ok ? "PASS" : "FAIL", detail: String(detail ?? "").slice(0, 90) });
   if (!ok) failures.push(name);
 }
+/** Reported, never fails the run. */
+function info(name, detail) {
+  rows.push({ check: name, ok: "INFO", detail: String(detail ?? "").slice(0, 90) });
+}
 
 const health = await timed("/api/health/catalog");
 const vercelId = health.res.headers.get("x-vercel-id") ?? "";
@@ -54,7 +60,16 @@ check("health and catalog agree on version", healthBody.version === version, `${
 const products = await timed("/products?category=frocks");
 const embedsVersion = products.text.includes(`\\"version\\":\\"${version}\\"`) || products.text.includes(`"version":"${version}"`);
 check("/products embeds the current snapshot", products.res.status === 200 && embedsVersion, `${products.ms}ms`);
-check("/products answers under 600ms from here", products.res.status === 200 && products.ms < 600, `${products.ms}ms`);
+// /products renders per request, so the first hit may pay a function cold start (up to ~1s,
+// 2026-09-27). Judge the warm requests after it; report the first one as information.
+const warmProducts = [];
+for (let i = 0; i < 3; i++) warmProducts.push(await timed("/products?category=frocks"));
+const productsLatency = pageLatency(
+  [products, ...warmProducts].map((r) => ({ status: r.res.status, ms: r.ms })),
+  600,
+);
+check("/products answers under 600ms when warm", productsLatency.ok, productsLatency.detail);
+info("/products first request (may be a cold start)", `${productsLatency.firstMs}ms`);
 
 let snapshot = {};
 try { snapshot = JSON.parse(catalog.text); } catch {}

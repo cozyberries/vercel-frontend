@@ -73,7 +73,9 @@ QStash dev server. Supabase Vault: `storefront_base_url`, `catalog_webhook_secre
 ## Verifying a deployment
 
 `npm run catalog:verify -- --url=https://cozyberries.in` checks: functions in `bom1`, health ok,
-`/api/catalog` CDN hit with a version, `/products` HTML embedding that version, a product page
+`/api/catalog` CDN hit with a version, `/products` HTML embedding that version and answering
+under 600 ms when warm (median of three requests after the first; the first is listed as INFO
+because it can land on a function cold start), a product page
 served as a static CDN hit, `/api/products` carrying `X-Catalog-Version`, `/api/search` answering.
 Run it after every production deploy of this pipeline and after enabling `CATALOG_SOURCE=redis`.
 
