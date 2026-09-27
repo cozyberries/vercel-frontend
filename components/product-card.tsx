@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import QuickAddDialog from "./QuickAddDialog";
 import { Product, ProductVariant } from "@/lib/services/api";
 import { useWishlist } from "./wishlist-context";
-import { useCart, getCartItemKey } from "./cart-context";
 import { useAuthGate } from "./auth-gate-context";
 import { toast } from "sonner";
 import { images } from "@/app/assets/images";
 import { getMinPrice } from "@/lib/utils";
 import { slugToTitle } from "@/lib/utils/product";
+import { sizeKey, type SizeOption } from "@/lib/utils/cart-edit";
+import { useProductCartEdit } from "@/hooks/useProductCartEdit";
 import DiscountedPrice from '@/components/discounted-price';
 
 interface ProductCardProps {
@@ -31,32 +32,16 @@ export default function ProductCard({ product, index, currentView, locale = "en-
   const router = useRouter();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToCart, updateQuantity, removeFromCart, cart } = useCart();
   const { requireAuthForIntent } = useAuthGate();
   const inWishlist = isInWishlist(product.id);
   const hasVariants =
     (product.variants?.length ?? 0) > 0 || (product.sizes?.length ?? 0) > 0;
 
-  const getStockForVariant = (size?: string, color?: string): number => {
-    if ((product.variants?.length ?? 0) > 0) {
-      const v = (product.variants as ProductVariant[]).find(
-        (x) => x.size === size && (x.color ?? "") === (color ?? "")
-      );
-      return v?.stock_quantity ?? 0;
-    }
-    if ((product.sizes?.length ?? 0) > 0 && size) {
-      const s = product.sizes.find((x) => x.name === size);
-      return s?.stock_quantity ?? 0;
-    }
-    return product.stock_quantity ?? 0;
-  };
-
-  const addOptions: { size?: string; color?: string; price: number; label: string; stock: number }[] =
+  // Every size, sold out or not; the picker shows the ones in stock plus any still in the cart.
+  const sizeOptions: SizeOption[] =
     hasVariants
       ? (product.variants?.length ?? 0) > 0
-        ? (product.variants as ProductVariant[])
-          .filter((v) => (v.stock_quantity ?? 0) > 0)
-          .map((v) => ({
+        ? (product.variants as ProductVariant[]).map((v) => ({
             size: v.size,
             color: v.color,
             price: v.price,
@@ -64,15 +49,14 @@ export default function ProductCard({ product, index, currentView, locale = "en-
               [v.size, v.color].filter(Boolean).join(" / ") || v.size || "—",
             stock: v.stock_quantity ?? 0,
           }))
-        : (product.sizes ?? [])
-          .filter((s) => (s.stock_quantity ?? 0) > 0)
-          .map((s) => ({
+        : (product.sizes ?? []).map((s) => ({
             size: s.name,
             price: s.price,
             label: s.name,
             stock: s.stock_quantity ?? 0,
           }))
       : [{ price: product.price, label: "Add", stock: product.stock_quantity ?? 0 }];
+  const addOptions = hasVariants ? sizeOptions.filter((o) => o.stock > 0) : sizeOptions;
 
   // Nothing left to sell: every size/variant is at zero (they are filtered out above), or the
   // product itself has no stock. Shown as a badge and a disabled Add button.
@@ -80,61 +64,29 @@ export default function ProductCard({ product, index, currentView, locale = "en-
 
   const { min: minPrice, hasRange } = getMinPrice(product);
 
-  const getCartItemForVariant = (size?: string, color?: string) =>
-    cart.find(
-      (item) =>
-        getCartItemKey(item) ===
-        getCartItemKey({ id: product.id, size, color })
-    );
+  const { cartCounts, saveCartChanges } = useProductCartEdit(
+    { id: product.id, name: product.name, image: product.images?.[0] },
+    sizeOptions
+  );
+  const cartQuantityForProduct = Object.values(cartCounts).reduce((sum, n) => sum + n, 0);
+  const inCart = cartQuantityForProduct > 0;
+  // A size that sold out after it was added stays in the picker, so it can still be lowered or removed.
+  const pickerOptions = hasVariants
+    ? sizeOptions.filter((o) => o.stock > 0 || (cartCounts[sizeKey(o.size)] ?? 0) > 0)
+    : sizeOptions;
 
-  const handleAddVariant = (
-    size?: string,
-    color?: string,
-    price?: number,
-    basePrice?: number,
-    stock?: number,
-    addQty: number = 1
-  ) => {
-    // Cart stores price (GST-inclusive); honor basePrice when price is undefined
-    const itemPrice = price ?? basePrice ?? product.price;
-    const existing = getCartItemForVariant(size, color);
-    const stockQty = stock ?? getStockForVariant(size, color);
+  // A product without sizes that is not in the cart yet: one tap adds one, no picker.
+  const handleAddWithoutSize = () => {
+    const stockQty = addOptions[0]?.stock ?? 0;
     if (stockQty <= 0) {
       toast.error("This option is out of stock");
-      return;
-    }
-    if (existing && existing.quantity >= stockQty) {
-      toast.error(`Only ${stockQty} item${stockQty === 1 ? " is" : "s are"} available. Cannot add more.`);
       return;
     }
     if (stockQty < 3) {
       toast.warning(`Only ${stockQty} item${stockQty === 1 ? " is" : "s are"} available.`);
     }
-    const cartIntentItem = {
-      id: product.id,
-      name: product.name,
-      price: itemPrice,
-      image: product.images?.[0],
-      quantity: addQty,
-      stock_quantity: stockQty,
-      ...(size ? { size } : {}),
-      ...(color ? { color } : {}),
-    };
-    if (!requireAuthForIntent({ type: "cart", item: cartIntentItem })) return;
-
-    if (existing) {
-      const newQty = Math.min(existing.quantity + addQty, stockQty);
-      updateQuantity(product.id, newQty, existing.size, existing.color);
-      toast.success(newQty === stockQty ? `Maximum ${stockQty} in cart` : `${product.name} quantity updated in cart`);
-    } else {
-      addToCart(cartIntentItem);
-      toast.success(`${product.name} added to cart!`);
-    }
+    saveCartChanges([{ kind: "add", size: "", quantity: 1 }], "added");
   };
-
-  const anyVariantInCart = addOptions.some((opt) =>
-    getCartItemForVariant(opt.size, opt.color)
-  );
 
   const handleCardClick = () => {
     try {
@@ -144,10 +96,6 @@ export default function ProductCard({ product, index, currentView, locale = "en-
     }
     router.push(`/products/${product.id}`);
   };
-
-  const cartQuantityForProduct = cart
-    .filter(item => item.id === product.id)
-    .reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div
@@ -231,25 +179,26 @@ export default function ProductCard({ product, index, currentView, locale = "en-
           />
         </Button>
 
-        {/* Add to cart — always visible, bottom-right */}
+        {/* Add to cart / edit what is in the cart — always visible, bottom-right */}
         <Button
           variant="ghost"
           size="icon"
           className="absolute bottom-2 right-2 z-10 h-[38px] min-w-[38px] rounded-full shadow-md hover:shadow-lg border-0 bg-cb-terracotta hover:bg-cb-terracotta-deep px-2.5 disabled:opacity-60 disabled:pointer-events-auto disabled:cursor-not-allowed"
-          disabled={soldOut}
+          disabled={soldOut && !inCart}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (soldOut) return;
-            if (hasVariants) {
+            if (inCart || (hasVariants && !soldOut)) {
               setQuickAddOpen(true);
-            } else {
-              handleAddVariant(undefined, undefined, undefined, undefined, addOptions[0]?.stock);
+            } else if (!soldOut) {
+              handleAddWithoutSize();
             }
           }}
-          aria-label={soldOut ? "Sold out" : anyVariantInCart ? "In cart — add more" : "Add to cart"}
+          aria-label={
+            inCart ? `In cart: ${cartQuantityForProduct} — edit` : soldOut ? "Sold out" : "Add to cart"
+          }
         >
-          {anyVariantInCart ? (
+          {inCart ? (
             <span className="flex items-center gap-1 text-white">
               <Check className="h-4 w-4" />
               <span className="text-[13.5px] font-extrabold">{cartQuantityForProduct}</span>
@@ -259,20 +208,16 @@ export default function ProductCard({ product, index, currentView, locale = "en-
           )}
         </Button>
 
-        {hasVariants && (
-          <QuickAddDialog
-            open={quickAddOpen}
-            onOpenChange={setQuickAddOpen}
-            productName={product.name}
-            productImage={product.images?.[0]}
-            productColor={product.variants?.[0]?.color ?? (product.colors?.[0] ? slugToTitle(product.colors[0]) : undefined)}
-            addOptions={addOptions}
-            onConfirm={(size, qty) => {
-              const opt = addOptions.find((o) => o.size === size);
-              handleAddVariant(size, opt?.color, opt?.price, undefined, opt?.stock, qty);
-            }}
-          />
-        )}
+        <QuickAddDialog
+          open={quickAddOpen}
+          onOpenChange={setQuickAddOpen}
+          productName={product.name}
+          productImage={product.images?.[0]}
+          productColor={product.variants?.[0]?.color ?? (product.colors?.[0] ? slugToTitle(product.colors[0]) : undefined)}
+          addOptions={pickerOptions}
+          cartCounts={cartCounts}
+          onConfirm={saveCartChanges}
+        />
       </div>
 
       {/* Content Section */}

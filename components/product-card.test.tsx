@@ -19,7 +19,7 @@ vi.mock("./wishlist-context", () => ({
 }));
 vi.mock("./cart-context", () => ({
   useCart: () => ({ addToCart: vi.fn(), updateQuantity: vi.fn(), removeFromCart: vi.fn(), cart: [] }),
-  getCartItemKey: (item: { id: string; size?: string; color?: string }) => `${item.id}|${item.size ?? ""}|${item.color ?? ""}`,
+  getCartItemKey: (item: { id: string; size?: string }) => `${item.id}|${item.size ?? ""}`,
 }));
 vi.mock("./auth-gate-context", () => ({ useAuthGate: () => ({ requireAuthForIntent: () => true }) }));
 vi.mock("./QuickAddDialog", () => ({ default: () => null }));

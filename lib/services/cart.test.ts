@@ -169,4 +169,15 @@ describe('cartService.mergeCartItems', () => {
     const merged = cartService.mergeCartItems(local, remote);
     expect(merged.map((i) => i.id).sort()).toEqual(['p-local', 'p-remote']);
   });
+
+  it('folds two saved lines for one size into one without losing either quantity', () => {
+    // Regression (2026-09-27): lines used to be keyed by colour too, so a saved cart can hold the
+    // same size twice (one line with the product page's colour, one without).
+    const remote = [
+      { ...makeItem('p1', 1), size: '1-2Y', color: 'mushie-mini' },
+      { ...makeItem('p1', 2), size: '1-2Y' },
+    ];
+    const merged = cartService.mergeCartItems([], remote);
+    expect(merged).toEqual([{ ...makeItem('p1', 3), size: '1-2Y', color: 'mushie-mini' }]);
+  });
 });

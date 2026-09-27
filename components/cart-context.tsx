@@ -15,16 +15,39 @@ export interface CartItem {
   stock_quantity?: number;
 }
 
-/** Unique key for a cart line item (same product in different sizes = different keys) */
-export function getCartItemKey(item: Pick<CartItem, "id" | "size" | "color">): string {
-  return `${item.id}|${item.size ?? ""}|${item.color ?? ""}`;
+/**
+ * Unique key for a cart line: product + size. Colour is left out: each print is its own product,
+ * and the pages disagree on it (the product page saves `product.colors[0]`, cards and the bundle
+ * save none, a reorder saves the order's colour name), which used to split one size into two lines.
+ */
+export function getCartItemKey(item: Pick<CartItem, "id" | "size">): string {
+  return `${item.id}|${item.size ?? ""}`;
+}
+
+/**
+ * Folds lines that share a key into the first of them, capped at its stock. Carts saved while
+ * colour was still part of the key can hold the same size twice.
+ */
+export function collapseCartLines(items: CartItem[]): CartItem[] {
+  const lines = new Map<string, CartItem>();
+  for (const item of items) {
+    const key = getCartItemKey(item);
+    const kept = lines.get(key);
+    if (!kept) {
+      lines.set(key, { ...item });
+      continue;
+    }
+    const quantity = kept.quantity + item.quantity;
+    kept.quantity = kept.stock_quantity != null ? Math.min(quantity, kept.stock_quantity) : quantity;
+  }
+  return Array.from(lines.values());
 }
 
 interface CartContextType {
   cart: CartItem[];
   addToCart: (item: CartItem) => void;
   removeFromCart: (id: string, size?: string, color?: string) => void;
-  updateQuantity: (id: string, quantity: number, size?: string, color?: string) => void;
+  updateQuantity: (id: string, quantity: number, size?: string) => void;
   clearCart: () => void;
   addToCartTemporary: (item: CartItem) => void;
   isLoading: boolean;
@@ -47,7 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (isTemporaryCart && temporaryCartItem) {
         setCart([temporaryCartItem]);
       } else {
-        setCart(items);
+        setCart(collapseCartLines(items));
       }
     },
     isTemporaryCart,
@@ -77,13 +100,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromCart = (id: string, size?: string, color?: string) => {
-    const key = getCartItemKey({ id, size, color });
+    const key = getCartItemKey({ id, size });
     setCart((prev) => prev.filter((i) => getCartItemKey(i) !== key));
     logEvent("cart_remove", { product_id: id, size, color });
   };
 
-  const updateQuantity = (id: string, quantity: number, size?: string, color?: string) => {
-    const key = getCartItemKey({ id, size, color });
+  const updateQuantity = (id: string, quantity: number, size?: string) => {
+    const key = getCartItemKey({ id, size });
     setCart((prev) =>
       prev.map((i) => {
         if (getCartItemKey(i) !== key) return i;

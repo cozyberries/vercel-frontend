@@ -28,11 +28,7 @@ export default function WishlistPage() {
     size?: string;
     color?: string;
   }) => {
-    const itemKey = getCartItemKey({
-      id: item.id,
-      size: item.size,
-      color: item.color,
-    });
+    const itemKey = getCartItemKey({ id: item.id, size: item.size });
     const existing = cart.find((c) => getCartItemKey(c) === itemKey);
     if (existing) {
       const cartIntent = {
@@ -45,12 +41,7 @@ export default function WishlistPage() {
         ...(item.color ? { color: item.color } : {}),
       };
       if (!requireAuthForIntent({ type: "cart", item: cartIntent })) return;
-      updateQuantity(
-        item.id,
-        existing.quantity + 1,
-        existing.size,
-        existing.color,
-      );
+      updateQuantity(item.id, existing.quantity + 1, existing.size);
       toast.success(`${item.name} quantity updated in cart`);
     } else {
       const cartIntent = { ...item, quantity: 1 as const };

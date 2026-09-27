@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useId, useRef } from "react";
 import SupabaseImage from "@/components/ui/supabase-image";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Minus, Plus, Truck, Flame, Ruler, Leaf, RotateCcw, ShoppingBag, Check, ArrowRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus, Truck, Flame, Ruler, Leaf, RotateCcw, ShoppingBag, Check, ArrowRight, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -11,8 +11,10 @@ import { Chip } from "@/components/ui/chip";
 import { Product, SizeOption } from "@/lib/services/api";
 import { slugToTitle } from "@/lib/utils/product";
 import { BASE_COLOUR_SWATCHES, FALLBACK_SWATCH, baseColourSlug } from "@/lib/catalog/colours";
-import { useCart, getCartItemKey } from "./cart-context";
+import { useCart } from "./cart-context";
 import { useAuthGate } from "./auth-gate-context";
+import { useProductCartEdit } from "@/hooks/useProductCartEdit";
+import { diffCartDraft, inPlaceCartAction, sizeKey, stepQuantity } from "@/lib/utils/cart-edit";
 import { toast } from "sonner";
 import Reviews from "./reviews";
 import { RatingItem, useRating } from "./rating-context";
@@ -94,7 +96,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const productSlug = product.slug ?? product.id ?? "";
   const topFeatures = (product.features ?? []).slice(0, TOP_CHIP_COUNT);
 
-  const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<number>(0);
@@ -117,7 +118,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [bundleChecked, setBundleChecked] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
-  const { addToCart, cart } = useCart();
+  const { addToCart } = useCart();
   const { requireAuthForIntent } = useAuthGate();
   const router = useRouter();
 
@@ -128,15 +129,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
       (p: Product) => p.slug !== product.slug && p.category_slug === product.category_slug
     );
 
-  const isInCart = cart.some(
-    (item) =>
-      getCartItemKey(item) ===
-      getCartItemKey({
-        id: product?.id ?? "",
-        size: selectedSize?.name,
-        color: selectedColor || undefined,
-      })
-  );
 
 
   const handleWriteReview = () => {
@@ -276,15 +268,6 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     (product.sizes?.length ?? 0) > 0
       ? !product.sizes.some((s) => (s.stock_quantity ?? 0) > 0)
       : (product.stock_quantity ?? 0) <= 0;
-  const currentVariantKey = getCartItemKey({
-    id: product?.id ?? "",
-    size: selectedSize?.name,
-    color: selectedColor || undefined,
-  });
-  const existingCartItem = cart.find((i) => getCartItemKey(i) === currentVariantKey);
-  const existingCartQty = existingCartItem?.quantity ?? 0;
-  const maxCanAdd = Math.max(0, availableStock - existingCartQty);
-
   const addOptions = (product.sizes ?? []).map((s) => ({
     size: s.name,
     color: selectedColor || undefined,
@@ -293,12 +276,32 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     stock: s.stock_quantity ?? 0,
   }));
 
+  const { cartCounts, saveCartChanges } = useProductCartEdit(
+    { id: product.id, name: product.name, image: product.images?.[0] },
+    addOptions
+  );
+  const selectedInCart = cartCounts[sizeKey(selectedSize?.name)] ?? 0;
+  const isInCart = selectedSize != null && selectedInCart > 0;
+  // The quantity control shows the selected size's cart count until the shopper changes it, and
+  // edits that count (0 removes it). Between sizes not in the cart a chosen quantity carries over,
+  // as it always has. An edit is kept only for the line it was made on: another product, size or
+  // cart count drops it.
+  const quantityKey = isInCart ? `${product.id}|${selectedSize?.name}|${selectedInCart}` : `${product.id}|new`;
+  const [quantityEdit, setQuantityEdit] = useState<{ key: string; value: number } | null>(null);
+  const sizeBadgeId = useId();
+  const quantity = quantityEdit?.key === quantityKey ? quantityEdit.value : isInCart ? selectedInCart : 1;
+  const minQuantity = isInCart ? 0 : 1;
+  const cartAction = selectedSize ? inPlaceCartAction(selectedInCart, quantity) : null;
+  const cartSummary = (product.sizes ?? [])
+    .filter((s) => (cartCounts[s.name] ?? 0) > 0)
+    .map((s) => `${s.name} × ${cartCounts[s.name]}`)
+    .join(", ");
+
   const handleQuickAddConfirm = (size: string | undefined, qty: number) => {
     const opt = addOptions.find((o) => o.size === size);
     if (!opt) return;
     const stock = opt.stock ?? 0;
-    const existingKey = getCartItemKey({ id: product.id, size, color: selectedColor || undefined });
-    const existingQty = cart.find((i) => getCartItemKey(i) === existingKey)?.quantity ?? 0;
+    const existingQty = cartCounts[sizeKey(size)] ?? 0;
     const room = Math.max(0, stock - existingQty);
     if (room <= 0) {
       toast.warning(`Only ${stock} item${stock === 1 ? "" : "s"} are available`);
@@ -385,12 +388,27 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   };
 
   const incrementQuantity = () => {
-    setQuantity((prev) => Math.min(prev + 1, maxCanAdd > 0 ? maxCanAdd : availableStock));
-  }
+    setQuantityEdit({ key: quantityKey, value: stepQuantity(quantity, 1, minQuantity, availableStock) });
+  };
   const decrementQuantity = () => {
-    if (quantity > 1) {
-      setQuantity((prev) => prev - 1);
+    setQuantityEdit({ key: quantityKey, value: stepQuantity(quantity, -1, minQuantity, availableStock) });
+  };
+
+  const handleStickyAction = () => {
+    if (!selectedSize) {
+      setQuickAddOpen(true);
+      return;
     }
+    if (cartAction === "add") {
+      handleQuickAddConfirm(selectedSize.name, quantity);
+    } else if (cartAction === "update" || cartAction === "remove") {
+      saveCartChanges(
+        diffCartDraft({ [selectedSize.name]: selectedInCart }, { [selectedSize.name]: quantity }),
+        cartAction === "remove" ? "removed" : "updated"
+      );
+    }
+    // Saved: the control follows the cart again.
+    setQuantityEdit(null);
   };
 
   const handleImageMouseEnter = () => {
@@ -791,44 +809,77 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                     const isSelected = selectedSize?.name === size.name;
                     const isOutOfStock =
                       size.stock_quantity === undefined || size.stock_quantity <= 0;
+                    const countInCart = cartCounts[size.name] ?? 0;
+                    // The badge is read as the chip's description, so the chip's name stays the size.
+                    const descriptionId = `${sizeBadgeId}-${size.name}`;
                     return (
-                      <Chip
-                        key={size.name}
-                        active={isSelected}
-                        disabled={isOutOfStock}
-                        onClick={() => !isOutOfStock && setSelectedSize(size)}
-                        className={isOutOfStock ? "opacity-40 cursor-not-allowed line-through" : ""}
-                      >
-                        {size.name}
-                      </Chip>
+                      <span key={size.name} className="contents">
+                        <Chip
+                          active={isSelected}
+                          disabled={isOutOfStock}
+                          onClick={() => !isOutOfStock && setSelectedSize(size)}
+                          aria-describedby={countInCart > 0 ? descriptionId : undefined}
+                          className={`relative ${isOutOfStock ? "opacity-40 cursor-not-allowed line-through" : ""}`}
+                        >
+                          {size.name}
+                          {countInCart > 0 && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute -right-1.5 -top-2 h-[22px] min-w-[22px] rounded-full border-2 border-white bg-cb-espresso px-1 text-[11px] font-bold leading-[18px] text-white"
+                            >
+                              {countInCart}
+                            </span>
+                          )}
+                        </Chip>
+                        {countInCart > 0 && <span id={descriptionId} hidden>{countInCart} in cart</span>}
+                      </span>
                     );
                   })}
                 </div>
+                {cartSummary && (
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-cb-muted-fg">
+                    <Check className="h-4 w-4 text-cb-terracotta-deep" aria-hidden="true" />
+                    <span>
+                      In your cart: <span className="font-semibold text-cb-fg">{cartSummary}</span>
+                    </span>
+                  </p>
+                )}
               </div>
             )}
 
             <div>
               <h3 className="text-sm font-bold text-cb-fg mb-3">Quantity</h3>
-              <div className="inline-flex items-center gap-4 rounded-full border border-cb-border px-1 h-10">
-                <button
-                  type="button"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-cb-fg ${quantity <= 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
-                  onClick={decrementQuantity}
-                  disabled={quantity <= 1}
-                  aria-label="Decrease quantity"
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </button>
-                <span className="min-w-4 text-center text-sm font-semibold text-cb-fg select-none">{quantity}</span>
-                <button
-                  type="button"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-cb-fg ${quantity >= availableStock ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
-                  onClick={incrementQuantity}
-                  disabled={quantity >= availableStock}
-                  aria-label="Increase quantity"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+              <div className="flex items-center gap-3">
+                <div className="inline-flex items-center gap-4 rounded-full border border-cb-border px-1 h-10">
+                  <button
+                    type="button"
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-cb-fg ${quantity <= minQuantity ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
+                    onClick={decrementQuantity}
+                    disabled={quantity <= minQuantity}
+                    aria-label="Decrease quantity"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <output aria-label="Quantity" className="min-w-4 text-center text-sm font-semibold text-cb-fg select-none">{quantity}</output>
+                  <button
+                    type="button"
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-cb-fg ${quantity >= availableStock ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
+                    onClick={incrementQuantity}
+                    disabled={quantity >= availableStock}
+                    aria-label="Increase quantity"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {isInCart && (
+                  <span className={`text-sm font-medium ${quantity === 0 ? "text-red-700" : "text-cb-muted-fg"}`}>
+                    {quantity === 0
+                      ? "Will be removed from your cart"
+                      : quantity === selectedInCart
+                        ? "Already in your cart"
+                        : `In cart now: ${selectedInCart}`}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1078,7 +1129,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               : {}
           }
         >
-          {isInCart ? (
+          {cartAction === "go-to-cart" ? (
             <Button
               size="lg"
               className="w-full h-12 rounded-full bg-cb-espresso hover:opacity-90 text-white gap-2"
@@ -1088,19 +1139,30 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
               Added · Go to Cart
               <ArrowRight className="h-4 w-4" />
             </Button>
+          ) : cartAction === "remove" ? (
+            <Button
+              size="lg"
+              className="w-full h-12 rounded-full bg-red-700 hover:bg-red-800 text-white gap-2"
+              onClick={handleStickyAction}
+            >
+              <Trash2 className="h-4 w-4" />
+              Remove from cart
+            </Button>
           ) : (
             <Button
               size="lg"
               className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2 disabled:opacity-60"
-              disabled={soldOut}
-              onClick={() =>
-                selectedSize
-                  ? handleQuickAddConfirm(selectedSize.name, quantity)
-                  : setQuickAddOpen(true)
-              }
+              disabled={soldOut && !isInCart}
+              onClick={handleStickyAction}
             >
               <ShoppingBag className="h-4 w-4" />
-              {soldOut ? "Sold out" : selectedSize ? "Add to cart" : "Choose size & add"}
+              {cartAction === "update"
+                ? "Update cart"
+                : soldOut
+                  ? "Sold out"
+                  : selectedSize
+                    ? "Add to cart"
+                    : "Choose size & add"}
             </Button>
           )}
         </motion.div>
@@ -1113,7 +1175,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
         productImage={product.images?.[0]}
         productColor={product.colors?.[0] ? slugToTitle(product.colors[0]) : undefined}
         addOptions={addOptions}
-        onConfirm={handleQuickAddConfirm}
+        cartCounts={cartCounts}
+        onConfirm={saveCartChanges}
       />
 
       <SizeGuideDialog isOpen={showSizeGuide} onClose={() => setShowSizeGuide(false)} />

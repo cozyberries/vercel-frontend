@@ -15,7 +15,7 @@
  */
 
 import type { CartItem } from "@/components/cart-context";
-import { getCartItemKey } from "@/components/cart-context";
+import { collapseCartLines, getCartItemKey } from "@/components/cart-context";
 import { extractErrorMessage } from "@/lib/utils/http-errors";
 
 export interface UserCart {
@@ -105,7 +105,11 @@ class CartService {
    * Merge local cart with remote cart
    * Returns merged cart items
    */
-  mergeCartItems(localItems: CartItem[], remoteItems: CartItem[]): CartItem[] {
+  mergeCartItems(localCart: CartItem[], remoteCart: CartItem[]): CartItem[] {
+    // Fold same-size duplicates first (saved while colour was part of the key); the map below
+    // would otherwise keep only the last of them.
+    const localItems = collapseCartLines(localCart);
+    const remoteItems = collapseCartLines(remoteCart);
     const mergedItems = new Map<string, CartItem>();
 
     remoteItems.forEach((item) => {

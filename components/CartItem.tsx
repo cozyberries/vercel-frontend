@@ -10,7 +10,7 @@ import EditCartItemDialog from "@/components/EditCartItemDialog";
 
 interface CartItemProps {
   item: CartItem;
-  onQuantityChange: (id: string, quantity: number, size?: string, color?: string) => void;
+  onQuantityChange: (id: string, quantity: number, size?: string) => void;
   onRemove: (id: string, size?: string, color?: string) => void;
 }
 
@@ -25,8 +25,8 @@ export default function CartItemRow({
   const maxedOut = item.stock_quantity != null && item.quantity >= item.stock_quantity;
 
   const handleUpdate = (newSize: string | undefined, newQty: number, newPrice: number, newStock: number) => {
-    if (getCartItemKey({ id: item.id, size: newSize, color: item.color }) === getCartItemKey(item)) {
-      onQuantityChange(item.id, newQty, item.size, item.color);
+    if (getCartItemKey({ id: item.id, size: newSize }) === getCartItemKey(item)) {
+      onQuantityChange(item.id, newQty, item.size);
       return;
     }
     onRemove(item.id, item.size, item.color);
@@ -89,7 +89,7 @@ export default function CartItemRow({
               className={`flex h-7 w-7 items-center justify-center rounded-full text-cb-fg ${item.quantity <= 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-cb-muted"}`}
               disabled={item.quantity <= 1}
               onClick={() =>
-                onQuantityChange(item.id, Math.max(1, item.quantity - 1), item.size, item.color)
+                onQuantityChange(item.id, Math.max(1, item.quantity - 1), item.size)
               }
               aria-label="Decrease quantity"
             >
@@ -106,7 +106,7 @@ export default function CartItemRow({
                 if (maxedOut) return;
                 const next = item.quantity + 1;
                 const maxQty = item.stock_quantity ?? next;
-                onQuantityChange(item.id, Math.min(next, maxQty), item.size, item.color);
+                onQuantityChange(item.id, Math.min(next, maxQty), item.size);
               }}
               aria-label="Increase quantity"
             >
