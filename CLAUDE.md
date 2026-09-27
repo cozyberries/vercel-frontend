@@ -178,6 +178,7 @@ app/
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
 - Static pages must ship their content in the HTML: no `useSearchParams()` in components rendered by `/` or `/products/[id]` (read `window.location` in an effect instead), and no `ssr: false` for content sections. `tests/catalog.spec.ts` "Static HTML carries real content" enforces it.
 - Env vars for the catalog pipeline: CATALOG_BASE_URL, CATALOG_WEBHOOK_SECRET, QSTASH_TOKEN, QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY, QSTASH_URL (server-only). The QStash account is regional (`https://qstash-us-east-1.upstash.io`); without QSTASH_URL the SDK hits the default endpoint and fails with "user not found in this region". QStash deduplication ids must not contain ':'. Vercel functions are pinned to bom1 in vercel.json.
+- Functions run on Fluid compute (`"fluid": true` in vercel.json, guarded by `vercel-config.test.ts`). The project predates Fluid being the default, so without that line it falls back to legacy serverless: after a few idle minutes the first request to a function group often pays a 400-900 ms cold start (each group separately), which is what made `/products` (rendered per request) take 1-1.5 s and fail the 600 ms check in `catalog:verify`. Fluid shares one process between concurrent requests, so module-level state must never hold per-request or per-user data.
 
 ### Database Security Conventions
 
