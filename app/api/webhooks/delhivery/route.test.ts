@@ -86,4 +86,17 @@ describe("POST /api/webhooks/delhivery", () => {
     const res = await POST(req(SCAN, { "x-delhivery-token": "secret-token" }));
     expect(res.status).toBe(500);
   });
+
+  it("401 without token + unset env — auth check ordered first", async () => {
+    vi.stubEnv("DELHIVERY_WEBHOOK_TOKEN", "");
+    const res = await POST(req(SCAN));
+    expect(res.status).toBe(401);
+    expect(h.state.inserted).toHaveLength(0);
+  });
+
+  it("413 when content-length header exceeds 1MB, no insert", async () => {
+    const res = await POST(req(SCAN, { "x-delhivery-token": "secret-token", "content-length": "2000000" }));
+    expect(res.status).toBe(413);
+    expect(h.state.inserted).toHaveLength(0);
+  });
 });
