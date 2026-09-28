@@ -28,6 +28,7 @@
     "test:unit:watch": "vitest",
     "catalog:rebuild": "node scripts/catalog-rebuild.mjs",
     "qstash:setup": "node scripts/qstash-setup.mjs",
+    "qstash:schedule-delhivery": "npx tsx scripts/qstash-upsert-delhivery-processor-schedule.ts",
     "catalog:verify": "node scripts/catalog-verify.mjs",
     "test:unit:coverage": "vitest run --coverage",
     "test:catalog": "playwright test tests/catalog.spec.ts tests/pages-coverage.spec.ts --project=chromium",
