@@ -8,6 +8,7 @@ const h = vi.hoisted(() => {
   const state = {
     order: null as Row | null,
     items: [] as Row[],
+    itemsError: null as { message: string } | null,
     updateError: null as { message: string } | null,
     updates: [] as Row[],
     createResult: DEFAULT_CREATE_RESULT,
@@ -20,6 +21,7 @@ const h = vi.hoisted(() => {
     reset: () => {
       state.order = null;
       state.items = [];
+      state.itemsError = null;
       state.updateError = null;
       state.updates = [];
       state.createCalls = [];
@@ -51,7 +53,7 @@ vi.mock("@/lib/supabase-server", () => ({
           }),
         };
       if (table === "order_items")
-        return { select: () => ({ eq: async () => ({ data: h.state.items, error: null }) }) };
+        return { select: () => ({ eq: async () => ({ data: h.state.items, error: h.state.itemsError }) }) };
       throw new Error(`unexpected table ${table}`);
     },
   }),
@@ -65,6 +67,7 @@ vi.mock("@/lib/delhivery/client", () => ({
 }));
 
 import { POST, DELETE } from "./route";
+import CacheService from "@/lib/services/cache";
 
 const params = { params: Promise.resolve({ id: "o-1" }) };
 const post = (body: Row = {}) =>
@@ -139,6 +142,26 @@ describe("POST .../shipment", () => {
     h.state.createResult = { ok: true, data: { success: false, rmk: "Bad pin", packages: [] } };
     expect((await post()).status).toBe(422);
     expect(h.state.updates).toHaveLength(0);
+  });
+
+  it("500 when the order_items fetch errors; Delhivery never called", async () => {
+    h.state.itemsError = { message: "db timeout" };
+    expect((await post()).status).toBe(500);
+    expect(h.state.createCalls).toHaveLength(0);
+  });
+
+  it("503 split-state when Delhivery creates but the DB write failed", async () => {
+    h.state.updateError = { message: "db down" };
+    const clearAllOrdersCallsBefore = vi.mocked(CacheService.clearAllOrders).mock.calls.length;
+    const clearOrderDetailsCallsBefore = vi.mocked(CacheService.clearOrderDetails).mock.calls.length;
+    const res = await post();
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({
+      success: false, delhivery_success: true, db_update_success: false, waybill: "WB123",
+    });
+    // Caches must not be cleared when the DB write itself failed — nothing changed.
+    expect(vi.mocked(CacheService.clearAllOrders).mock.calls.length).toBe(clearAllOrdersCallsBefore);
+    expect(vi.mocked(CacheService.clearOrderDetails).mock.calls.length).toBe(clearOrderDetailsCallsBefore);
   });
 });
 

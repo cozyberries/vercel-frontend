@@ -65,7 +65,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  const { data: items } = await admin.from("order_items").select("*").eq("order_id", id);
+  const { data: items, error: itemsError } = await admin
+    .from("order_items")
+    .select("*")
+    .eq("order_id", id);
+  if (itemsError) {
+    return NextResponse.json({ error: itemsError.message }, { status: 500 });
+  }
   const lines = (items ?? []) as Row[];
   const productsDesc = lines
     .map((it) => `${(it.sku as string) || "item"}(${(it.quantity as number) ?? 1})`)
@@ -129,7 +135,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     .eq("id", id);
   if (updateError) {
-    console.error("[admin-shipment] tracking write failed:", updateError.message);
+    // Delhivery already created the shipment; if we don't persist the waybill the
+    // 409 "already has a shipment" guard never fires and a retry double-books a
+    // second real shipment at Delhivery. Surface the split state instead of
+    // silently reporting success, and skip the cache clear (nothing changed).
+    return NextResponse.json(
+      {
+        success: false,
+        delhivery_success: true,
+        db_update_success: false,
+        error: updateError.message,
+        waybill: pkg.waybill,
+      },
+      { status: 503 }
+    );
   }
   clearCaches(order.user_id as string, id);
 
