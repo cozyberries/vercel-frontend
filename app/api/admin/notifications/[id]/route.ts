@@ -7,20 +7,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (gate.response) return gate.response;
   const { id } = await params;
 
-  let body: unknown;
+  let parsed: unknown;
   try {
-    body = await request.json();
+    parsed = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  if (body === null || typeof body !== "object" || typeof (body as { read?: unknown }).read !== "boolean") {
+  if (typeof parsed !== "object" || parsed === null || typeof (parsed as { read?: unknown }).read !== "boolean") {
     return NextResponse.json({ error: "read must be a boolean" }, { status: 400 });
   }
+  const read = (parsed as { read: boolean }).read;
 
   const admin = createAdminSupabaseClient();
   const { data, error } = await admin
     .from("notifications")
-    .update({ read: body.read, updated_at: new Date().toISOString() })
+    .update({ read, updated_at: new Date().toISOString() })
     .eq("id", id)
     .is("user_id", null) // broadcast rows only — customer rows are untouchable here
     .select("*")
