@@ -37,4 +37,11 @@ describe("ConditionalLayout", () => {
     expect(screen.getByTestId("site-header")).toBeInTheDocument();
     expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
+
+  it("renders admin label print pages without the site header or bottom nav", () => {
+    renderAt("/admin/print/label/order-123");
+    expect(screen.getByText("page")).toBeInTheDocument();
+    expect(screen.queryByTestId("site-header")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+  });
 });

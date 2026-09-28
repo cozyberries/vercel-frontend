@@ -46,9 +46,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (order.fulfilment_method === "pickup") {
     return NextResponse.json({ error: "Pickup orders have no shipments" }, { status: 409 });
   }
-  if (order.tracking_number && (order.carrier_name as string | null) === "Delhivery") {
+  if (isDelhiveryOrder(order.carrier_name as string | null, order.tracking_number as string | null)) {
     return NextResponse.json(
       { error: "Order already has a Delhivery shipment", waybill: order.tracking_number },
+      { status: 409 }
+    );
+  }
+  if (order.status !== "payment_confirmed" && order.status !== "processing") {
+    return NextResponse.json(
+      { error: `Cannot create a shipment for a ${order.status} order` },
       { status: 409 }
     );
   }
@@ -168,7 +174,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const admin = createAdminSupabaseClient();
   const { data: order, error } = await admin
     .from("orders")
-    .select("id, user_id, tracking_number, carrier_name")
+    .select("id, user_id, tracking_number, carrier_name, delivery_notes")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -191,6 +197,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   const remark = result.data.remark;
+  const note = remark ? `Shipment ${waybill} cancelled: ${remark}` : `Shipment ${waybill} cancelled`;
+  const existingNotes = order.delivery_notes as string | null;
   const { error: updateError } = await admin
     .from("orders")
     .update({
@@ -199,7 +207,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       delhivery_latest_status: null,
       delhivery_latest_scan_at: null,
       delhivery_latest_location: null,
-      delivery_notes: remark ? `Shipment ${waybill} cancelled: ${remark}` : `Shipment ${waybill} cancelled`,
+      delivery_notes: existingNotes ? `${existingNotes}\n${note}` : note,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

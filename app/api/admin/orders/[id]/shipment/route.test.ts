@@ -116,6 +116,29 @@ describe("POST .../shipment", () => {
     expect(h.state.createCalls).toHaveLength(0);
   });
 
+  it("409 for a carrier name that merely contains Delhivery (e.g. 'Delhivery Surface')", async () => {
+    h.state.order = deliveryOrder({ tracking_number: "WB-OLD", carrier_name: "Delhivery Surface" });
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect((await res.json()).waybill).toBe("WB-OLD");
+    expect(h.state.createCalls).toHaveLength(0);
+  });
+
+  it("409 for a payment_pending order; Delhivery never called", async () => {
+    h.state.order = deliveryOrder({ status: "payment_pending" });
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("payment_pending");
+    expect(h.state.createCalls).toHaveLength(0);
+  });
+
+  it("allows creation for a processing order (retry after a split-state failure)", async () => {
+    h.state.order = deliveryOrder({ status: "processing" });
+    const res = await post();
+    expect(res.status).toBe(200);
+    expect(h.state.createCalls).toHaveLength(1);
+  });
+
   it("400 without a shipping address or warehouse name", async () => {
     h.state.order = deliveryOrder({ shipping_address: null });
     expect((await post()).status).toBe(400);
@@ -184,6 +207,19 @@ describe("DELETE .../shipment", () => {
     expect(patch).toMatchObject({ tracking_number: null, carrier_name: null, delhivery_latest_status: null });
     expect(patch.delivery_notes).toContain("WB123");
     expect("status" in patch).toBe(false);
+  });
+
+  it("appends the cancellation note instead of clobbering existing delivery_notes", async () => {
+    h.state.order = deliveryOrder({
+      tracking_number: "WB123",
+      carrier_name: "Delhivery",
+      status: "processing",
+      delivery_notes: "Fragile — handle with care",
+    });
+    const res = await del();
+    expect(res.status).toBe(200);
+    const patch = h.state.updates[0];
+    expect(patch.delivery_notes).toBe("Fragile — handle with care\nShipment WB123 cancelled: Cancelled");
   });
 
   it("422 when Delhivery refuses; no DB write", async () => {
