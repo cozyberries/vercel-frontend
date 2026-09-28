@@ -7,17 +7,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the **public-facing storefront** for CozyBerries (cozyberries.com, port 3000).
 Customers browse products, manage their cart, checkout, pay via UPI, and track orders here.
 
-The **admin portal** lives in a sibling repo: `../cozyberries-admin/` (admin.cozyberries.com, port 4000).
-That app handles product/order/user management, expense tracking, shipment creation, analytics, and webhook processing.
-Do not add admin-only operations here.
+Admin order management lives in this repo too (`/admin/orders`, `/admin/pickup-orders`,
+`/admin/on-behalf-orders`, `/admin/stall-refills`): the former admin app
+(admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
+`auth.users.app_metadata.role` only — the old `admin_users` bcrypt login is gone.
 
 `JWT_SECRET` **is** used in this repo, and it is shared with the admin app — the token `lib/jwt-auth.ts` signs carries `app_metadata.role`, and the admin app's `authenticateRequest` + `isAdminUser` treat that role as the gate in front of a service-role client. Two rules follow. First, `lib/jwt-auth.ts` is the only place that reads it, through the lazy `getJwtSecret()` accessor that throws when the variable is missing; never add a fallback default and never touch `process.env.JWT_SECRET` at module load. Second, anything that mints a token must derive the subject from a server-verified Supabase session — `/api/auth/generate-token` calls `getUser()` and ignores any caller-supplied `userId`, because a caller-chosen subject here is a full admin bypass over there.
 `SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Five shapes qualify, and nothing else does:
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
-- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
+- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
 - **Signed public bill links** — `GET /bill/[orderId]/[sig]` only. There is no session: the HMAC over that exact order id (`INVOICE_LINK_SECRET`, compared with `timingSafeEqual`) is verified first, and the service role then reads that one order, read-only. The signature, not the client, is what authorises the id; never reuse this shape for anything that writes.
+- **Signed webhook intake** — `POST /api/webhooks/delhivery` (the `x-delhivery-token`
+  header, compared constant-time, is the authorisation) and
+  `POST /api/internal/webhooks/delhivery/process` (QStash signature or
+  `INTERNAL_JOB_TOKEN` HMAC). No session exists; writes are limited to
+  `webhook_events` and broadcast `notifications` rows (`user_id IS NULL`).
 
 Never reach for it to skip writing a policy, and never let a client-supplied id be the scope key.
 `IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
@@ -30,6 +36,7 @@ Never reach for it to skip writing a policy, and never let a client-supplied id 
 npm run dev          # Start dev server on port 3000
 npm run catalog:rebuild            # POST a full rebuild event (or -- --slug=<slug>)
 npm run qstash:setup               # (once) create the nightly full-rebuild schedule
+npm run qstash:schedule-delhivery  # (once) upsert the Delhivery processor schedule
 npm run catalog:verify -- --url=https://cozyberries.in   # post-deploy checks
 
 # Build & Production
@@ -77,10 +84,17 @@ app/
   (protected) /profile  /checkout  /complete-profile
   /payment/[orderId]         # Custom UPI payment flow
   /admin/stall-refills       # Admin: what sold today/yesterday, shelf refill ticks
+  /admin/orders              # Admin order management (server-gated by role)
+  /admin/print/label/[orderId]  # Delhivery label print page
   /api/products/*            # Product data APIs
   /api/payments/*            # UPI link generation + confirmation
+  /api/admin/orders/*        # Admin orders list/edit + shipment create/cancel
+  /api/admin/shipping/tracking  # Admin live Delhivery tracking (Redis 90s cache)
+  /api/admin/notifications/*    # Broadcast (user_id null) shipment-scan notifications
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
+  /api/webhooks/delhivery    # Delhivery scan intake (x-delhivery-token)
+  /api/internal/webhooks/delhivery/process  # QStash-signed queue processor
   /api/catalog               # Static snapshot for browsers (revalidated on change)
   /api/catalog/events        # Supabase change webhook (x-catalog-secret)
   /api/catalog/rebuild       # QStash-signed / cron rebuild job
@@ -110,12 +124,20 @@ app/
 - Env vars required: `UPI_ID`, `UPI_PAYEE_NAME`, `UPI_AID`
 - Key: `pa` param must NOT have `@` encoded (do not use `encodeURIComponent` on UPI ID)
 
-### Shipping Integration (Delhivery — Phase 1)
+### Shipping Integration (Delhivery)
 - Pincode serviceability check on address creation/selection
 - Auto-fills city, state, country from API response
 - **Customer tracking:** `GET /api/shipping/order-tracking?orderId=<uuid>` — Supabase session required; loads `orders.tracking_number` for that user and calls Delhivery Pull API (`/api/v1/packages/json/`). Response: `{ tracking: OrderShipmentTrackingData }`. UI: `useOrderShipmentTracking` in `hooks/useApiQueries.ts`, `ShipmentTrackingSection` on `/orders/[id]`.
 - Env vars: `DELIVERY_API_KEY` (shared with pincode); `DELHIVERY_BASE_URL` / optional `DELHIVERY_TRACKING_BASE_URL` for carrier host (defaults to `https://track.delhivery.com`)
-- Shipment creation remains in the admin app; storefront only displays tracking when `tracking_number` is set
+- **Shipment creation/cancel (admin):** `POST|DELETE /api/admin/orders/[id]/shipment`.
+  Cancelling a shipment clears the tracking fields but never changes order status.
+- **Webhook pipeline:** Delhivery scan events → `POST /api/webhooks/delhivery`
+  (`DELHIVERY_WEBHOOK_TOKEN`) → `webhook_events` queue → QStash schedule
+  `delhivery-webhook-processor` (`npm run qstash:schedule-delhivery`) →
+  `POST /api/internal/webhooks/delhivery/process` → broadcast notification rows shown
+  on `/admin/orders`.
+- Additional env vars (server-only): `DELHIVERY_WAREHOUSE_NAME`,
+  `DELHIVERY_WEBHOOK_TOKEN`, `INTERNAL_JOB_TOKEN`.
 
 ### Stall pickup orders
 - `orders.fulfilment_method` is `delivery` (default) or `pickup`. Pickup has no `shipping_address` and `delivery_charge = 0`; both are enforced by CHECK constraints, and `deliveryChargeFor()` (`lib/utils/fulfilment.ts`) is the only place the charge is computed.
