@@ -8,6 +8,7 @@ const h = vi.hoisted(() => {
     notifications: [] as Row[],
     eventUpdates: [] as { patch: Row; id: unknown }[],
     notifError: null as { message: string } | null,
+    eventUpdateError: null as { message: string } | null,
   };
   const admin = {
     rpc: vi.fn(async () => ({ data: state.claimed, error: null })),
@@ -31,6 +32,7 @@ const h = vi.hoisted(() => {
           update: (patch: Row) => ({
             eq: async (_col: string, id: unknown) => {
               state.eventUpdates.push({ patch, id });
+              if (state.eventUpdateError) return { error: state.eventUpdateError };
               return { error: null };
             },
           }),
@@ -47,6 +49,7 @@ const h = vi.hoisted(() => {
       state.notifications = [];
       state.eventUpdates = [];
       state.notifError = null;
+      state.eventUpdateError = null;
     },
   };
 });
@@ -109,5 +112,25 @@ describe("processWebhookEventBatch", () => {
     expect(first).toMatchObject({ status: "pending", attempt_count: 1 });
     expect(first.next_retry_at).toBeTruthy();
     expect(second).toMatchObject({ status: "failed", attempt_count: 10, next_retry_at: null });
+  });
+
+  it("stops before the deadline and leaves remaining claimed events untouched", async () => {
+    h.state.claimed = [event(), event({ id: "ev-2" })];
+    h.state.order = { id: "o-1", order_number: "ORD-1", user_id: "u-1" };
+    const r = await processWebhookEventBatch(0);
+    expect(r).toEqual({ claimed: 2, processed: 0, failed: 0, skipped: 0 });
+    expect(h.state.notifications).toHaveLength(0);
+    expect(h.state.eventUpdates).toHaveLength(0);
+  });
+
+  it("counts the event failed, not processed, when the processed-marking write fails persistently", async () => {
+    h.state.claimed = [event()];
+    h.state.order = { id: "o-1", order_number: "ORD-1", user_id: "u-1" };
+    h.state.eventUpdateError = { message: "update failed" };
+    const r = await processWebhookEventBatch();
+    expect(r).toEqual({ claimed: 1, processed: 0, failed: 1, skipped: 0 });
+    // The notification insert itself succeeded — only the status write is failing.
+    expect(h.state.notifications).toHaveLength(1);
+    expect(h.state.eventUpdates).toHaveLength(3);
   });
 });
