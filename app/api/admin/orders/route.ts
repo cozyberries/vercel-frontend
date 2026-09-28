@@ -58,6 +58,12 @@ export async function GET(request: NextRequest) {
       admin.from("order_items").select("*").in("order_id", ids),
       admin.from("payments").select("*").in("order_id", ids).order("created_at", { ascending: false }),
     ]);
+    if (itemsRes.error) {
+      return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
+    }
+    if (paymentsRes.error) {
+      return NextResponse.json({ error: paymentsRes.error.message }, { status: 500 });
+    }
     items = (itemsRes.data ?? []) as Row[];
     payments = (paymentsRes.data ?? []) as Row[];
   }

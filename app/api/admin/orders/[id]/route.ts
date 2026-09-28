@@ -47,6 +47,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     admin.from("order_items").select("*").eq("order_id", id),
     admin.from("payments").select("*").eq("order_id", id).order("created_at", { ascending: false }),
   ]);
+  if (itemsRes.error) {
+    return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
+  }
+  if (paymentsRes.error) {
+    return NextResponse.json({ error: paymentsRes.error.message }, { status: 500 });
+  }
   return NextResponse.json({
     order: {
       ...order,

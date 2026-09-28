@@ -12,6 +12,8 @@ const h = vi.hoisted(() => {
     updateEqs: [] as [string, unknown][],
     audits: [] as Row[],
     cacheCalls: [] as string[],
+    itemsError: null as { message: string } | null,
+    paymentsError: null as { message: string } | null,
   };
   const admin = {
     from: vi.fn((table: string) => {
@@ -43,8 +45,13 @@ const h = vi.hoisted(() => {
           select: () => ({
             eq: () =>
               table === "payments"
-                ? { order: async () => ({ data: [], error: null }) }
-                : Promise.resolve({ data: [], error: null }),
+                ? {
+                    order: async () => ({
+                      data: state.paymentsError ? null : [],
+                      error: state.paymentsError,
+                    }),
+                  }
+                : Promise.resolve({ data: state.itemsError ? null : [], error: state.itemsError }),
           }),
         };
       throw new Error(`unexpected table ${table}`);
@@ -62,6 +69,8 @@ const h = vi.hoisted(() => {
       state.updateEqs = [];
       state.audits = [];
       state.cacheCalls = [];
+      state.itemsError = null;
+      state.paymentsError = null;
     },
   };
 });
@@ -105,6 +114,20 @@ describe("GET /api/admin/orders/[id]", () => {
     const res = await GET(new NextRequest("http://localhost/x"), params);
     expect(res.status).toBe(200);
     expect((await res.json()).order).toMatchObject({ id: "o-1", items: [], payments: [] });
+  });
+
+  it("500s when the items fetch errors", async () => {
+    h.state.itemsError = { message: "items table unavailable" };
+    const res = await GET(new NextRequest("http://localhost/x"), params);
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("items table unavailable");
+  });
+
+  it("500s when the payments fetch errors", async () => {
+    h.state.paymentsError = { message: "payments table unavailable" };
+    const res = await GET(new NextRequest("http://localhost/x"), params);
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("payments table unavailable");
   });
 });
 
@@ -156,5 +179,18 @@ describe("PATCH /api/admin/orders/[id]", () => {
     expect(res.status).toBe(200);
     expect(h.state.updateEqs.find(([c]) => c === "status")).toBeUndefined();
     expect(h.state.audits).toHaveLength(0);
+  });
+
+  it("ignores unknown/protected fields in the PATCH body", async () => {
+    h.state.updatedRow = { id: "o-1", user_id: "u-1", status: "processing" };
+    const res = await PATCH(
+      patchReq({ status: "processing", user_id: "attacker", total_amount: 0, order_number: "HACK" }),
+      params
+    );
+    expect(res.status).toBe(200);
+    expect(h.state.updates[0]).toMatchObject({ status: "processing" });
+    expect(h.state.updates[0]).not.toHaveProperty("user_id");
+    expect(h.state.updates[0]).not.toHaveProperty("total_amount");
+    expect(h.state.updates[0]).not.toHaveProperty("order_number");
   });
 });
