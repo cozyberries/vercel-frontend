@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
       .eq("read", false),
   ]);
   if (listRes.error) return NextResponse.json({ error: listRes.error.message }, { status: 500 });
+  if (countRes.error) return NextResponse.json({ error: countRes.error.message }, { status: 500 });
   return NextResponse.json({
     notifications: listRes.data ?? [],
     unread: countRes.count ?? 0,

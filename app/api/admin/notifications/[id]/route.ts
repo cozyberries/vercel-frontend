@@ -7,13 +7,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (gate.response) return gate.response;
   const { id } = await params;
 
-  let body: { read?: unknown };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  if (typeof body.read !== "boolean") {
+  if (body === null || typeof body !== "object" || typeof (body as { read?: unknown }).read !== "boolean") {
     return NextResponse.json({ error: "read must be a boolean" }, { status: 400 });
   }
 

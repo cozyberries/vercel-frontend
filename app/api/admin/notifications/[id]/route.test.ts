@@ -3,19 +3,19 @@ import { NextRequest } from "next/server";
 
 type Row = Record<string, unknown>;
 const h = vi.hoisted(() => {
-  const state = { updated: null as Row | null, scopes: [] as [string, unknown][] };
+  const state = { updated: null as Row | null, scopes: [] as [string, unknown][], error: null as any };
   const admin = {
     from: vi.fn(() => ({
       update: vi.fn(() => {
         const chain: Row = {};
         (chain.eq as unknown) = vi.fn((c: string, v: unknown) => { state.scopes.push([c, v]); return chain; });
         (chain.is as unknown) = vi.fn((c: string, v: unknown) => { state.scopes.push([c, v]); return chain; });
-        (chain.select as unknown) = vi.fn(() => ({ maybeSingle: async () => ({ data: state.updated, error: null }) }));
+        (chain.select as unknown) = vi.fn(() => ({ maybeSingle: async () => ({ data: state.updated, error: state.error }) }));
         return chain;
       }),
     })),
   };
-  return { state, admin, reset: () => { state.updated = null; state.scopes = []; } };
+  return { state, admin, reset: () => { state.updated = null; state.scopes = []; state.error = null; } };
 });
 
 vi.mock("@/lib/services/admin-gate", () => ({ requireAdmin: vi.fn(async () => ({ user: { id: "admin-1" } })) }));
@@ -34,6 +34,10 @@ describe("PATCH /api/admin/notifications/[id]", () => {
     expect((await PATCH(req({ read: "yes" }), params)).status).toBe(400);
   });
 
+  it("400 when body is null", async () => {
+    expect((await PATCH(new NextRequest("http://localhost/x", { method: "PATCH", body: "null" }), params)).status).toBe(400);
+  });
+
   it("marks read, scoped to id AND user_id IS NULL", async () => {
     h.state.updated = { id: "n-1", read: true };
     const res = await PATCH(req({ read: true }), params);
@@ -44,5 +48,12 @@ describe("PATCH /api/admin/notifications/[id]", () => {
   it("404 for a customer-owned notification id (scope matches nothing)", async () => {
     h.state.updated = null; // .is('user_id', null) excluded the row
     expect((await PATCH(req({ read: true }), params)).status).toBe(404);
+  });
+
+  it("500 when update errors", async () => {
+    h.state.error = { message: "update failed" };
+    const res = await PATCH(req({ read: true }), params);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "update failed" });
   });
 });
