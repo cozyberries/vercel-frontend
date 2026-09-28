@@ -27,11 +27,19 @@ export default function OrderDetailDialog({
   const [tracking, setTracking] = useState("");
   const [notes, setNotes] = useState("");
 
+  // Resync the local form fields only when the dialog opens/closes or a
+  // genuinely different order is selected — keyed on the order id, not the
+  // order object itself. A background list refetch (React Query's default
+  // refetchOnWindowFocus, an invalidation after another admin's edit, etc.)
+  // hands us a brand-new `order` object with the SAME id; if this effect
+  // depended on the object identity it would fire on every such refetch and
+  // silently wipe out whatever the admin was mid-typing.
   useEffect(() => {
     setStatus(order?.status ?? "");
     setTracking(order?.tracking_number ?? "");
     setNotes(order?.delivery_notes ?? "");
-  }, [order]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally id-keyed, see comment above
+  }, [order?.id]);
 
   const onError = (e: unknown) =>
     toast.error(e instanceof ApiError ? e.message : "Request failed — check your connection");
@@ -68,6 +76,15 @@ export default function OrderDetailDialog({
     !isDelhivery &&
     (order.status === "payment_confirmed" || order.status === "processing");
   const busy = save.isPending || createShipment.isPending || cancelShipment.isPending;
+
+  // Computed once per render so the Save button can be disabled — and the
+  // mutation short-circuited — when nothing actually changed, instead of
+  // sending an empty PATCH body that the API 400s ("Nothing to update").
+  const changedFields: Record<string, unknown> = {};
+  if (status && status !== order.status) changedFields.status = status;
+  if (tracking !== (order.tracking_number ?? "")) changedFields.tracking_number = tracking || null;
+  if (notes !== (order.delivery_notes ?? "")) changedFields.delivery_notes = notes || null;
+  const hasChanges = Object.keys(changedFields).length > 0;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -115,14 +132,8 @@ export default function OrderDetailDialog({
 
           <div className="flex flex-wrap gap-2">
             <Button
-              size="sm" disabled={busy}
-              onClick={() =>
-                save.mutate({
-                  ...(status && status !== order.status ? { status } : {}),
-                  ...(tracking !== (order.tracking_number ?? "") ? { tracking_number: tracking || null } : {}),
-                  ...(notes !== (order.delivery_notes ?? "") ? { delivery_notes: notes || null } : {}),
-                })
-              }
+              size="sm" disabled={busy || !hasChanges}
+              onClick={() => save.mutate(changedFields)}
             >
               Save
             </Button>

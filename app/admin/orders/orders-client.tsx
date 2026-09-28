@@ -28,6 +28,11 @@ export default function OrdersClient() {
     queryKey: ["admin", "orders", filters],
     queryFn: () => api<AdminOrdersListResponse>(listUrl(filters)),
     staleTime: 30_000,
+    // Defense in depth alongside the id-keyed resync in OrderDetailDialog: a
+    // window-focus refetch here would hand the open dialog a new order
+    // object for the same row, which must never wipe an admin's in-progress
+    // edit even if some future change to the dialog reintroduces the bug.
+    refetchOnWindowFocus: false,
   });
 
   const orders = (data?.orders ?? []).filter((o) => matchesSearch(o, search));
