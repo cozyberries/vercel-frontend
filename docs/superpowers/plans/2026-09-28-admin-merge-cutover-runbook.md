@@ -55,3 +55,4 @@ deploy (1), and the deletions (5–7) only after verification (4).
 - [ ] Delete the GitHub repo (Settings → Danger Zone) using the cozyberries account.
 - [ ] `rm -rf ../cozyberries-admin`
 - [ ] Update Claude memory: mark the merge done; retire admin-repo references.
+- [ ] Follow-up: remove /api/auth/generate-token + lib/jwt-auth.ts and the JWT_SECRET env var once nothing has needed them for a couple of weeks.
