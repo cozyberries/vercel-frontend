@@ -37,20 +37,7 @@ function main(): void {
   const destination =
     fromExplicit || `${siteBase}/api/internal/webhooks/delhivery/process`;
 
-  if (!destination) {
-    console.error(
-      "Set QSTASH_DELHIVERY_PROCESSOR_URL or CATALOG_BASE_URL (or NEXT_PUBLIC_SITE_URL) to the public POST URL of the processor route."
-    );
-    process.exit(1);
-  }
-
   const cron = process.env.QSTASH_PROCESSOR_CRON?.trim() || DEFAULT_PROCESSOR_CRON;
-
-  // Confirm scheduleId has no ':' characters
-  if (SCHEDULE_ID.includes(":")) {
-    console.error(`Invalid scheduleId: "${SCHEDULE_ID}" must not contain ':' characters`);
-    process.exit(1);
-  }
 
   const client = new Client({ baseUrl, token });
 
