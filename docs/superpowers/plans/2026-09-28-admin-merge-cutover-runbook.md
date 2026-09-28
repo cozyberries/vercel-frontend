@@ -12,6 +12,9 @@ deploy (1), and the deletions (5–7) only after verification (4).
 - [ ] Redeploy and confirm `https://cozyberries.in/admin/orders` loads for an admin.
 - [ ] Apply `supabase/migrations/20260928100000_delhivery_webhook_pipeline.sql` via the
       Supabase Dashboard SQL editor (runs as `postgres`). It is idempotent.
+- [ ] Pre-check: `select distinct type from public.notifications;` — every value must be
+      in (info,success,warning,error,order_status,payment_status,shipping_scan), or the
+      type-check re-add in the migration will fail.
 
 ## 2. Repoint the pipeline
 - [ ] Delhivery dashboard (or account manager): change the scan-webhook URL to
@@ -43,6 +46,8 @@ deploy (1), and the deletions (5–7) only after verification (4).
       label; cancel it if it was a test.
 
 ## 5. Drop the old login table
+- [ ] Pre-check dependents: `select * from pg_depend d join pg_class c on d.refobjid = c.oid
+      where c.relname = 'admin_users';` — review anything unexpected before the CASCADE drop.
 - [ ] Apply `supabase/migrations/20260928110000_drop_admin_users.sql` in the SQL editor.
 - [ ] Run `npm run db:lint` (expect ERROR=0) and `npm run db:probe`.
 
