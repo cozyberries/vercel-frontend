@@ -73,7 +73,10 @@ end $$;
 do $$
 declare t text; bad text[] := '{}';
 begin
-  foreach t in array array['expenses','expense_categories','admin_users',
+  -- admin_users was dropped at the admin-merge cutover (2026-09-29); a
+  -- ::regclass cast on a missing table aborts the whole probe, so it must
+  -- not be listed here.
+  foreach t in array array['expenses','expense_categories',
                            'impersonation_events','webhook_events','recent_activities',
                            'shelf_refills']
   loop
