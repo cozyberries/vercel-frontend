@@ -67,10 +67,14 @@ export async function POST(request: NextRequest) {
     // Generate name from email
     const generatedName = generateNameFromEmail(email);
 
-    // Set role, name, and phone in a single admin API call
+    // Set name and phone in a single admin API call. Only set a role when the user
+    // has none yet — never overwrite an existing role (this route takes a
+    // caller-supplied userId with no session, so it must not be usable to demote an
+    // existing admin by calling it again with their id and email).
+    const existingRole = authUser.user.app_metadata?.role;
     const updatePayload: Record<string, any> = {
       user_metadata: { full_name: generatedName },
-      app_metadata: { role: "customer" },
+      ...(existingRole ? {} : { app_metadata: { role: "customer" } }),
     };
     if (phone) {
       updatePayload.phone = phone.replace(/\D/g, "");

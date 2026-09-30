@@ -78,3 +78,41 @@ describe('POST /api/users/create-profile impersonation guard', () => {
     expect(body.success).toBe(true);
   });
 });
+
+// This route takes a caller-supplied userId with no session — anyone who knows an
+// admin's id and email could otherwise demote them by calling it again. It must
+// never overwrite an existing app_metadata.role.
+describe('POST /api/users/create-profile role preservation', () => {
+  beforeEach(() => {
+    blockIfImpersonatingMock.mockResolvedValue(undefined);
+    updateUserByIdMock.mockResolvedValue({ error: null });
+  });
+
+  it('keeps role: admin for a user who already has one', async () => {
+    getUserByIdMock.mockResolvedValue({
+      data: { user: { email: 'e@example.com', app_metadata: { role: 'admin' } } },
+      error: null,
+    });
+
+    const res = await POST(makeRequest({ userId: 'u1', email: 'e@example.com' }));
+    expect(res.status).toBe(200);
+    expect(updateUserByIdMock).toHaveBeenCalledWith(
+      'u1',
+      expect.not.objectContaining({ app_metadata: expect.anything() })
+    );
+  });
+
+  it('sets role: customer for a user with no role yet', async () => {
+    getUserByIdMock.mockResolvedValue({
+      data: { user: { email: 'e@example.com', app_metadata: {} } },
+      error: null,
+    });
+
+    const res = await POST(makeRequest({ userId: 'u1', email: 'e@example.com' }));
+    expect(res.status).toBe(200);
+    expect(updateUserByIdMock).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ app_metadata: { role: 'customer' } })
+    );
+  });
+});
