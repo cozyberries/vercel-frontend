@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import CacheService from "@/lib/services/cache";
-import { mapOrderItems } from "@/lib/utils/order-mapper";
+import { mapOrderItems, toCustomerOrder } from "@/lib/utils/order-mapper";
 import {
   effectiveUserErrorResponse,
   getEffectiveUser,
@@ -62,7 +62,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     if (cacheHit && cachedOrderDetails) {
-      return NextResponse.json(cachedOrderDetails, {
+      // Entries cached before admin columns were stripped may still carry them.
+      const cached = cachedOrderDetails as { order?: object | null };
+      const safeCached = cached.order
+        ? { ...cached, order: toCustomerOrder(cached.order) }
+        : cachedOrderDetails;
+      return NextResponse.json(safeCached, {
         headers: {
           "X-Cache-Status": "HIT",
           "X-Data-Source": "CACHE",
@@ -86,7 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { order_items, ...orderFields } = rawOrder;
     const order = {
-      ...orderFields,
+      ...toCustomerOrder(orderFields),
       items: mapOrderItems(order_items ?? []),
     };
 
@@ -204,7 +209,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         console.error("Error clearing cache after update:", cacheError);
       });
 
-    return NextResponse.json({ order });
+    return NextResponse.json({ order: toCustomerOrder(order) });
   } catch (error) {
     console.error("Error updating order:", error);
     return NextResponse.json(

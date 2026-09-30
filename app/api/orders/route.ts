@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import type { CreateOrderRequest, OrderCreate, OrderStatus, ShippingAddress } from "@/lib/types/order";
-import { mapOrderItems, mapOrderItemInputs } from "@/lib/utils/order-mapper";
+import { mapOrderItems, mapOrderItemInputs, toCustomerOrder } from "@/lib/utils/order-mapper";
 import {
   validateAndFetchAddresses,
   validateItemPrices,
@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
     ));
 
     const orderWithItems = {
-      ...order,
+      ...toCustomerOrder(order),
       items: mapOrderItemInputs(items),
     };
 
@@ -369,7 +369,7 @@ export async function GET(request: NextRequest) {
     }
 
     const mapped = (orders || []).map(({ order_items, ...order }) => ({
-      ...order,
+      ...toCustomerOrder(order),
       items: mapOrderItems(order_items ?? []),
     }));
 

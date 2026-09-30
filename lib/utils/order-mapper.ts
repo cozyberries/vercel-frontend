@@ -50,3 +50,14 @@ export function mapOrderItemInputs(items: OrderItemInput[]): OrderItem[] {
     ...(item.sku ? { sku: item.sku } : {}),
   }));
 }
+
+/**
+ * Removes admin-only columns from an order row before it goes to a customer.
+ * `placed_by_admin_id` names the staff account that placed an on-behalf order;
+ * customers must never see admin ids.
+ */
+export function toCustomerOrder<T extends object>(order: T): Omit<T, "placed_by_admin_id"> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { placed_by_admin_id, ...rest } = order as T & { placed_by_admin_id?: unknown };
+  return rest;
+}

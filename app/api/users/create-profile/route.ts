@@ -64,17 +64,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // This route takes a caller-supplied userId with no session. An account that
+    // already has a role has been initialised, so write nothing at all: otherwise
+    // anyone with an admin's id and email could set that admin's phone (and then
+    // sign in as them by OTP) or rename them.
+    if (authUser.user.app_metadata?.role) {
+      const existingName = authUser.user.user_metadata?.full_name ?? null;
+      return NextResponse.json({
+        success: true,
+        profile: { id: userId, full_name: existingName },
+      });
+    }
+
     // Generate name from email
     const generatedName = generateNameFromEmail(email);
 
-    // Set name and phone in a single admin API call. Only set a role when the user
-    // has none yet — never overwrite an existing role (this route takes a
-    // caller-supplied userId with no session, so it must not be usable to demote an
-    // existing admin by calling it again with their id and email).
-    const existingRole = authUser.user.app_metadata?.role;
+    // First initialisation: name, role and (optionally) phone in one admin API call.
     const updatePayload: Record<string, any> = {
       user_metadata: { full_name: generatedName },
-      ...(existingRole ? {} : { app_metadata: { role: "customer" } }),
+      app_metadata: { role: "customer" },
     };
     if (phone) {
       updatePayload.phone = phone.replace(/\D/g, "");

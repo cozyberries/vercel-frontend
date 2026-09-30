@@ -80,26 +80,47 @@ describe('POST /api/users/create-profile impersonation guard', () => {
 });
 
 // This route takes a caller-supplied userId with no session — anyone who knows an
-// admin's id and email could otherwise demote them by calling it again. It must
-// never overwrite an existing app_metadata.role.
+// admin's id and email could otherwise demote them, rename them, or set their phone
+// (and then sign in as them by OTP). An account that already has a role is left alone.
 describe('POST /api/users/create-profile role preservation', () => {
   beforeEach(() => {
     blockIfImpersonatingMock.mockResolvedValue(undefined);
     updateUserByIdMock.mockResolvedValue({ error: null });
   });
 
-  it('keeps role: admin for a user who already has one', async () => {
+  it('writes nothing for an account that already has a role (no phone, no name, no role)', async () => {
     getUserByIdMock.mockResolvedValue({
-      data: { user: { email: 'e@example.com', app_metadata: { role: 'admin' } } },
+      data: {
+        user: {
+          email: 'e@example.com',
+          app_metadata: { role: 'admin' },
+          user_metadata: { full_name: 'Real Admin' },
+        },
+      },
+      error: null,
+    });
+
+    const res = await POST(
+      makeRequest({ userId: 'u1', email: 'e@example.com', phone: '9876543210' })
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: true,
+      profile: { id: 'u1', full_name: 'Real Admin' },
+    });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it('is also a no-op for a customer who is already initialised', async () => {
+    getUserByIdMock.mockResolvedValue({
+      data: { user: { email: 'e@example.com', app_metadata: { role: 'customer' } } },
       error: null,
     });
 
     const res = await POST(makeRequest({ userId: 'u1', email: 'e@example.com' }));
     expect(res.status).toBe(200);
-    expect(updateUserByIdMock).toHaveBeenCalledWith(
-      'u1',
-      expect.not.objectContaining({ app_metadata: expect.anything() })
-    );
+    expect((await res.json()).profile).toEqual({ id: 'u1', full_name: null });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
   });
 
   it('sets role: customer for a user with no role yet', async () => {
@@ -108,11 +129,14 @@ describe('POST /api/users/create-profile role preservation', () => {
       error: null,
     });
 
-    const res = await POST(makeRequest({ userId: 'u1', email: 'e@example.com' }));
-    expect(res.status).toBe(200);
-    expect(updateUserByIdMock).toHaveBeenCalledWith(
-      'u1',
-      expect.objectContaining({ app_metadata: { role: 'customer' } })
+    const res = await POST(
+      makeRequest({ userId: 'u1', email: 'e@example.com', phone: '98765 43210' })
     );
+    expect(res.status).toBe(200);
+    expect(updateUserByIdMock).toHaveBeenCalledWith('u1', {
+      user_metadata: { full_name: 'Generated Name' },
+      app_metadata: { role: 'customer' },
+      phone: '9876543210',
+    });
   });
 });

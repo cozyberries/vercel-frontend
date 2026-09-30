@@ -78,6 +78,65 @@ describe('GET /api/orders/[id]', () => {
     expect(cacheServiceMock.getOrderDetails).toHaveBeenCalledWith(TARGET_ID, 'o1');
   });
 
+  function customerClient(row: Record<string, unknown>) {
+    const single = vi.fn().mockResolvedValue({ data: row, error: null });
+    const orderSelect = vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ single })) })) }));
+    const paymentsOrder = vi.fn().mockResolvedValue({ data: [{ id: 'pay-1' }], error: null });
+    const paymentsSelect = vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ order: paymentsOrder })) })) }));
+    return {
+      from: vi.fn((table: string) => (table === 'orders' ? { select: orderSelect } : { select: paymentsSelect })),
+    };
+  }
+
+  it('never returns placed_by_admin_id to the customer; other fields remain (and it is not cached)', async () => {
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      client: customerClient({
+        id: 'o1',
+        order_number: 'CB-0001',
+        status: 'processing',
+        total_amount: 1000,
+        placed_by_admin_id: ADMIN_ID,
+        order_items: [],
+      }),
+      sessionUser: { id: TARGET_ID },
+      effectiveUser: { id: TARGET_ID },
+    });
+
+    const res = await GET(new NextRequest('http://localhost/api/orders/o1'), makeParams('o1'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.order).not.toHaveProperty('placed_by_admin_id');
+    expect(JSON.stringify(body)).not.toContain(ADMIN_ID);
+    expect(body.order).toMatchObject({ id: 'o1', order_number: 'CB-0001', status: 'processing', total_amount: 1000, items: [] });
+    expect(body.payments).toEqual([{ id: 'pay-1' }]);
+    const cached = cacheServiceMock.setOrderDetails.mock.calls[0]?.[2] as { order: object };
+    expect(cached.order).not.toHaveProperty('placed_by_admin_id');
+  });
+
+  it('strips placed_by_admin_id from an order-details entry cached before the fix', async () => {
+    cacheServiceMock.getOrderDetails.mockResolvedValue({
+      data: { order: { id: 'o1', order_number: 'CB-0001', placed_by_admin_id: ADMIN_ID, items: [] }, payments: [] },
+      ttl: 100,
+      isStale: false,
+    });
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      client: { from: vi.fn() },
+      sessionUser: { id: TARGET_ID },
+      effectiveUser: { id: TARGET_ID },
+    });
+
+    const res = await GET(new NextRequest('http://localhost/api/orders/o1'), makeParams('o1'));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('X-Cache-Status')).toBe('HIT');
+    const body = await res.json();
+    expect(body.order).not.toHaveProperty('placed_by_admin_id');
+    expect(body).toEqual({ order: { id: 'o1', order_number: 'CB-0001', items: [] }, payments: [] });
+  });
+
   it('returns error response when getEffectiveUser fails with forbidden_not_admin', async () => {
     getEffectiveUserMock.mockResolvedValue({
       ok: false,
@@ -131,6 +190,28 @@ describe('PATCH /api/orders/[id]', () => {
     expect(res.status).toBe(200);
     expect(eqId).toHaveBeenCalledWith('id', 'o1');
     expect(eqUser).toHaveBeenCalledWith('user_id', TARGET_ID);
+  });
+
+  it('does not return placed_by_admin_id on the updated order', async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { id: 'o1', notes: 'hi', placed_by_admin_id: ADMIN_ID },
+      error: null,
+    });
+    const update = vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single })) })) })) }));
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      client: { from: vi.fn(() => ({ update })) },
+      sessionUser: { id: TARGET_ID },
+      effectiveUser: { id: TARGET_ID },
+    });
+
+    const res = await PATCH(
+      new NextRequest('http://localhost/api/orders/o1', { method: 'PATCH', body: JSON.stringify({ notes: 'hi' }) }),
+      makeParams('o1')
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ order: { id: 'o1', notes: 'hi' } });
   });
 
   it('returns error response when getEffectiveUser fails with forbidden_not_admin', async () => {

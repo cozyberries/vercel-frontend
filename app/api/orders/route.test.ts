@@ -221,6 +221,38 @@ describe('POST /api/orders', () => {
     expect(JSON.stringify(body)).not.toContain('admin@example.com');
   });
 
+  it('strips placed_by_admin_id from the created order it returns', async () => {
+    singleOrdersMock.mockResolvedValue({
+      data: {
+        id: 'order-1',
+        order_number: 'CB-0001',
+        status: 'payment_pending',
+        total_amount: 1000,
+        currency: 'INR',
+        placed_by_admin_id: ADMIN_ID,
+      },
+      error: null,
+    });
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      actingAdminId: ADMIN_ID,
+      client: clientMock,
+      sessionUser: { id: ADMIN_ID, email: 'admin@example.com' },
+      effectiveUser: { id: TARGET_ID, email: 'target@example.com' },
+    });
+
+    const res = await POST(
+      makeRequest({ items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }], shipping_address_id: 'addr-1' })
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.order).not.toHaveProperty('placed_by_admin_id');
+    expect(JSON.stringify(body)).not.toContain(ADMIN_ID);
+    expect(body.order).toMatchObject({ id: 'order-1', order_number: 'CB-0001', total_amount: 1000 });
+    expect(body.payment_url).toBe('/payment/order-1');
+  });
+
   it('logs order_placed impersonation event when acting under shadow mode', async () => {
     getEffectiveUserMock.mockResolvedValue({
       ok: true,
@@ -394,6 +426,44 @@ describe('GET /api/orders', () => {
     expect(res.status).toBe(200);
     expect(localFrom).toHaveBeenCalledWith('orders');
     expect(eqChain).toHaveBeenCalledWith('user_id', TARGET_ID);
+  });
+
+  it('never returns placed_by_admin_id to the customer; other fields remain', async () => {
+    const row = {
+      id: 'order-1',
+      order_number: 'CB-0001',
+      status: 'processing',
+      total_amount: 1000,
+      placed_by_admin_id: ADMIN_ID,
+      order_items: [
+        { id: 'i1', order_id: 'order-1', product_id: 'p1', name: 'Prod', price: '1000', quantity: 1, image: null, size: null, color: null, sku: null, created_at: 'x' },
+      ],
+    };
+    const range = vi.fn().mockResolvedValue({ data: [row], error: null });
+    const localClient = {
+      from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => ({ range })) })) })) })),
+    };
+    getEffectiveUserMock.mockResolvedValue({
+      ok: true,
+      userId: TARGET_ID,
+      client: localClient,
+      sessionUser: { id: TARGET_ID },
+      effectiveUser: { id: TARGET_ID },
+    });
+
+    const res = await GET(new NextRequest('http://localhost/api/orders'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.orders).toHaveLength(1);
+    expect(body.orders[0]).not.toHaveProperty('placed_by_admin_id');
+    expect(JSON.stringify(body)).not.toContain(ADMIN_ID);
+    expect(body.orders[0]).toMatchObject({
+      id: 'order-1',
+      order_number: 'CB-0001',
+      status: 'processing',
+      total_amount: 1000,
+      items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }],
+    });
   });
 
   it('returns error response when getEffectiveUser rejects with forbidden_not_admin', async () => {
