@@ -24,6 +24,23 @@ describe("SegmentedTabs", () => {
     fireEvent.click(awaiting);
     expect(onChange).toHaveBeenCalledWith("awaiting");
   });
+
+  it("hides badge when count is 0 and marks inactive tab", () => {
+    render(
+      <SegmentedTabs
+        label="Queue"
+        tabs={[
+          { key: "a", label: "Awaiting ✅", count: 2 },
+          { key: "r", label: "Ready", count: 0 },
+        ]}
+        value="a"
+        onChange={() => {}}
+      />,
+    );
+    const ready = screen.getByRole("tab", { name: "Ready" });
+    expect(ready).toHaveTextContent(/^Ready$/);
+    expect(ready).toHaveAttribute("aria-selected", "false");
+  });
 });
 
 describe("FilterChips", () => {
@@ -44,6 +61,21 @@ describe("FilterChips", () => {
     fireEvent.click(screen.getByRole("radio", { name: "30d" }));
     expect(onChange).toHaveBeenCalledWith("30");
   });
+
+  it("marks unchecked chip with aria-checked=false", () => {
+    render(
+      <FilterChips
+        label="Days"
+        chips={[
+          { value: "7", label: "7d" },
+          { value: "30", label: "30d" },
+        ]}
+        value="7"
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: "30d" })).toHaveAttribute("aria-checked", "false");
+  });
 });
 
 describe("StatTile", () => {
@@ -58,5 +90,30 @@ describe("StatTile", () => {
     expect(link).toHaveAttribute("href", "/admin/pickup-orders");
     expect(link).toHaveTextContent("3");
     expect(screen.getByText("To ship")).toBeInTheDocument();
+  });
+
+  it("renders as div when href is not given", () => {
+    render(<StatTile label="To ship" value={5} />);
+    expect(screen.queryByRole("link", { name: /To ship/ })).toBeNull();
+    expect(screen.getByText("5")).toBeInTheDocument();
+  });
+
+  it("applies terracotta tone only when value > 0", () => {
+    const { rerender } = render(
+      <StatTile label="Count" value={0} tone="attention" />,
+    );
+    const zeroValue = screen.getByText("0");
+    expect(zeroValue).not.toHaveClass("text-cb-terracotta");
+
+    rerender(<StatTile label="Count" value={3} tone="attention" />);
+    const threeValue = screen.getByText("3");
+    expect(threeValue).toHaveClass("text-cb-terracotta");
+  });
+
+  it("renders hint text when provided", () => {
+    render(
+      <StatTile label="Revenue" value={1500} hint="last 7 days" />,
+    );
+    expect(screen.getByText("last 7 days")).toBeInTheDocument();
   });
 });
