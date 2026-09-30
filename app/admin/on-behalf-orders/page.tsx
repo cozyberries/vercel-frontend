@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { isAdmin } from '@/lib/services/effective-user';
+import { PageHeader } from '@/components/admin/kit';
 import OnBehalfOrdersClient from './on-behalf-orders-client';
 
 export const metadata: Metadata = {
@@ -28,15 +29,8 @@ export default async function OnBehalfOrdersPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-light tracking-tight">
-          On-behalf orders
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Orders placed by admins on behalf of customers. Read-only.
-        </p>
-      </div>
+    <div>
+      <PageHeader title="On-behalf orders" subtitle="Orders placed by admins for customers. Read-only." />
       <OnBehalfOrdersClient />
     </div>
   );
