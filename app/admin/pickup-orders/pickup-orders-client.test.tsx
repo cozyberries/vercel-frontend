@@ -59,7 +59,9 @@ describe("awaiting tab", () => {
     respond({ orders: [order], awaiting_count: 2 });
     render(<PickupOrdersClient />);
     const tab = await screen.findByRole("tab", { name: /Awaiting/ });
-    expect(tab).toHaveTextContent("2");
+    // The tab renders before its badge count arrives from the load() fetch
+    // (a setTimeout(0)); poll instead of asserting the instant findByRole resolves.
+    await waitFor(() => expect(tab).toHaveTextContent("2"));
   });
 
   it("loads the unpaid pickup orders when opened", async () => {
