@@ -224,7 +224,8 @@ export function useOnBehalfOrders(
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body?.error || `Request failed (${res.status})`);
+        // `status` lets the page offer "Log in again" on 401/403.
+        throw Object.assign(new Error(body?.error || `Request failed (${res.status})`), { status: res.status });
       }
       return (await res.json()) as OnBehalfOrdersListResponse;
     },

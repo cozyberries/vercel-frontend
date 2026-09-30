@@ -155,3 +155,49 @@ describe("empty state", () => {
     expect(await screen.findByText("No pickup orders here")).toBeInTheDocument();
   });
 });
+
+describe("load errors (spec §5)", () => {
+  const fail = (status: number, error: string) => ({ ok: false, status, json: async () => ({ error }) });
+
+  it("a failed first load shows the banner with Retry, not the empty state", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(fail(500, "Database unavailable"))
+      .mockResolvedValue({ ok: true, json: async () => ({ orders: [order], awaiting_count: 0 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PickupOrdersClient />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Database unavailable");
+    expect(screen.queryByText("No pickup orders here")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Log in again" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText(lineText("1 × Romper — ₹300"))).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("a 401 shows Log in again back to this page", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(fail(401, "Unauthorized")));
+    render(<PickupOrdersClient />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unauthorized");
+    expect(screen.getByRole("link", { name: "Log in again" })).toHaveAttribute(
+      "href",
+      "/login?redirect=%2Fadmin%2Fpickup-orders"
+    );
+    expect(screen.queryByText("No pickup orders here")).not.toBeInTheDocument();
+  });
+
+  it("a failed refresh keeps the previous rows visible under the banner", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PATCH") return { ok: true, json: async () => ({}) };
+      // First list load succeeds; the refresh after the PATCH fails.
+      return fetchMock.mock.calls.filter(([, i]) => !i || (i as RequestInit).method !== "PATCH").length === 1
+        ? { ok: true, json: async () => ({ orders: [order], awaiting_count: 0 }) }
+        : fail(503, "Network error");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PickupOrdersClient />);
+    fireEvent.click(await screen.findByRole("button", { name: /Mark collected/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Network error");
+    expect(screen.getByText(lineText("2 × Frock · 3-4Y · Pink — ₹1000"))).toBeInTheDocument();
+    expect(screen.getByTestId("pickup-order-1")).toBeInTheDocument();
+  });
+});

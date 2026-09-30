@@ -47,6 +47,48 @@ describe("OnBehalfOrdersClient", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
+  it("a failed first load shows the banner, not the empty state", () => {
+    h.state = { data: undefined, isPending: false, isFetching: false, error: new Error("Database unavailable"), refetch: vi.fn() };
+    render(<OnBehalfOrdersClient />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Database unavailable");
+    expect(screen.queryByText("No orders placed on behalf yet")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Log in again" })).not.toBeInTheDocument();
+  });
+
+  it("a 401 shows Log in again back to this page", () => {
+    const error = Object.assign(new Error("Unauthorized"), { status: 401 });
+    h.state = { data: undefined, isPending: false, isFetching: false, error, refetch: vi.fn() };
+    render(<OnBehalfOrdersClient />);
+    expect(screen.getByRole("link", { name: "Log in again" })).toHaveAttribute(
+      "href",
+      "/login?redirect=%2Fadmin%2Fon-behalf-orders"
+    );
+  });
+
+  it("a 403 also shows Log in again", () => {
+    const error = Object.assign(new Error("Forbidden"), { status: 403 });
+    h.state = { data: { orders: [order], total: 1 }, isPending: false, isFetching: false, error, refetch: vi.fn() };
+    render(<OnBehalfOrdersClient />);
+    expect(screen.getByRole("link", { name: "Log in again" })).toBeInTheDocument();
+  });
+
+  it("a failed refresh keeps the previous rows visible under the banner", () => {
+    const refetch = vi.fn();
+    h.state = {
+      data: { orders: [order], total: 1 },
+      isPending: false,
+      isFetching: false,
+      error: Object.assign(new Error("Network error"), { status: 503 }),
+      refetch,
+    };
+    render(<OnBehalfOrdersClient />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Network error");
+    expect(screen.getByTestId("on-behalf-o1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /#ORD-1/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
   it("shows the loading state", () => {
     h.state = { data: undefined, isPending: true, isFetching: true, error: null, refetch: vi.fn() };
     render(<OnBehalfOrdersClient />);

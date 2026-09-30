@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STALL } from "@/lib/config/business";
 import { whatsappLink } from "@/lib/utils/whatsapp";
-import { SegmentedTabs, ListCard, EmptyState, LoadingList, type SegmentedTab } from "@/components/admin/kit";
+import { SegmentedTabs, ListCard, EmptyState, LoadingList, ErrorBanner, type SegmentedTab } from "@/components/admin/kit";
 import {
   parsePickupTab, PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab,
 } from "@/lib/orders/pickup";
@@ -39,6 +39,8 @@ export default function PickupOrdersClient() {
   const [orders, setOrders] = useState<PickupOrderRow[]>([]);
   const [awaitingCount, setAwaitingCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // Spec §5: a failed load shows ErrorBanner above the last good list (orders are kept).
+  const [loadError, setLoadError] = useState<{ message: string; status?: number } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,11 +56,17 @@ export default function PickupOrdersClient() {
       if (query.trim()) params.set("q", query.trim());
       const res = await fetch(`/api/admin/pickup-orders?${params}`, { credentials: "same-origin" });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error || "Failed to load pickup orders");
+      if (!res.ok) {
+        throw Object.assign(new Error(body?.error || "Failed to load pickup orders"), { status: res.status });
+      }
       setOrders(body.orders ?? []);
       setAwaitingCount(typeof body.awaiting_count === "number" ? body.awaiting_count : null);
+      setLoadError(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load pickup orders");
+      setLoadError({
+        message: err instanceof Error ? err.message : "Failed to load pickup orders",
+        status: (err as { status?: number }).status,
+      });
     } finally {
       setLoading(false);
     }
@@ -128,10 +136,19 @@ export default function PickupOrdersClient() {
 
       {!query && <SegmentedTabs label="Pickup queue" tabs={tabs} value={tab} onChange={setTab} />}
 
-      {loading ? (
+      {loadError && (
+        <ErrorBanner
+          message={loadError.message}
+          onRetry={() => void load()}
+          retrying={loading}
+          loginRedirect={loadError.status === 401 || loadError.status === 403 ? "/admin/pickup-orders" : undefined}
+        />
+      )}
+
+      {loading && !loadError ? (
         <LoadingList label="Loading pickup orders" />
       ) : orders.length === 0 ? (
-        <EmptyState title="No pickup orders here" />
+        loadError ? null : <EmptyState title="No pickup orders here" />
       ) : (
         <ul className="space-y-3">
           {orders.map((order) => {

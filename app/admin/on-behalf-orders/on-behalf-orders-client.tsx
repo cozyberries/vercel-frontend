@@ -35,20 +35,23 @@ export default function OnBehalfOrdersClient() {
   const orders = query.data?.orders ?? [];
   const total = query.data?.total ?? 0;
   const isRefetching = query.isFetching && !query.isPending;
+  const errorStatus = (query.error as { status?: number } | null)?.status;
+  // Spec §5: a failed fetch shows the banner above the last good list; 401/403 offers "Log in again".
+  const banner = query.error ? (
+    <ErrorBanner
+      message={query.error instanceof Error ? query.error.message : "Failed to load orders"}
+      onRetry={() => void query.refetch()}
+      retrying={isRefetching}
+      loginRedirect={errorStatus === 401 || errorStatus === 403 ? "/admin/on-behalf-orders" : undefined}
+    />
+  ) : null;
 
   if (query.isPending) return <LoadingList label="Loading on-behalf orders" />;
-  if (query.error) {
-    return (
-      <ErrorBanner
-        message={query.error instanceof Error ? query.error.message : "Failed to load orders"}
-        onRetry={() => void query.refetch()}
-        retrying={isRefetching}
-      />
-    );
-  }
+  if (query.error && !query.data) return banner;
   if (orders.length === 0) {
     return (
       <div className="space-y-3">
+        {banner}
         <EmptyState title="No orders placed on behalf yet" hint="Impersonate a customer and place an order in their session." />
         <Button asChild variant="outline" className="w-full rounded-full">
           <Link href="/admin/impersonate">Impersonate a user</Link>
@@ -62,6 +65,7 @@ export default function OnBehalfOrdersClient() {
 
   return (
     <div className="space-y-4">
+      {banner}
       <div className="hidden overflow-hidden rounded-2xl border border-cb-border bg-cb-white lg:block">
         <Table>
           <TableHeader>
