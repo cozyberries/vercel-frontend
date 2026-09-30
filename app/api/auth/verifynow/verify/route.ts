@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
 import { findUserIdByPhone, findAuthUserByEmail, createPhoneUser } from "@/lib/auth-phone";
 import { validateEmail } from "@/lib/utils/validation";
 import {
@@ -18,8 +18,9 @@ export const maxDuration = 15;
  * 3. Login: if no user for phone → 404 "Please register first".
  * 4. Generate magic link for user's email → return redirectUrl to /auth/phone/callback.
  * 5. Client redirects to callback → verifyOtp sets session → user lands on /profile (or safe redirect).
+ * 6. Link: signed-in user attaches a verified phone; no magic link is issued.
  */
-const INTENTS = ["register", "login"] as const;
+const INTENTS = ["register", "login", "link"] as const;
 
 /**
  * Origin for redirect URLs (phone callback). Callback must hit the frontend so the
@@ -100,9 +101,21 @@ export async function POST(request: NextRequest) {
 
   if (!INTENTS.includes(intent)) {
     return NextResponse.json(
-      { error: "intent must be register or login" },
+      { error: "intent must be register, login or link" },
       { status: 400 }
     );
+  }
+
+  // link: the caller must be signed in; the code is only validated after that so a
+  // guest cannot burn someone's OTP attempts.
+  let linkUserId: string | null = null;
+  if (intent === "link") {
+    const session = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await session.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    linkUserId = user.id;
   }
 
   if (phone == null || String(phone).trim() === "") {
@@ -137,6 +150,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    if (intent === "link" && linkUserId) {
+      const existing = await findUserIdByPhone(normalizedPhone);
+      if (existing && existing.userId !== linkUserId) {
+        return NextResponse.json({ error: "This number is already on another account" }, { status: 409 });
+      }
+      const adminSupabase = createAdminSupabaseClient();
+      const { error: linkError } = await adminSupabase.auth.admin.updateUserById(linkUserId, {
+        phone: normalizedPhone,
+        phone_confirm: true,
+      });
+      if (linkError) throw new Error(`Failed to link phone: ${linkError.message}`);
+      return NextResponse.json({ ok: true, phone: normalizedPhone });
+    }
+
     let email: string;
 
     const existing = await findUserIdByPhone(normalizedPhone);

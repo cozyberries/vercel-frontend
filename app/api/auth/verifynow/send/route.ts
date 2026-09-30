@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UpstashService } from "@/lib/upstash";
 import { findUserIdByPhone } from "@/lib/auth-phone";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
   getAuthTokenFromEnv,
   sendOtp,
@@ -10,8 +11,9 @@ import {
 /** Keep under Vercel limit (Hobby 10s); allows VerifyNow request timeout to complete. */
 export const maxDuration = 15;
 
-const INTENTS = ["register", "login"] as const;
+const INTENTS = ["register", "login", "link"] as const;
 const NO_ACCOUNT_MESSAGE = "No account with this number. Please register first.";
+const NUMBER_IN_USE_MESSAGE = "This number is already on another account";
 const RATE_LIMIT_KEY_PREFIX = "otp_send";
 const RATE_LIMIT_LIMIT = 5;
 const RATE_LIMIT_WINDOW = 900; // 15 min
@@ -39,9 +41,20 @@ export async function POST(request: NextRequest) {
 
     if (!INTENTS.includes(intent)) {
       return NextResponse.json(
-        { error: "intent must be register or login" },
+        { error: "intent must be register, login or link" },
         { status: 400 }
       );
+    }
+
+    // link: attach a verified phone to the signed-in account (Google-created admins have none).
+    let linkUserId: string | null = null;
+    if (intent === "link") {
+      const session = await createServerSupabaseClient();
+      const {
+        data: { user },
+      } = await session.auth.getUser();
+      if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      linkUserId = user.id;
     }
 
     const rateLimit = await UpstashService.checkRateLimit(
@@ -56,14 +69,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // For login: only send OTP if the user already exists
-    if (intent === "login") {
+    if (intent === "login" || intent === "link") {
       const existing = await findUserIdByPhone(normalizedPhone);
-      if (!existing) {
-        return NextResponse.json(
-          { error: NO_ACCOUNT_MESSAGE },
-          { status: 404 }
-        );
+      if (intent === "login" && !existing) {
+        return NextResponse.json({ error: NO_ACCOUNT_MESSAGE }, { status: 404 });
+      }
+      if (intent === "link" && existing && existing.userId !== linkUserId) {
+        return NextResponse.json({ error: NUMBER_IN_USE_MESSAGE }, { status: 409 });
       }
     }
 
