@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
 import { findUserIdByPhone, findAuthUserByEmail, createPhoneUser } from "@/lib/auth-phone";
 import { validateEmail } from "@/lib/utils/validation";
+import { blockIfImpersonating } from "@/lib/utils/impersonation-guard";
 import {
   getAuthTokenFromEnv,
   validateOtp,
@@ -110,6 +111,9 @@ export async function POST(request: NextRequest) {
   // guest cannot burn someone's OTP attempts.
   let linkUserId: string | null = null;
   if (intent === "link") {
+    // An admin acting as a customer must never attach a phone to either account.
+    const blocked = await blockIfImpersonating();
+    if (blocked) return blocked;
     const session = await createServerSupabaseClient();
     const {
       data: { user },

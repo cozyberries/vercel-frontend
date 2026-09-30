@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { UpstashService } from "@/lib/upstash";
 import { findUserIdByPhone } from "@/lib/auth-phone";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { blockIfImpersonating } from "@/lib/utils/impersonation-guard";
 import {
   getAuthTokenFromEnv,
   sendOtp,
@@ -49,6 +50,9 @@ export async function POST(request: NextRequest) {
     // link: attach a verified phone to the signed-in account (Google-created admins have none).
     let linkUserId: string | null = null;
     if (intent === "link") {
+      // An admin acting as a customer must never attach a phone to either account.
+      const blocked = await blockIfImpersonating();
+      if (blocked) return blocked;
       const session = await createServerSupabaseClient();
       const {
         data: { user },

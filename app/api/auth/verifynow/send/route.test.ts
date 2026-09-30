@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
   existing: null as null | { userId: string; email: string },
   sendOtp: vi.fn(),
   allowed: true,
+  blocked: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase-server", () => ({
@@ -18,11 +19,13 @@ vi.mock("@/lib/verifynow", () => ({
   sendOtp: h.sendOtp,
   getVerifyNowUserMessage: (m: string) => ({ status: 502, error: m }),
 }));
+vi.mock("@/lib/utils/impersonation-guard", () => ({ blockIfImpersonating: h.blocked }));
 vi.mock("@/lib/upstash", () => ({
   UpstashService: { checkRateLimit: vi.fn(async () => ({ allowed: h.allowed })) },
 }));
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { POST } from "./route";
 
 const post = (body: unknown) =>
@@ -33,6 +36,8 @@ beforeEach(() => {
   h.existing = null;
   h.allowed = true;
   h.sendOtp.mockReset().mockResolvedValue({ verificationId: "v1" });
+  h.blocked.mockReset().mockResolvedValue(undefined);
+  vi.mocked(createServerSupabaseClient).mockClear();
 });
 
 describe("POST /api/auth/verifynow/send", () => {
@@ -60,6 +65,20 @@ describe("POST /api/auth/verifynow/send", () => {
     h.existing = { userId: "me", email: "me@x.in" };
     const res = await post({ phone: "9876543210", intent: "link" });
     expect(await res.json()).toEqual({ verificationId: "v1", timeout: 60 });
+  });
+  it("link is refused while impersonating", async () => {
+    h.user = { id: "me" };
+    h.blocked.mockResolvedValue(NextResponse.json({ error: "Forbidden while impersonating" }, { status: 403 }));
+    const res = await post({ phone: "9876543210", intent: "link" });
+    expect(res.status).toBe(403);
+    expect(h.sendOtp).not.toHaveBeenCalled();
+    expect(createServerSupabaseClient).not.toHaveBeenCalled();
+  });
+  it("login is not gated by the impersonation guard", async () => {
+    h.existing = { userId: "u1", email: "u1@x.in" };
+    const res = await post({ phone: "9876543210", intent: "login" });
+    expect(res.status).toBe(200);
+    expect(h.blocked).not.toHaveBeenCalled();
   });
   it("link: still honours the rate limit before sending an OTP", async () => {
     h.user = { id: "me" };

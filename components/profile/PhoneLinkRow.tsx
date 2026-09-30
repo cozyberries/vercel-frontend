@@ -28,7 +28,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 
 /** Lets any signed-in user attach a verified phone, so phone-OTP login works for them. */
 export default function PhoneLinkRow() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, impersonation } = useAuth();
   const { profile } = useProfile(user);
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>("idle");
@@ -38,7 +38,8 @@ export default function PhoneLinkRow() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!user) return null;
+  // The server refuses a link while impersonating; do not offer one.
+  if (!user || impersonation?.active) return null;
   const current = profile?.phone ? formatIndianPhoneDisplay(profile.phone) : null;
 
   const reset = () => {

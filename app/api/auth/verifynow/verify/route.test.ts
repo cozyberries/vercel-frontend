@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   validateOtp: vi.fn(),
   updateUserById: vi.fn(),
   generateLink: vi.fn(),
+  blocked: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase-server", () => ({
@@ -21,13 +22,14 @@ vi.mock("@/lib/auth-phone", () => ({
   findAuthUserByEmail: vi.fn(),
   createPhoneUser: vi.fn(),
 }));
+vi.mock("@/lib/utils/impersonation-guard", () => ({ blockIfImpersonating: h.blocked }));
 vi.mock("@/lib/verifynow", () => ({
   getAuthTokenFromEnv: () => "tok",
   validateOtp: h.validateOtp,
   getVerifyNowUserMessage: (m: string) => ({ status: 400, error: m }),
 }));
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { POST } from "./route";
 
 const post = (body: unknown) =>
@@ -40,12 +42,21 @@ beforeEach(() => {
   h.validateOtp.mockReset().mockResolvedValue(undefined);
   h.updateUserById.mockReset().mockResolvedValue({ data: {}, error: null });
   h.generateLink.mockReset();
+  h.blocked.mockReset().mockResolvedValue(undefined);
 });
 
 describe("POST /api/auth/verifynow/verify (link)", () => {
   it("401s without a session before validating the code", async () => {
     expect((await post(link)).status).toBe(401);
     expect(h.validateOtp).not.toHaveBeenCalled();
+  });
+  it("link is refused while impersonating", async () => {
+    h.user = { id: "me" };
+    h.blocked.mockResolvedValue(NextResponse.json({ error: "Forbidden while impersonating" }, { status: 403 }));
+    const res = await post(link);
+    expect(res.status).toBe(403);
+    expect(h.validateOtp).not.toHaveBeenCalled();
+    expect(h.updateUserById).not.toHaveBeenCalled();
   });
   it("400s a wrong code", async () => {
     h.user = { id: "me" };

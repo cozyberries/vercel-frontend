@@ -8,10 +8,15 @@ const h = vi.hoisted(() => ({
   phone: null as string | null,
   refreshProfile: vi.fn(async () => {}),
   userOverride: undefined as { id: string } | null | undefined,
+  impersonating: false,
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/components/supabase-auth-provider", () => ({
-  useAuth: () => ({ user: h.userOverride !== undefined ? h.userOverride : { id: "me" }, refreshProfile: h.refreshProfile }),
+  useAuth: () => ({
+    user: h.userOverride !== undefined ? h.userOverride : { id: "me" },
+    refreshProfile: h.refreshProfile,
+    impersonation: { active: h.impersonating },
+  }),
 }));
 vi.mock("@/hooks/useProfile", () => ({ useProfile: () => ({ profile: { phone: h.phone }, isLoading: false }) }));
 // `@/hooks/useApiQueries` instantiates `orderService` (Supabase client) at module load,
@@ -35,6 +40,7 @@ beforeEach(() => {
   h.phone = null;
   h.refreshProfile.mockClear();
   h.userOverride = undefined;
+  h.impersonating = false;
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -140,6 +146,13 @@ describe("PhoneLinkRow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Enter the code from the SMS");
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("renders nothing while impersonating", () => {
+    h.phone = "9876543210";
+    h.impersonating = true;
+    const { container } = renderRow();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders nothing when there is no signed-in user", () => {
