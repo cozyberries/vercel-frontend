@@ -38,8 +38,10 @@ vi.mock('@/lib/supabase-server', () => ({
   createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: h.state.user }, error: null }) } })),
   createAdminSupabaseClient: vi.fn(() => h.admin),
 }));
+vi.mock('@/lib/admin/dashboard-actions', () => ({ clearDashboardActions: vi.fn(async () => {}) }));
 
 import { PATCH } from './route';
+import { clearDashboardActions } from '@/lib/admin/dashboard-actions';
 import { NextRequest } from 'next/server';
 
 const patch = (body: unknown) =>
@@ -82,6 +84,7 @@ describe('PATCH /api/admin/pickup-orders/[id]', () => {
     expect(h.calls.updates[0]).toEqual({ status: 'ready_for_pickup' });
     expect(h.calls.updateEqs[0]).toEqual([['id', 'order-1'], ['fulfilment_method', 'pickup'], ['status', 'processing']]);
     expect(h.calls.events[0]).toEqual({ order_id: 'order-1', from_status: 'processing', to_status: 'ready_for_pickup', actor_admin_id: 'admin-1' });
+    expect(clearDashboardActions).toHaveBeenCalled();
   });
 
   it('409s when someone else moved the order first', async () => {

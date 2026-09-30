@@ -65,9 +65,11 @@ vi.mock("@/lib/delhivery/client", () => ({
   createShipment: vi.fn(async (payload: Row) => { h.state.createCalls.push(payload); return h.state.createResult; }),
   cancelShipment: vi.fn(async (wb: string) => { h.state.cancelCalls.push(wb); return h.state.cancelResult; }),
 }));
+vi.mock("@/lib/admin/dashboard-actions", () => ({ clearDashboardActions: vi.fn(async () => {}) }));
 
 import { POST, DELETE } from "./route";
 import CacheService from "@/lib/services/cache";
+import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
 
 const params = { params: Promise.resolve({ id: "o-1" }) };
 const post = (body: Row = {}) =>
@@ -159,6 +161,7 @@ describe("POST .../shipment", () => {
     expect(h.state.updates[0]).toMatchObject({
       tracking_number: "WB123", carrier_name: "Delhivery", status: "processing",
     });
+    expect(clearDashboardActions).toHaveBeenCalled();
   });
 
   it("422 when Delhivery rejects; no DB write", async () => {
@@ -207,6 +210,7 @@ describe("DELETE .../shipment", () => {
     expect(patch).toMatchObject({ tracking_number: null, carrier_name: null, delhivery_latest_status: null });
     expect(patch.delivery_notes).toContain("WB123");
     expect("status" in patch).toBe(false);
+    expect(clearDashboardActions).toHaveBeenCalled();
   });
 
   it("appends the cancellation note instead of clobbering existing delivery_notes", async () => {

@@ -3,6 +3,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server";
 import { isAdmin } from "@/lib/services/effective-user";
 import { allowedFromStatuses, parsePickupAction, PICKUP_TARGET_STATUS } from "@/lib/orders/pickup";
+import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -71,6 +72,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (eventError) {
       console.error("[pickup-orders] audit insert failed:", { eventError, orderId: id });
     }
+
+    await clearDashboardActions();
 
     return NextResponse.json({ order: updated[0] });
   } catch (error) {

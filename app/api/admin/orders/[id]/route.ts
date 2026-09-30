@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
 import { billUrl } from "@/lib/invoice/bill-link";
+import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
 import type { OrderStatus } from "@/lib/types/order";
 
 // Module-local on purpose: route files may only export handlers/config in Next 15.
@@ -136,6 +137,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   Promise.all([
     CacheService.clearAllOrders(userId),
     CacheService.clearOrderDetails(userId, id),
+    clearDashboardActions(),
   ]).catch((e) => console.error("[admin-orders] cache clear failed:", e));
 
   return NextResponse.json({ order: updated });

@@ -92,8 +92,10 @@ vi.mock("@/lib/services/cache", () => ({
     clearOrderDetails: vi.fn(async (uid: string, oid: string) => { h.state.cacheCalls.push(`one:${uid}:${oid}`); return true; }),
   },
 }));
+vi.mock("@/lib/admin/dashboard-actions", () => ({ clearDashboardActions: vi.fn(async () => {}) }));
 
 import { GET, PATCH } from "./route";
+import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
 
 const params = { params: Promise.resolve({ id: "o-1" }) };
 const patchReq = (body: Row) =>
@@ -156,6 +158,7 @@ describe("PATCH /api/admin/orders/[id]", () => {
       actor_admin_id: "admin-1",
     });
     expect(h.state.cacheCalls).toEqual(expect.arrayContaining(["all:u-1", "one:u-1:o-1"]));
+    expect(clearDashboardActions).toHaveBeenCalled();
   });
 
   it("409 when the status changed under us; no audit row, no cache clear", async () => {

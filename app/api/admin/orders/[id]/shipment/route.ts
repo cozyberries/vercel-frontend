@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import CacheService from "@/lib/services/cache";
+import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
 import { createShipment, cancelShipment } from "@/lib/delhivery/client";
 import { isDelhiveryOrder } from "@/lib/delhivery/utils";
 import type { CreateShipmentRequest } from "@/lib/delhivery/types";
@@ -157,6 +158,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
   clearCaches(order.user_id as string, id);
+  await clearDashboardActions();
 
   return NextResponse.json({
     success: true,
@@ -224,6 +226,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     );
   }
   clearCaches(order.user_id as string, id);
+  await clearDashboardActions();
 
   return NextResponse.json({
     success: true,
