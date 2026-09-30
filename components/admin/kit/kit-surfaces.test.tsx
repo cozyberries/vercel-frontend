@@ -1,7 +1,19 @@
 // @vitest-environment jsdom
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import { ListCard, ActionSheet } from "./index";
+
+function matchMediaStub(matches: boolean) {
+  return vi.fn().mockImplementation(() => ({
+    matches,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("ListCard", () => {
   it("renders title, meta, status and actions, and opens on tap", () => {
@@ -63,8 +75,11 @@ describe("ActionSheet", () => {
         <p>body</p>
       </ActionSheet>,
     );
-    expect(screen.getByRole("dialog", { name: "Order #1" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Order #1" });
+    expect(dialog).toBeInTheDocument();
     expect(screen.getByText("body")).toBeInTheDocument();
+    // Verify Sheet path: should have rounded-t-2xl for bottom sheet
+    expect(dialog).toHaveClass("rounded-t-2xl");
   });
 
   it("renders no dialog when open is false", () => {
@@ -99,5 +114,20 @@ describe("ActionSheet", () => {
     // The dialog should have both a title and sr-only description with the same text
     const allOrder4s = screen.getAllByText("Order #4");
     expect(allOrder4s).toHaveLength(2); // one h2 title, one sr-only description
+  });
+
+  it("renders as a dialog on desktop (lg and up)", () => {
+    vi.stubGlobal("matchMedia", matchMediaStub(true));
+    render(
+      <ActionSheet open onOpenChange={() => {}} title="Order #5">
+        <p>body</p>
+      </ActionSheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Order #5" });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText("body")).toBeInTheDocument();
+    // Verify Dialog path: should have sm:max-w-lg but NOT rounded-t-2xl
+    expect(dialog).toHaveClass("sm:max-w-lg");
+    expect(dialog).not.toHaveClass("rounded-t-2xl");
   });
 });
