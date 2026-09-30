@@ -24,7 +24,7 @@ describe("DashboardClient", () => {
     renderWithQuery();
     await waitFor(() => expect(screen.getByRole("link", { name: /Awaiting/ })).toHaveTextContent("3"));
     expect(screen.getByRole("link", { name: /Awaiting/ })).toHaveAttribute("href", "/admin/pickup-orders?tab=awaiting");
-    expect(screen.getByRole("link", { name: /To ship/ })).toHaveAttribute("href", "/admin/orders?fulfilment=delivery&status=processing");
+    expect(screen.getByRole("link", { name: /To ship/ })).toHaveAttribute("href", "/admin/orders?fulfilment=delivery&status=processing&days=all");
     expect(screen.getByRole("link", { name: /Ready for pickup/ })).toHaveAttribute("href", "/admin/pickup-orders?tab=ready");
     expect(screen.getByRole("link", { name: /Collected today/ })).toHaveTextContent("6");
   });

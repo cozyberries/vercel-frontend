@@ -48,6 +48,10 @@ const TO_SHIP_FILTERS: FilterCall[] = [
   ["in", "status", ["payment_confirmed", "processing"]],
   ["is", "tracking_number", null],
 ];
+const AWAITING_FILTERS: FilterCall[] = [
+  ["eq", "fulfilment_method", "pickup"],
+  ["in", "status", ["payment_pending", "verifying_payment"]],
+];
 const READY_FILTERS: FilterCall[] = [
   ["eq", "fulfilment_method", "pickup"],
   ["eq", "status", "ready_for_pickup"],
@@ -57,7 +61,7 @@ describe("countDashboardActions", () => {
   it("counts each tile and de-duplicates collected events per order", async () => {
     const admin = fakeAdmin(
       {
-        [JSON.stringify([["in", "status", ["payment_pending", "verifying_payment"]]])]: 3,
+        [JSON.stringify(AWAITING_FILTERS)]: 3,
         [JSON.stringify(TO_SHIP_FILTERS)]: 5,
         [JSON.stringify(READY_FILTERS)]: 2,
       },
@@ -82,9 +86,22 @@ describe("countDashboardActions", () => {
     expect(toShip.filters).toContainEqual(["is", "tracking_number", null]);
 
     const ready = admin.calls.find((c) =>
-      c.filters.some((f) => f[0] === "eq" && f[1] === "fulfilment_method" && f[2] === "pickup"),
+      c.filters.some((f) => f[0] === "eq" && f[1] === "status" && f[2] === "ready_for_pickup"),
     )!;
     expect(ready.filters).toContainEqual(["eq", "fulfilment_method", "pickup"]);
     expect(ready.filters).toContainEqual(["eq", "status", "ready_for_pickup"]);
+  });
+
+  it("counts only pickup orders as awaiting ✅, matching the pickup tab the tile opens", async () => {
+    const admin = fakeAdmin({ [JSON.stringify(AWAITING_FILTERS)]: 4 }, []);
+    const r = await countDashboardActions(admin as never, new Date("2026-09-30T06:00:00Z"));
+    expect(r.awaiting).toBe(4);
+    const awaiting = admin.calls.find((c) =>
+      c.filters.some((f) => f[0] === "in" && f[1] === "status" && JSON.stringify(f[2]) === JSON.stringify(["payment_pending", "verifying_payment"])),
+    )!;
+    expect(awaiting.table).toBe("orders");
+    expect(awaiting.head).toBe(true);
+    expect(awaiting.filters).toContainEqual(["eq", "fulfilment_method", "pickup"]);
+    expect(awaiting.filters).toContainEqual(["in", "status", ["payment_pending", "verifying_payment"]]);
   });
 });

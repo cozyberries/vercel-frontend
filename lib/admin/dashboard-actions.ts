@@ -23,7 +23,15 @@ async function countRows(q: PromiseLike<{ count: number | null; error: { message
 export async function countDashboardActions(admin: SupabaseClient, now: Date): Promise<DashboardActions> {
   const head = { count: "exact" as const, head: true };
   const [awaiting, toShip, ready, collectedEvents] = await Promise.all([
-    countRows(admin.from("orders").select("id", head).in("status", ["payment_pending", "verifying_payment"])),
+    // Pickup only, so the count matches the Awaiting ✅ pickup tab the tile opens.
+    // Delivery orders awaiting ✅ stay visible on /admin/orders.
+    countRows(
+      admin
+        .from("orders")
+        .select("id", head)
+        .eq("fulfilment_method", "pickup")
+        .in("status", ["payment_pending", "verifying_payment"]),
+    ),
     countRows(
       admin
         .from("orders")

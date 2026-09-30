@@ -38,7 +38,7 @@ export default function DashboardClient() {
       ) : a ? (
         <StatGrid>
           <StatTile label="Awaiting ✅" value={a.awaiting} tone="attention" href="/admin/pickup-orders?tab=awaiting" />
-          <StatTile label="To ship" value={a.to_ship} tone="attention" href="/admin/orders?fulfilment=delivery&status=processing" />
+          <StatTile label="To ship" value={a.to_ship} tone="attention" href="/admin/orders?fulfilment=delivery&status=processing&days=all" />
           <StatTile label="Ready for pickup" value={a.ready_for_pickup} href="/admin/pickup-orders?tab=ready" />
           <StatTile label="Collected today" value={a.collected_today} href="/admin/pickup-orders?tab=collected" />
         </StatGrid>

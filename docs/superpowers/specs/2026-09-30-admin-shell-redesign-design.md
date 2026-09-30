@@ -88,7 +88,7 @@ Server page inside the shell. Renders a `StatGrid` of action counts from a new
 
 | Tile | Query |
 |---|---|
-| Awaiting ✅ | orders with status `payment_pending` or `verifying_payment` |
+| Awaiting ✅ | pickup orders with status `payment_pending` or `verifying_payment` (delivery orders awaiting ✅ stay visible on Orders) |
 | To ship | `fulfilment_method = delivery`, status `payment_confirmed` or `processing`, no `tracking_number` |
 | Ready for pickup | `fulfilment_method = pickup`, status `ready_for_pickup` |
 | Collected today | distinct orders with a `collected` row in `order_status_events` since IST midnight (`startOfIstDay()`) |
