@@ -2,13 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2, Search, ShieldCheck, UserPlus } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { PageHeader } from "@/components/admin/kit";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +13,6 @@ import {
   validateEmail,
   validateFullName,
 } from "@/lib/utils/validation";
-
-interface UserPickerModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
 
 type SearchResult = {
   id: string;
@@ -38,10 +27,7 @@ type Tab = "search" | "create";
 const SEARCH_DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 2;
 
-export default function UserPickerModal({
-  open,
-  onOpenChange,
-}: UserPickerModalProps) {
+export default function ImpersonateClient() {
   const { refreshImpersonation } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("search");
 
@@ -89,14 +75,6 @@ export default function UserPickerModal({
     setExistingUserId(null);
   }, []);
 
-  useEffect(() => {
-    if (!open) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      resetAll();
-    }
-  }, [open, resetAll]);
-
   useEffect(
     () => () => {
       abortRef.current?.abort();
@@ -106,7 +84,6 @@ export default function UserPickerModal({
   );
 
   useEffect(() => {
-    if (!open) return;
     const t = setTimeout(() => {
       if (activeTab === "search") {
         searchInputRef.current?.focus();
@@ -115,7 +92,7 @@ export default function UserPickerModal({
       }
     }, 50);
     return () => clearTimeout(t);
-  }, [open, activeTab]);
+  }, [activeTab]);
 
   const runSearch = useCallback(async (raw: string) => {
     const trimmed = raw.trim();
@@ -163,12 +140,12 @@ export default function UserPickerModal({
   }, []);
 
   useEffect(() => {
-    if (!open || activeTab !== "search") return;
+    if (activeTab !== "search") return;
     const handle = setTimeout(() => {
       void runSearch(query);
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [query, open, activeTab, runSearch]);
+  }, [query, activeTab, runSearch]);
 
   const startImpersonation = useCallback(
     async (userId: string) => {
@@ -192,7 +169,6 @@ export default function UserPickerModal({
         abortRef.current?.abort();
         abortRef.current = null;
         await refreshImpersonation();
-        onOpenChange(false);
         window.location.href = "/";
       } catch (err) {
         setStartError(
@@ -202,7 +178,7 @@ export default function UserPickerModal({
         setStarting(false);
       }
     },
-    [onOpenChange, refreshImpersonation]
+    [refreshImpersonation]
   );
 
   const handleCreate = useCallback(
@@ -324,22 +300,18 @@ export default function UserPickerModal({
   }, [query, results.length, searchError, searching]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Impersonate user</DialogTitle>
-          <DialogDescription>
-            Find an existing user or create a new one, then continue in their
-            session.
-          </DialogDescription>
-        </DialogHeader>
-
+    <div>
+      <PageHeader
+        title="Impersonate user"
+        subtitle="Find an existing user or create a new one, then continue in their session."
+      />
+      <div className="rounded-2xl border border-cb-border bg-cb-white p-4">
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as Tab)}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2 rounded-xl bg-cb-linen">
             <TabsTrigger value="search">Find user</TabsTrigger>
             <TabsTrigger value="create">Create new user</TabsTrigger>
           </TabsList>
@@ -580,7 +552,7 @@ export default function UserPickerModal({
             </form>
           </TabsContent>
         </Tabs>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
