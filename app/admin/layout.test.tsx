@@ -13,16 +13,6 @@ vi.mock("@/lib/supabase-server", () => ({
     auth: { getUser: async () => ({ data: { user: h.user }, error: null }) },
   })),
 }));
-vi.mock("@/lib/services/effective-user", () => ({
-  isAdmin: (user: unknown) => {
-    const u = user as { app_metadata?: { role?: unknown } };
-    return u?.app_metadata?.role === "admin" || u?.app_metadata?.role === "super_admin";
-  },
-  isSuperAdmin: (user: unknown) => {
-    const u = user as { app_metadata?: { role?: unknown } };
-    return u?.app_metadata?.role === "super_admin";
-  },
-}));
 vi.mock("@/components/admin/AdminShell", async () => {
   const React = await import("react");
   return {
@@ -59,5 +49,11 @@ describe("admin layout gate", () => {
     const element = await AdminLayout({ children: null });
     renderToString(element as any);
     expect(h.shellProps).toMatchObject({ role: "super_admin", hasPhone: true, initials: "S" });
+  });
+  it("defaults initials to A when user has no full_name and no email", async () => {
+    h.user = { id: "n", email: undefined, phone: "", app_metadata: { role: "admin" }, user_metadata: {} };
+    const element = await AdminLayout({ children: null });
+    renderToString(element as any);
+    expect(h.shellProps).toMatchObject({ initials: "A" });
   });
 });
