@@ -67,8 +67,34 @@ describe("POST /api/auth/verifynow/verify (link)", () => {
   it("409s a number on another account even after a valid code", async () => {
     h.user = { id: "me" };
     h.existing = { userId: "other", email: "o@x.in" };
-    expect((await post(link)).status).toBe(409);
+    const res = await post(link);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("This number is already on another account");
     expect(h.updateUserById).not.toHaveBeenCalled();
+  });
+  it("409s with the in-use message when GoTrue reports phone_exists (race after the check)", async () => {
+    h.user = { id: "me" };
+    h.updateUserById.mockResolvedValue({
+      data: {},
+      error: { code: "phone_exists", message: "Phone number already registered by another user", status: 422 },
+    });
+    const res = await post(link);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This number is already on another account" });
+  });
+  it("409s on a phone-exists message even without the code", async () => {
+    h.user = { id: "me" };
+    h.updateUserById.mockResolvedValue({ data: {}, error: { message: "A user with this phone number has already been registered" } });
+    const res = await post(link);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("This number is already on another account");
+  });
+  it("500s with link-specific copy (never the sign-in message) on any other write failure", async () => {
+    h.user = { id: "me" };
+    h.updateUserById.mockResolvedValue({ data: {}, error: { code: "unexpected_failure", message: "Database error updating user" } });
+    const res = await post(link);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Could not add this number. Please try again." });
   });
   it("sets the phone on the caller only and returns no redirect", async () => {
     h.user = { id: "me" };

@@ -22,6 +22,13 @@ export const maxDuration = 15;
  * 6. Link: signed-in user attaches a verified phone; no magic link is issued.
  */
 const INTENTS = ["register", "login", "link"] as const;
+const NUMBER_IN_USE_MESSAGE = "This number is already on another account";
+const LINK_FAILED_MESSAGE = "Could not add this number. Please try again.";
+
+/** GoTrue refuses a phone another account took between our check and the write. */
+function isPhoneExistsError(error: { code?: string; message?: string }): boolean {
+  return error.code === "phone_exists" || /phone.*(exists|already)/i.test(error.message ?? "");
+}
 
 /**
  * Origin for redirect URLs (phone callback). Callback must hit the frontend so the
@@ -157,14 +164,21 @@ export async function POST(request: NextRequest) {
     if (intent === "link" && linkUserId) {
       const existing = await findUserIdByPhone(normalizedPhone);
       if (existing && existing.userId !== linkUserId) {
-        return NextResponse.json({ error: "This number is already on another account" }, { status: 409 });
+        return NextResponse.json({ error: NUMBER_IN_USE_MESSAGE }, { status: 409 });
       }
       const adminSupabase = createAdminSupabaseClient();
       const { error: linkError } = await adminSupabase.auth.admin.updateUserById(linkUserId, {
         phone: normalizedPhone,
         phone_confirm: true,
       });
-      if (linkError) throw new Error(`Failed to link phone: ${linkError.message}`);
+      if (linkError) {
+        console.error("[verifynow/verify] link updateUserById failed:", linkError.code, linkError.message);
+        // Another account can take the number between findUserIdByPhone and this write.
+        if (isPhoneExistsError(linkError)) {
+          return NextResponse.json({ error: NUMBER_IN_USE_MESSAGE }, { status: 409 });
+        }
+        return NextResponse.json({ error: LINK_FAILED_MESSAGE }, { status: 500 });
+      }
       return NextResponse.json({ ok: true, phone: normalizedPhone });
     }
 
