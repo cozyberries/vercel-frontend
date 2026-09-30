@@ -1,7 +1,7 @@
 # Admin shell and redesign — design
 
 **Date:** 2026-09-30
-**Status:** approved in brainstorm, awaiting spec review
+**Status:** approved 2026-09-30; plan at `docs/superpowers/plans/2026-09-30-admin-shell-redesign.md`
 **Branch:** `feature/admin-shell-redesign`
 
 ## Problem
@@ -43,7 +43,7 @@ their own spec and drop into this shell.
 `app/admin/layout.tsx` is a server component. It calls `getUser()` and
 `isAdmin()` once:
 
-- no session → `redirect("/login?redirect=<pathname>")`
+- no session → `redirect("/login?redirect=/admin")` (a layout cannot read the pathname; each page's own gate keeps the precise redirect)
 - session but not admin → `redirect("/")` (non-admins must not learn the
   section exists)
 
@@ -73,9 +73,9 @@ Phone-first. Three bands:
 3. **Bottom bar** (phones only, hidden at `lg`): Dashboard, Orders, Pickups,
    Refills.
 
-The label print page keeps its own bare layout: `app/admin/print/layout.tsx`
-opts out of the shell by rendering children only. The gate still runs because
-the parent layout runs first.
+The label print page gets no shell: `AdminShell` renders bare children when the
+pathname starts with `/admin/print` (a nested layout cannot remove its parent's
+shell). The gate still runs because the admin layout wraps it.
 
 A dismissible banner "Add your phone to sign in by mobile" shows while the
 signed-in admin has no `auth.users.phone` (Section 4). Dismissal is stored in
@@ -91,7 +91,7 @@ Server page inside the shell. Renders a `StatGrid` of action counts from a new
 | Awaiting ✅ | orders with status `payment_pending` or `verifying_payment` |
 | To ship | `fulfilment_method = delivery`, status `payment_confirmed` or `processing`, no `tracking_number` |
 | Ready for pickup | `fulfilment_method = pickup`, status `ready_for_pickup` |
-| Collected today | pickup orders whose latest `collected` event is today IST (reuse `collectedAt()`) |
+| Collected today | distinct orders with a `collected` row in `order_status_events` since IST midnight (`startOfIstDay()`) |
 
 Each tile links to the matching page and filter. The route is cached in Redis
 for 60 s under `admin:dashboard:actions`, invalidated by the orders PATCH and
@@ -288,7 +288,7 @@ No migration, so `db:lint` and `db:probe` are unaffected.
 
 ## Files
 
-New: `app/admin/layout.tsx`, `app/admin/page.tsx`, `app/admin/print/layout.tsx`,
+New: `app/admin/layout.tsx`, `app/admin/page.tsx`,
 `app/admin/impersonate/page.tsx` + client, `app/admin/admins/page.tsx` + client,
 `app/api/admin/admins/route.ts`, `app/api/admin/admins/[id]/route.ts`,
 `app/api/admin/dashboard/actions/route.ts`, `components/admin/AdminShell.tsx`,
