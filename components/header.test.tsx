@@ -10,9 +10,12 @@ const h = vi.hoisted(() => ({
   user: null as null | { id: string; email: string },
   fullName: "Chandni",
   unread: 2,
+  isAdmin: false,
 }));
 
-vi.mock("@/components/supabase-auth-provider", () => ({ useAuth: () => ({ user: h.user }) }));
+vi.mock("@/components/supabase-auth-provider", () => ({
+  useAuth: () => ({ user: h.user, isAdmin: h.isAdmin ?? false }),
+}));
 vi.mock("@/hooks/useApiQueries", () => ({
   useNotifications: (userId?: string) => ({
     data: userId ? Array.from({ length: h.unread }, (_, i) => ({ id: `n${i}`, is_read: false })) : undefined,
@@ -75,5 +78,19 @@ describe("Header hydration", () => {
     expect(hydrationErrors).toEqual([]);
     expect(container.querySelector('[aria-label="Toggle notifications"]')).not.toBeNull();
     expect(container.querySelector('a[href="/profile"]')?.textContent).toBe("");
+  });
+
+  it("shows one Admin entry only to admins", async () => {
+    h.isAdmin = true;
+    const { container } = await hydrateWithUserKnownInBrowser(signedIn);
+    const link = container.querySelector('a[aria-label="Open admin"]');
+    expect(link).not.toBeNull();
+    expect(link).toHaveAttribute("href", "/admin");
+  });
+
+  it("hides the Admin entry from customers", async () => {
+    h.isAdmin = false;
+    const { container } = await hydrateWithUserKnownInBrowser(signedIn);
+    expect(container.querySelector('a[aria-label="Open admin"]')).toBeNull();
   });
 });

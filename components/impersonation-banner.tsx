@@ -41,13 +41,13 @@ export function ImpersonationBanner() {
     setIsExiting(true);
     try {
       await stopImpersonation();
-      // Hard reload so every client hook (cart, wishlist, profile) refetches
-      // against the admin's own session instead of reusing state that was
-      // cached while impersonating. `router.refresh()` only re-runs Server
+      // Full navigation (not `router.push`) so every client cache refetches
+      // under the admin's own session, landing on the list where the
+      // just-placed order appears. `router.refresh()` only re-runs Server
       // Components and leaves client caches untouched, which would keep
       // showing the target user's data after exit.
       if (typeof window !== "undefined") {
-        window.location.reload();
+        window.location.assign("/admin/on-behalf-orders");
         return;
       }
     } finally {

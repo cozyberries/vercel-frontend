@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, ChevronRight, Home, Mail, Instagram, UserPlus, ClipboardList, Store, PackagePlus, ListOrdered } from "lucide-react";
+import { Menu, ChevronRight, Home, Mail, Instagram, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import { useAuth } from "@/components/supabase-auth-provider";
 import { usePreloadedData } from "@/components/data-preloader";
 import { useAgeOptions } from "@/hooks/useApiQueries";
 import { SOCIAL_CONTACTS } from "@/lib/constants/social";
-import UserPickerModal from "@/components/admin/UserPickerModal";
 
 // Animation variants
 const containerVariants = {
@@ -54,7 +53,6 @@ export const HamburgerSheet = () => {
   const [open, setOpen] = useState(false);
   const [expandedDropdowns, setExpandedDropdowns] = useState<string[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   // React Query: deduplicates with all other useAgeOptions() callers — no extra network request
   const { data: ageOptions = [], isError: ageOptionsError } = useAgeOptions();
 
@@ -277,46 +275,11 @@ export const HamburgerSheet = () => {
               </MenuItem>
 
               {isAdmin && (
-                <motion.div
-                  className="mt-6 pt-4 border-t border-gray-200"
-                  variants={itemVariants}
-                >
-                  <div className="px-3 py-2 text-sm font-semibold text-foreground mb-2">
-                    Admin
-                  </div>
-                  <MenuItem
-                    onClick={() => {
-                      setOpen(false);
-                      setPickerOpen(true);
-                    }}
-                  >
+                <motion.div className="mt-6 pt-4 border-t border-gray-200" variants={itemVariants}>
+                  <MenuItem href="/admin">
                     <div className="flex items-center">
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Impersonate user
-                    </div>
-                  </MenuItem>
-                  <MenuItem href="/admin/orders">
-                    <div className="flex items-center">
-                      <ListOrdered className="h-4 w-4 mr-2" />
-                      Orders
-                    </div>
-                  </MenuItem>
-                  <MenuItem href="/admin/on-behalf-orders">
-                    <div className="flex items-center">
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      On-behalf orders
-                    </div>
-                  </MenuItem>
-                  <MenuItem href="/admin/pickup-orders">
-                    <div className="flex items-center">
-                      <Store className="h-4 w-4 mr-2" />
-                      Stall pickups
-                    </div>
-                  </MenuItem>
-                  <MenuItem href="/admin/stall-refills">
-                    <div className="flex items-center">
-                      <PackagePlus className="h-4 w-4 mr-2" />
-                      Stall refills
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                      Admin
                     </div>
                   </MenuItem>
                 </motion.div>
@@ -478,9 +441,6 @@ export const HamburgerSheet = () => {
         </div>
       </SheetContent>
     </Sheet>
-    {isAdmin && (
-      <UserPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
-    )}
     </>
   );
 };

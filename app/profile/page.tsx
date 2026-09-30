@@ -2,19 +2,18 @@
 
 import React from "react";
 import Link from "next/link";
-import { User, LogIn, ChevronRight, LogOut, UserPlus, ClipboardList, Store, PackagePlus } from "lucide-react";
+import { User, LogIn, ChevronRight, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import { formatIndianPhoneDisplay } from "@/lib/utils/validation";
 import AccountMenuList from "@/components/AccountMenuList";
-import UserPickerModal from "@/components/admin/UserPickerModal";
+import PhoneLinkRow from "@/components/profile/PhoneLinkRow";
 import { useProfile } from "@/hooks/useProfile";
 import { SOCIAL_CONTACTS } from "@/lib/constants/social";
 
 export default function ProfilePage() {
   const { user, isAdmin, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
-  const [pickerOpen, setPickerOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
   const { profile, isLoading } = useProfile(user);
@@ -158,36 +157,17 @@ export default function ProfilePage() {
 
       <AccountMenuList />
 
+      <PhoneLinkRow />
+
       {isAdmin && (
-        <div className="mt-6 space-y-2">
-          <h3 className="text-sm font-bold text-cb-fg mb-3">Admin</h3>
-          <Button
-            variant="outline"
-            onClick={() => setPickerOpen(true)}
-            className="w-full rounded-full border-cb-border"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Impersonate user
-          </Button>
-          <Button variant="outline" asChild className="w-full rounded-full border-cb-border">
-            <Link href="/admin/on-behalf-orders">
-              <ClipboardList className="w-4 h-4 mr-2" />
-              On-behalf orders
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="w-full rounded-full border-cb-border">
-            <Link href="/admin/pickup-orders">
-              <Store className="w-4 h-4 mr-2" />
-              Stall pickups
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="w-full rounded-full border-cb-border">
-            <Link href="/admin/stall-refills">
-              <PackagePlus className="w-4 h-4 mr-2" />
-              Stall refills
-            </Link>
-          </Button>
-        </div>
+        <Link
+          href="/admin"
+          className="mt-6 flex items-center gap-3 rounded-2xl border border-cb-border bg-cb-white px-4 py-4 text-cb-fg"
+        >
+          <ShieldCheck className="h-5 w-5 shrink-0" />
+          <span className="flex-1 text-[15px] font-semibold">Open admin</span>
+          <ChevronRight className="h-4 w-4 text-cb-muted-fg shrink-0" />
+        </Link>
       )}
 
       <Button
@@ -203,8 +183,6 @@ export default function ProfilePage() {
       <p className="mt-6 text-center text-sm text-cb-muted-fg">
         CozyBerries · RT Nagar, Bangalore – 560032
       </p>
-
-      {isAdmin && <UserPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />}
     </div>
   );
 }

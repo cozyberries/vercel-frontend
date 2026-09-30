@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { FOCUS_SEARCH_EVENT, searchIconAction } from "@/lib/utils/search-navigation";
 import { navigation } from "@/app/assets/data";
 import Image from "next/image";
-import { User, Search, Heart, ShoppingBag } from "lucide-react";
+import { User, Search, Heart, ShoppingBag, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import NotificationCenter from "@/components/NotificationCenter";
 import { images } from "@/app/assets/images";
@@ -23,7 +23,7 @@ export default function Header() {
   const { wishlist } = useWishlist();
   const { cart } = useCart();
   const cartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: profileData } = useProfileCombined(user?.id);
   const initials = (profileData?.profile?.full_name || user?.email || "")
     .trim()
@@ -123,6 +123,18 @@ export default function Header() {
                 )}
               </Button>
             </Link>
+            {hydrated && isAdmin && (
+              <Link href="/admin" aria-label="Open admin">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 lg:h-7 lg:w-7 rounded-full hover:bg-transparent"
+                  tabIndex={-1}
+                >
+                  <ShieldCheck className="!w-5 !h-5 text-cb-fg" />
+                </Button>
+              </Link>
+            )}
             <Link href="/profile">
               {hydrated && user && initials ? (
                 <span
