@@ -1,37 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { formatOrderStatus, getOrderStatusColor } from "@/lib/utils/order-status";
+import { formatOrderStatus } from "@/lib/utils/order-status";
 import {
-  api, listUrl, matchesSearch, PAGE_SIZE,
+  PageHeader, FilterChips, ListCard, EmptyState, LoadingList, ErrorBanner, type FilterChip,
+} from "@/components/admin/kit";
+import {
+  api, ApiError, listUrl, matchesSearch, PAGE_SIZE,
   type AdminOrdersListResponse, type OrderFilters,
 } from "./api";
 import OrderDetailDialog from "./order-detail-dialog";
 import NotificationsPanel from "./notifications-panel";
 
-const STATUS_FILTERS = ["all", "payment_pending", "verifying_payment", "payment_confirmed", "processing", "ready_for_pickup", "collected", "shipped", "delivered", "cancelled", "refunded"] as const;
-const DAY_PRESETS: { label: string; days: number | null }[] = [
-  { label: "7d", days: 7 }, { label: "30d", days: 30 }, { label: "90d", days: 90 }, { label: "All", days: null },
+const STATUSES = ["payment_pending", "verifying_payment", "payment_confirmed", "processing", "ready_for_pickup", "collected", "shipped", "delivered", "cancelled", "refunded"] as const;
+const STATUS_CHIPS: FilterChip<string>[] = [{ value: "all", label: "All statuses" }, ...STATUSES.map((s) => ({ value: s, label: formatOrderStatus(s) }))];
+const FULFILMENT_CHIPS: FilterChip<string>[] = [
+  { value: "all", label: "All" }, { value: "delivery", label: "Delivery" }, { value: "pickup", label: "Pickup" },
 ];
+const DAY_CHIPS: FilterChip<string>[] = [
+  { value: "7", label: "7d" }, { value: "30", label: "30d" }, { value: "90", label: "90d" }, { value: "all", label: "All" },
+];
+const DEFAULT_FILTERS: OrderFilters = { status: "all", fulfilment: "all", days: 7, offset: 0 };
+
+/** Seeds from ?status=&fulfilment=&days= so dashboard tiles can deep-link. Read in an effect: no useSearchParams. */
+export function filtersFromLocation(): OrderFilters {
+  if (typeof window === "undefined") return DEFAULT_FILTERS;
+  const p = new URLSearchParams(window.location.search);
+  const status = p.get("status");
+  const fulfilment = p.get("fulfilment");
+  const days = p.get("days");
+  return {
+    status: status && (STATUSES as readonly string[]).includes(status) ? status : "all",
+    fulfilment: fulfilment === "delivery" || fulfilment === "pickup" ? fulfilment : "all",
+    days: days === "all" ? null : days && ["7", "30", "90"].includes(days) ? Number(days) : 7,
+    offset: 0,
+  };
+}
 
 export default function OrdersClient() {
-  const [filters, setFilters] = useState<OrderFilters>({ status: "all", fulfilment: "all", days: 7, offset: 0 });
+  const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
+  const [seeded, setSeeded] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data, isPending, error } = useQuery<AdminOrdersListResponse>({
+  useEffect(() => {
+    setFilters(filtersFromLocation());
+    setSeeded(true);
+  }, []);
+
+  const { data, isPending, error, refetch, isFetching } = useQuery<AdminOrdersListResponse, ApiError>({
     queryKey: ["admin", "orders", filters],
     queryFn: () => api<AdminOrdersListResponse>(listUrl(filters)),
+    enabled: seeded,
     staleTime: 30_000,
     // Defense in depth alongside the id-keyed resync in OrderDetailDialog: a
-    // window-focus refetch here would hand the open dialog a new order
-    // object for the same row, which must never wipe an admin's in-progress
-    // edit even if some future change to the dialog reintroduces the bug.
+    // window-focus refetch here would hand the open sheet a new order object
+    // for the same row, which must never wipe an admin's in-progress edit.
     refetchOnWindowFocus: false,
   });
 
@@ -39,104 +67,79 @@ export default function OrdersClient() {
   const total = data?.total ?? 0;
   const selected = orders.find((o) => o.id === selectedId) ?? null;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+  const set = (patch: Partial<OrderFilters>) => setFilters((f) => ({ ...f, ...patch, offset: 0 }));
+  const authError = error && (error.status === 401 || error.status === 403);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Orders</h1>
-        <NotificationsPanel />
-      </div>
+    <div className="space-y-3">
+      <PageHeader title="Orders" subtitle={`${total} in range`} />
+      <NotificationsPanel />
 
-      <div className="flex flex-wrap gap-2">
-        <select
-          aria-label="Status filter"
-          className="h-9 rounded-md border bg-background px-2 text-sm"
-          value={filters.status}
-          onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value, offset: 0 }))}
-        >
-          {STATUS_FILTERS.map((s) => (
-            <option key={s} value={s}>{s === "all" ? "All statuses" : formatOrderStatus(s)}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Fulfilment filter"
-          className="h-9 rounded-md border bg-background px-2 text-sm"
-          value={filters.fulfilment}
-          onChange={(e) => setFilters((f) => ({ ...f, fulfilment: e.target.value, offset: 0 }))}
-        >
-          <option value="all">Delivery + pickup</option>
-          <option value="delivery">Delivery</option>
-          <option value="pickup">Pickup</option>
-        </select>
-        <div className="flex gap-1">
-          {DAY_PRESETS.map((p) => (
-            <Button
-              key={p.label}
-              size="sm"
-              variant={filters.days === p.days ? "default" : "outline"}
-              onClick={() => setFilters((f) => ({ ...f, days: p.days, offset: 0 }))}
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
+      <FilterChips label="Status filter" chips={STATUS_CHIPS} value={filters.status} onChange={(v) => set({ status: v })} />
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterChips label="Fulfilment filter" chips={FULFILMENT_CHIPS} value={filters.fulfilment} onChange={(v) => set({ fulfilment: v })} />
+        <FilterChips
+          label="Date range"
+          chips={DAY_CHIPS}
+          value={filters.days === null ? "all" : String(filters.days)}
+          onChange={(v) => set({ days: v === "all" ? null : Number(v) })}
+        />
       </div>
 
       <Input
         placeholder="Search order #, AWB, name, phone"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        className="rounded-xl bg-cb-white"
       />
 
-      {isPending && <p className="text-sm text-muted-foreground">Loading orders…</p>}
-      {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
+      {error && (
+        <ErrorBanner
+          message={error.message}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+          loginRedirect={authError ? "/admin/orders" : undefined}
+        />
+      )}
+      {isPending && seeded && <LoadingList label="Loading orders" />}
 
-      <ul className="space-y-2">
-        {orders.map((o) => (
-          <li key={o.id}>
-            <button
-              className="w-full rounded-lg border p-3 text-left hover:bg-accent"
-              onClick={() => setSelectedId(o.id)}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-sm">#{o.order_number || o.id.slice(0, 8)}</span>
-                <Badge className={getOrderStatusColor(o.status)}>{formatOrderStatus(o.status)}</Badge>
-              </div>
-              <div className="mt-1 flex items-center justify-between text-sm text-muted-foreground">
-                <span>{o.shipping_address?.full_name || "—"} · {o.items.length} item{o.items.length === 1 ? "" : "s"}</span>
-                <span>₹{o.total_amount ?? 0}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{o.fulfilment_method === "pickup" ? "Stall pickup" : "Delivery"}</span>
-                {o.tracking_number && <span>{o.carrier_name || "AWB"}: {o.tracking_number}</span>}
-              </div>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {!isPending && orders.length === 0 && (
-        <p className="text-sm text-muted-foreground">No orders match.</p>
+      {!isPending && orders.length === 0 && !error && (
+        <EmptyState title="No orders match" hint="Try a wider date range or clear the search." />
       )}
 
-      <div className="flex items-center justify-between text-sm">
-        <Button
-          size="sm" variant="outline"
-          disabled={filters.offset === 0}
-          onClick={() => setFilters((f) => ({ ...f, offset: Math.max(0, f.offset - PAGE_SIZE) }))}
-        >
-          Previous
-        </Button>
-        <span className="text-muted-foreground">
-          {filters.offset + 1}–{Math.min(filters.offset + PAGE_SIZE, total)} of {total}
-        </span>
-        <Button
-          size="sm" variant="outline"
-          disabled={filters.offset + PAGE_SIZE >= total}
-          onClick={() => setFilters((f) => ({ ...f, offset: f.offset + PAGE_SIZE }))}
-        >
-          Next
-        </Button>
-      </div>
+      <ul className="space-y-3">
+        {orders.map((o) => (
+          <ListCard
+            key={o.id}
+            testId={`order-${o.id}`}
+            title={`#${o.order_number || o.id.slice(0, 8)}`}
+            status={o.status}
+            meta={`${o.shipping_address?.full_name || "—"} · ${o.items.length} item${o.items.length === 1 ? "" : "s"} · ₹${o.total_amount ?? 0}`}
+            onClick={() => setSelectedId(o.id)}
+          >
+            <p className="flex justify-between text-xs text-cb-muted-fg">
+              <span>{o.fulfilment_method === "pickup" ? "Stall pickup" : "Delivery"}</span>
+              {o.tracking_number && <span>{o.carrier_name || "AWB"}: {o.tracking_number}</span>}
+            </p>
+          </ListCard>
+        ))}
+      </ul>
+
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-sm">
+          <Button size="sm" variant="outline" className="rounded-full" disabled={filters.offset === 0}
+            onClick={() => setFilters((f) => ({ ...f, offset: Math.max(0, f.offset - PAGE_SIZE) }))}>
+            Previous
+          </Button>
+          <span className="text-cb-muted-fg">
+            {filters.offset + 1}–{Math.min(filters.offset + PAGE_SIZE, total)} of {total}
+          </span>
+          <Button size="sm" variant="outline" className="rounded-full" disabled={filters.offset + PAGE_SIZE >= total}
+            onClick={() => setFilters((f) => ({ ...f, offset: f.offset + PAGE_SIZE }))}>
+            Next
+          </Button>
+        </div>
+      )}
 
       <OrderDetailDialog order={selected} onClose={() => setSelectedId(null)} onChanged={refresh} />
     </div>

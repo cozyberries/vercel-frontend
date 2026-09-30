@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { api, ApiError, type AdminNotification } from "./api";
 
 export default function NotificationsPanel() {
@@ -26,32 +26,40 @@ export default function NotificationsPanel() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Failed to mark read"),
   });
 
+  const notifications = data?.notifications ?? [];
   const unread = data?.unread ?? 0;
   return (
-    <div className="relative">
-      <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-        Scans{unread > 0 ? ` (${unread})` : ""}
-      </Button>
-      {open && (
-        <div className="absolute right-0 z-10 mt-1 w-80 rounded-md border bg-background p-2 shadow-md">
-          {(data?.notifications ?? []).length === 0 && (
-            <p className="p-2 text-xs text-muted-foreground">No shipment notifications.</p>
+    <section className="rounded-2xl border border-cb-border bg-cb-white">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-cb-fg"
+      >
+        <span>
+          Delhivery scans
+          {unread > 0 && (
+            <span className="ml-2 rounded-full bg-cb-terracotta px-1.5 text-xs text-white">{unread}</span>
           )}
-          <ul className="max-h-72 space-y-1 overflow-y-auto">
-            {(data?.notifications ?? []).map((n) => (
-              <li key={n.id} className={`rounded p-2 text-xs ${n.read ? "opacity-60" : "bg-accent"}`}>
-                <p className="font-medium">{n.title}</p>
-                <p className="text-muted-foreground">{n.message}</p>
-                {!n.read && (
-                  <button className="mt-1 underline" onClick={() => markRead.mutate(n.id)}>
-                    Mark read
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+        </span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {open && (
+        <ul className="max-h-72 space-y-1 overflow-y-auto border-t border-cb-border p-2">
+          {notifications.length === 0 && <li className="p-2 text-xs text-cb-muted-fg">No shipment notifications.</li>}
+          {notifications.map((n) => (
+            <li key={n.id} className={`rounded-xl p-2 text-xs ${n.read ? "opacity-60" : "bg-cb-linen"}`}>
+              <p className="font-medium">{n.title}</p>
+              <p className="text-cb-muted-fg">{n.message}</p>
+              {!n.read && (
+                <button className="mt-1 underline" onClick={() => markRead.mutate(n.id)}>
+                  Mark read
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+    </section>
   );
 }

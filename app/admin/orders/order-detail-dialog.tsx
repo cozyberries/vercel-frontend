@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ActionSheet } from "@/components/admin/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatOrderStatus } from "@/lib/utils/order-status";
@@ -87,84 +87,73 @@ export default function OrderDetailDialog({
   const hasChanges = Object.keys(changedFields).length > 0;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>#{order.order_number || order.id.slice(0, 8)}</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-3 text-sm">
-          <div>
-            <p className="font-medium">{order.shipping_address?.full_name || "—"}</p>
-            <p className="text-muted-foreground">
-              {order.shipping_address?.phone || order.customer_phone || ""} · ₹{order.total_amount ?? 0}
-            </p>
-            <ul className="mt-1 text-muted-foreground">
-              {order.items.map((it, i) => (
-                <li key={it.id ?? i}>{it.sku || "item"}{it.size ? ` · ${it.size}` : ""} × {it.quantity ?? 1}</li>
-              ))}
-            </ul>
-          </div>
-
-          <label className="block">
-            <span className="text-xs text-muted-foreground">Status</span>
-            <select
-              className="mt-1 h-9 w-full rounded-md border bg-background px-2"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as OrderStatus)}
-            >
-              {ALL_STATUSES.map((s) => (
-                <option key={s} value={s} disabled={s === "verifying_payment" && order.status !== "verifying_payment"}>
-                  {formatOrderStatus(s)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-muted-foreground">Tracking number</span>
-            <Input value={tracking} onChange={(e) => setTracking(e.target.value)} />
-          </label>
-          <label className="block">
-            <span className="text-xs text-muted-foreground">Delivery notes</span>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm" disabled={busy || !hasChanges}
-              onClick={() => save.mutate(changedFields)}
-            >
-              Save
-            </Button>
-            {canCreateShipment && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => createShipment.mutate()}>
-                Create Delhivery shipment
-              </Button>
-            )}
-            {isDelhivery && (
-              <>
-                <Button
-                  size="sm" variant="outline"
-                  onClick={() => window.open(`/admin/print/label/${order.order_number || order.id}?autoPrint=true`, "_blank")}
-                >
-                  Print label
-                </Button>
-                <Button size="sm" variant="destructive" disabled={busy} onClick={() => cancelShipment.mutate()}>
-                  Cancel shipment
-                </Button>
-              </>
-            )}
-            {order.bill_url && (
-              <Button size="sm" variant="outline" onClick={() => window.open(order.bill_url!, "_blank")}>
-                Bill PDF
-              </Button>
-            )}
-          </div>
-
-          {isDelhivery && <TrackingPanel order={order} />}
+    <ActionSheet open onOpenChange={(open) => !open && onClose()} title={`#${order.order_number || order.id.slice(0, 8)}`}>
+      <div className="space-y-3 text-sm">
+        <div>
+          <p className="font-medium text-cb-fg">{order.shipping_address?.full_name || "—"}</p>
+          <p className="text-cb-muted-fg">
+            {order.shipping_address?.phone || order.customer_phone || ""} · ₹{order.total_amount ?? 0}
+          </p>
+          <ul className="mt-1 text-cb-muted-fg">
+            {order.items.map((it, i) => (
+              <li key={it.id ?? i}>{it.sku || "item"}{it.size ? ` · ${it.size}` : ""} × {it.quantity ?? 1}</li>
+            ))}
+          </ul>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <label className="block">
+          <span className="text-xs text-cb-muted-fg">Status</span>
+          <select
+            className="mt-1 h-10 w-full rounded-xl border border-cb-border bg-cb-white px-2"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as OrderStatus)}
+          >
+            {ALL_STATUSES.map((s) => (
+              <option key={s} value={s} disabled={s === "verifying_payment" && order.status !== "verifying_payment"}>
+                {formatOrderStatus(s)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs text-cb-muted-fg">Tracking number</span>
+          <Input className="rounded-xl" value={tracking} onChange={(e) => setTracking(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="text-xs text-cb-muted-fg">Delivery notes</span>
+          <Input className="rounded-xl" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </label>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Button className="rounded-full" disabled={busy || !hasChanges} onClick={() => save.mutate(changedFields)}>
+            Save
+          </Button>
+          {canCreateShipment && (
+            <Button variant="outline" className="rounded-full" disabled={busy} onClick={() => createShipment.mutate()}>
+              Create Delhivery shipment
+            </Button>
+          )}
+          {isDelhivery && (
+            <>
+              <Button variant="outline" className="rounded-full"
+                onClick={() => window.open(`/admin/print/label/${order.order_number || order.id}?autoPrint=true`, "_blank")}>
+                Print label
+              </Button>
+              <Button variant="destructive" className="rounded-full" disabled={busy} onClick={() => cancelShipment.mutate()}>
+                Cancel shipment
+              </Button>
+            </>
+          )}
+          {order.bill_url && (
+            <Button variant="outline" className="rounded-full" onClick={() => window.open(order.bill_url!, "_blank")}>
+              Bill PDF
+            </Button>
+          )}
+        </div>
+
+        {isDelhivery && <TrackingPanel order={order} />}
+      </div>
+    </ActionSheet>
   );
 }

@@ -16,9 +16,5 @@ export default async function AdminOrdersPage() {
   if (!user) redirect("/login?redirect=/admin/orders");
   if (!isAdmin(user as unknown as SupabaseUser)) redirect("/"); // Non-admins should not learn this page exists.
 
-  return (
-    <div className="container mx-auto px-4 py-6 max-w-3xl">
-      <OrdersClient />
-    </div>
-  );
+  return <OrdersClient />;
 }

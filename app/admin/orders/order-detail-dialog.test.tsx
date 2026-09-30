@@ -41,6 +41,7 @@ describe("OrderDetailDialog resync", () => {
     const orderA = makeOrder();
     const { rerender } = renderDialog(qc, orderA);
 
+    expect(screen.getByRole("dialog", { name: /#ORD/ })).toBeInTheDocument();
     const trackingInput = screen.getByLabelText(/Tracking number/i) as HTMLInputElement;
     fireEvent.change(trackingInput, { target: { value: "WB-DRAFT" } });
     expect(trackingInput.value).toBe("WB-DRAFT");
