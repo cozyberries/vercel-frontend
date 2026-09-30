@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isAdmin } from "@/lib/services/effective-user";
+import { PageHeader } from "@/components/admin/kit";
 import StallRefillsClient from "./stall-refills-client";
 
 export const metadata: Metadata = {
@@ -27,11 +28,8 @@ export default async function StallRefillsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <h1 className="text-2xl font-light tracking-tight mb-1">Stall refills</h1>
-      <p className="text-sm text-muted-foreground mb-5">
-        What sold today and yesterday. Put it back on the shelf, then tick it off.
-      </p>
+    <div>
+      <PageHeader title="Stall refills" subtitle="What sold today and yesterday. Put it back on the shelf, then tick it off." />
       <StallRefillsClient />
     </div>
   );

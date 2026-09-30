@@ -3,19 +3,10 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PackageCheck, PackageX, RefreshCw, Undo2 } from "lucide-react";
+import { PackageCheck, PackageX, RefreshCw, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { SegmentedTabs, ListCard, EmptyState, LoadingList, ErrorBanner, ActionSheet } from "@/components/admin/kit";
 import {
   actionLabel,
   formatSaleDay,
@@ -77,6 +68,7 @@ export default function StallRefillsClient() {
   const queryClient = useQueryClient();
   const now = useNow(5_000);
   const [confirming, setConfirming] = useState<{ date: string; line: RefillLine } | null>(null);
+  const [day, setDay] = useState<"today" | "yesterday">("today");
 
   const query = useQuery<RefillsResponse, ApiError>({
     queryKey: QUERY_KEY,
@@ -120,96 +112,81 @@ export default function StallRefillsClient() {
     tick.mutate({ sale_date: date, variant_slug: line.variant_slug, action, quantity: line.pending });
   };
 
-  if (query.isPending) {
-    return (
-      <div className="flex justify-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin text-cb-muted-fg" aria-label="Loading" />
-      </div>
-    );
-  }
+  if (query.isPending) return <LoadingList label="Loading" />;
   if (!query.data) {
     return (
-      <div className="py-10 text-center">
-        <p className="mb-3 text-sm text-cb-muted-fg">{query.error?.message ?? "Failed to load refills"}</p>
-        <Button size="sm" variant="outline" onClick={() => query.refetch()}>
-          Try again
-        </Button>
-      </div>
+      <ErrorBanner
+        message={query.error?.message ?? "Failed to load refills"}
+        onRetry={() => void query.refetch()}
+        retrying={query.isFetching}
+        loginRedirect={isAuthError(query.error) ? "/admin/stall-refills" : undefined}
+      />
     );
   }
 
   const data = query.data;
+  const openCount = (d: RefillDay) => d.lines.filter((l) => l.pending > 0).length;
+  const current = day === "today" ? data.today : data.yesterday;
+  const title = day === "today" ? "Today" : "Yesterday";
+  const emptyText = day === "today" ? "Nothing sold yet today." : "Nothing sold yesterday.";
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-2 text-sm text-cb-muted-fg">
+      <div className="mb-3 flex items-center justify-between gap-2 text-sm text-cb-muted-fg">
         <span>{updatedAgo(now - query.dataUpdatedAt)}</span>
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label="Refresh"
-          disabled={query.isFetching}
-          onClick={() => query.refetch()}
-        >
+        <Button size="sm" variant="ghost" aria-label="Refresh" disabled={query.isFetching} onClick={() => query.refetch()}>
           <RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
         </Button>
       </div>
       {query.isError && isAuthError(query.error) ? (
-        <div className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <p>Signed out. Log in again to see refills.</p>
-          <Button asChild size="sm" variant="outline" className="mt-2">
-            <a href="/login?redirect=/admin/stall-refills">Log in again</a>
-          </Button>
-        </div>
+        <ErrorBanner message="Signed out. Log in again to see refills." loginRedirect="/admin/stall-refills" />
       ) : (
-        query.isError && (
-          <p role="status" className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {"Couldn't refresh, retrying"}
-          </p>
-        )
+        query.isError && <ErrorBanner message="Couldn't refresh, retrying" />
       )}
 
+      <div className="mb-4">
+        <SegmentedTabs
+          label="Day"
+          tabs={[
+            { key: "today", label: "Today", count: openCount(data.today) },
+            { key: "yesterday", label: "Yesterday", count: openCount(data.yesterday) },
+          ]}
+          value={day}
+          onChange={setDay}
+        />
+      </div>
+
       <DaySection
-        title="Today"
-        day={data.today}
-        emptyText="Nothing sold yet today."
-        busy={busy}
-        onRecord={record}
-        onConfirmNoStock={(date, line) => setConfirming({ date, line })}
-        onUndo={(id) => undo.mutate(id)}
-      />
-      <DaySection
-        title="Yesterday"
-        day={data.yesterday}
-        emptyText="Nothing sold yesterday."
+        title={title}
+        day={current}
+        emptyText={emptyText}
         busy={busy}
         onRecord={record}
         onConfirmNoStock={(date, line) => setConfirming({ date, line })}
         onUndo={(id) => undo.mutate(id)}
       />
 
-      <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirming
-                ? `Set ${confirming.line.name}${confirming.line.size ? ` ${confirming.line.size}` : ""} to 0?`
-                : ""}
-            </AlertDialogTitle>
-            <AlertDialogDescription>It will show as out of stock on the website.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirming) record(confirming.date, confirming.line, "no_stock");
-                setConfirming(null);
-              }}
-            >
-              Set to 0
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ActionSheet
+        open={confirming !== null}
+        onOpenChange={(open) => !open && setConfirming(null)}
+        title={confirming ? `Set ${confirming.line.name}${confirming.line.size ? ` ${confirming.line.size}` : ""} to 0?` : ""}
+        description="It will show as out of stock on the website."
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" className="rounded-full sm:flex-1" onClick={() => setConfirming(null)}>
+            Cancel
+          </Button>
+          <Button
+            className="rounded-full sm:flex-1"
+            onClick={() => {
+              if (confirming) record(confirming.date, confirming.line, "no_stock");
+              setConfirming(null);
+            }}
+          >
+            Set to 0
+          </Button>
+        </div>
+      </ActionSheet>
     </div>
   );
 }
@@ -228,9 +205,9 @@ function DaySection({ title, day, emptyText, busy, onRecord, onConfirmNoStock, o
   const open = day.lines.filter((line) => line.pending > 0).length;
   const done = day.lines.length - open;
   return (
-    <section aria-label={title} className="mb-8">
+    <section aria-label={title}>
       <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-cb-fg">
+        <h2 className="text-base font-semibold text-cb-fg">
           {title} · {formatSaleDay(day.date)}
         </h2>
         {day.lines.length > 0 && (
@@ -240,7 +217,7 @@ function DaySection({ title, day, emptyText, busy, onRecord, onConfirmNoStock, o
         )}
       </div>
       {day.lines.length === 0 ? (
-        <p className="py-6 text-center text-sm text-cb-muted-fg">{emptyText}</p>
+        <EmptyState title={emptyText} />
       ) : (
         <ul className="space-y-3">
           {day.lines.map((line) => (
@@ -269,72 +246,67 @@ interface LineProps {
 
 function LineItem({ line, busy, onRecord, onConfirmNoStock, onUndo }: LineProps) {
   const handled = line.pending === 0;
+  const unlinked = line.variant_slug === null;
   return (
-    <li
-      data-testid={`refill-line-${line.key}`}
-      className={`rounded-2xl border border-cb-border bg-white p-3 ${handled ? "opacity-60" : ""}`}
-    >
-      <div className="flex gap-3">
-        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-cb-linen">
-          {line.image && (
-            <Image
-              src={line.image}
-              alt={line.name}
-              width={48}
-              height={48}
-              unoptimized
-              className="h-12 w-12 object-cover"
-            />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-snug text-cb-fg">{line.name}</p>
-          <p className="text-sm text-cb-muted-fg">
-            {line.size ?? "No size"} · Sold {line.sold}
-            {line.stock_now !== null && (
-              <>
-                {" · "}
-                <span className={leftClass(line.stock_now)}>Left {line.stock_now}</span>
-              </>
+    <ListCard
+      testId={`refill-line-${line.key}`}
+      dimmed={handled}
+      title={
+        <span className="flex gap-3">
+          <span className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-cb-linen">
+            {line.image && (
+              <Image src={line.image} alt={line.name} width={48} height={48} unoptimized className="h-12 w-12 object-cover" />
             )}
-          </p>
-        </div>
-      </div>
-
-      {line.variant_slug === null ? (
-        <p className="mt-2 text-sm text-amber-800">Not linked to a stock item</p>
+          </span>
+          <span className="min-w-0">
+            <span className="block font-semibold leading-snug text-cb-fg">{line.name}</span>
+            <span className="block text-sm font-normal text-cb-muted-fg">
+              {line.size ?? "No size"} · Sold {line.sold}
+              {line.stock_now !== null && (
+                <>
+                  {" · "}
+                  <span className={leftClass(line.stock_now)}>Left {line.stock_now}</span>
+                </>
+              )}
+            </span>
+          </span>
+        </span>
+      }
+      actions={
+        !unlinked && !handled ? (
+          <>
+            <Button className="rounded-full" disabled={busy} onClick={() => onRecord("refilled")}>
+              <PackageCheck className="mr-1.5 h-4 w-4" aria-hidden />
+              Refilled
+            </Button>
+            <Button variant="outline" className="rounded-full" disabled={busy} onClick={onConfirmNoStock}>
+              <PackageX className="mr-1.5 h-4 w-4" aria-hidden />
+              No stock left
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
+      {unlinked ? (
+        <p className="text-amber-800">Not linked to a stock item</p>
       ) : (
         <>
-          {!handled && line.actions.length > 0 && (
-            <p className="mt-2 text-sm font-medium text-cb-fg">{line.pending} more to refill</p>
-          )}
+          {!handled && line.actions.length > 0 && <p className="font-medium">{line.pending} more to refill</p>}
           {line.actions.length > 0 && (
-            <ul className="mt-2 space-y-1 text-sm text-cb-muted-fg">
+            <ul className="mt-1 space-y-1 text-cb-muted-fg">
               {line.actions.map((action) => (
                 <li key={action.id} className="flex items-center justify-between gap-2">
                   <span>{actionLabel(action)}</span>
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => onUndo(action.id)}>
-                    <Undo2 className="mr-1 h-4 w-4" />
+                    <Undo2 className="mr-1 h-4 w-4" aria-hidden />
                     Undo
                   </Button>
                 </li>
               ))}
             </ul>
           )}
-          {!handled && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy} onClick={() => onRecord("refilled")}>
-                <PackageCheck className="mr-1.5 h-4 w-4" />
-                Refilled
-              </Button>
-              <Button size="sm" variant="outline" disabled={busy} onClick={onConfirmNoStock}>
-                <PackageX className="mr-1.5 h-4 w-4" />
-                No stock left
-              </Button>
-            </div>
-          )}
         </>
       )}
-    </li>
+    </ListCard>
   );
 }

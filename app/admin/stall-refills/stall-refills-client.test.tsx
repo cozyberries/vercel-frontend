@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -112,6 +112,8 @@ describe("stall refills list", () => {
       "src",
       "https://x.supabase.co/storage/v1/object/public/media/products/frock-moon/1_thumbnail.webp",
     );
+    expect(screen.queryByRole("region", { name: "Yesterday" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Yesterday/ }));
     const yesterday = screen.getByRole("region", { name: "Yesterday" });
     expect(within(yesterday).getByRole("heading", { name: "Yesterday · Sat 26 Sep" })).toBeInTheDocument();
     expect(within(yesterday).getByText("Petal Pops - Japanese Muslin Frock")).toBeInTheDocument();
@@ -135,17 +137,19 @@ describe("stall refills list", () => {
 
   it("No stock left asks first: cancel sends nothing, confirm posts no_stock", async () => {
     renderPage();
+    await screen.findByRole("tab", { name: /Today/ });
+    fireEvent.click(screen.getByRole("tab", { name: /Yesterday/ }));
     const petal = await screen.findByTestId("refill-line-frock-petal-5-6y");
     fireEvent.click(within(petal).getByRole("button", { name: "No stock left" }));
-    let dialog = await screen.findByRole("alertdialog");
+    let dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Set Petal Pops - Japanese Muslin Frock 5-6Y to 0?")).toBeInTheDocument();
     expect(within(dialog).getByText("It will show as out of stock on the website.")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(calls("POST")).toHaveLength(0);
 
     fireEvent.click(within(petal).getByRole("button", { name: "No stock left" }));
-    dialog = await screen.findByRole("alertdialog");
+    dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Set to 0" }));
     await waitFor(() => expect(calls("POST")).toHaveLength(1));
     expect(JSON.parse(String(calls("POST")[0][1]?.body))).toEqual({
@@ -201,7 +205,7 @@ describe("stall refills list", () => {
     await screen.findByTestId("refill-line-frock-moon-0-3m");
     reply = () => ({ ok: false, status: 500, body: { error: "Failed to load refills" } });
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    expect(await screen.findByText("Couldn't refresh, retrying")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't refresh, retrying");
     expect(screen.getByTestId("refill-line-frock-moon-0-3m")).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -213,7 +217,7 @@ describe("stall refills list", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(await screen.findByText("Signed out. Log in again to see refills.")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Log in again" });
-    expect(link).toHaveAttribute("href", "/login?redirect=/admin/stall-refills");
+    expect(link).toHaveAttribute("href", "/login?redirect=%2Fadmin%2Fstall-refills");
     expect(screen.queryByText("Couldn't refresh, retrying")).not.toBeInTheDocument();
     expect(screen.getByTestId("refill-line-frock-moon-0-3m")).toBeInTheDocument();
   });
@@ -270,5 +274,94 @@ describe("stall refills list", () => {
     reply = () => ({ ok: true, body: { ...response(), today: { date: "2026-09-27", lines: [] } } });
     renderPage();
     expect(await screen.findByText("Nothing sold yet today.")).toBeInTheDocument();
+  });
+
+  it("shows the day tabs with the open count on each", async () => {
+    // fixture: today has 2 lines open + 1 done, yesterday 1 open
+    renderPage();
+    await screen.findByRole("tab", { name: /Today/ });
+    expect(screen.getByRole("tab", { name: /Today/ })).toHaveTextContent("2");
+    expect(screen.getByRole("tab", { name: /Yesterday/ })).toHaveTextContent("1");
+    expect(screen.queryByRole("region", { name: "Yesterday" })).not.toBeInTheDocument();
+  });
+
+  it("hides the Today tab's count badge once every line is handled", async () => {
+    reply = () => ({
+      ok: true,
+      body: {
+        ...response(),
+        today: {
+          date: "2026-09-27",
+          lines: [
+            {
+              key: "coords-rocket-3-4y",
+              variant_slug: "coords-rocket-3-4y",
+              name: "Rocket Ranger - Boys Co ord set",
+              size: "3-4Y",
+              image: null,
+              sold: 1,
+              pending: 0,
+              stock_now: 5,
+              actions: [
+                {
+                  id: UNDO_ID,
+                  action: "refilled",
+                  quantity: 1,
+                  acted_by_name: "Asha",
+                  acted_at: "2026-09-27T09:00:00.000Z",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    renderPage();
+    await screen.findByRole("tab", { name: "Today" });
+    expect(screen.getByRole("tab", { name: "Today" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Yesterday/ })).toHaveTextContent("1");
+  });
+
+  it("a line with unknown stock shows no Left text", async () => {
+    reply = () => ({
+      ok: true,
+      body: {
+        ...response(),
+        today: {
+          date: "2026-09-27",
+          lines: [
+            {
+              key: "mystery-item-0-3m",
+              variant_slug: "mystery-item-0-3m",
+              name: "Mystery Item",
+              size: "0-3M",
+              image: null,
+              sold: 2,
+              pending: 2,
+              stock_now: null,
+              actions: [],
+            },
+          ],
+        },
+      },
+    });
+    renderPage();
+    const line = await screen.findByTestId("refill-line-mystery-item-0-3m");
+    expect(within(line).getByText(/Sold 2/)).toBeInTheDocument();
+    expect(within(line).queryByText(/Left/)).not.toBeInTheDocument();
+  });
+
+  it("keeps refetching every 30s in the background", async () => {
+    vi.useFakeTimers();
+    try {
+      renderPage();
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      await vi.waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
