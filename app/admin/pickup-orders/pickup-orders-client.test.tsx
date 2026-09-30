@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useLayoutEffect } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -73,12 +74,37 @@ describe("awaiting tab", () => {
     );
   });
 
-  it("opens the tab named in the URL", async () => {
+  const fetchedUrls = () => vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
+
+  it("opens the tab named in the URL, and its first fetch is that tab", async () => {
     window.history.replaceState({}, "", "/admin/pickup-orders?tab=ready");
     render(<PickupOrdersClient />);
-    await waitFor(() =>
-      expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toContain("/api/admin/pickup-orders?tab=ready")
+    await waitFor(() => expect(fetchedUrls().length).toBeGreaterThan(0));
+    expect(fetchedUrls()[0]).toBe("/api/admin/pickup-orders?tab=ready");
+    expect(fetchedUrls()).not.toContain("/api/admin/pickup-orders?tab=handover");
+    expect(screen.getByRole("tab", { name: "Ready" })).toHaveAttribute("aria-selected", "true");
+    window.history.replaceState({}, "", "/admin/pickup-orders");
+  });
+
+  it("reads ?tab= after the router updates the URL (client-side link click)", async () => {
+    // Next's router pushes the new URL in an effect after the page has rendered.
+    // Simulate that: the URL is /admin while rendering, ?tab=ready once effects run.
+    window.history.replaceState({}, "", "/admin");
+    function RouterPush() {
+      useLayoutEffect(() => {
+        window.history.replaceState({}, "", "/admin/pickup-orders?tab=ready");
+      }, []);
+      return null;
+    }
+    render(
+      <>
+        <RouterPush />
+        <PickupOrdersClient />
+      </>
     );
+    await waitFor(() => expect(fetchedUrls().length).toBeGreaterThan(0));
+    expect(fetchedUrls()[0]).toBe("/api/admin/pickup-orders?tab=ready");
+    expect(fetchedUrls()).not.toContain("/api/admin/pickup-orders?tab=handover");
     window.history.replaceState({}, "", "/admin/pickup-orders");
   });
 

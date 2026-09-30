@@ -30,14 +30,24 @@ function tabFromLocation(): PickupTab {
 }
 
 export default function PickupOrdersClient() {
-  const [tab, setTab] = useState<PickupTab>(tabFromLocation);
+  // Read ?tab= in an effect, not during render: on a client-side link click the
+  // page renders before the router updates the URL, and on a full load the
+  // server render (no window) would not match. Nothing is fetched until seeded.
+  const [tab, setTab] = useState<PickupTab>("handover");
+  const [seeded, setSeeded] = useState(false);
   const [query, setQuery] = useState("");
   const [orders, setOrders] = useState<PickupOrderRow[]>([]);
   const [awaitingCount, setAwaitingCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  useEffect(() => {
+    setTab(tabFromLocation());
+    setSeeded(true);
+  }, []);
+
   const load = useCallback(async () => {
+    if (!seeded) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({ tab });
@@ -52,12 +62,13 @@ export default function PickupOrdersClient() {
     } finally {
       setLoading(false);
     }
-  }, [tab, query]);
+  }, [tab, query, seeded]);
 
   useEffect(() => {
+    if (!seeded) return;
     const t = setTimeout(load, query ? 300 : 0);
     return () => clearTimeout(t);
-  }, [load, query]);
+  }, [load, query, seeded]);
 
   const readyLink = (order: PickupOrderRow) =>
     whatsappLink(

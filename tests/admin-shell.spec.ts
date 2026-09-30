@@ -33,6 +33,22 @@ test.describe("admin shell (phone)", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
+  test("dashboard tiles open the matching pickup tab", async ({ page }) => {
+    // A client-side link click renders the page before the router updates the
+    // URL, so the tab must be read after mount, not during the first render.
+    const tiles: [RegExp, RegExp][] = [
+      [/^Ready for pickup/, /^Ready$/],
+      [/^Awaiting ✅/, /^Awaiting ✅/],
+      [/^Collected today/, /^Collected today/],
+    ];
+    for (const [tile, tab] of tiles) {
+      await page.goto("/admin");
+      await page.getByRole("link", { name: tile }).click();
+      await expect(page).toHaveURL(/\/admin\/pickup-orders\?tab=/);
+      await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+    }
+  });
+
   test("storefront shows one Admin entry", async ({ page }) => {
     await page.goto("/profile");
     await expect(page.getByRole("link", { name: "Open admin" })).toHaveAttribute("href", "/admin");
