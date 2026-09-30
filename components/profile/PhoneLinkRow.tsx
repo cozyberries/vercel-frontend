@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import IndianPhoneInput from "@/components/IndianPhoneInput";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useProfile } from "@/hooks/useProfile";
+import { PROFILE_COMBINED_QUERY_KEY } from "@/hooks/useApiQueries";
 import { formatIndianPhoneDisplay } from "@/lib/utils/validation";
 
 type Step = "idle" | "enter" | "code";
@@ -28,6 +30,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export default function PhoneLinkRow() {
   const { user, refreshProfile } = useAuth();
   const { profile } = useProfile(user);
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>("idle");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -74,6 +77,9 @@ export default function PhoneLinkRow() {
     try {
       await post("/api/auth/verifynow/verify", { verificationId, code: code.trim(), intent: "link", phone });
       await refreshProfile();
+      if (user?.id) {
+        await queryClient.invalidateQueries({ queryKey: [...PROFILE_COMBINED_QUERY_KEY, user.id] });
+      }
       toast.success("Phone added");
       reset();
     } catch (e) {
