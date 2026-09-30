@@ -15,6 +15,35 @@ export function roleOf(user: Pick<User, "app_metadata">): string | undefined {
   return typeof role === "string" ? role : undefined;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `auth.admin.getUserById` in the installed `@supabase/auth-js` validates its argument
+ * as a UUID and throws synchronously before its own try/catch, rather than returning
+ * `{ error }`. Callers must reject a non-UUID id themselves (as a 404 — it cannot
+ * exist) before calling it, or the throw surfaces as an unhandled 500.
+ */
+export function isUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
+/**
+ * Looks up one auth user by id, treating "not a UUID", "no such user", and a thrown
+ * error (see `isUuid` doc) all as "not found" — the one outcome every caller needs to
+ * turn into a 404. Never throws.
+ */
+export async function safeGetUserById(admin: SupabaseClient, id: string): Promise<User | null> {
+  if (!isUuid(id)) return null;
+  try {
+    const { data, error } = await admin.auth.admin.getUserById(id);
+    if (error || !data?.user) return null;
+    return data.user;
+  } catch (e) {
+    console.error("[admin-accounts] getUserById threw:", e);
+    return null;
+  }
+}
+
 export function toAdminAccount(user: User): AdminAccount {
   return {
     id: user.id,

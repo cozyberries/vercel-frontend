@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
-import { roleOf } from "@/lib/admin/admin-accounts";
+import { roleOf, safeGetUserById } from "@/lib/admin/admin-accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +14,9 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   if (id === gate.user.id) return NextResponse.json({ error: "You cannot remove yourself" }, { status: 400 });
 
   const admin = createAdminSupabaseClient();
-  const { data, error } = await admin.auth.admin.getUserById(id);
-  if (error || !data?.user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-  const role = roleOf(data.user);
+  const user = await safeGetUserById(admin, id);
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const role = roleOf(user);
   if (role === "super_admin") return NextResponse.json({ error: "Super admins are managed in Supabase" }, { status: 409 });
   if (role !== "admin") return NextResponse.json({ error: "Not an admin" }, { status: 409 });
 

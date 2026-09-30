@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
-import { listAdminAccounts, roleOf, toAdminAccount } from "@/lib/admin/admin-accounts";
+import { listAdminAccounts, roleOf, safeGetUserById, toAdminAccount } from "@/lib/admin/admin-accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "user_id is required" }, { status: 400 });
 
   const admin = createAdminSupabaseClient();
-  const { data, error } = await admin.auth.admin.getUserById(userId);
-  if (error || !data?.user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-  const role = roleOf(data.user);
+  const user = await safeGetUserById(admin, userId);
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const role = roleOf(user);
   if (role === "admin" || role === "super_admin") {
     return NextResponse.json({ error: "Already an admin" }, { status: 409 });
   }
