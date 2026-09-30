@@ -43,6 +43,11 @@ export function isAdmin(user: User): boolean {
   return typeof role === 'string' && ADMIN_ROLES.has(role);
 }
 
+export function isSuperAdmin(user: User): boolean {
+  const role = (user.app_metadata as { role?: unknown } | undefined)?.role;
+  return role === 'super_admin';
+}
+
 /**
  * Returns `client.from(table)` — a thin wrapper that marks scoped access.
  *
