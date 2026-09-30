@@ -24,6 +24,7 @@
     "test:payment:headed": "playwright test --project=payment --headed",
     "test:payment:debug": "playwright test --project=payment --headed --debug",
     "test:admin-impersonation": "playwright test --project=admin-impersonation",
+    "test:admin-shell": "playwright test --project=admin-shell",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "catalog:rebuild": "node scripts/catalog-rebuild.mjs",

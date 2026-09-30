@@ -7,9 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the **public-facing storefront** for CozyBerries (cozyberries.com, port 3000).
 Customers browse products, manage their cart, checkout, pay via UPI, and track orders here.
 
-Admin order management lives in this repo too (`/admin/orders`, `/admin/pickup-orders`,
-`/admin/on-behalf-orders`, `/admin/stall-refills`): the former admin app
-(admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
+Admin order management lives in this repo too, under one `/admin` section (`app/admin/layout.tsx` gates every route on `getUser()` + `isAdmin()` and wraps pages in `components/admin/AdminShell.tsx`; pages are built from `components/admin/kit/*`): `/admin` (action counts), `/admin/orders`, `/admin/pickup-orders`, `/admin/on-behalf-orders`, `/admin/stall-refills`, `/admin/impersonate`, `/admin/admins` (`super_admin` only). The former admin app (admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
 `auth.users.app_metadata.role` only — the old `admin_users` bcrypt login is gone.
 
 The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/generate-token`, the auth provider's `jwtToken`) was removed on 2026-09-30 — its only consumer was the deleted admin app's API. `SUPABASE_JWT_SECRET` (Supabase's own) is unrelated and stays.
@@ -17,7 +15,7 @@ The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/gene
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
-- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
+- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
 - **Signed public bill links** — `GET /bill/[orderId]/[sig]` only. There is no session: the HMAC over that exact order id (`INVOICE_LINK_SECRET`, compared with `timingSafeEqual`) is verified first, and the service role then reads that one order, read-only. The signature, not the client, is what authorises the id; never reuse this shape for anything that writes.
 - **Signed webhook intake** — `POST /api/webhooks/delhivery` (the `x-delhivery-token`
   header, compared constant-time, is the authorisation) and
@@ -83,14 +81,19 @@ app/
   (public)    /  /products  /about  /register
   (protected) /profile  /checkout  /complete-profile
   /payment/[orderId]         # Custom UPI payment flow
+  /admin                     # Admin home: action counts (Redis 60s, cleared on status/shipment change)
   /admin/stall-refills       # Admin: what sold today/yesterday, shelf refill ticks
   /admin/orders              # Admin order management (server-gated by role)
+  /admin/impersonate         # Find or create a customer, then act as them
+  /admin/admins              # super_admin: list, add, remove admins (role in app_metadata)
   /admin/print/label/[orderId]  # Delhivery label print page
   /api/products/*            # Product data APIs
   /api/payments/*            # UPI link generation + confirmation
   /api/admin/orders/*        # Admin orders list/edit + shipment create/cancel
   /api/admin/shipping/tracking  # Admin live Delhivery tracking (Redis 90s cache)
   /api/admin/notifications/*    # Broadcast (user_id null) shipment-scan notifications
+  /api/admin/admins/*        # super_admin-gated role changes
+  /api/admin/dashboard/actions
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
   /api/webhooks/delhivery    # Delhivery scan intake (x-delhivery-token)
@@ -115,6 +118,7 @@ app/
 - All profile writes go through `supabase.auth.admin.updateUserById()` (server-side only)
 - Profile auto-created on signup via API route (`/api/users/create-profile`)
 - **Email confirmation**: To send "Check your email" confirmation links, enable **Confirm email** in Supabase Dashboard → Authentication → Providers → Email, and add your site URL (e.g. `http://localhost:3000/auth/callback`) to Redirect URLs. For reliable delivery, configure SMTP in Project Settings → Auth.
+- `POST /api/auth/verifynow/send|verify` accept `intent: "link"`: a signed-in user attaches a verified phone (`/profile#phone`), which is how Google-created admin accounts get mobile sign-in. A number on another account is refused with 409.
 
 ### Payment System (Custom UPI)
 - UPI deep links for PhonePe (`phonepe://pay?`), GPay (`tez://upi/pay?`), Paytm (`paytmmp://pay?`)
@@ -199,6 +203,7 @@ app/
 - `lib/types/` for shared TypeScript types, `lib/utils/` for helpers, `lib/services/` for API clients
 - Static pages must ship their content in the HTML: no `useSearchParams()` in components rendered by `/` or `/products/[id]` (read `window.location` in an effect instead), and no `ssr: false` for content sections. `tests/catalog.spec.ts` "Static HTML carries real content" enforces it.
 - Env vars for the catalog pipeline: CATALOG_BASE_URL, CATALOG_WEBHOOK_SECRET, QSTASH_TOKEN, QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY, QSTASH_URL (server-only). The QStash account is regional (`https://qstash-us-east-1.upstash.io`); without QSTASH_URL the SDK hits the default endpoint and fails with "user not found in this region". QStash deduplication ids must not contain ':'. Vercel functions are pinned to bom1 in vercel.json.
+- `ConditionalLayout` renders no storefront header or bottom nav under `/admin`; the shell supplies its own. `/admin/print/*` gets neither (bare children from `AdminShell`).
 - Functions run on Fluid compute (`"fluid": true` in vercel.json, guarded by `vercel-config.test.ts`). The project predates Fluid being the default, so without that line it falls back to legacy serverless: after a few idle minutes the first request to a function group often pays a 400-900 ms cold start (each group separately), which is what made `/products` (rendered per request) take 1-1.5 s and fail the 600 ms check in `catalog:verify`. Fluid shares one process between concurrent requests, so module-level state must never hold per-request or per-user data.
 
 ### Database Security Conventions

@@ -14,7 +14,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env.local') });
  */
 // Stateful flows (payment, purchase, admin impersonation) have their own auth-setup projects below;
 // keep them out of the plain browser projects so `npm test` stays side-effect free.
-const STATEFUL_SPECS = /(payment|e2e-purchase-flow|admin-impersonation)\.spec\.ts|.*\.setup\.ts/;
+const STATEFUL_SPECS = /(payment|e2e-purchase-flow|admin-impersonation|admin-shell)\.spec\.ts|.*\.setup\.ts/;
 
 export default defineConfig({
   testDir: './tests',
@@ -110,6 +110,19 @@ export default defineConfig({
         viewport: { width: 1280, height: 800 },
         storageState: 'tests/.auth/purchase-user.json',
         video: 'on',
+      },
+    },
+
+    // Admin shell smoke at phone width — the stall runs on phones. Reuses the
+    // admin session from purchase-auth-setup; read-only, so retries are fine.
+    {
+      name: 'admin-shell',
+      testMatch: /admin-shell\.spec\.ts/,
+      dependencies: ['purchase-auth-setup'],
+      use: {
+        ...devices['Pixel 5'],
+        viewport: { width: 375, height: 812 },
+        storageState: 'tests/.auth/purchase-user.json',
       },
     },
   ],
