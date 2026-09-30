@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +43,8 @@ describe("AdminsClient", () => {
     await screen.findByText("asha@x.in");
     expect(screen.getByText("owner@x.in")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Remove admin" })).toHaveLength(1);
+    expect(within(screen.getByTestId("admin-s")).getByText("Super admin")).toBeInTheDocument();
+    expect(within(screen.getByTestId("admin-a")).getByText("Admin")).toBeInTheDocument();
   });
 
   it("removes an admin after confirming", async () => {
@@ -102,6 +104,20 @@ describe("AdminsClient", () => {
     );
     renderClient();
     await screen.findByRole("link", { name: "Log in again" });
+  });
+
+  it("falls back to email as the title when full_name is an empty string", async () => {
+    const blankName = [
+      { id: "s", email: "owner@x.in", phone: "9876543210", full_name: "", role: "super_admin", created_at: "2026-01-01T00:00:00Z" },
+      { id: "a", email: "asha@x.in", phone: null, full_name: "Asha", role: "admin", created_at: "2026-02-01T00:00:00Z" },
+    ];
+    mockFetch({ "GET /api/admin/admins": () => ({ admins: blankName }) });
+    renderClient();
+    await screen.findByText("asha@x.in");
+    // The title <p> holds the name/email span plus the role pill; with an empty full_name
+    // it must fall through ("owner@x.in…") rather than render blank ("Super admin" only).
+    const titlePara = screen.getByTestId("admin-s").querySelector("p.font-semibold");
+    expect(titlePara?.textContent).toMatch(/^owner@x\.in/);
   });
 
   it("Cancel in the remove sheet closes it without calling DELETE", async () => {

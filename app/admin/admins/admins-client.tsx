@@ -112,13 +112,11 @@ export default function AdminsClient() {
             testId={`admin-${a.id}`}
             title={
               <span className="flex items-center gap-2">
-                {a.full_name ?? a.email ?? a.id}
-                {a.role === "super_admin" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-cb-linen px-2 py-0.5 text-xs font-semibold text-cb-fg">
-                    <ShieldCheck className="h-3 w-3" aria-hidden />
-                    Super admin
-                  </span>
-                )}
+                {a.full_name || a.email || a.id}
+                <span className="inline-flex items-center gap-1 rounded-full bg-cb-linen px-2 py-0.5 text-xs font-semibold text-cb-fg">
+                  {a.role === "super_admin" && <ShieldCheck className="h-3 w-3" aria-hidden />}
+                  {a.role === "super_admin" ? "Super admin" : "Admin"}
+                </span>
               </span>
             }
             meta={
@@ -144,7 +142,7 @@ export default function AdminsClient() {
           {results.map((u) => (
             <ListCard
               key={u.id}
-              title={u.full_name ?? u.email ?? u.id}
+              title={u.full_name || u.email || u.id}
               meta={
                 <>
                   <span>{u.email ?? "no email"}</span>
