@@ -96,6 +96,9 @@ const deliveryOrder = (over: Row = {}): Row => ({
 
 beforeEach(() => {
   h.reset();
+  // Without this the mock keeps calls from earlier tests and every
+  // toHaveBeenCalled() below would pass vacuously.
+  vi.mocked(clearDashboardActions).mockClear();
   vi.stubEnv("DELIVERY_API_KEY", "tok");
   vi.stubEnv("DELHIVERY_WAREHOUSE_NAME", "CB-WH");
   h.state.order = deliveryOrder();
@@ -168,6 +171,7 @@ describe("POST .../shipment", () => {
     h.state.createResult = { ok: true, data: { success: false, rmk: "Bad pin", packages: [] } };
     expect((await post()).status).toBe(422);
     expect(h.state.updates).toHaveLength(0);
+    expect(clearDashboardActions).not.toHaveBeenCalled();
   });
 
   it("500 when the order_items fetch errors; Delhivery never called", async () => {
@@ -230,6 +234,7 @@ describe("DELETE .../shipment", () => {
     h.state.cancelResult = { ok: true, data: { status: false, remark: "Already dispatched" } };
     expect((await del()).status).toBe(422);
     expect(h.state.updates).toHaveLength(0);
+    expect(clearDashboardActions).not.toHaveBeenCalled();
   });
 
   it("503 split-state when Delhivery cancelled but the DB write failed", async () => {
@@ -239,5 +244,6 @@ describe("DELETE .../shipment", () => {
     expect(await res.json()).toMatchObject({
       success: false, delhivery_success: true, db_update_success: false, waybill: "WB123",
     });
+    expect(clearDashboardActions).not.toHaveBeenCalled();
   });
 });

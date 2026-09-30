@@ -24,6 +24,8 @@ vi.mock("@/lib/supabase-server", () => ({
 import { NextRequest } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { DELETE } from "./route";
+import { GET } from "../route";
+import { requireAdmin } from "@/lib/services/admin-gate";
 
 const SUPER = "11111111-1111-1111-1111-111111111111";
 const SUPER2 = "44444444-4444-4444-4444-444444444444";
@@ -81,6 +83,23 @@ describe("DELETE /api/admin/admins/[id]", () => {
   it("demotes an admin to customer, scoped to that id", async () => {
     expect((await del(ADMIN)).status).toBe(200);
     expect(h.updateUserById).toHaveBeenCalledWith(ADMIN, { app_metadata: { role: "customer" } });
+  });
+  it("a removed admin is refused at once", async () => {
+    // While still an admin, the admin gate lets them through.
+    h.user = { id: ADMIN, app_metadata: { role: "admin" } };
+    expect((await requireAdmin()).response).toBeUndefined();
+
+    h.user = { id: SUPER, app_metadata: { role: "super_admin" } };
+    expect((await del(ADMIN)).status).toBe(200);
+
+    // getUser() returns the live account, so the demotion applies on the very next
+    // request even though the removed admin's old JWT still says "admin".
+    h.user = { id: ADMIN, app_metadata: { role: "customer" } };
+    vi.mocked(createAdminSupabaseClient).mockClear();
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(createAdminSupabaseClient).not.toHaveBeenCalled();
+    expect((await requireAdmin()).response?.status).toBe(403);
   });
   it("500s when updateUserById errors", async () => {
     h.updateUserById.mockReset().mockResolvedValue({ data: null, error: { message: "boom" } });
