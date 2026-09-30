@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isAdmin } from "@/lib/services/effective-user";
+import { PageHeader } from "@/components/admin/kit";
 import PickupOrdersClient from "./pickup-orders-client";
 
 export const metadata: Metadata = {
@@ -27,11 +28,8 @@ export default async function PickupOrdersPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <h1 className="text-2xl font-light tracking-tight mb-1">Stall pickups</h1>
-      <p className="text-sm text-muted-foreground mb-5">
-        Pickup orders. Once paid, mark them ready, hand them over, and send the bill.
-      </p>
+    <div>
+      <PageHeader title="Stall pickups" subtitle="Hand over, mark ready, send the bill." />
       <PickupOrdersClient />
     </div>
   );

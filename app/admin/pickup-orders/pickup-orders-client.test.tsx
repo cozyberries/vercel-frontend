@@ -58,7 +58,8 @@ describe("awaiting tab", () => {
   it("shows how many orders are waiting for ✅", async () => {
     respond({ orders: [order], awaiting_count: 2 });
     render(<PickupOrdersClient />);
-    expect(await screen.findByRole("tab", { name: "Awaiting ✅ 2" })).toBeInTheDocument();
+    const tab = await screen.findByRole("tab", { name: /Awaiting/ });
+    expect(tab).toHaveTextContent("2");
   });
 
   it("loads the unpaid pickup orders when opened", async () => {
@@ -68,5 +69,61 @@ describe("awaiting tab", () => {
     await waitFor(() =>
       expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toContain("/api/admin/pickup-orders?tab=awaiting")
     );
+  });
+
+  it("opens the tab named in the URL", async () => {
+    window.history.replaceState({}, "", "/admin/pickup-orders?tab=ready");
+    render(<PickupOrdersClient />);
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toContain("/api/admin/pickup-orders?tab=ready")
+    );
+    window.history.replaceState({}, "", "/admin/pickup-orders");
+  });
+
+  it("falls back to the handover tab for an unknown ?tab= value", async () => {
+    window.history.replaceState({}, "", "/admin/pickup-orders?tab=bogus");
+    render(<PickupOrdersClient />);
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toContain("/api/admin/pickup-orders?tab=handover")
+    );
+    window.history.replaceState({}, "", "/admin/pickup-orders");
+  });
+});
+
+describe("search", () => {
+  it("hides the tab row and searches by q when typing", async () => {
+    respond({ orders: [order], awaiting_count: 1 });
+    render(<PickupOrdersClient />);
+    await screen.findByRole("tab", { name: /Awaiting/ });
+    fireEvent.change(screen.getByPlaceholderText("Search by phone or order number"), {
+      target: { value: "9876543210" },
+    });
+    await waitFor(() => expect(screen.queryByRole("tablist")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toContain(
+        "/api/admin/pickup-orders?tab=handover&q=9876543210"
+      )
+    );
+  });
+});
+
+describe("ready_for_pickup order", () => {
+  it("shows Send ready message and Mark collected but not Mark ready", async () => {
+    respond({
+      orders: [{ ...order, status: "ready_for_pickup" }],
+      awaiting_count: 0,
+    });
+    render(<PickupOrdersClient />);
+    expect(await screen.findByRole("link", { name: /Send ready message/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Mark collected/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mark ready/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("empty state", () => {
+  it("renders when there are no orders for the tab", async () => {
+    respond({ orders: [], awaiting_count: 0 });
+    render(<PickupOrdersClient />);
+    expect(await screen.findByText("No pickup orders here")).toBeInTheDocument();
   });
 });

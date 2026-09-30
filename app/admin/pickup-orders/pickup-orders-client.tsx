@@ -1,28 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, MessageCircle, PackageCheck, Search, Store } from "lucide-react";
+import { MessageCircle, PackageCheck, Search, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STALL } from "@/lib/config/business";
 import { whatsappLink } from "@/lib/utils/whatsapp";
-import { formatOrderStatus, getOrderStatusColor } from "@/lib/utils/order-status";
-import { PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab } from "@/lib/orders/pickup";
+import { SegmentedTabs, ListCard, EmptyState, LoadingList, type SegmentedTab } from "@/components/admin/kit";
+import {
+  parsePickupTab, PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab,
+} from "@/lib/orders/pickup";
 
-const TABS: { key: PickupTab; label: string }[] = [
-  { key: "awaiting", label: "Awaiting ✅" },
-  { key: "handover", label: "To hand over" },
-  { key: "ready", label: "Ready" },
-  { key: "collected", label: "Collected today" },
-];
+const TAB_LABELS: Record<PickupTab, string> = {
+  awaiting: "Awaiting ✅",
+  handover: "To hand over",
+  ready: "Ready",
+  collected: "Collected today",
+};
+const TAB_ORDER: PickupTab[] = ["awaiting", "handover", "ready", "collected"];
 
 const PAYMENT_LABEL: Record<string, string> = { upi: "UPI", cash: "Cash" };
 /** A payment staff or the customer recorded that the owner has not confirmed yet. */
 const CLAIM_LABEL: Record<string, string> = { upi: "UPI claimed", cash: "Cash recorded" };
 
+function tabFromLocation(): PickupTab {
+  if (typeof window === "undefined") return "handover";
+  return parsePickupTab(new URLSearchParams(window.location.search).get("tab")) ?? "handover";
+}
+
 export default function PickupOrdersClient() {
-  const [tab, setTab] = useState<PickupTab>("handover");
+  const [tab, setTab] = useState<PickupTab>(tabFromLocation);
   const [query, setQuery] = useState("");
   const [orders, setOrders] = useState<PickupOrderRow[]>([]);
   const [awaitingCount, setAwaitingCount] = useState<number | null>(null);
@@ -89,55 +97,30 @@ export default function PickupOrdersClient() {
         )
       : null;
 
+  const tabs: SegmentedTab<PickupTab>[] = TAB_ORDER.map((key) => ({
+    key,
+    label: TAB_LABELS[key],
+    count: key === "awaiting" && awaitingCount ? awaitingCount : undefined,
+  }));
+
   return (
     <div className="space-y-4">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cb-muted-fg" aria-hidden />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by phone or order number"
-          className="pl-9"
+          className="rounded-xl bg-cb-white pl-9"
         />
       </div>
 
-      {!query && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="tablist">
-          {TABS.map((t) => {
-            const count = t.key === "awaiting" && awaitingCount ? awaitingCount : 0;
-            return (
-              <button
-                key={t.key}
-                role="tab"
-                aria-selected={tab === t.key}
-                onClick={() => setTab(t.key)}
-                className={`rounded-full px-3 py-2 text-sm font-semibold ${
-                  tab === t.key
-                    ? "bg-cb-terracotta text-white"
-                    : count
-                      ? "bg-amber-100 text-amber-900"
-                      : "bg-cb-linen text-cb-fg"
-                }`}
-              >
-                {t.label}
-                {count > 0 && (
-                  <>
-                    {" "}
-                    <span className="ml-0.5 rounded-full bg-white/80 px-1.5 text-xs text-amber-900">{count}</span>
-                  </>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {!query && <SegmentedTabs label="Pickup queue" tabs={tabs} value={tab} onChange={setTab} />}
 
       {loading ? (
-        <div className="flex justify-center py-10">
-          <Loader2 className="h-6 w-6 animate-spin text-cb-terracotta" />
-        </div>
+        <LoadingList label="Loading pickup orders" />
       ) : orders.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">No pickup orders here.</p>
+        <EmptyState title="No pickup orders here" />
       ) : (
         <ul className="space-y-3">
           {orders.map((order) => {
@@ -147,21 +130,53 @@ export default function PickupOrdersClient() {
               ? order.payments.find((p) => p.status === "pending" || p.status === "processing")?.payment_method
               : undefined;
             const bill = billLink(order);
+            const ready = readyLink(order);
             const busy = busyId === order.id;
+            const canReady = order.status === "processing" || order.status === "payment_confirmed";
+            const canCollect = canReady || order.status === "ready_for_pickup";
             return (
-              <li key={order.id} className="rounded-2xl border border-cb-border bg-white p-4">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <p className="font-bold text-cb-fg">{order.customer_name ?? "Customer"}</p>
-                    <p className="text-sm text-cb-muted-fg">
-                      {order.customer_phone ? `+91 ${order.customer_phone}` : "no phone"} · {order.order_number}
-                    </p>
-                  </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getOrderStatusColor(order.status)}`}>
-                    {formatOrderStatus(order.status)}
-                  </span>
-                </div>
-                <ul className="mb-3 text-sm text-cb-fg">
+              <ListCard
+                key={order.id}
+                testId={`pickup-${order.id}`}
+                title={order.customer_name ?? "Customer"}
+                status={order.status}
+                meta={`${order.customer_phone ? `+91 ${order.customer_phone}` : "no phone"} · ${order.order_number}`}
+                actions={
+                  canReady || canCollect || (order.status === "ready_for_pickup" && ready) || bill ? (
+                    <>
+                      {canReady && (
+                        <Button variant="outline" className="rounded-full" disabled={busy} onClick={() => act(order, "ready")}>
+                          <Store className="mr-1.5 h-4 w-4" aria-hidden />
+                          Mark ready
+                        </Button>
+                      )}
+                      {canCollect && (
+                        <Button className="rounded-full" disabled={busy} onClick={() => act(order, "collected")}>
+                          <PackageCheck className="mr-1.5 h-4 w-4" aria-hidden />
+                          Mark collected
+                        </Button>
+                      )}
+                      {order.status === "ready_for_pickup" && ready && (
+                        <Button variant="outline" className="rounded-full" asChild>
+                          <a href={ready} target="_blank" rel="noopener noreferrer">
+                            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden />
+                            Send ready message
+                          </a>
+                        </Button>
+                      )}
+                      {bill && (
+                        <Button variant="outline" className="rounded-full" asChild>
+                          <a href={bill} target="_blank" rel="noopener noreferrer">
+                            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden />
+                            Send bill
+                          </a>
+                        </Button>
+                      )}
+                    </>
+                  ) : undefined
+                }
+              >
+                <ul>
                   {order.order_items.map((item, idx) => (
                     <li key={`${item.name}-${idx}`}>
                       {item.quantity} × {item.name}
@@ -171,46 +186,16 @@ export default function PickupOrdersClient() {
                     </li>
                   ))}
                 </ul>
-                <p className="mb-3 text-sm text-cb-muted-fg">
+                <p className="mt-2 text-cb-muted-fg">
                   ₹{Number(order.total_amount).toFixed(0)}
                   {paidWith ? ` · ${PAYMENT_LABEL[paidWith] ?? paidWith}` : ""}
                   {claimedWith ? ` · ${CLAIM_LABEL[claimedWith] ?? claimedWith}` : ""}
                   {order.invoice_number ? ` · ${order.invoice_number}` : ""}
                 </p>
                 {awaitingConfirmation && (
-                  <p className="mb-3 text-sm font-medium text-amber-800">{"Waiting for the owner's ✅ on Telegram"}</p>
+                  <p className="mt-2 font-medium text-amber-800">{"Waiting for the owner's ✅ on Telegram"}</p>
                 )}
-                <div className="flex flex-wrap gap-2">
-                  {(order.status === "processing" || order.status === "payment_confirmed") && (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => act(order, "ready")}>
-                      <Store className="h-4 w-4 mr-1.5" />
-                      Mark ready
-                    </Button>
-                  )}
-                  {(order.status === "processing" || order.status === "payment_confirmed" || order.status === "ready_for_pickup") && (
-                    <Button size="sm" disabled={busy} onClick={() => act(order, "collected")}>
-                      <PackageCheck className="h-4 w-4 mr-1.5" />
-                      Mark collected
-                    </Button>
-                  )}
-                  {order.status === "ready_for_pickup" && readyLink(order) && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={readyLink(order)!} target="_blank" rel="noopener noreferrer">
-                        <MessageCircle className="h-4 w-4 mr-1.5" />
-                        Send ready message
-                      </a>
-                    </Button>
-                  )}
-                  {bill && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={bill} target="_blank" rel="noopener noreferrer">
-                        <MessageCircle className="h-4 w-4 mr-1.5" />
-                        Send bill
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              </li>
+              </ListCard>
             );
           })}
         </ul>
