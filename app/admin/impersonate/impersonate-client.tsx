@@ -57,24 +57,6 @@ export default function ImpersonateClient() {
   const createEmailRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const resetAll = useCallback(() => {
-    setQuery("");
-    setResults([]);
-    setSearching(false);
-    setSearchError(null);
-    setCreateEmail("");
-    setCreatePhone("");
-    setCreateFullName("");
-    setCreateErrors({});
-    setCreating(false);
-    setStarting(false);
-    setStartError(null);
-    setActiveTab("search");
-    setOtpVerificationId(null);
-    setOtpCode("");
-    setExistingUserId(null);
-  }, []);
-
   useEffect(
     () => () => {
       abortRef.current?.abort();

@@ -85,6 +85,8 @@ describe("AdminShell", () => {
     // swap in a writable stand-in so we can assert on it instead.
     // @ts-expect-error -- deliberately replacing a readonly global for the test
     delete window.location;
+    // @ts-expect-error -- "webworker" in tsconfig lib makes the global `location`
+    // setter type `string & Location`; the stand-in object is still a real Location.
     window.location = { ...originalLocation, href: "" } as Location;
 
     renderShell();
@@ -103,6 +105,7 @@ describe("AdminShell", () => {
       expect(window.location.href).toBe("/");
     });
 
+    // @ts-expect-error -- see the matching stand-in swap above.
     window.location = originalLocation;
   });
 });

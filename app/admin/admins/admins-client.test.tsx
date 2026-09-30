@@ -57,7 +57,7 @@ describe("AdminsClient", () => {
   });
 
   it("searches and promotes a user", async () => {
-    const post = vi.fn(() => ({ admin: { id: "u9", email: "new@x.in", phone: null, full_name: "New", role: "admin", created_at: "t" } }));
+    const post = vi.fn((_init?: RequestInit) => ({ admin: { id: "u9", email: "new@x.in", phone: null, full_name: "New", role: "admin", created_at: "t" } }));
     mockFetch({
       "GET /api/admin/admins": () => ({ admins }),
       "GET /api/admin/users/search": () => ({ users: [{ id: "u9", email: "new@x.in", phone: null, full_name: "New", created_at: "t" }] }),

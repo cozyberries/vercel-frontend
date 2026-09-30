@@ -18,7 +18,7 @@ vi.mock("@/components/admin/AdminShell", async () => {
   return {
     default: (props: Record<string, unknown>) => {
       h.shellProps = props;
-      return React.default.createElement("div", null, props.children);
+      return React.default.createElement("div", null, props.children as React.ReactNode);
     },
   };
 });
