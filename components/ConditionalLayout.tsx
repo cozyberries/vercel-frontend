@@ -20,15 +20,14 @@ interface ConditionalLayoutProps {
 export default function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const pathname = usePathname();
 
-  // Sign-in/sign-up, the stall display, and admin print pages are standalone
-  // full-screen pages — no site header/nav/footer. Admin print pages in
-  // particular render a fixed-size @page for label printing; the site header
-  // and fixed bottom nav would print alongside/over the label.
+  // Sign-in/sign-up, the stall display and every admin page are standalone:
+  // /admin/* carries its own AdminShell (top bar, tab row, bottom bar), and
+  // /admin/print/* renders a fixed-size @page for label printing.
   if (
     pathname?.startsWith("/login") ||
     pathname?.startsWith("/signup") ||
     pathname?.startsWith("/display") ||
-    pathname?.startsWith("/admin/print")
+    pathname?.startsWith("/admin")
   ) {
     return <>{children}</>;
   }

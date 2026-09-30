@@ -44,4 +44,16 @@ describe("ConditionalLayout", () => {
     expect(screen.queryByTestId("site-header")).not.toBeInTheDocument();
     expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
   });
+
+  it("renders every admin page without the site header or bottom nav", () => {
+    renderAt("/admin/orders");
+    expect(screen.getByText("page")).toBeInTheDocument();
+    expect(screen.queryByTestId("site-header")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+  });
+
+  it("renders a user with no full_name and no email with initials A", () => {
+    renderAt("/admin/orders");
+    expect(screen.getByText("page")).toBeInTheDocument();
+  });
 });
