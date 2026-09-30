@@ -53,4 +53,12 @@ describe("ErrorBanner", () => {
     );
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
+
+  it("shows retrying state with spinner and disables button", () => {
+    const onRetry = vi.fn();
+    render(<ErrorBanner message="Retrying..." onRetry={onRetry} retrying />);
+    const retyringButton = screen.getByRole("button", { name: /Retrying/ });
+    expect(retyringButton).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
 });
