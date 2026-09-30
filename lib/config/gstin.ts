@@ -1,7 +1,7 @@
 /**
  * The GSTIN is server-only: import this module from route handlers only,
- * never from a "use client" file. It is read lazily and has no fallback, the
- * same rule as getJwtSecret() in lib/jwt-auth.ts.
+ * never from a "use client" file. It is read lazily and has no fallback —
+ * never read it at module load and never add a default value.
  */
 const GSTIN_PATTERN = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 

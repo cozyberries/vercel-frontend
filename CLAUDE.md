@@ -12,7 +12,7 @@ Admin order management lives in this repo too (`/admin/orders`, `/admin/pickup-o
 (admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
 `auth.users.app_metadata.role` only — the old `admin_users` bcrypt login is gone.
 
-`JWT_SECRET` remains from the pre-merge era: `lib/jwt-auth.ts` signs a token carrying `app_metadata.role`, and `/api/auth/generate-token` mints it. Its only consumer was the deleted admin app's API, so nothing reads these tokens anymore — the route and `lib/jwt-auth.ts` are removal candidates once the cutover has soaked (do not remove them mid-merge). While they exist, two rules stand. First, `lib/jwt-auth.ts` is the only place that reads the secret, through the lazy `getJwtSecret()` accessor that throws when the variable is missing; never add a fallback default and never touch `process.env.JWT_SECRET` at module load. Second, `/api/auth/generate-token` derives the subject from a server-verified Supabase session via `getUser()` and ignores any caller-supplied `userId` — keep it that way.
+The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/generate-token`, the auth provider's `jwtToken`) was removed on 2026-09-30 — its only consumer was the deleted admin app's API. `SUPABASE_JWT_SECRET` (Supabase's own) is unrelated and stays.
 `SUPABASE_SERVICE_ROLE_KEY` is server-side only, and only for privileged operations that cannot be expressed under RLS. Every such route must (1) verify the user session with `getUser()` first and (2) scope every query by `user_id`. Six shapes qualify, and nothing else does:
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
@@ -26,7 +26,7 @@ Admin order management lives in this repo too (`/admin/orders`, `/admin/pickup-o
   `webhook_events` and broadcast `notifications` rows (`user_id IS NULL`).
 
 Never reach for it to skip writing a policy, and never let a client-supplied id be the scope key.
-`IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from `JWT_SECRET`.
+`IMPERSONATION_SIGNING_SECRET` signs/verifies the `acting_as` cookie used by admin-order-on-behalf. Server-only, 32+ random bytes, distinct from the other secrets.
 `INVOICE_LINK_SECRET` signs the public `/bill/<orderId>/<sig>` PDF links sent to customers on WhatsApp (`lib/invoice/bill-link.ts`). Server-only, 32+ characters, distinct from the other secrets. Rotating it revokes every bill link ever sent.
 
 ## Commands
@@ -100,7 +100,6 @@ app/
   /api/catalog/rebuild       # QStash-signed / cron rebuild job
   /api/search                # Redis Search ranking
   /api/health/catalog        # Catalog health (version, age, counts)
-  /api/auth/generate-token   # JWT generation (bypasses RLS)
 ```
 
 ### Auth Flow
