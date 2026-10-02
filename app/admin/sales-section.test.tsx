@@ -119,6 +119,14 @@ describe("SalesSection", () => {
     ]);
   });
 
+  it("keeps the chart grid within the phone width (explicit minmax(0,1fr) columns)", async () => {
+    stubSales();
+    renderSection();
+    const card = await screen.findByRole("region", { name: "Sales over time" });
+    const grid = card.parentElement!;
+    expect(grid).toHaveClass("grid-cols-1", "lg:grid-cols-2", "items-start");
+  });
+
   it("ranks products and categories with values, units and the line-value footnote", async () => {
     stubSales();
     renderSection();

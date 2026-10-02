@@ -74,6 +74,15 @@ describe("ChartCard", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.getByText("Line value before order discounts.")).toBeInTheDocument();
   });
+
+  it("can never force its grid column wider than the phone (min-w-0)", () => {
+    render(
+      <ChartCard title="Top products">
+        <p>bars</p>
+      </ChartCard>,
+    );
+    expect(screen.getByRole("region", { name: "Top products" })).toHaveClass("min-w-0");
+  });
 });
 
 describe("RankBars", () => {
@@ -100,6 +109,13 @@ describe("ShareBar", () => {
     const region = screen.getByRole("region", { name: "Stall vs online sales" });
     expect(region).toHaveTextContent("Stall ₹2 · 67%");
     expect(region).toHaveTextContent("Online ₹1 · 33%");
+  });
+
+  it("keeps each legend item whole when the row wraps on a narrow screen", () => {
+    render(<ShareBar stall={2} online={1} format={rupees} />);
+    const items = within(screen.getByRole("region", { name: "Stall vs online sales" })).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    items.forEach((li) => expect(li).toHaveClass("whitespace-nowrap"));
   });
 
   it("draws one full-width part when only one channel sold", () => {

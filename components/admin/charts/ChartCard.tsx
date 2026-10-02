@@ -24,7 +24,7 @@ export function ChartCard({
   const headingId = useId();
   const [showTable, setShowTable] = useState(false);
   return (
-    <section aria-labelledby={headingId} className="rounded-2xl border border-cb-border bg-cb-white p-4">
+    <section aria-labelledby={headingId} className="min-w-0 rounded-2xl border border-cb-border bg-cb-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 id={headingId} className="text-sm font-semibold text-cb-fg">
           {title}

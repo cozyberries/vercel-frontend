@@ -156,7 +156,7 @@ function SalesCharts({ metrics: m }: { metrics: SalesMetrics }) {
   return (
     <>
       <ShareBar stall={m.channel.stall.sales} online={m.channel.online.sales} format={formatRupees} />
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
         <ChartCard title="Sales over time" legend={LEGEND} table={stackTable(period, salesData, formatRupees)}>
           <StackedColumns data={salesData} format={formatRupees} formatAxis={formatRupeesCompact} />
         </ChartCard>
