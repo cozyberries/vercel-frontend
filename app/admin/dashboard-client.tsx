@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader, StatGrid, StatTile, LoadingList, ErrorBanner } from "@/components/admin/kit";
 import type { DashboardActions } from "@/lib/admin/dashboard-actions";
+import SalesSection from "./sales-section";
 
 async function fetchActions(): Promise<{ actions: DashboardActions; cached: boolean }> {
   const res = await fetch("/api/admin/dashboard/actions", { credentials: "same-origin", cache: "no-store" });
@@ -43,6 +44,7 @@ export default function DashboardClient() {
           <StatTile label="Collected today" value={a.collected_today} href="/admin/pickup-orders?tab=collected" />
         </StatGrid>
       ) : null}
+      <SalesSection />
     </div>
   );
 }
