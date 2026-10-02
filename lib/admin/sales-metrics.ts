@@ -209,7 +209,12 @@ export function buildSalesMetrics({
     return min === null || d < min ? d : min;
   }, null);
   const periods = salesPeriods(range, now, firstSaleAt);
-  const { current: cw, previous: pw } = periods;
+  const { current: cw, previous: ppw } = periods;
+  // Same elapsed time in both periods, so a part-finished week or month isn't compared with a full one.
+  const elapsed = now.getTime() - cw.from.getTime();
+  const pw = ppw
+    ? { from: ppw.from, to: new Date(Math.min(ppw.to.getTime(), ppw.from.getTime() + Math.max(0, elapsed))) }
+    : null;
 
   const current = paid.filter((o) => within(saleDate(o), cw.from, cw.to));
   const previous = pw ? paid.filter((o) => within(saleDate(o), pw.from, pw.to)) : null;

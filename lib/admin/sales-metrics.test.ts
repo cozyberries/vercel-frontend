@@ -67,7 +67,8 @@ describe("buildSalesMetrics: which orders count", () => {
   it("puts an order paid exactly at IST midnight on the first day in the current period", () => {
     const m = build([
       order("2026-09-02T18:30:00.000Z", [["frill-petal", 600, 1]]),
-      order("2026-09-02T18:29:59.999Z", [["frill-petal", 600, 1]]),
+      order("2026-09-02T18:29:59.999Z", [["frill-petal", 600, 1]]), // after the clipped previous window
+      order("2026-09-02T04:29:59.999Z", [["frill-petal", 600, 1]]), // just inside it
     ]);
     expect(m.kpis.orders).toEqual({ value: 1, previous: 1 });
     expect(point(m, "2026-09-03").stall_orders).toBe(1);
@@ -112,8 +113,28 @@ describe("buildSalesMetrics: numbers", () => {
   it("reports the period it covers and the one it compares with", () => {
     expect(m.range).toBe("30d");
     expect(m.period).toEqual({ from: "2026-09-02T18:30:00.000Z", to: NOW.toISOString() });
-    expect(m.previous).toEqual({ from: "2026-08-03T18:30:00.000Z", to: "2026-09-02T18:30:00.000Z" });
+    expect(m.previous).toEqual({ from: "2026-08-03T18:30:00.000Z", to: "2026-09-02T04:30:00.000Z" });
     expect(m.generated_at).toBe(NOW.toISOString());
+  });
+
+  it("compares the same elapsed time, so flat sales show no change mid-week", () => {
+    const now = new Date("2026-09-28T04:30:00Z"); // Monday 10:00 IST
+    const orders: SalesOrderRow[] = [];
+    for (let d = new Date("2026-04-01T03:30:00Z"); d <= new Date("2026-09-28T03:30:00Z"); d = new Date(d.getTime() + 86400000)) {
+      orders.push(order(d.toISOString(), [["frill-petal", 100, 1]])); // 09:00 IST
+    }
+    const m = buildSalesMetrics({ orders, catalog: CATALOG, range: "3m", now });
+    expect(m.kpis.sales.value).toBe(m.kpis.sales.previous);
+    expect(m.kpis.orders.value).toBe(m.kpis.orders.previous);
+  });
+
+  it("compares the same elapsed time over 12 months, within a day's sales", () => {
+    const orders: SalesOrderRow[] = [];
+    for (let d = new Date("2024-10-01T03:30:00Z"); d <= new Date("2026-10-02T03:30:00Z"); d = new Date(d.getTime() + 86400000)) {
+      orders.push(order(d.toISOString(), [["frill-petal", 100, 1]]));
+    }
+    const m = build(orders, "12m");
+    expect(Math.abs(m.kpis.orders.value - (m.kpis.orders.previous as number))).toBeLessThanOrEqual(1);
   });
 
   it("ranks products and categories by line value (price × qty, no delivery)", () => {
