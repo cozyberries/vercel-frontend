@@ -77,9 +77,11 @@ vi.mock('@/lib/services/telegram', () => ({
   buildNewOrderText: h.buildNewOrderText,
   escapeTelegramHtml: h.escapeTelegramHtml,
 }));
+vi.mock('@/lib/admin/dashboard-actions', () => ({ clearDashboardActions: vi.fn(async () => {}) }));
 
 import { POST } from './route';
 import { NextRequest } from 'next/server';
+import { clearDashboardActions } from '@/lib/admin/dashboard-actions';
 
 function tap(
   secret = 's3cret',
@@ -216,5 +218,29 @@ describe('POST /api/telegram/webhook — confirm payment', () => {
     expect(h.calls.paymentUpdates).toHaveLength(0);
     expect(h.calls.paymentInserts).toHaveLength(0);
     expect(lastAnswer()).toBe('✅ Payment confirmed · CB/26-27/0001');
+  });
+});
+
+describe('POST /api/telegram/webhook — dashboard caches', () => {
+  it('clears them once a payment is confirmed', async () => {
+    await POST(tap());
+    expect(clearDashboardActions).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears them after reverting a confirm whose payment write failed', async () => {
+    h.state.paymentInsert = { error: { message: 'boom' } };
+    await POST(tap());
+    expect(clearDashboardActions).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['out of stock', () => { h.state.confirm = { data: null, error: { code: 'P0001', message: 'OUT_OF_STOCK:Frock 3-4Y' } }; }],
+    ['items mismatch', () => { h.state.confirm = { data: null, error: { code: 'P0001', message: 'ITEMS_MISMATCH:ORD-1' } }; }],
+    ['not awaiting payment', () => { h.state.order.status = 'cancelled'; }],
+    ['no row matched', () => { h.state.confirm = { data: [], error: null }; }],
+  ])('leaves them alone when the ✅ changes nothing (%s)', async (_label, arrange) => {
+    arrange();
+    await POST(tap());
+    expect(clearDashboardActions).not.toHaveBeenCalled();
   });
 });

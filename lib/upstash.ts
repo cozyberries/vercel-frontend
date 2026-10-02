@@ -256,6 +256,17 @@ export class UpstashService {
     }
   }
 
+  // Delete several keys with one DEL (one Redis command)
+  static async deleteMany(keys: string[]) {
+    if (keys.length === 0) return true;
+    try {
+      await redis.del(...keys);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   // Delete cache entries by pattern. Uses SCAN instead of KEYS to avoid blocking on large datasets.
   static async deletePattern(pattern: string) {
     const DEL_BATCH = 250;

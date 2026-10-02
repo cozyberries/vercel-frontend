@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { countDashboardActions } from "./dashboard-actions";
+import { describe, expect, it, vi } from "vitest";
+
+const up = vi.hoisted(() => ({ deleteMany: vi.fn(async (_keys: string[]) => true) }));
+vi.mock("@/lib/upstash", () => ({ UpstashService: { deleteMany: up.deleteMany } }));
+
+import { clearDashboardActions, countDashboardActions, salesCacheKey, SALES_CACHE_TTL } from "./dashboard-actions";
 
 type FilterCall = [method: string, ...args: unknown[]];
 interface RecordedQuery {
@@ -103,5 +107,32 @@ describe("countDashboardActions", () => {
     expect(awaiting.head).toBe(true);
     expect(awaiting.filters).toContainEqual(["eq", "fulfilment_method", "pickup"]);
     expect(awaiting.filters).toContainEqual(["in", "status", ["payment_pending", "verifying_payment"]]);
+  });
+});
+
+describe("clearDashboardActions", () => {
+  it("deletes the action counts and all four sales ranges in one call", async () => {
+    up.deleteMany.mockClear();
+    await clearDashboardActions();
+    expect(up.deleteMany).toHaveBeenCalledTimes(1);
+    expect(up.deleteMany).toHaveBeenCalledWith([
+      "admin:dashboard:actions",
+      "admin:dashboard:sales:30d",
+      "admin:dashboard:sales:3m",
+      "admin:dashboard:sales:12m",
+      "admin:dashboard:sales:all",
+    ]);
+  });
+
+  it("never throws", async () => {
+    up.deleteMany.mockRejectedValueOnce(new Error("redis down"));
+    await expect(clearDashboardActions()).resolves.toBeUndefined();
+  });
+});
+
+describe("sales cache", () => {
+  it("keys each range under admin:dashboard:sales and keeps it 5 minutes", () => {
+    expect(salesCacheKey("12m")).toBe("admin:dashboard:sales:12m");
+    expect(SALES_CACHE_TTL).toBe(300);
   });
 });

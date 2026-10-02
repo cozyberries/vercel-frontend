@@ -1,9 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UpstashService } from "@/lib/upstash";
 import { startOfIstDay } from "@/lib/orders/pickup";
+import { SALES_RANGES, type SalesRange } from "@/lib/admin/sales-range";
 
 export const DASHBOARD_ACTIONS_KEY = "admin:dashboard:actions";
 export const DASHBOARD_ACTIONS_TTL = 60;
+export const SALES_CACHE_TTL = 300;
+
+/** Redis key for one range of the dashboard's sales section. */
+export function salesCacheKey(range: SalesRange): string {
+  return `admin:dashboard:sales:${range}`;
+}
 
 export interface DashboardActions {
   awaiting: number;
@@ -58,10 +65,13 @@ export async function countDashboardActions(admin: SupabaseClient, now: Date): P
   };
 }
 
-/** Called by every route that changes an order's status or tracking number. Never throws. */
+/**
+ * Called by every route that moves an order into or out of a paid status, or changes its status or
+ * tracking number. One DEL clears the action counts and all four sales ranges. Never throws.
+ */
 export async function clearDashboardActions(): Promise<void> {
   try {
-    await UpstashService.delete(DASHBOARD_ACTIONS_KEY);
+    await UpstashService.deleteMany([DASHBOARD_ACTIONS_KEY, ...SALES_RANGES.map(salesCacheKey)]);
   } catch (e) {
     console.error("[dashboard-actions] cache clear failed:", e);
   }

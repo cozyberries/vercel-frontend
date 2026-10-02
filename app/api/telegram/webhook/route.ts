@@ -6,6 +6,7 @@ import {
   buildNewOrderText,
   escapeTelegramHtml,
 } from "@/lib/services/telegram";
+import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
 
 const UNPAID_STATUSES = ["payment_pending", "verifying_payment"];
 const STOCK_ERROR = /^(OUT_OF_STOCK|VARIANT_NOT_FOUND):(.*)$/;
@@ -187,9 +188,15 @@ export async function POST(request: NextRequest) {
         callbackId,
       });
     }
+    // The order was paid for a moment (and stays paid if the revert failed), so a
+    // dashboard read in between may have cached it.
+    await clearDashboardActions();
     await answerCallbackQuery(callbackId, "❌ Payment update failed — please retry");
     return NextResponse.json({ ok: true });
   }
+
+  // Now paid: the sales numbers and the Awaiting ✅ count both changed.
+  await clearDashboardActions();
 
   const invoiceNumber = (confirmed[0] as { invoice_number?: string | null }).invoice_number ?? null;
   await answerCallbackQuery(
