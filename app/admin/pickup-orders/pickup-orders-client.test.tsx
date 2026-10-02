@@ -154,8 +154,10 @@ describe("Send bill", () => {
     respond({ orders: [{ ...order, bill_url: billUrl }], awaiting_count: 0 });
     render(<PickupOrdersClient />);
     const href = (await screen.findByRole("link", { name: /Send bill/ })).getAttribute("href")!;
-    expect(href.startsWith("https://wa.me/919876543210?text=")).toBe(true);
-    const text = decodeURIComponent(href.split("?text=")[1]);
+    const link = new URL(href);
+    expect(link.origin + link.pathname).toBe("https://api.whatsapp.com/send");
+    expect(link.searchParams.get("phone")).toBe("919876543210");
+    const text = link.searchParams.get("text")!;
     expect(text.startsWith("Hi Asha! 👋\n")).toBe(true);
     expect(text).toContain(`Your bill for order ORD-1 (invoice CB/26-27/0001):\n${billUrl}`);
     expect(text).toContain("📱 WhatsApp: +91 74114 31101");
