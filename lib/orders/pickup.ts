@@ -70,6 +70,30 @@ export function startOfIstDay(now: Date): Date {
   return new Date(midnightIstAsUtc - IST_OFFSET_MS);
 }
 
+/**
+ * WhatsApp text for "Send bill". The bill link comes before the shop links so it
+ * is the first URL in the chat, the one WhatsApp previews.
+ */
+export function billMessage(
+  order: { order_number: string; invoice_number: string | null; customer_name: string | null },
+  billUrl: string
+): string {
+  return [
+    `Hi${order.customer_name ? ` ${order.customer_name}` : ""}! 👋`,
+    "Thanks for shopping at CozyBerries stall 💛",
+    "",
+    `Your bill for order ${order.order_number}${order.invoice_number ? ` (invoice ${order.invoice_number})` : ""}:`,
+    billUrl,
+    "",
+    "We make soft, breathable muslin clothing for babies and little ones. Muslin is a light, airy cotton weave that's gentle on delicate skin, keeps babies cool, and gets softer with every wash 🌿",
+    "",
+    "🛍️ Shop online: cozyberries.in",
+    "📱 WhatsApp: +91 74114 31101",
+    "📸 Instagram: https://www.instagram.com/cozy_berries",
+    "✉️ cozyberriesofficial@gmail.com",
+  ].join("\n");
+}
+
 export interface PickupOrderRow {
   id: string;
   order_number: string;

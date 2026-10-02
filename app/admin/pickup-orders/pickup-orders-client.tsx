@@ -9,7 +9,7 @@ import { STALL } from "@/lib/config/business";
 import { whatsappLink } from "@/lib/utils/whatsapp";
 import { SegmentedTabs, ListCard, EmptyState, LoadingList, ErrorBanner, type SegmentedTab } from "@/components/admin/kit";
 import {
-  parsePickupTab, PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab,
+  billMessage, parsePickupTab, PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab,
 } from "@/lib/orders/pickup";
 
 const TAB_LABELS: Record<PickupTab, string> = {
@@ -110,10 +110,7 @@ export default function PickupOrdersClient() {
 
   const billLink = (order: PickupOrderRow) =>
     order.bill_url
-      ? whatsappLink(
-          order.customer_phone,
-          `Your CozyBerries bill for order ${order.order_number}${order.invoice_number ? ` (invoice ${order.invoice_number})` : ""}. Download the PDF: ${order.bill_url}`
-        )
+      ? whatsappLink(order.customer_phone, billMessage(order, order.bill_url))
       : null;
 
   const tabs: SegmentedTab<PickupTab>[] = TAB_ORDER.map((key) => ({

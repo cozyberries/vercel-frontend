@@ -148,6 +148,28 @@ describe("ready_for_pickup order", () => {
   });
 });
 
+describe("Send bill", () => {
+  it("opens the customer's chat with the bill link and the shop's contact details", async () => {
+    const billUrl = "https://cozyberries.in/bill/order-1/sig";
+    respond({ orders: [{ ...order, bill_url: billUrl }], awaiting_count: 0 });
+    render(<PickupOrdersClient />);
+    const href = (await screen.findByRole("link", { name: /Send bill/ })).getAttribute("href")!;
+    expect(href.startsWith("https://wa.me/919876543210?text=")).toBe(true);
+    const text = decodeURIComponent(href.split("?text=")[1]);
+    expect(text.startsWith("Hi Asha! 👋\n")).toBe(true);
+    expect(text).toContain(`Your bill for order ORD-1 (invoice CB/26-27/0001):\n${billUrl}`);
+    expect(text).toContain("📱 WhatsApp: +91 74114 31101");
+    expect(text).toContain("✉️ cozyberriesofficial@gmail.com");
+  });
+
+  it("is not offered without a signed bill link", async () => {
+    respond({ orders: [{ ...order, bill_url: null }], awaiting_count: 0 });
+    render(<PickupOrdersClient />);
+    await screen.findByTestId("pickup-order-1");
+    expect(screen.queryByRole("link", { name: /Send bill/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("empty state", () => {
   it("renders when there are no orders for the tab", async () => {
     respond({ orders: [], awaiting_count: 0 });
