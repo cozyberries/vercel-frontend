@@ -11,6 +11,7 @@ import {
   Briefcase,
   Plus,
   Phone,
+  QrCode,
   Receipt,
   Copy,
   MessageCircle,
@@ -27,7 +28,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useCartTotals } from "@/hooks/useCartTotals";
 import AddressFormModal from "@/components/profile/AddressFormModal";
 import { toast } from "sonner";
-import { STATIC_QR_CODE_URL, UPI_ID, UPI_PHONE_NUMBER } from "@/lib/constants";
+import { UPI_ID } from "@/lib/constants";
 import { getActiveOffer } from "@/lib/utils/discount";
 import MrpSummaryRows from "@/components/MrpSummaryRows";
 import type { FulfilmentMethod } from "@/lib/types/order";
@@ -389,21 +390,23 @@ export default function CheckoutPage() {
                 Payment
               </h2>
               <p className="text-sm text-cb-muted-fg mb-4">
-                Pay CozyBerries directly from any UPI app — scan the QR code, or pay to our UPI ID or phone number.
-                We&apos;ll confirm within a few hours and start packing.
+                Pay CozyBerries directly from any UPI app. We&apos;ll confirm within a few hours and start packing.
               </p>
 
               <div className="flex items-center gap-4 rounded-2xl border border-cb-border p-4 mb-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={STATIC_QR_CODE_URL} alt="UPI payment QR code" className="h-24 w-24 rounded-lg shrink-0" />
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cb-peach text-cb-terracotta-deep">
+                  <QrCode className="h-6 w-6" />
+                </span>
                 <div>
-                  <p className="text-sm text-cb-muted-fg">Scan &amp; pay</p>
                   <p className="text-2xl font-bold text-cb-fg">₹{total.toFixed(0)}</p>
-                  <p className="text-xs text-cb-muted-fg mt-1">Works with GPay, PhonePe, Paytm &amp; any UPI app</p>
+                  <p className="text-xs text-cb-muted-fg mt-1">
+                    Place your order to get a QR code with the exact amount filled in. Works with GPay, PhonePe,
+                    Paytm &amp; any UPI app.
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border border-cb-border p-3 mb-2">
+              <div className="flex items-center justify-between rounded-xl border border-cb-border p-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cb-peach text-cb-terracotta-deep font-bold">
                     ₹
@@ -416,26 +419,6 @@ export default function CheckoutPage() {
                 <button
                   type="button"
                   onClick={() => copyToClipboard(UPI_ID)}
-                  className="flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep shrink-0"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border border-cb-border p-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cb-peach text-cb-terracotta-deep">
-                    <Phone className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs text-cb-muted-fg">Phone number (UPI)</p>
-                    <p className="font-bold text-cb-fg truncate">{UPI_PHONE_NUMBER}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(UPI_PHONE_NUMBER)}
                   className="flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep shrink-0"
                 >
                   <Copy className="h-3.5 w-3.5" />

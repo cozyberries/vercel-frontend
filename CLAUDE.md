@@ -121,10 +121,11 @@ app/
 - `POST /api/auth/verifynow/send|verify` accept `intent: "link"`: a signed-in user attaches a verified phone (`/profile#phone`), which is how Google-created admin accounts get mobile sign-in. A number on another account is refused with 409.
 
 ### Payment System (Custom UPI)
-- UPI deep links for PhonePe (`phonepe://pay?`), GPay (`tez://upi/pay?`), Paytm (`paytmmp://pay?`)
-- QR code generated server-side to keep UPI credentials out of client
+- Payments go to the IDFC FIRST Bank current account `cozyberries@idfcbank` as a registered merchant (switched 2026-10-02 from a personal okaxis VPA). `lib/payments/upi.ts` builds the link from the bank's merchant-QR fields (`ver`, `mode=01`, `orgid`, `mc=5641`, `mid`, `mtid`, `qrMedium=04`) plus `tr` (order number, letters/digits only), `am` (whole rupees, 2 decimals), `cu=INR`, `tn`. That exact shape was scanned and verified in a UPI app; change it only after a fresh ₹1 test.
+- `/payment/[orderId]` shows the large QR (720 px PNG, 288 px on screen) with the amount locked, plus a "Save QR" download. Checkout shows no QR (no order, amount or reference yet); `/orders/[id]` links to the payment page while `payment_pending`. There is no pay-to-phone-number option: the number may not map to the IDFC account.
+- UPI deep links for PhonePe (`phonepe://pay?`), GPay (`tez://upi/pay?`), Paytm (`paytmmp://pay?`) share the QR's query (`upiAppLinks`)
 - Trust-based "I Have Paid" → order status `processing` → admin verifies separately
-- Env vars required: `UPI_ID`, `UPI_PAYEE_NAME`, `UPI_AID`
+- Env vars (server-only): `UPI_ID`, `UPI_PAYEE_NAME`, and for merchant mode `UPI_MERCHANT_CODE`, `UPI_MERCHANT_ID`, `UPI_TERMINAL_ID`, `UPI_ORG_ID` (all from decoding the bank's QR). `NEXT_PUBLIC_UPI_ID` is the ID displayed on checkout/orders; keep it equal to `UPI_ID`. `UPI_AID` and `NEXT_PUBLIC_UPI_PHONE` are gone. Values are trimmed, because `vercel env pull` used to leave a trailing newline that landed inside `pa=`; add Vercel values with `--value`, not a pipe.
 - Key: `pa` param must NOT have `@` encoded (do not use `encodeURIComponent` on UPI ID)
 
 ### Shipping Integration (Delhivery)

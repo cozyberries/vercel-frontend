@@ -11,22 +11,26 @@ import {
   Wallet,
   MessageCircle,
   Copy,
-  Phone,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
 import { useCart } from "@/components/cart-context";
-import { UPI_ID, UPI_PHONE_NUMBER } from "@/lib/constants";
+import { UPI_ID } from "@/lib/constants";
 import { SOCIAL_CONTACTS } from "@/lib/constants/social";
+import type { UpiLinks } from "@/lib/payments/upi";
 import type { Order } from "@/lib/types/order";
 import { toast } from "sonner";
 
-interface UpiLinks {
-  general: string;
-  phonepe: string;
-  gpay: string;
-  paytm: string;
+/** GET /api/payments/upi-links: the order's UPI links and QR, amount filled in. */
+interface UpiPayment {
+  links: UpiLinks;
+  qrCode: string;
+  payee: { upiId: string; payeeName: string };
 }
+
+/** Displayed QR size in CSS px; the PNG is rendered at 720 px so it stays sharp. */
+const QR_SIZE = 288;
 
 const STATUS_LABEL: Record<string, string> = {
   payment_pending: "Awaiting payment",
@@ -49,7 +53,7 @@ export default function PaymentPage() {
   const orderId = params?.orderId as string;
 
   const [order, setOrder] = useState<Order | null>(null);
-  const [upiLinks, setUpiLinks] = useState<UpiLinks | null>(null);
+  const [upiPayment, setUpiPayment] = useState<UpiPayment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [orderLoading, setOrderLoading] = useState(true);
   const [recordingCash, setRecordingCash] = useState(false);
@@ -81,8 +85,7 @@ export default function PaymentPage() {
       if (orderData.order.status === "payment_pending") {
         const linksRes = await fetch(`/api/payments/upi-links?orderId=${orderId}`);
         if (linksRes.ok) {
-          const linksData = await linksRes.json();
-          setUpiLinks(linksData.links);
+          setUpiPayment(await linksRes.json());
         }
       }
     } catch (err) {
@@ -154,6 +157,7 @@ export default function PaymentPage() {
     `Hi CozyBerries, I've paid for order ${order.order_number} (₹${order.total_amount.toFixed(0)}). Sharing my payment screenshot.`
   );
   const whatsappHref = `https://wa.me/${SOCIAL_CONTACTS.WHATSAPP_NUMBER_CLEAN}?text=${whatsappMessage}`;
+  const upiId = upiPayment?.payee.upiId ?? UPI_ID;
 
   return (
     <div className="min-h-screen bg-cb-linen flex items-center justify-center px-4 py-12">
@@ -183,6 +187,32 @@ export default function PaymentPage() {
               from any UPI app and we&apos;ll confirm it within a few hours.
             </p>
 
+            {upiPayment && (
+              <div className="rounded-2xl bg-white border border-cb-border p-5 mb-4">
+                <p className="text-sm font-semibold text-cb-fg mb-3">Scan QR code with any UPI app to pay</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={upiPayment.qrCode}
+                  alt="UPI QR Code"
+                  width={QR_SIZE}
+                  height={QR_SIZE}
+                  className="mx-auto w-full max-w-[18rem] h-auto"
+                />
+                <p className="mt-3 text-2xl font-bold text-cb-fg">₹{order.total_amount.toFixed(0)}</p>
+                <p className="text-xs text-cb-muted-fg">
+                  to {upiPayment.payee.payeeName} · amount is filled in for you
+                </p>
+                <a
+                  href={upiPayment.qrCode}
+                  download={`cozyberries-${order.order_number}.png`}
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Save QR
+                </a>
+              </div>
+            )}
+
             <div className="space-y-3 mb-4">
               {impersonation.active && (
                 <Button
@@ -196,9 +226,9 @@ export default function PaymentPage() {
               )}
               <Button
                 className="w-full h-12 rounded-full bg-cb-terracotta hover:bg-cb-terracotta-deep text-white gap-2"
-                disabled={!upiLinks}
+                disabled={!upiPayment}
                 onClick={() => {
-                  if (upiLinks) window.location.href = upiLinks.general;
+                  if (upiPayment) window.location.href = upiPayment.links.general;
                 }}
               >
                 <Wallet className="h-4 w-4" />
@@ -213,7 +243,7 @@ export default function PaymentPage() {
               </Button>
             </div>
 
-            <div className="rounded-2xl bg-white border border-cb-border p-4 space-y-3 text-left mb-6">
+            <div className="rounded-2xl bg-white border border-cb-border p-4 text-left mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cb-linen text-cb-terracotta-deep font-bold">
@@ -221,31 +251,12 @@ export default function PaymentPage() {
                   </span>
                   <div className="min-w-0">
                     <p className="text-xs text-cb-muted-fg">UPI ID</p>
-                    <p className="font-bold text-cb-fg truncate">{UPI_ID}</p>
+                    <p className="font-bold text-cb-fg truncate">{upiId}</p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => copyToClipboard(UPI_ID)}
-                  className="flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep shrink-0"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cb-linen text-cb-terracotta-deep">
-                    <Phone className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs text-cb-muted-fg">Phone (UPI / call)</p>
-                    <p className="font-bold text-cb-fg truncate">{UPI_PHONE_NUMBER}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(UPI_PHONE_NUMBER)}
+                  onClick={() => copyToClipboard(upiId)}
                   className="flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep shrink-0"
                 >
                   <Copy className="h-3.5 w-3.5" />

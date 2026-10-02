@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
+import { buildUpiPayUrl, readUpiPayee, upiAppLinks } from "@/lib/payments/upi";
 import QRCode from "qrcode";
 
 export async function GET(request: NextRequest) {
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
         }
 
         let totalAmount: number;
+        let reference: string;
 
         if (sessionId) {
             // New flow: checkout session
@@ -39,6 +41,7 @@ export async function GET(request: NextRequest) {
             }
 
             totalAmount = session.total_amount;
+            reference = session.id;
         } else {
             // Legacy flow: order-based
             const { data: order, error: orderError } = await supabase
@@ -57,46 +60,34 @@ export async function GET(request: NextRequest) {
             }
 
             totalAmount = order.total_amount;
+            reference = order.order_number;
         }
 
-        const upiId = process.env.UPI_ID;
-        const upiPayeeName = process.env.UPI_PAYEE_NAME;
-        const upiAid = process.env.UPI_AID;
-
-        if (!upiId || !upiPayeeName) {
+        const payee = readUpiPayee();
+        if (!payee) {
             return NextResponse.json({ error: "UPI payments not configured" }, { status: 503 });
         }
 
-        const amount = Math.round(totalAmount).toFixed(0);
-        const payeeName = encodeURIComponent(upiPayeeName);
-        const transactionNote = encodeURIComponent("Cozyberries Purchase");
+        // Amount and order reference are locked into the QR, so the customer cannot pay a different sum.
+        const upiUrl = buildUpiPayUrl(payee, {
+            amount: totalAmount,
+            reference,
+            note: `CozyBerries order ${reference}`,
+        });
 
-        // pa (payee address) must NOT have @ encoded — UPI apps reject %40
-        let baseParams = `pa=${upiId}&pn=${payeeName}`;
-        if (upiAid) {
-            baseParams += `&aid=${upiAid}`;
-        }
-        baseParams += `&am=${amount}&cu=INR&tn=${transactionNote}`;
-
-        // Standard UPI intent URL for QR code (works with all UPI apps)
-        const upiUrl = `upi://pay?${baseParams}`;
-
-        // Generate QR code as data URL (base64 PNG)
+        // Rendered large so the image stays sharp at full card width on the payment page.
         const qrCodeDataUrl = await QRCode.toDataURL(upiUrl, {
-            width: 300,
+            width: 720,
             margin: 2,
             color: { dark: "#000000", light: "#ffffff" },
             errorCorrectionLevel: "M",
         });
 
-        const links = {
-            general: upiUrl,
-            phonepe: `phonepe://pay?${baseParams}`,
-            gpay: `tez://upi/pay?${baseParams}`,
-            paytm: `paytmmp://pay?${baseParams}`,
-        };
-
-        return NextResponse.json({ links, qrCode: qrCodeDataUrl });
+        return NextResponse.json({
+            links: upiAppLinks(upiUrl),
+            qrCode: qrCodeDataUrl,
+            payee: { upiId: payee.upiId, payeeName: payee.payeeName },
+        });
 
     } catch (error) {
         console.error("UPI Links Error:", error);

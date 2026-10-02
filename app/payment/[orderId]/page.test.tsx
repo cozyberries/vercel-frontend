@@ -25,6 +25,7 @@ vi.mock("sonner", () => ({ toast: h.toast }));
 import PaymentPage from "./page";
 
 const order = { id: "order-1", order_number: "ORD-1", status: "payment_pending", total_amount: 1050 };
+const QR_DATA_URL = "data:image/png;base64,iVBORw0KGgo=";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,13 +34,44 @@ beforeEach(() => {
     vi.fn(async (url: string) => {
       if (url === "/api/payments/cash") throw new TypeError("Failed to fetch");
       if (url.startsWith("/api/payments/upi-links")) {
-        return { ok: true, json: async () => ({ links: { general: "upi://pay", phonepe: "", gpay: "", paytm: "" } }) };
+        return {
+          ok: true,
+          json: async () => ({
+            links: { general: "upi://pay", phonepe: "", gpay: "", paytm: "" },
+            qrCode: QR_DATA_URL,
+            payee: { upiId: "cozyberries@idfcbank", payeeName: "COZYBERRIES" },
+          }),
+        };
       }
       return { ok: true, json: async () => ({ order }) };
     })
   );
 });
 afterEach(() => vi.unstubAllGlobals());
+
+describe("payment page — scan to pay", () => {
+  it("shows the order's QR from the API, large enough to scan", async () => {
+    render(<PaymentPage />);
+    const qr = await screen.findByAltText("UPI QR Code");
+    expect(qr).toHaveAttribute("src", QR_DATA_URL);
+    expect(Number(qr.getAttribute("width"))).toBeGreaterThanOrEqual(256);
+    expect(screen.getByText("Scan QR code with any UPI app to pay")).toBeInTheDocument();
+  });
+
+  it("names the account the QR pays, as the API reports it", async () => {
+    render(<PaymentPage />);
+    await screen.findByAltText("UPI QR Code");
+    expect(screen.getByText("cozyberries@idfcbank")).toBeInTheDocument();
+    expect(screen.getByText(/COZYBERRIES/)).toBeInTheDocument();
+  });
+
+  it("offers no pay-to-phone-number option (it may not reach the IDFC account)", async () => {
+    render(<PaymentPage />);
+    await screen.findByAltText("UPI QR Code");
+    expect(screen.queryByText(/Phone \(UPI/)).not.toBeInTheDocument();
+    expect(screen.queryByText("+91 74114 31101")).not.toBeInTheDocument();
+  });
+});
 
 describe("payment page — staff records cash", () => {
   it("tells staff to retry when the network drops, and re-enables the button", async () => {

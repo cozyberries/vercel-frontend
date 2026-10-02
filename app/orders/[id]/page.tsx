@@ -17,6 +17,7 @@ import {
   Loader2,
   AlertCircle,
   Store,
+  QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/supabase-auth-provider";
@@ -25,7 +26,7 @@ import { useOrderShipmentTracking } from "@/hooks/useApiQueries";
 import { ShipmentTrackingSection } from "@/components/orders/ShipmentTrackingSection";
 import { useReorder } from "@/hooks/useReorder";
 import { getOrderStageInfo, getStepperSteps, type OrderStageKey } from "@/lib/utils/order-stage";
-import { UPI_ID, UPI_PHONE_NUMBER } from "@/lib/constants";
+import { UPI_ID } from "@/lib/constants";
 import type { Order } from "@/lib/types/order";
 import { StallCard } from "@/components/checkout/StallCard";
 import MrpSummaryRows from "@/components/MrpSummaryRows";
@@ -209,10 +210,18 @@ export default function OrderDetailsPage() {
                 Complete your payment · ₹{order.total_amount.toFixed(0)}
               </p>
               <p className="text-sm text-cb-fg">
-                Pay via any UPI app to <span className="font-bold">{UPI_ID}</span> or to{" "}
-                <span className="font-bold">{UPI_PHONE_NUMBER}</span>. We&apos;ll confirm within a few hours — your
-                order is held for you.
+                Pay via any UPI app to <span className="font-bold">{UPI_ID}</span>. We&apos;ll confirm within a few
+                hours — your order is held for you.
               </p>
+              {order.status === "payment_pending" && (
+                <Link
+                  href={`/payment/${order.id}`}
+                  className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-cb-terracotta-deep hover:underline"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Show QR code
+                </Link>
+              )}
             </div>
           )}
 
