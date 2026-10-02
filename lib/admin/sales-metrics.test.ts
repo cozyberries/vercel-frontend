@@ -134,7 +134,7 @@ describe("buildSalesMetrics: numbers", () => {
       orders.push(order(d.toISOString(), [["frill-petal", 100, 1]]));
     }
     const m = build(orders, "12m");
-    expect(Math.abs(m.kpis.orders.value - (m.kpis.orders.previous as number))).toBeLessThanOrEqual(1);
+    expect(Math.abs((m.kpis.orders.value as number) - (m.kpis.orders.previous as number))).toBeLessThanOrEqual(1);
   });
 
   it("ranks products and categories by line value (price × qty, no delivery)", () => {
