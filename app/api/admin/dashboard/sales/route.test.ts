@@ -162,6 +162,15 @@ describe("GET /api/admin/dashboard/sales", () => {
     const body = await res.json();
     expect(body.metrics.categories).toEqual([{ slug: null, name: "Uncategorised", value: 1200, units: 2 }]);
     expect(body.metrics.top_products[0].name).toBe("Frill");
+    expect(h.redisSet).not.toHaveBeenCalled();
+  });
+
+  it("warns when the cache write fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.redisSet.mockResolvedValue(false);
+    expect((await GET(req())).status).toBe(200);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it("returns aggregates only: no customer or order identifiers", async () => {

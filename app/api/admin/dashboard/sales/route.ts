@@ -48,8 +48,14 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date();
     const orders = await fetchPaidOrders(createAdminSupabaseClient(), salesWindowStart(range, now));
-    const metrics = buildSalesMetrics({ orders, catalog: await loadCatalog(), range, now });
-    await UpstashService.set(key, metrics, SALES_CACHE_TTL);
+    const catalog = await loadCatalog();
+    const metrics = buildSalesMetrics({ orders, catalog, range, now });
+    // Known race: a miss computed just before a status change can SET after the DEL, leaving the
+    // numbers up to 300 s stale (accepted; the TTL bounds it).
+    // Without the catalog everything is "Uncategorised"; don't cache that, so the next request retries.
+    if (catalog && !(await UpstashService.set(key, metrics, SALES_CACHE_TTL))) {
+      console.warn("[dashboard-sales] cache write failed (Redis)");
+    }
     return NextResponse.json({ metrics, cached: false }, { headers: NO_STORE });
   } catch (e) {
     console.error("[dashboard-sales]", e);
