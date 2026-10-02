@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { effectiveUserErrorResponse, getEffectiveUser } from "@/lib/services/effective-user";
 import { isSessionExpired } from "@/lib/utils/checkout-helpers";
 import { buildUpiPayUrl, readUpiPayee, upiAppLinks } from "@/lib/payments/upi";
 import QRCode from "qrcode";
 
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createServerSupabaseClient();
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        // Staff placing a stall order act as the customer: the order belongs to the impersonated
+        // user, not to the admin's session, so scope by the effective user like /api/orders/[id].
+        const effective = await getEffectiveUser();
+        if (!effective.ok) {
+            return effectiveUserErrorResponse(effective);
         }
+        const { userId, client: supabase } = effective;
 
         const sessionId = request.nextUrl.searchParams.get("sessionId");
         const orderId = request.nextUrl.searchParams.get("orderId");
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
                 .from("checkout_sessions")
                 .select("id, total_amount, user_id, status, created_at")
                 .eq("id", sessionId)
-                .eq("user_id", user.id)
+                .eq("user_id", userId)
                 .single();
 
             if (sessionError || !session) {
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
                 .from("orders")
                 .select("id, total_amount, order_number, user_id, status")
                 .eq("id", orderId!)
-                .eq("user_id", user.id)
+                .eq("user_id", userId)
                 .single();
 
             if (orderError || !order) {

@@ -1,24 +1,54 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({
-  user: { id: "user-1" } as { id: string } | null,
-  rows: {} as Record<string, unknown>,
-}));
+const h = vi.hoisted(() => {
+  const state = {
+    /** The signed-in session user (an admin, when impersonating). */
+    user: { id: "user-1" } as { id: string } | null,
+    /** Customer an admin is acting as (verified `acting_as` cookie), or null. */
+    actingAs: null as string | null,
+    rows: {} as Record<string, { user_id: string } & Record<string, unknown>>,
+  };
+  /** Supabase stand-in: a row comes back only when the query is scoped to its owner, as under RLS. */
+  const client = {
+    from: (table: string) => ({
+      select: () => {
+        const filters: Record<string, unknown> = {};
+        const chain = {
+          eq: (column: string, value: unknown) => {
+            filters[column] = value;
+            return chain;
+          },
+          single: async () => {
+            const row = state.rows[table];
+            return row && filters.user_id === row.user_id
+              ? { data: row, error: null }
+              : { data: null, error: { code: "PGRST116" } };
+          },
+        };
+        return chain;
+      },
+    }),
+  };
+  return { state, client };
+});
 
 vi.mock("@/lib/supabase-server", () => ({
   createServerSupabaseClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: h.user }, error: null }) },
-    from: (table: string) => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            single: async () => ({ data: h.rows[table] ?? null, error: h.rows[table] ? null : { code: "PGRST116" } }),
-          }),
-        }),
-      }),
-    }),
+    ...h.client,
+    auth: { getUser: async () => ({ data: { user: h.state.user }, error: null }) },
   }),
 }));
+vi.mock("@/lib/services/effective-user", async () => {
+  const { NextResponse } = await import("next/server");
+  return {
+    getEffectiveUser: async () =>
+      h.state.user
+        ? { ok: true, userId: h.state.actingAs ?? h.state.user.id, actingAdminId: h.state.actingAs ? h.state.user.id : null, client: h.client }
+        : { ok: false, status: 401, reason: "unauthenticated", clearCookie: false },
+    effectiveUserErrorResponse: async (result: { status: number }) =>
+      NextResponse.json({ error: "Unauthorized" }, { status: result.status }),
+  };
+});
 
 import { GET } from "./route";
 import { NextRequest } from "next/server";
@@ -29,8 +59,9 @@ const get = (query: string) => GET(new NextRequest(`http://localhost/api/payment
 const pngWidth = (dataUrl: string) => Buffer.from(dataUrl.split(",")[1], "base64").readUInt32BE(16);
 
 beforeEach(() => {
-  h.user = { id: "user-1" };
-  h.rows = {
+  h.state.user = { id: "user-1" };
+  h.state.actingAs = null;
+  h.state.rows = {
     orders: {
       id: "order-1",
       order_number: "ORD-20260928-120000-00001",
@@ -69,8 +100,18 @@ describe("GET /api/payments/upi-links", () => {
     expect(pngWidth(body.qrCode)).toBeGreaterThanOrEqual(600);
   });
 
+  it("gives staff the QR for the customer they are acting as (stall pickup orders)", async () => {
+    // ORD-20261002-120745-00309: placed by an admin acting as the customer; the page showed no QR.
+    h.state.user = { id: "admin-1" };
+    h.state.actingAs = "customer-1";
+    h.state.rows.orders.user_id = "customer-1";
+    const res = await get("orderId=order-1");
+    expect(res.status).toBe(200);
+    expect((await res.json()).links.general).toContain("&tr=ORD2026092812000000001&am=2500.00&");
+  });
+
   it("references a checkout session by its id", async () => {
-    h.rows = {
+    h.state.rows = {
       checkout_sessions: {
         id: "5f0c6e2a-1b2c-4d3e-8f90-a1b2c3d4e5f6",
         total_amount: 999,
@@ -89,12 +130,17 @@ describe("GET /api/payments/upi-links", () => {
   });
 
   it("is 409 once the order is no longer awaiting payment", async () => {
-    (h.rows.orders as { status: string }).status = "payment_confirmed";
+    h.state.rows.orders.status = "payment_confirmed";
     expect((await get("orderId=order-1")).status).toBe(409);
   });
 
+  it("is 404 for another customer's order", async () => {
+    h.state.rows.orders.user_id = "someone-else";
+    expect((await get("orderId=order-1")).status).toBe(404);
+  });
+
   it("is 401 without a session", async () => {
-    h.user = null;
+    h.state.user = null;
     expect((await get("orderId=order-1")).status).toBe(401);
   });
 });
