@@ -71,7 +71,9 @@ export async function countDashboardActions(admin: SupabaseClient, now: Date): P
  */
 export async function clearDashboardActions(): Promise<void> {
   try {
-    await UpstashService.deleteMany([DASHBOARD_ACTIONS_KEY, ...SALES_RANGES.map(salesCacheKey)]);
+    // deleteMany returns false on a Redis error instead of throwing.
+    const ok = await UpstashService.deleteMany([DASHBOARD_ACTIONS_KEY, ...SALES_RANGES.map(salesCacheKey)]);
+    if (!ok) console.warn("[dashboard-actions] cache clear failed (Redis)");
   } catch (e) {
     console.error("[dashboard-actions] cache clear failed:", e);
   }

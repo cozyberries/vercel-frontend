@@ -128,6 +128,14 @@ describe("clearDashboardActions", () => {
     up.deleteMany.mockRejectedValueOnce(new Error("redis down"));
     await expect(clearDashboardActions()).resolves.toBeUndefined();
   });
+
+  it("warns when Redis reports a failed delete (deleteMany returns false)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    up.deleteMany.mockResolvedValueOnce(false);
+    await expect(clearDashboardActions()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
 });
 
 describe("sales cache", () => {

@@ -233,6 +233,29 @@ describe('POST /api/telegram/webhook — dashboard caches', () => {
     expect(clearDashboardActions).toHaveBeenCalledTimes(1);
   });
 
+  it('answers the owner before clearing the caches', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(clearDashboardActions).mockImplementationOnce(() => gate);
+    const p = POST(tap());
+    await vi.waitFor(() => expect(lastAnswer()).toBe('✅ Payment confirmed · CB/26-27/0001'));
+    expect(clearDashboardActions).toHaveBeenCalledTimes(1);
+    release();
+    await p;
+  });
+
+  it('answers the owner before clearing the caches when the payment write failed', async () => {
+    h.state.paymentInsert = { error: { message: 'boom' } };
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(clearDashboardActions).mockImplementationOnce(() => gate);
+    const p = POST(tap());
+    await vi.waitFor(() => expect(lastAnswer()).toBe('❌ Payment update failed — please retry'));
+    expect(clearDashboardActions).toHaveBeenCalledTimes(1);
+    release();
+    await p;
+  });
+
   it.each([
     ['out of stock', () => { h.state.confirm = { data: null, error: { code: 'P0001', message: 'OUT_OF_STOCK:Frock 3-4Y' } }; }],
     ['items mismatch', () => { h.state.confirm = { data: null, error: { code: 'P0001', message: 'ITEMS_MISMATCH:ORD-1' } }; }],

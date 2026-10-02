@@ -188,21 +188,23 @@ export async function POST(request: NextRequest) {
         callbackId,
       });
     }
-    // The order was paid for a moment (and stays paid if the revert failed), so a
-    // dashboard read in between may have cached it.
-    await clearDashboardActions();
     await answerCallbackQuery(callbackId, "❌ Payment update failed — please retry");
+    // The order was paid for a moment (and stays paid if the revert failed), so a
+    // dashboard read in between may have cached it. Cleared after the answer so a
+    // slow Redis can never delay the owner's reply.
+    await clearDashboardActions();
     return NextResponse.json({ ok: true });
   }
-
-  // Now paid: the sales numbers and the Awaiting ✅ count both changed.
-  await clearDashboardActions();
 
   const invoiceNumber = (confirmed[0] as { invoice_number?: string | null }).invoice_number ?? null;
   await answerCallbackQuery(
     callbackId,
     invoiceNumber ? `✅ Payment confirmed · ${invoiceNumber}` : "✅ Payment confirmed!"
   );
+
+  // Now paid: the sales numbers and the Awaiting ✅ count both changed. Cleared after the
+  // answer so a slow Redis can never delay the owner's reply.
+  await clearDashboardActions();
 
   // Rebuild the message so the chat shows who confirmed it.
   const { data: full } = await supabase
