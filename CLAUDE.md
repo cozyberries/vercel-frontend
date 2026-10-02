@@ -15,7 +15,7 @@ The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/gene
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
-- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
+- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions, dashboard/sales). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
 - **Signed public bill links** — `GET /bill/[orderId]/[sig]` only. There is no session: the HMAC over that exact order id (`INVOICE_LINK_SECRET`, compared with `timingSafeEqual`) is verified first, and the service role then reads that one order, read-only. The signature, not the client, is what authorises the id; never reuse this shape for anything that writes.
 - **Signed webhook intake** — `POST /api/webhooks/delhivery` (the `x-delhivery-token`
   header, compared constant-time, is the authorisation) and
@@ -81,7 +81,7 @@ app/
   (public)    /  /products  /about  /register
   (protected) /profile  /checkout  /complete-profile
   /payment/[orderId]         # Custom UPI payment flow
-  /admin                     # Admin home: action counts (Redis 60s, cleared on status/shipment change)
+  /admin                     # Admin home: action counts (Redis 60s) + sales dashboard (Redis 300s per range)
   /admin/stall-refills       # Admin: what sold today/yesterday, shelf refill ticks
   /admin/orders              # Admin order management (server-gated by role)
   /admin/impersonate         # Find or create a customer, then act as them
@@ -94,6 +94,7 @@ app/
   /api/admin/notifications/*    # Broadcast (user_id null) shipment-scan notifications
   /api/admin/admins/*        # super_admin-gated role changes
   /api/admin/dashboard/actions
+  /api/admin/dashboard/sales # ?range=30d|3m|12m|all; aggregates only, no customer fields
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
   /api/webhooks/delhivery    # Delhivery scan intake (x-delhivery-token)
@@ -161,6 +162,13 @@ app/
 - Ticks live in `shelf_refills` (admin/internal tier). It is read and written only through `stall_refill_lines` / `stall_refill_record` / `stall_refill_undo` (service_role only), which `/api/admin/stall-refills` calls after `requireAdmin()` (`lib/services/admin-gate.ts`). `stall_refill_record` takes an advisory lock per day and variant, so two phones cannot tick the same units twice.
 - Tests: `npm run db:test-refills` (rolled back), plus vitest for `lib/orders/stall-refills.ts`, both routes, the page guard and the list.
 - `/api/admin/*` is network-only in the service worker (`isAdminApiRequest`), so a failed refresh shows the banner instead of a cached list.
+
+### Admin sales dashboard (`/admin`)
+- Below the action tiles: Sales, Orders, Avg order and Items per order (vs the previous period), a Stall vs Online share bar, sales and orders over time (stacked), average order value over time, top 8 products (+ "Other") and categories. Spec: `docs/superpowers/specs/2026-10-02-admin-sales-dashboard-design.md`.
+- A sale is an order in a paid status (`payment_confirmed`, `processing`, `ready_for_pickup`, `collected`, `shipped`, `delivered`), counted on the IST day of `coalesce(stock_committed_at, created_at)`. Sales = Σ `total_amount` (amount collected, incl. delivery). Product and category value = Σ `price × quantity`, so it does not add up to Sales. Pickup = Stall, delivery = Online.
+- Ranges (`lib/admin/sales-range.ts`): 30 days daily, 3 months as 13 Monday-start weeks, 12 months monthly, All time monthly with no comparison. Default 3 months; the chip lives in `?range=`.
+- `GET /api/admin/dashboard/sales` adds up raw rows in TS (`lib/admin/sales-metrics.ts`) and caches each range in Redis for 300 s (`admin:dashboard:sales:{range}`). `clearDashboardActions()` deletes those four keys and the action counts in one DEL. Every route that moves an order into or out of a paid status must call it: the admin order, pickup and shipment routes and the Telegram ✅ webhook do.
+- Charts are Recharts 3 (`components/admin/charts/`), used only by the dashboard, so storefront bundles do not carry it. Colours were checked with the dataviz palette validator: Stall `#c4703f`, Online `#2f7fc0`, neutral `#8a6b63`.
 
 ### MRP display (display-only)
 - Every price is shown as a struck-through MRP plus the catalogue price with a "10% OFF" badge. The MRP is `mrpFor(price) = round(price ÷ (1 − rate))` in `lib/utils/discount.ts`, and `products.price` / `product_variants.price` stay the price charged. There is no MRP column.
