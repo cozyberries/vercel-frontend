@@ -34,3 +34,15 @@ export const SELLER = {
   /** Must equal the first two digits of BUSINESS_GSTIN. */
   stateCode: "29",
 } as const;
+
+/** First month Cozyberries was GST-registered (YYYY-MM). No sales register exists before it. */
+export const GST_REGISTERED_FROM = "2026-09";
+
+/** GSTR-1 table 5 (B2CL): inter-state B2C invoices above ₹1,00,000 are reported one by one. */
+export const B2CL_LIMIT_PAISE = 100_000_00;
+
+/** HSN 6111 as GSTR-1 table 12 describes it. */
+export const HSN_DESCRIPTION = "Babies' garments and clothing accessories, knitted or crocheted";
+
+/** GSTR-1 unit quantity code for pieces. */
+export const UQC_PIECES = "PCS-PIECES";

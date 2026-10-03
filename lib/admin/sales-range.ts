@@ -43,7 +43,7 @@ export function istParts(d: Date): { y: number; m: number; day: number; dow: num
 }
 
 /** Midnight IST on an IST calendar date, as a UTC instant. Month and day overflow roll over like Date.UTC. */
-function istMidnight(y: number, m: number, day: number): Date {
+export function istMidnight(y: number, m: number, day: number): Date {
   return new Date(Date.UTC(y, m, day) - IST_OFFSET_MS);
 }
 
