@@ -175,7 +175,7 @@ app/
 ### Admin stock (`/admin/stock`)
 - Tiles (units on hand, value at selling price, sizes out, sizes low), an in/low/out health bar, "Restock next", "Not selling", stock by category and size gaps per product. One block per row. Spec: `docs/superpowers/specs/2026-10-03-admin-stock-dashboard-design.md`.
 - Scope is variants of active products. Out = 0 (missing or negative stock counts as 0), low = 1–2 (`LOW_STOCK_MAX`), in stock = 3+. Not selling = stock ≥ 1 and no sale in 60 IST days. Demand is shown as plain counts ("sold 3 in 30 days · last sold 28 Sep"); there are no forecasts and no stock history.
-- `GET /api/admin/stock` reads `product_variants` (products, categories and sizes embedded) and every paid order line live on each request: no Redis, nothing to invalidate. `lib/admin/stock-metrics.ts` matches a sale to a size exactly like `public.order_item_variant_slug` (sku first, then product + `lower(size)`).
+- `GET /api/admin/stock` reads `product_variants` (products, categories and sizes embedded) and every paid order line live on each request: no Redis, nothing to invalidate. `lib/admin/stock-metrics.ts` matches a sale to a size with the same rules as `public.order_item_variant_slug` (sku first, then product + `lower(size)`), over active products only.
 - Status colours are the dataviz reference palette (in `#0ca30c`, low `#fab219`, out `#d03b3b`), always with the label and number printed. The phone bottom bar has five items (`grid-cols-5`); a sixth needs the grid widened.
 
 ### MRP display (display-only)

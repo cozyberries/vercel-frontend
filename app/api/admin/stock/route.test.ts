@@ -87,6 +87,7 @@ describe("GET /api/admin/stock", () => {
   it("403s a customer", async () => {
     h.user = { id: "c", app_metadata: { role: "customer" } };
     expect((await GET()).status).toBe(403);
+    expect(createAdminSupabaseClient).not.toHaveBeenCalled();
     expect(h.fetchActiveVariants).not.toHaveBeenCalled();
   });
 

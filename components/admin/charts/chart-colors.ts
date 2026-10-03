@@ -9,7 +9,7 @@ export const CHART_COLORS = { stall: "#c4703f", online: "#2f7fc0", neutral: "#8a
 export const CHART_INK = { grid: "#e7e5e4", axis: "#78716c", cursor: "#f9f7f4", surface: "#ffffff" } as const;
 
 /**
- * The dataviz reference status palette. Amber and green sit below 3:1 on white by design, so a
+ * The dataviz reference status palette. Amber (#fab219) sits below 3:1 on white by design, so a
  * status colour never carries meaning alone: every use prints its label and number in ink.
  */
 export const STATUS_COLORS = { in: "#0ca30c", low: "#fab219", out: "#d03b3b" } as const;
