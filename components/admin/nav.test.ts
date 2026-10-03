@@ -4,11 +4,17 @@ import { ADMIN_TABS, isActiveTab, tabsForRole } from "./nav";
 describe("admin nav", () => {
   it("lists tabs in order with the bottom-bar five flagged", () => {
     expect(ADMIN_TABS.map((t) => t.label)).toEqual([
-      "Dashboard", "Orders", "Pickups", "Refills", "Stock", "On-behalf", "Impersonate", "Admins",
+      "Dashboard", "Orders", "Pickups", "Refills", "Stock", "Sales register", "On-behalf", "Impersonate", "Admins",
     ]);
     expect(ADMIN_TABS.filter((t) => t.bottom).map((t) => t.label)).toEqual([
       "Dashboard", "Orders", "Pickups", "Refills", "Stock",
     ]);
+  });
+  it("shows Sales register to admins in the sidebar only", () => {
+    const tab = ADMIN_TABS.find((t) => t.href === "/admin/sales-register");
+    expect(tab).toMatchObject({ label: "Sales register" });
+    expect(tab?.bottom).toBeFalsy();
+    expect(tabsForRole("admin").some((t) => t.href === "/admin/sales-register")).toBe(true);
   });
   it("shows Stock to admins and super admins", () => {
     expect(tabsForRole("admin").some((t) => t.href === "/admin/stock")).toBe(true);
