@@ -1,6 +1,7 @@
 import { GST_RATE_PERCENT, HSN_BABY_GARMENTS } from "@/lib/config/business";
 import { gstStateName } from "@/lib/invoice/state-codes";
-import type { Channel, RegisterInvoice, RegisterLine, TaxAmounts } from "../register-types";
+import { buildSalesRegister, type RegisterOrderRow } from "../sales-register";
+import type { Channel, RegisterInvoice, RegisterLine, SalesRegister, TaxAmounts } from "../register-types";
 
 /** GST split of a tax-inclusive value, the way computeGst() splits one line. */
 export function amountsFor(valuePaise: number, mode: "intra" | "inter"): TaxAmounts {
@@ -68,4 +69,68 @@ export function registerInvoice(o: RegisterInvoiceFixture = {}): RegisterInvoice
     paymentMethod: "Cash",
     lines,
   };
+}
+
+export const GSTIN = "29EPDPR9174E1ZB";
+export const NOW = new Date("2026-10-03T04:30:00.000Z"); // 3 Oct 2026, 10:00 IST
+
+/** An invoiced September stall order of ₹1,050 (one item). */
+export function orderRow(o: Partial<RegisterOrderRow> = {}): RegisterOrderRow {
+  return {
+    id: "order-1",
+    order_number: "ORD-1",
+    created_at: "2026-09-25T06:00:00.000Z",
+    status: "collected",
+    fulfilment_method: "pickup",
+    customer_name: "Asha Rao",
+    shipping_address: null,
+    place_of_supply: "29",
+    invoice_number: "CB/26-27/0001",
+    invoice_date: "2026-09-25T06:05:00.000Z",
+    invoice_voided_at: null,
+    subtotal: 1050,
+    discount_amount: 0,
+    delivery_charge: 0,
+    total_amount: 1050,
+    order_items: [{ name: "Frock", size: "3-4Y", color: "pink", price: 1050, quantity: 1 }],
+    payments: [{ payment_method: "cash", status: "completed" }],
+    ...o,
+  };
+}
+
+/** September 2026: 0001 stall ₹1,050; 0002 online ₹1,140 (₹90 shipping); 0003 cancelled on 28 Sep. */
+export function salesRegisterFixture(): SalesRegister {
+  return buildSalesRegister({
+    month: "2026-09",
+    orders: [
+      orderRow(),
+      orderRow({
+        id: "order-2",
+        order_number: "ORD-2",
+        invoice_number: "CB/26-27/0002",
+        invoice_date: "2026-09-27T06:00:00.000Z",
+        status: "delivered",
+        fulfilment_method: "delivery",
+        customer_name: "Ravi Kumar",
+        place_of_supply: "29",
+        shipping_address: { full_name: "Ravi Kumar", city: "Bengaluru", state: "Karnataka", postal_code: "560001" },
+        delivery_charge: 90,
+        total_amount: 1140,
+        payments: [{ payment_method: "upi", status: "completed" }],
+      }),
+      orderRow({
+        id: "order-3",
+        order_number: "ORD-3",
+        invoice_number: "CB/26-27/0003",
+        invoice_date: "2026-09-28T05:00:00.000Z",
+        status: "cancelled",
+        invoice_voided_at: "2026-09-28T10:00:00.000Z",
+        customer_name: "Meena Iyer",
+      }),
+    ],
+    cancelledEarlier: [],
+    missingNumbers: [],
+    gstin: GSTIN,
+    now: NOW,
+  });
 }
