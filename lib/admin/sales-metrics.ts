@@ -19,6 +19,10 @@ export interface SalesOrderLine {
   name: string | null;
   price: number | string;
   quantity: number;
+  /** Variant slug resolved at checkout (from 25 Sep 2026); used by the stock page. */
+  sku?: string | null;
+  /** Size label as sold, e.g. "0-3M"; used by the stock page. */
+  size?: string | null;
 }
 
 /** One row of the paged orders query (lib/admin/sales-orders.ts). */
