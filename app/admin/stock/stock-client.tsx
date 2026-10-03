@@ -33,18 +33,15 @@ export default function StockClient() {
   return (
     <div>
       <PageHeader title="Stock" subtitle={m ? `as of ${formatIstTime(m.generated_at)}` : undefined} />
-      {query.isError ? (
+      {query.isError && (
         <ErrorBanner
           message={(query.error as Error).message}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
           loginRedirect={status === 401 || status === 403 ? "/admin/stock" : undefined}
         />
-      ) : m ? (
-        <StockBody metrics={m} />
-      ) : (
-        <LoadingList rows={3} label="Loading stock" />
       )}
+      {m ? <StockBody metrics={m} /> : !query.isError && <LoadingList rows={3} label="Loading stock" />}
     </div>
   );
 }

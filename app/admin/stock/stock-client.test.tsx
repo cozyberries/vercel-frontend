@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import StockClient from "./stock-client";
@@ -13,8 +13,7 @@ function stubStock(respond: () => Response = () => json({ metrics: stockMetricsF
   return f;
 }
 
-function renderPage() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderPage(qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <StockClient />
@@ -80,6 +79,19 @@ describe("StockClient", () => {
     renderPage();
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load stock"));
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("keeps the last stock on screen when a refresh fails", async () => {
+    let calls = 0;
+    stubStock(() => (calls++ === 0 ? json({ metrics: stockMetricsFixture() }) : json({ error: "Couldn't load stock" }, 500)));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderPage(qc);
+    expect(await screen.findByText("as of 10:00")).toBeInTheDocument();
+    await act(async () => {
+      await qc.refetchQueries({ queryKey: ["admin", "stock"] });
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load stock");
+    expect(tile("Units on hand")).toHaveTextContent("632");
   });
 
   it("offers a login link instead of Retry on 401", async () => {
