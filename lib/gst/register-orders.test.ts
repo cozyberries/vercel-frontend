@@ -7,6 +7,7 @@ import {
   fetchMonthInvoices,
   loadSalesRegister,
   REGISTER_COLUMNS,
+  toRegisterRow,
 } from "./register-orders";
 import { monthBounds } from "./register-month";
 
@@ -47,6 +48,27 @@ describe("register reads", () => {
   it("never selects phone, email or user id", () => {
     expect(REGISTER_COLUMNS).not.toMatch(/phone|email|user_id/);
     expect(REGISTER_COLUMNS).toContain("invoice_voided_at");
+  });
+
+  it("selects only the state and name inside shipping_address, never the whole JSON (it carries the phone)", () => {
+    expect(REGISTER_COLUMNS).toContain("ship_state:shipping_address->>state");
+    expect(REGISTER_COLUMNS).toContain("ship_name:shipping_address->>full_name");
+    expect(REGISTER_COLUMNS.split(",").map((c) => c.trim())).not.toContain("shipping_address");
+  });
+
+  it("rebuilds shipping_address from the two selected fields", () => {
+    const raw = { ...orderRow(), ship_state: "Karnataka", ship_name: "Ravi" };
+    delete (raw as Record<string, unknown>).shipping_address;
+    expect(toRegisterRow(raw).shipping_address).toEqual({ state: "Karnataka", full_name: "Ravi" });
+    expect(toRegisterRow({ ...orderRow(), ship_state: null, ship_name: null } as never).shipping_address).toBeNull();
+    expect("ship_state" in toRegisterRow({ ...orderRow(), ship_state: null, ship_name: null } as never)).toBe(false);
+  });
+
+  it("takes the place of supply from the shipping state when the order has none", async () => {
+    const raw = { ...orderRow({ fulfilment_method: "delivery", place_of_supply: null }), ship_state: "Karnataka", ship_name: "Ravi" };
+    const { admin } = fakeAdmin([{ data: [raw], error: null }]);
+    const r = await loadSalesRegister(admin, { month: "2026-09", gstin: GSTIN, now: NOW });
+    expect(r.invoices[0].placeOfSupply.code).toBe("29");
   });
 
   it("reads invoices dated in the month", async () => {

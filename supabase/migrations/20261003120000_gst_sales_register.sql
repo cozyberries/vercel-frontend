@@ -188,7 +188,8 @@ begin
     update public.orders
        set invoice_number = 'CB/' || fy || '/' || lpad(seq::text, greatest(4, length(seq::text)), '0'),
            invoice_date = rec.paid_at
-     where id = rec.id;
+     where id = rec.id
+       and invoice_number is null;
     n := n + 1;
   end loop;
   return n;

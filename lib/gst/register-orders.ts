@@ -4,11 +4,18 @@ import { monthBounds } from "./register-month";
 import { buildSalesRegister, type MissingNumberRow, type RegisterOrderRow } from "./sales-register";
 import type { SalesRegister } from "./register-types";
 
-/** Every column the register needs. Customer phone and email are deliberately absent. */
+/** Every column the register needs. Customer phone and email are deliberately absent, and so is the whole shipping_address JSON (it carries the phone): only its state and name are selected. */
 export const REGISTER_COLUMNS =
-  "id, order_number, created_at, status, fulfilment_method, customer_name, shipping_address, place_of_supply, " +
+  "id, order_number, created_at, status, fulfilment_method, customer_name, ship_state:shipping_address->>state, ship_name:shipping_address->>full_name, place_of_supply, " +
   "invoice_number, invoice_date, invoice_voided_at, subtotal, discount_amount, delivery_charge, total_amount, " +
   "order_items(name, size, color, price, quantity), payments(payment_method, status)";
+
+type RawRegisterRow = Omit<RegisterOrderRow, "shipping_address"> & { ship_state: string | null; ship_name: string | null };
+
+/** Rebuilds the only two shipping_address fields the register uses (state for the place of supply, full_name as the buyer fallback). */
+export function toRegisterRow({ ship_state, ship_name, ...row }: RawRegisterRow): RegisterOrderRow {
+  return { ...row, shipping_address: ship_state == null && ship_name == null ? null : { state: ship_state, full_name: ship_name } } as RegisterOrderRow;
+}
 
 const PAGE = 1000;
 
@@ -28,7 +35,7 @@ async function readAll<T>(page: (from: number, to: number) => PageResult): Promi
 
 /** Invoices dated in [start, end). Service-role client; callers gate on requireAdmin() first. */
 export function fetchMonthInvoices(admin: SupabaseClient, start: Date, end: Date): Promise<RegisterOrderRow[]> {
-  return readAll<RegisterOrderRow>((from, to) =>
+  return readAll<RawRegisterRow>((from, to) =>
     admin
       .from("orders")
       .select(REGISTER_COLUMNS)
@@ -38,12 +45,12 @@ export function fetchMonthInvoices(admin: SupabaseClient, start: Date, end: Date
       .order("invoice_date", { ascending: true })
       .order("id", { ascending: true })
       .range(from, to),
-  );
+  ).then((rows) => rows.map(toRegisterRow));
 }
 
 /** Invoices dated before start and voided in [start, end). */
 export function fetchCancelledEarlier(admin: SupabaseClient, start: Date, end: Date): Promise<RegisterOrderRow[]> {
-  return readAll<RegisterOrderRow>((from, to) =>
+  return readAll<RawRegisterRow>((from, to) =>
     admin
       .from("orders")
       .select(REGISTER_COLUMNS)
@@ -54,7 +61,7 @@ export function fetchCancelledEarlier(admin: SupabaseClient, start: Date, end: D
       .order("invoice_date", { ascending: true })
       .order("id", { ascending: true })
       .range(from, to),
-  );
+  ).then((rows) => rows.map(toRegisterRow));
 }
 
 /** Paid orders whose sale date (stock_committed_at, else created_at) is in [start, end) but that have no invoice number. */

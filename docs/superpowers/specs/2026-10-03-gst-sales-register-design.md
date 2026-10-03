@@ -262,10 +262,13 @@ Shown on the page banner and the Summary sheet; none blocks the download.
 
 ### Accepted limitation
 
-If an order is cancelled in one month and reinstated in a later month, the
-earlier month's "Cancelled earlier" line disappears on a re-download, because
-`invoice_voided_at` holds only the latest cancellation. This is rare and
-needs a manual note to the CA if it ever happens.
+If an order is reinstated (paid again) after the month it was cancelled in has
+closed, that closed month changes on a re-download, because the trigger clears
+`invoice_voided_at`. Two cases: an invoice cancelled in its own month and
+reinstated later turns from a zero-amount cancelled row back into a valid
+invoice; an invoice cancelled in a later month and then reinstated loses its
+"Cancelled earlier" line there. This is rare and needs a manual note to the CA
+if it ever happens.
 
 ### Why the dashboard and the register can differ
 
@@ -382,8 +385,9 @@ dashboard's colours), `ChartTable`, `ListCard`, `ErrorBanner`, `EmptyState`,
 
 ### Rollout
 
-1. Owner applies the migration, then runs `npm run db:test-sales-register`,
-   `db:lint`, `db:probe`.
+1. Owner runs `npm run db:test-sales-register` first (it loads the migration
+   itself inside a rolled-back transaction), then applies the migration, then
+   runs `db:lint` and `db:probe`, then runs the rolled-back test once more.
 2. Merge to `develop` and `main`, deploy.
 3. Live check: September shows 18 invoices, ₹28,320.00 invoice value (16
    Stall ₹26,167.00, 2 Online ₹2,153.00), runs `0001–0016` and the two backfilled numbers,

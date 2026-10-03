@@ -100,7 +100,7 @@ app/
   /api/admin/dashboard/actions
   /api/admin/dashboard/sales # ?range=30d|3m|12m|all; aggregates only, no customer fields
   /api/admin/stock           # live stock metrics; no cache, no customer fields
-  /api/admin/sales-register   # ?month=YYYY-MM JSON; /download → .xlsx; live, no cache
+  /api/admin/sales-register  # ?month=YYYY-MM JSON; /download → .xlsx; live, no cache
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
   /api/webhooks/delhivery    # Delhivery scan intake (x-delhivery-token)
@@ -186,7 +186,7 @@ app/
 - Monthly register for the CA's GSTR-1 / GSTR-3B: preview with totals, B2CS, HSN and invoice-number runs, plus a GSTR-1-ready `.xlsx` (sheets Summary, Invoices, B2CS, B2CL, HSN summary, Documents issued, Cancelled earlier). Spec: `docs/superpowers/specs/2026-10-03-gst-sales-register-design.md`.
 - GST registration took effect in September 2026 (`GST_REGISTERED_FROM`). Store sales only: the monthly Cellstrat consulting invoice is billed outside the app and goes to the CA separately.
 - A month holds the invoices whose `invoice_date` falls in it (IST). Every figure comes from `buildInvoice()`, so it matches the invoice PDFs to the paisa.
-- "As at month end": `orders.invoice_voided_at` is stamped by `orders_on_status_change` when an invoiced order leaves a paid status and cleared when it is paid again. An invoice voided in its own month stays listed with zero amounts; one voided in a later month stays valid in its own month and appears in the later month's "Cancelled earlier" as minus figures. A past month's file therefore never changes. Limitation: an order cancelled and later reinstated loses its "Cancelled earlier" line.
+- "As at month end": `orders.invoice_voided_at` is stamped by `orders_on_status_change` when an invoiced order leaves a paid status and cleared when it is paid again. An invoice voided in its own month stays listed with zero amounts; one voided in a later month stays valid in its own month and appears in the later month's "Cancelled earlier" as minus figures. A past month's figures stay fixed, except when an order is reinstated (paid again) after that month closed: the trigger clears `invoice_voided_at`, so the closed month changes (a cancelled row turns valid again, or a "Cancelled earlier" line disappears). Tell the CA if that happens.
 - `public.backfill_invoice_numbers(p_from)` (service role only) numbers paid orders that have none, in paid-time order, dated with their paid time. The migration ran it from 1 Sep 2026: the two delivered orders paid on 1 Sep 2026 got the next free numbers on the migration date, so they sit after later invoices in the series.
 - `lib/gst/` holds it: `register-month` (IST months), `sales-register` (pure builder), `register-summaries` (B2CS/B2CL/HSN/runs), `register-xlsx` (`write-excel-file`), `register-orders` (reads; phone and email never selected). Both routes run `requireAdmin()` first; the download is `private, no-store` and `noindex`.
 
