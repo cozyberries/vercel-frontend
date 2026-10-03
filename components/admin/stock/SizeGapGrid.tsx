@@ -31,7 +31,7 @@ export function SizeGapGrid({ products }: { products: StockProductRow[] }) {
         <ul className="divide-y divide-cb-border">
           {shown.map((p) => (
             <li key={p.slug} className="py-2.5">
-              <p className="truncate text-sm text-cb-fg" title={p.name}>
+              <p className="break-words text-sm text-cb-fg">
                 {p.name}
               </p>
               <ul aria-label={`${p.name} sizes`} className="mt-1.5 flex flex-wrap gap-1.5">

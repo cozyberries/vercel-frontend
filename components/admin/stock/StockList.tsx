@@ -36,9 +36,9 @@ export function StockList({
           <ul className="mt-2 divide-y divide-cb-border">
             {shown.map((r) => (
               <li key={r.variant_slug} className="py-2.5">
-                <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate text-cb-fg" title={`${r.product_name} · ${r.size_label}`}>
-                    {r.product_name} · {r.size_label}
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <span className="min-w-0 break-words text-cb-fg">
+                    {r.product_name} · <span className="whitespace-nowrap font-medium">{r.size_label}</span>
                   </span>
                   <span className="shrink-0 font-medium text-cb-fg">{stockText(r)}</span>
                 </div>

@@ -6,6 +6,7 @@ import { stockMetricsFixture, stockRow } from "@/lib/admin/__fixtures__/stock-me
 
 const NOW = new Date("2026-10-03T04:30:00Z");
 const metrics = stockMetricsFixture();
+const LONG_NAME = "Pyjamas Classic Popsicles Full Length Pants for Babies - Without Rib Cuffs Set";
 
 describe("StockList", () => {
   it("shows the first 10 rows with their stock and sales, and expands to all", () => {
@@ -29,6 +30,23 @@ describe("StockList", () => {
   it("says on hand and never sold for an idle size", () => {
     render(<StockList title="Not selling" rows={metrics.not_selling} now={NOW} emptyTitle="none" />);
     expect(screen.getByRole("listitem")).toHaveTextContent("Boys Coord Set Navy · 4-5Y14 on handnever sold");
+  });
+
+  it("never hides the size behind a long product name", () => {
+    render(
+      <StockList
+        title="Restock next"
+        rows={[stockRow({ product_name: LONG_NAME, size_label: "6-12M" })]}
+        now={NOW}
+        emptyTitle="none"
+      />,
+    );
+    const region = screen.getByRole("region", { name: "Restock next" });
+    const item = within(region).getByRole("listitem");
+    expect(item).toHaveTextContent(LONG_NAME);
+    expect(item).toHaveTextContent("6-12M");
+    expect(region.querySelector(".truncate")).toBeNull();
+    expect(within(region).getByText("6-12M")).toHaveClass("whitespace-nowrap");
   });
 
   it("shows the empty state when there are no rows", () => {
@@ -57,6 +75,17 @@ describe("SizeGapGrid", () => {
       "4-5Y · 0 (out)",
     ]);
     expect(chips.map((c) => c.getAttribute("data-state"))).toEqual(["in", "out", "low", "out"]);
+  });
+
+  it("wraps long product names in size gaps", () => {
+    render(
+      <SizeGapGrid
+        products={[{ slug: "long", name: LONG_NAME, out: 1, sizes: [stockRow({ stock: 0, state: "out" })] }]}
+      />,
+    );
+    const name = screen.getByText(LONG_NAME);
+    expect(name).toHaveClass("break-words");
+    expect(name).not.toHaveClass("truncate");
   });
 
   it("says no size runs are broken when nothing is out", () => {
