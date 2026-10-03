@@ -1,7 +1,7 @@
 # GST sales register — design
 
 **Date:** 2026-10-03
-**Status:** draft for review
+**Status:** approved 2026-10-03; plan at `docs/superpowers/plans/2026-10-03-gst-sales-register.md`
 **Branch:** `feature/gst-sales-register`
 
 ## Problem
@@ -39,7 +39,7 @@ integer-paise GST maths as the invoice PDFs so the two can never disagree.
 |---|---|
 | File | One `.xlsx`, GSTR-1 ready: Summary, Invoices, B2CS, B2CL, HSN summary, Documents issued, Cancelled earlier. No item-wise sheet. |
 | Scope | Store sales only (stall + online). The monthly Cellstrat consulting invoice (B2B, SAC 998314, 18%) is billed outside the app and stays out of the register; the owner sends it to the CA separately. |
-| Missing invoice numbers | Backfill: paid orders from 1 Sep 2026 without a number get the next numbers in the series (`0025`, `0026`), dated with their payment time. Earlier orders stay as receipts. |
+| Missing invoice numbers | Backfill: paid orders from 1 Sep 2026 without a number get the next free numbers in the series at migration time, dated with their payment time. Earlier orders stay as receipts. |
 | Registration start | `GST_REGISTERED_FROM = "2026-09"`. No register exists before that month. |
 | Cancellations | As at month end. A month's register never changes after the month closes; a later cancellation appears in the month it happened as a minus figure. |
 | Approach | Server builds both the preview (JSON) and the file (`.xlsx`) from one pure module. Live read, no cache. |
@@ -125,7 +125,7 @@ consecutive numbers issued this month:
 
 `Sr. no. from · Sr. no. to · Total number · Cancelled · Net issued`
 
-September: `CB/26-27/0001`–`0016` and `CB/26-27/0025`–`0026`. Runs are
+September: `CB/26-27/0001`–`0016` plus a run for the two backfilled numbers. Runs are
 consecutive by the numeric part within one series (`CB/26-27/`). Cancelled
 counts only invoices cancelled within the month.
 
@@ -204,9 +204,9 @@ deploys (the routes select `invoice_voided_at`).
    Running it again numbers nothing. It is a function, not an inline block,
    so the SQL tests can call it on fixture rows.
 5. `select public.backfill_invoice_numbers('2026-09-01 00:00+05:30');`
-   Today that numbers `ORD-20260901-155216-00109` → `CB/26-27/0025` and
-   `ORD-20260901-160238-00110` → `CB/26-27/0026`, both dated 1 Sep.
-6. Any invoiced order already in `cancelled`/`refunded` with
+   Today that numbers `ORD-20260901-155216-00109` and `ORD-20260901-160238-00110`
+   with the next free numbers (0026 and 0027 as of 3 Oct evening), both dated 1 Sep.
+6. Any invoiced order already in any non-paid status with
    `invoice_voided_at is null` gets the latest `order_status_events.created_at`
    into that status, else `updated_at`. Today there are none; this covers a
    cancellation made between now and the migration.
@@ -257,7 +257,7 @@ Shown on the page banner and the Summary sheet; none blocks the download.
 - A delivery invoice whose place of supply cannot be resolved (shown as `—`
   and taxed as IGST by the invoice rules): "check the address".
 - An invoice whose computed total differs from `orders.total_amount`.
-- An invoiced order in `cancelled`/`refunded` with no `invoice_voided_at`;
+- An invoiced order in a non-paid status with no `invoice_voided_at`;
   it is treated as cancelled in its own month.
 
 ### Accepted limitation
@@ -292,7 +292,7 @@ Sales register                       [⬇ Excel]
 Stall ████████████████░ Online
 By place of supply (B2CS)      table
 HSN summary                    table
-Invoice numbers used           0001–0016 · 0025–0026
+Invoice numbers used           0001–0016 · 0026–0027
 Invoices                       list
 Cancelled from earlier months  list, only when present
 ```
@@ -386,11 +386,9 @@ dashboard's colours), `ChartTable`, `ListCard`, `ErrorBanner`, `EmptyState`,
    `db:lint`, `db:probe`.
 2. Merge to `develop` and `main`, deploy.
 3. Live check: September shows 18 invoices, ₹28,320.00 invoice value (16
-   Stall ₹26,167.00, 2 Online ₹2,153.00), runs `0001–0016` and `0025–0026`,
+   Stall ₹26,167.00, 2 Online ₹2,153.00), runs `0001–0016` and the two backfilled numbers,
    matching a read-only SQL sum over September's invoices.
-4. Tell the CA that `CB/26-27/0025` and `0026` were numbered on the
-   migration date for sales paid on 1 Sep 2026, which is why they sit after
-   `0016` in the series.
+4. Tell the CA which two numbers were given on the migration date to sales paid on 1 Sep 2026, which is why they sit after later invoices.
 
 ### Docs
 

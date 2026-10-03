@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the **public-facing storefront** for CozyBerries (cozyberries.com, port 3000).
 Customers browse products, manage their cart, checkout, pay via UPI, and track orders here.
 
-Admin order management lives in this repo too, under one `/admin` section (`app/admin/layout.tsx` gates every route on `getUser()` + `isAdmin()` and wraps pages in `components/admin/AdminShell.tsx`; pages are built from `components/admin/kit/*`): `/admin` (action counts), `/admin/orders`, `/admin/pickup-orders`, `/admin/on-behalf-orders`, `/admin/stall-refills`, `/admin/stock`, `/admin/impersonate`, `/admin/admins` (`super_admin` only). The former admin app (admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
+Admin order management lives in this repo too, under one `/admin` section (`app/admin/layout.tsx` gates every route on `getUser()` + `isAdmin()` and wraps pages in `components/admin/AdminShell.tsx`; pages are built from `components/admin/kit/*`): `/admin` (action counts), `/admin/orders`, `/admin/pickup-orders`, `/admin/on-behalf-orders`, `/admin/stall-refills`, `/admin/stock`, `/admin/sales-register`, `/admin/impersonate`, `/admin/admins` (`super_admin` only). The former admin app (admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
 `auth.users.app_metadata.role` only — the old `admin_users` bcrypt login is gone.
 
 The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/generate-token`, the auth provider's `jwtToken`) was removed on 2026-09-30 — its only consumer was the deleted admin app's API. `SUPABASE_JWT_SECRET` (Supabase's own) is unrelated and stays.
@@ -15,7 +15,7 @@ The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/gene
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
-- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions, dashboard/sales, stock). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
+- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions, dashboard/sales, stock, sales-register). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
 - **Signed public bill links** — `GET /bill/[orderId]/[sig]` only. There is no session: the HMAC over that exact order id (`INVOICE_LINK_SECRET`, compared with `timingSafeEqual`) is verified first, and the service role then reads that one order, read-only. The signature, not the client, is what authorises the id; never reuse this shape for anything that writes.
 - **Signed webhook intake** — `POST /api/webhooks/delhivery` (the `x-delhivery-token`
   header, compared constant-time, is the authorisation) and
@@ -57,6 +57,7 @@ npm run db:test-refills                  # stall-refills table + functions SQL t
 npm run db:test-split-frocks             # Frocks → four style categories migration (rolled back)
 npm run db:test-category-data            # Girls Coord Sets gender + category descriptions fix (rolled back)
 npm run db:test-overrides                # admin price-override table + note backfill SQL tests (rolled back)
+npm run db:test-sales-register           # invoice_voided_at trigger, guard and invoice-number backfill (rolled back)
 ```
 
 ## Architecture
@@ -85,6 +86,7 @@ app/
   /admin                     # Admin home: action counts (Redis 60s) + sales dashboard (Redis 300s per range)
   /admin/stall-refills       # Admin: what sold today/yesterday, shelf refill ticks
   /admin/stock               # Admin: stock on hand, restock next, not selling, size gaps (live)
+  /admin/sales-register      # Admin: monthly GST sales register preview + .xlsx for the CA (live)
   /admin/orders              # Admin order management (server-gated by role)
   /admin/impersonate         # Find or create a customer, then act as them
   /admin/admins              # super_admin: list, add, remove admins (role in app_metadata)
@@ -98,6 +100,7 @@ app/
   /api/admin/dashboard/actions
   /api/admin/dashboard/sales # ?range=30d|3m|12m|all; aggregates only, no customer fields
   /api/admin/stock           # live stock metrics; no cache, no customer fields
+  /api/admin/sales-register   # ?month=YYYY-MM JSON; /download → .xlsx; live, no cache
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
   /api/webhooks/delhivery    # Delhivery scan intake (x-delhivery-token)
@@ -178,6 +181,14 @@ app/
 - Scope is variants of active products. Out = 0 (missing or negative stock counts as 0), low = 1–2 (`LOW_STOCK_MAX`), in stock = 3+. Not selling = stock ≥ 1 and no sale in 60 IST days. Demand is shown as plain counts ("sold 3 in 30 days · last sold 28 Sep"); there are no forecasts and no stock history.
 - `GET /api/admin/stock` reads `product_variants` (products, categories and sizes embedded) and every paid order line live on each request: no Redis, nothing to invalidate. `lib/admin/stock-metrics.ts` matches a sale to a size with the same rules as `public.order_item_variant_slug` (sku first, then product + `lower(size)`), over active products only.
 - Status colours are the dataviz reference palette (in `#0ca30c`, low `#fab219`, out `#d03b3b`), always with the label and number printed. The phone bottom bar has five items (`grid-cols-5`); a sixth needs the grid widened.
+
+### GST sales register (`/admin/sales-register`)
+- Monthly register for the CA's GSTR-1 / GSTR-3B: preview with totals, B2CS, HSN and invoice-number runs, plus a GSTR-1-ready `.xlsx` (sheets Summary, Invoices, B2CS, B2CL, HSN summary, Documents issued, Cancelled earlier). Spec: `docs/superpowers/specs/2026-10-03-gst-sales-register-design.md`.
+- GST registration took effect in September 2026 (`GST_REGISTERED_FROM`). Store sales only: the monthly Cellstrat consulting invoice is billed outside the app and goes to the CA separately.
+- A month holds the invoices whose `invoice_date` falls in it (IST). Every figure comes from `buildInvoice()`, so it matches the invoice PDFs to the paisa.
+- "As at month end": `orders.invoice_voided_at` is stamped by `orders_on_status_change` when an invoiced order leaves a paid status and cleared when it is paid again. An invoice voided in its own month stays listed with zero amounts; one voided in a later month stays valid in its own month and appears in the later month's "Cancelled earlier" as minus figures. A past month's file therefore never changes. Limitation: an order cancelled and later reinstated loses its "Cancelled earlier" line.
+- `public.backfill_invoice_numbers(p_from)` (service role only) numbers paid orders that have none, in paid-time order, dated with their paid time. The migration ran it from 1 Sep 2026: the two delivered orders paid on 1 Sep 2026 got the next free numbers on the migration date, so they sit after later invoices in the series.
+- `lib/gst/` holds it: `register-month` (IST months), `sales-register` (pure builder), `register-summaries` (B2CS/B2CL/HSN/runs), `register-xlsx` (`write-excel-file`), `register-orders` (reads; phone and email never selected). Both routes run `requireAdmin()` first; the download is `private, no-store` and `noindex`.
 
 ### MRP display (display-only)
 - Every price is shown as a struck-through MRP plus the catalogue price with a "10% OFF" badge. The MRP is `mrpFor(price) = round(price ÷ (1 − rate))` in `lib/utils/discount.ts`, and `products.price` / `product_variants.price` stay the price charged. There is no MRP column.
