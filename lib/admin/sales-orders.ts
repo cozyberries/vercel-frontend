@@ -4,7 +4,7 @@ import { PAID_ORDER_STATUSES, type SalesOrderRow } from "./sales-metrics";
 export const SALES_PAGE_SIZE = 1000;
 
 const COLUMNS =
-  "id, total_amount, fulfilment_method, status, created_at, stock_committed_at, order_items(product_id, name, price, quantity)";
+  "id, total_amount, fulfilment_method, status, created_at, stock_committed_at, order_items(product_id, name, price, quantity, sku, size)";
 
 /**
  * Paid orders whose sale date (stock_committed_at, else created_at) is on or after `from`, or every

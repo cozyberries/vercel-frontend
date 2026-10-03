@@ -37,7 +37,7 @@ describe("fetchPaidOrders", () => {
     const q = queries[0];
     expect(callsOf(q, "from")).toEqual([["orders"]]);
     expect(callsOf(q, "select")[0][0]).toBe(
-      "id, total_amount, fulfilment_method, status, created_at, stock_committed_at, order_items(product_id, name, price, quantity)",
+      "id, total_amount, fulfilment_method, status, created_at, stock_committed_at, order_items(product_id, name, price, quantity, sku, size)",
     );
     expect(callsOf(q, "in")).toEqual([
       ["status", ["payment_confirmed", "processing", "ready_for_pickup", "collected", "shipped", "delivered"]],
