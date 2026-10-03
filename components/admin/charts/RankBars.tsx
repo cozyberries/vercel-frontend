@@ -5,6 +5,8 @@ export interface RankRow {
   name: string;
   value: number;
   units: number;
+  /** Printed instead of "value · N units", e.g. "248 units · ₹1,23,400". */
+  detail?: string;
 }
 
 /** Ranked horizontal bars in plain HTML: every row prints its value and units, so no table toggle is needed. */
@@ -19,7 +21,11 @@ export function RankBars({ rows, format }: { rows: RankRow[]; format: (n: number
               {r.name}
             </span>
             <span className="shrink-0 text-xs text-cb-muted-fg">
-              <span className="font-medium text-cb-fg">{format(r.value)}</span> · {r.units} {r.units === 1 ? "unit" : "units"}
+              {r.detail ?? (
+                <>
+                  <span className="font-medium text-cb-fg">{format(r.value)}</span> · {r.units} {r.units === 1 ? "unit" : "units"}
+                </>
+              )}
             </span>
           </div>
           <div aria-hidden className="mt-1 h-2 rounded-full bg-cb-linen">

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChartCard, CHART_COLORS, RankBars, ShareBar, StackedColumns, ValueLine } from "./index";
+import { ChartCard, CHART_COLORS, RankBars, SegmentBar, segmentPercents, ShareBar, STATUS_COLORS, StackedColumns, ValueLine } from "./index";
 
 class NoopResizeObserver {
   observe() {}
@@ -149,5 +149,66 @@ describe("Recharts charts", () => {
         />,
       ),
     ).not.toThrow();
+  });
+});
+
+describe("STATUS_COLORS", () => {
+  it("keeps the dataviz reference status palette", () => {
+    expect(STATUS_COLORS).toEqual({ in: "#0ca30c", low: "#fab219", out: "#d03b3b" });
+  });
+});
+
+describe("segmentPercents", () => {
+  it("rounds so the parts always add up to 100", () => {
+    expect(segmentPercents([104, 65, 18])).toEqual([55, 35, 10]);
+    expect(segmentPercents([1, 1, 1])).toEqual([34, 33, 33]);
+    expect(segmentPercents([2, 1])).toEqual([67, 33]);
+    expect(segmentPercents([0, 0])).toEqual([0, 0]);
+  });
+});
+
+describe("SegmentBar", () => {
+  const parts = [
+    { key: "in", label: "In stock", value: 104, color: STATUS_COLORS.in },
+    { key: "low", label: "Low", value: 65, color: STATUS_COLORS.low },
+    { key: "out", label: "Out", value: 18, color: STATUS_COLORS.out },
+  ];
+
+  it("labels every part with its value and a percentage", () => {
+    render(<SegmentBar label="Stock health" parts={parts} />);
+    const region = screen.getByRole("region", { name: "Stock health" });
+    expect(region).toHaveTextContent("In stock 104 · 55%");
+    expect(region).toHaveTextContent("Low 65 · 35%");
+    expect(region).toHaveTextContent("Out 18 · 10%");
+  });
+
+  it("hides a zero part from the bar but keeps it in the legend", () => {
+    const { container } = render(
+      <SegmentBar label="Stock health" parts={parts.map((p) => (p.key === "low" ? { ...p, value: 0 } : p))} />,
+    );
+    expect(container.querySelectorAll("[data-share-part]")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Stock health" })).toHaveTextContent("Low 0 · 0%");
+  });
+
+  it("uses valueLabel when given", () => {
+    render(<SegmentBar label="x" parts={[{ key: "a", label: "A", value: 5, color: "#000", valueLabel: "₹5" }]} />);
+    expect(screen.getByRole("region", { name: "x" })).toHaveTextContent("A ₹5 · 100%");
+  });
+
+  it("renders nothing when every part is zero", () => {
+    const { container } = render(<SegmentBar label="x" parts={parts.map((p) => ({ ...p, value: 0 }))} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("RankBars detail", () => {
+  it("prints the detail text instead of value and units when given", () => {
+    render(
+      <RankBars
+        rows={[{ key: "b", name: "Boys Coord Sets", value: 248, units: 248, detail: "248 units · ₹1,23,400" }]}
+        format={rupees}
+      />,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Boys Coord Sets248 units · ₹1,23,400");
   });
 });
