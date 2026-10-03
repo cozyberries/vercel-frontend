@@ -123,8 +123,14 @@ describe("SalesSection", () => {
     stubSales();
     renderSection();
     const card = await screen.findByRole("region", { name: "Sales over time" });
-    const grid = card.parentElement!;
-    expect(grid).toHaveClass("grid-cols-1", "lg:grid-cols-2", "items-start");
+    expect(card.parentElement!).toHaveClass("grid-cols-1");
+  });
+
+  it("puts one chart per row at every width (two columns read too crowded)", async () => {
+    stubSales();
+    renderSection();
+    const card = await screen.findByRole("region", { name: "Sales over time" });
+    expect(card.parentElement!.className).not.toMatch(/\b\w+:grid-cols-/);
   });
 
   it("ranks products and categories with values, units and the line-value footnote", async () => {
