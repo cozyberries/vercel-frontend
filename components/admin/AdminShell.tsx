@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, LayoutDashboard, LogOut, PackagePlus, Store, X } from "lucide-react";
+import { Boxes, ClipboardList, LayoutDashboard, LogOut, PackagePlus, Store, X } from "lucide-react";
 import { useAuth } from "@/components/supabase-auth-provider";
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ const BOTTOM_ICONS: Record<string, typeof Store> = {
   "/admin/orders": ClipboardList,
   "/admin/pickup-orders": Store,
   "/admin/stall-refills": PackagePlus,
+  "/admin/stock": Boxes,
 };
 
 export default function AdminShell({
@@ -136,7 +137,7 @@ export default function AdminShell({
         aria-label="Quick access"
         className="fixed inset-x-0 bottom-0 z-20 border-t border-cb-border bg-cb-white pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {ADMIN_TABS.filter((t) => t.bottom).map((t) => {
             const active = isActiveTab(pathname, t);
             const Icon = BOTTOM_ICONS[t.href] ?? Store;

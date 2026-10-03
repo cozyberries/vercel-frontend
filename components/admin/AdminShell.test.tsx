@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({ pathname: "/admin" }));
@@ -77,6 +77,15 @@ describe("AdminShell", () => {
     const bottom = screen.getByRole("navigation", { name: "Quick access" });
     const active = bottom.querySelector('[aria-current="page"]');
     expect(active).toHaveTextContent("Refills");
+  });
+
+  it("fits all five quick-access items on one row", () => {
+    renderShell();
+    const bottom = screen.getByRole("navigation", { name: "Quick access" });
+    expect(bottom.querySelector("ul")).toHaveClass("grid-cols-5");
+    expect(within(bottom).getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Dashboard", "Orders", "Pickups", "Refills", "Stock",
+    ]);
   });
 
   it("signs out and navigates home when the menu item is chosen", async () => {
