@@ -160,6 +160,7 @@ export default function InvoicePage() {
                 <th className="py-2 pr-2 font-medium">Item</th>
                 <th className="py-2 px-2 font-medium">HSN</th>
                 <th className="py-2 px-2 font-medium text-right">Qty</th>
+                {invoice.mrp && <th className="py-2 px-2 font-medium text-right">MRP</th>}
                 <th className="py-2 px-2 font-medium text-right">Taxable</th>
                 {intra ? (
                   <>
@@ -178,6 +179,11 @@ export default function InvoicePage() {
                   <td className="py-2 pr-2">{line.description}</td>
                   <td className="py-2 px-2 text-gray-600">{line.hsn}</td>
                   <td className="py-2 px-2 text-right text-gray-600">{line.quantity}</td>
+                  {invoice.mrp && (
+                    <td className="py-2 px-2 text-right text-gray-600">
+                      {invoice.mrp.unitMrpPaise[idx] == null ? "" : rupees(invoice.mrp.unitMrpPaise[idx] as number)}
+                    </td>
+                  )}
                   <td className="py-2 px-2 text-right">{rupees(line.taxablePaise)}</td>
                   {intra ? (
                     <>
@@ -196,11 +202,24 @@ export default function InvoicePage() {
 
         <div className="flex justify-end mb-6">
           <div className="w-64 space-y-1.5 text-sm">
-            {invoice.totals.discountPaise > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Discount (included above)</span>
-                <span>−{rupees(invoice.totals.discountPaise)}</span>
-              </div>
+            {invoice.mrp ? (
+              <>
+                <div className="flex justify-between"><span className="text-gray-500">Total MRP</span><span>{rupees(invoice.mrp.totalMrpPaise)}</span></div>
+                <div className="flex justify-between text-gray-600"><span>Discount</span><span>−{rupees(invoice.mrp.discountPaise)}</span></div>
+                <p className="text-right text-xs text-gray-400">
+                  ({rupees(invoice.mrp.mrpSavingPaise)} off MRP
+                  {invoice.mrp.extraDiscountPaise > 0
+                    ? ` + ${rupees(invoice.mrp.extraDiscountPaise)} ${invoice.mrp.extraDiscountLabel}`
+                    : ""})
+                </p>
+              </>
+            ) : (
+              invoice.totals.discountPaise > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Discount (included above)</span>
+                  <span>−{rupees(invoice.totals.discountPaise)}</span>
+                </div>
+              )
             )}
             <div className="flex justify-between"><span className="text-gray-500">Taxable value</span><span>{rupees(invoice.totals.taxablePaise)}</span></div>
             {intra ? (

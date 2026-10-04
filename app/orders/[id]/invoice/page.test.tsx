@@ -96,4 +96,27 @@ describe("invoice page", () => {
     expect(container.querySelector(".invoice-print")).not.toBeNull();
     expect(container.querySelector("style")?.textContent).toContain("body * { visibility: hidden !important; }");
   });
+
+  it("shows the MRP, Total MRP and the full discount when the invoice has them", async () => {
+    serve({
+      ...base, status: "issued", invoiceNumber: "CB/26-27/0001",
+      mrp: { unitMrpPaise: [116700], totalMrpPaise: 116700, mrpSavingPaise: 11700, extraDiscountPaise: 10000,
+             extraDiscountLabel: "special discount", discountPaise: 21700 },
+    });
+    render(<InvoicePage />);
+    expect(await screen.findByText("Total MRP")).toBeInTheDocument();
+    expect(screen.getByText("MRP")).toBeInTheDocument();
+    expect(screen.getAllByText("₹1,167.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("−₹217.00")).toBeInTheDocument();
+    expect(screen.getByText("(₹117.00 off MRP + ₹100.00 special discount)")).toBeInTheDocument();
+    expect(screen.queryByText("Discount (included above)")).not.toBeInTheDocument();
+  });
+
+  it("keeps the old layout for an invoice without MRP", async () => {
+    serve({ ...base, status: "issued", invoiceNumber: "CB/26-27/0001", mrp: null });
+    render(<InvoicePage />);
+    expect(await screen.findByText("TAX INVOICE")).toBeInTheDocument();
+    expect(screen.queryByText("Total MRP")).not.toBeInTheDocument();
+    expect(screen.queryByText("MRP")).not.toBeInTheDocument();
+  });
 });

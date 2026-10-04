@@ -1,4 +1,6 @@
 import { HSN_BABY_GARMENTS, SELLER, STALL } from "@/lib/config/business";
+import { mrpFor, mrpTotals } from "@/lib/utils/discount";
+import { ADMIN_OVERRIDE_DISCOUNT_CODE } from "@/lib/utils/admin-override";
 import { amountInWords } from "./amount-in-words";
 import { computeGst, taxModeFor, type InvoiceLine, type InvoiceTotals, type TaxMode } from "./gst";
 import { gstStateName, resolveGstStateCode } from "./state-codes";
@@ -27,10 +29,31 @@ export interface InvoiceOrderRow {
   invoice_date: string | null;
   subtotal: number;
   discount_amount: number | null;
+  discount_code?: string | null;
   delivery_charge: number | null;
   total_amount: number;
   order_items: { name: string; size: string | null; color: string | null; price: number; quantity: number }[];
   payments: { payment_method: string; status: string }[];
+}
+
+/**
+ * MRP figures for the invoice: an MRP column, Total MRP and one Discount row
+ * (MRP saving + the order's own discount). Null exactly when the order page
+ * shows no MRP either. Display only: taxable value, GST and total never change.
+ */
+export interface InvoiceMrp {
+  /** Unit MRP per invoice line, aligned with `lines`; null on the "Shipping charges" line. */
+  unitMrpPaise: (number | null)[];
+  /** Goods only; delivery stays its own line. */
+  totalMrpPaise: number;
+  /** Total MRP − Σ price × quantity. */
+  mrpSavingPaise: number;
+  /** The order's own discount (admin or coupon). */
+  extraDiscountPaise: number;
+  /** "special discount" for an admin discount, the code for a coupon; null with no extra discount. */
+  extraDiscountLabel: string | null;
+  /** MRP saving + extra discount. */
+  discountPaise: number;
 }
 
 export interface InvoiceDocument {
@@ -51,6 +74,7 @@ export interface InvoiceDocument {
   mode: TaxMode;
   lines: InvoiceLine[];
   totals: InvoiceTotals;
+  mrp: InvoiceMrp | null;
   amountInWords: string;
   paymentMethod: string | null;
 }
@@ -66,6 +90,31 @@ function readableColour(value: string | null): string | null {
 }
 const UNPAID = ["payment_pending", "verifying_payment"];
 const VOIDED = ["cancelled", "refunded"];
+
+const paise = (rupees: number) => Math.round(rupees * 100);
+
+function discountLabel(code: string | null | undefined): string {
+  if (code === ADMIN_OVERRIDE_DISCOUNT_CODE) return "special discount";
+  return code && code.trim() ? code : "discount";
+}
+
+function invoiceMrp(order: InvoiceOrderRow, lineCount: number, extraDiscountPaise: number): InvoiceMrp | null {
+  const items = order.order_items.map((item) => ({ price: Number(item.price), quantity: item.quantity }));
+  if (mrpTotals(items, order.created_at).mrpSavings <= 0) return null;
+  const goodsPaise = items.reduce((sum, item) => sum + paise(item.price) * item.quantity, 0);
+  const totalMrpPaise = items.reduce((sum, item) => sum + paise(mrpFor(item.price)) * item.quantity, 0);
+  const mrpSavingPaise = totalMrpPaise - goodsPaise;
+  return {
+    unitMrpPaise: Array.from({ length: lineCount }, (_, idx) =>
+      idx < items.length ? paise(mrpFor(items[idx].price)) : null
+    ),
+    totalMrpPaise,
+    mrpSavingPaise,
+    extraDiscountPaise,
+    extraDiscountLabel: extraDiscountPaise > 0 ? discountLabel(order.discount_code) : null,
+    discountPaise: mrpSavingPaise + extraDiscountPaise,
+  };
+}
 
 export function buildInvoice(input: {
   order: InvoiceOrderRow;
@@ -132,6 +181,7 @@ export function buildInvoice(input: {
     mode,
     lines: gst.lines,
     totals: gst.totals,
+    mrp: invoiceMrp(order, gst.lines.length, gst.totals.discountPaise),
     amountInWords: amountInWords(gst.totals.totalPaise),
     paymentMethod: completed ? PAYMENT_LABEL[completed.payment_method] ?? completed.payment_method : null,
   };

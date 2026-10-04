@@ -57,6 +57,9 @@ const s = StyleSheet.create({
   tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#f3f4f6", paddingVertical: 5 },
   cItem: { width: "34%", paddingRight: 8 },
   cHsn: { width: "8%" },
+  cItemMrp: { width: "24%", paddingRight: 8 },
+  cMrp: { width: "10%", textAlign: "right" },
+  mrpNote: { fontSize: 7, color: "#9ca3af", textAlign: "right", paddingBottom: 2 },
   cQty: { width: "6%", textAlign: "right" },
   cNum: { width: "13%", textAlign: "right" },
   cIgst: { width: "26%", textAlign: "right" },
@@ -124,9 +127,10 @@ function InvoicePdf({ doc }: { doc: InvoiceDocument }) {
 
         <View style={{ marginTop: 14 }}>
           <View style={s.th}>
-            <Text style={s.cItem}>Item</Text>
+            <Text style={doc.mrp ? s.cItemMrp : s.cItem}>Item</Text>
             <Text style={s.cHsn}>HSN</Text>
             <Text style={s.cQty}>Qty</Text>
+            {doc.mrp && <Text style={s.cMrp}>MRP</Text>}
             <Text style={s.cNum}>Taxable</Text>
             {intra ? (
               <>
@@ -140,9 +144,12 @@ function InvoicePdf({ doc }: { doc: InvoiceDocument }) {
           </View>
           {doc.lines.map((line, idx) => (
             <View key={`${line.description}-${idx}`} style={s.tr} wrap={false}>
-              <Text style={s.cItem}>{line.description}</Text>
+              <Text style={doc.mrp ? s.cItemMrp : s.cItem}>{line.description}</Text>
               <Text style={s.cHsn}>{line.hsn}</Text>
               <Text style={s.cQty}>{line.quantity}</Text>
+              {doc.mrp && (
+                <Text style={s.cMrp}>{doc.mrp.unitMrpPaise[idx] == null ? "" : rs(doc.mrp.unitMrpPaise[idx] as number)}</Text>
+              )}
               <Text style={s.cNum}>{rs(line.taxablePaise)}</Text>
               {intra ? (
                 <>
@@ -158,11 +165,28 @@ function InvoicePdf({ doc }: { doc: InvoiceDocument }) {
         </View>
 
         <View style={s.totals} wrap={false}>
-          {doc.totals.discountPaise > 0 && (
-            <View style={s.tline}>
-              <Text style={s.muted}>Discount (included in amounts)</Text>
-              <Text>- {rs(doc.totals.discountPaise)}</Text>
-            </View>
+          {doc.mrp ? (
+            <>
+              <View style={s.tline}>
+                <Text style={s.muted}>Total MRP</Text>
+                <Text>{rs(doc.mrp.totalMrpPaise)}</Text>
+              </View>
+              <View style={s.tline}>
+                <Text style={s.muted}>Discount</Text>
+                <Text>- {rs(doc.mrp.discountPaise)}</Text>
+              </View>
+              <Text style={s.mrpNote}>
+                ({rs(doc.mrp.mrpSavingPaise)} off MRP
+                {doc.mrp.extraDiscountPaise > 0 ? ` + ${rs(doc.mrp.extraDiscountPaise)} ${doc.mrp.extraDiscountLabel}` : ""})
+              </Text>
+            </>
+          ) : (
+            doc.totals.discountPaise > 0 && (
+              <View style={s.tline}>
+                <Text style={s.muted}>Discount (included in amounts)</Text>
+                <Text>- {rs(doc.totals.discountPaise)}</Text>
+              </View>
+            )
           )}
           <View style={s.tline}>
             <Text style={s.muted}>Taxable value</Text>

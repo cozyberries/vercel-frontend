@@ -31,6 +31,13 @@ const doc = (o: Partial<InvoiceOrderRow> = {}) =>
   buildInvoice({ order: { ...order, ...o }, gstin: "29EPDPR9174E1ZB", homeStateCode: "29" });
 
 describe("renderInvoicePdf", () => {
+  it("renders an invoice with the MRP block", async () => {
+    const withMrp = doc({ created_at: "2026-10-02T10:00:00+05:30", discount_code: "ADMIN_OVERRIDE" });
+    expect(withMrp.mrp).not.toBeNull();
+    const pdf = await renderInvoicePdf(withMrp);
+    expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+  });
+
   it("renders an issued tax invoice as a PDF file", async () => {
     const pdf = await renderInvoicePdf(doc());
     expect(Buffer.isBuffer(pdf)).toBe(true);

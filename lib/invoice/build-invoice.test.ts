@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildInvoice, type InvoiceOrderRow } from "./build-invoice";
+
+const mrp = vi.hoisted(() => ({ discountRate: 0.1, shownSince: new Date("2026-09-27T00:00:00+05:30") }));
+vi.mock("@/lib/config/offers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config/offers")>()),
+  MRP_DISPLAY: mrp,
+}));
+afterEach(() => {
+  mrp.discountRate = 0.1;
+});
 
 const baseOrder: InvoiceOrderRow = {
   id: "order-1",
@@ -103,5 +112,79 @@ describe("buildInvoice", () => {
     expect(inv.status).toBe("cancelled");
     expect(inv.invoiceNumber).toBe("CB/26-27/0001");
     expect(build({ status: "refunded", invoice_number: null }).status).toBe("cancelled");
+  });
+});
+
+describe("buildInvoice — MRP and the full discount", () => {
+  const placed = "2026-10-02T10:00:00+05:30";
+
+  it("shows no MRP for an order placed before the MRP was shown", () => {
+    expect(build({}).mrp).toBeNull(); // baseOrder is from 25 Sep
+  });
+
+  it("shows no MRP while the MRP display is off", () => {
+    mrp.discountRate = 0;
+    expect(build({ created_at: placed }).mrp).toBeNull();
+  });
+
+  it("lists the MRP saving as the discount on a plain order", () => {
+    // ₹1,050 ÷ 0.9 = ₹1,166.67 → ₹1,167.
+    expect(build({ created_at: placed }).mrp).toEqual({
+      unitMrpPaise: [116700],
+      totalMrpPaise: 116700,
+      mrpSavingPaise: 11700,
+      extraDiscountPaise: 0,
+      extraDiscountLabel: null,
+      discountPaise: 11700,
+    });
+  });
+
+  it("adds an admin discount as a special discount", () => {
+    const inv = build({
+      created_at: placed, subtotal: 1000, discount_code: "ADMIN_OVERRIDE", discount_amount: 100, total_amount: 900,
+      order_items: [{ name: "Frock", size: "3-4Y", color: null, price: 1000, quantity: 1 }],
+    });
+    expect(inv.mrp).toMatchObject({
+      totalMrpPaise: 111100, mrpSavingPaise: 11100, extraDiscountPaise: 10000,
+      extraDiscountLabel: "special discount", discountPaise: 21100,
+    });
+    expect(inv.totals.totalPaise).toBe(90000);
+  });
+
+  it("names a coupon by its code", () => {
+    const inv = build({
+      created_at: placed, subtotal: 1000, discount_code: "EARLY5", discount_amount: 50, total_amount: 950,
+      order_items: [{ name: "Frock", size: null, color: null, price: 1000, quantity: 1 }],
+    });
+    expect(inv.mrp?.extraDiscountLabel).toBe("EARLY5");
+  });
+
+  it("gives a raised line its own MRP, so it reads like any other", () => {
+    const inv = build({
+      created_at: placed, subtotal: 989, total_amount: 989,
+      order_items: [{ name: "Frock", size: null, color: null, price: 989, quantity: 1 }],
+    });
+    expect(inv.mrp).toMatchObject({ totalMrpPaise: 109900, mrpSavingPaise: 11000, discountPaise: 11000 });
+  });
+
+  it("leaves the shipping line without an MRP and out of Total MRP", () => {
+    const inv = build({
+      created_at: placed, fulfilment_method: "delivery", delivery_charge: 90, total_amount: 1140,
+      shipping_address: { full_name: "Asha Rao", address_line_1: "1 MG Road", city: "Bengaluru", state: "Karnataka", postal_code: "560001", country: "India" },
+    });
+    expect(inv.lines).toHaveLength(2);
+    expect(inv.mrp?.unitMrpPaise).toEqual([116700, null]);
+    expect(inv.mrp?.totalMrpPaise).toBe(116700);
+  });
+
+  it("changes no tax figure", () => {
+    const order = {
+      subtotal: 1000, discount_code: "ADMIN_OVERRIDE", discount_amount: 100, total_amount: 900,
+      order_items: [{ name: "Frock", size: null, color: null, price: 1000, quantity: 1 }],
+    };
+    const withMrp = build({ ...order, created_at: placed });
+    const withoutMrp = build({ ...order });
+    expect(withMrp.totals).toEqual(withoutMrp.totals);
+    expect(withMrp.lines).toEqual(withoutMrp.lines);
   });
 });
