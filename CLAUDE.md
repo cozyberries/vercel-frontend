@@ -183,12 +183,14 @@ app/
 - Config lives in `MRP_DISPLAY` (`lib/config/offers.ts`). `NEXT_PUBLIC_MRP_DISCOUNT_RATE` defaults to `0.1`; set it to `0` and redeploy to hide the MRP everywhere. `NEXT_PUBLIC_MRP_SHOWN_SINCE` defaults to `2026-09-27T00:00:00+05:30`. Orders placed before it show no "Discount on MRP" on `/orders`.
 - The badge is worked out from the numbers shown, so it stays correct when the Early Bird coupon runs as well (it shows the combined %).
 - It appears on product cards, the product page, cart lines, the wishlist, quick-add, `/display`, and the cart, checkout and order summaries (`components/MrpSummaryRows.tsx`).
+- Orders whose prices an admin raised (`discount_code = ADMIN_PRICE_UP`) show no MRP on `/orders` or `/orders/[id]`; see "Admin price override (shadow mode)".
 - It never appears in cart/order totals, `/api/orders`, the GST invoice (web or PDF), JSON-LD, or the Meta Pixel `value`. Keep it that way: a tax invoice records the real transaction.
 
 ### Admin price override (shadow mode)
 - At checkout while impersonating, the amber "Admin tools" box offers Discount ₹, Discount % or Increase % (0.1–100, one decimal) with a required reason. Spec: `docs/superpowers/specs/2026-10-04-admin-percent-price-override-design.md`.
 - `lib/utils/admin-override.ts` (pure, client-safe) prices it for both the checkout preview and `POST /api/orders` (`priceAdminOverride` / `applyAdminOverride`), so they never disagree. The client sends catalogue prices plus `admin_override: { mode, percent | discount_amount, note }`; the server re-prices only after `validateItemPrices`.
 - Discounts are stored as before (`discount_code = ADMIN_OVERRIDE`, rupee `discount_amount`). An increase raises every `order_items.price` to the nearest rupee (worked in tenths of a percent so ties round up), makes `subtotal` their sum (the paid-status `ITEMS_MISMATCH` check needs that) and marks the order `discount_code = ADMIN_PRICE_UP` with `discount_amount = 0`. No migration.
+- An increase is refused when any raised unit price would exceed ₹2,500 (`GST_LOW_RATE_MAX_UNIT_PRICE` in `lib/config/business.ts`): clothing above ₹2,500 a piece is 18% GST and the invoice charges a flat 5%.
 - `isPriceRaised(order)` hides the MRP rows on `/orders/[id]`, and `orderMrpSavings` drops "Saved on MRP" on `/orders`: an MRP worked out from a raised price would be inflated. Telegram shows "📈 Prices raised by admin" and prints a discount line only above ₹0.
 
 ### Caching Strategy

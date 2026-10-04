@@ -31,6 +31,7 @@ percentage and a reason.
 | Rejected | B (re-price lines in both directions: the bill loses its "Discount" line). C (a signed order-level adjustment column: needs a migration and a surcharge-aware GST invoice, and leaves item prices unchanged). |
 | Modes | Discount ₹ (unchanged), Discount %, Increase %. One at a time. |
 | Percent range | 0.1 to 100, at most one decimal place. 100% off makes the goods free (same ceiling as the ₹ field); +100% caps typos. |
+| GST ceiling | A raise is refused when any raised unit price would exceed ₹2,500 (tax-inclusive): the invoice charges 5% GST, and clothing above ₹2,500 a piece is 18%. Added after the final review, 2026-10-04. |
 | Rounding | Increase: each unit price rounded to the nearest rupee. Discount: the rupee amount rounded to the nearest rupee, capped at the subtotal. Totals stay whole rupees, which the UPI `am` field needs. |
 | Scope of a raise | This order only. Catalogue prices and product pages do not change. |
 
@@ -109,7 +110,7 @@ applyAdminOverride({ override, items, actingAdminEmail, existingNotes })
 ```
 
 - It takes the order's **items**, not just the subtotal, so it can re-price
-  them. It returns new item objects and never mutates its input.
+  them. It returns new item objects for a raise and the input lines, unmodified, for the discount modes; it never mutates its input.
 - `amount`: behaviour unchanged (clamp to `[0, subtotal]`, floor). Items
   returned unchanged. Code `ADMIN_OVERRIDE`.
 - `percent_off`: `discountAmount = min(subtotal, round(subtotal × p / 100))`,
