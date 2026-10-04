@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STALL } from "@/lib/config/business";
 import { whatsappLink } from "@/lib/utils/whatsapp";
+import { formatPriceOverride } from "@/lib/utils/admin-override";
 import { SegmentedTabs, ListCard, EmptyState, LoadingList, ErrorBanner, type SegmentedTab } from "@/components/admin/kit";
 import {
   billMessage, parsePickupTab, PICKUP_TAB_STATUSES, type PickupAction, type PickupOrderRow, type PickupTab,
@@ -211,6 +212,9 @@ export default function PickupOrdersClient() {
                     </li>
                   ))}
                 </ul>
+                {order.price_override && (
+                  <p className="mt-2 text-xs font-medium text-amber-800">{formatPriceOverride(order.price_override)}</p>
+                )}
                 <p className="mt-2 text-cb-muted-fg">
                   ₹{Number(order.total_amount).toFixed(0)}
                   {paidWith ? ` · ${PAYMENT_LABEL[paidWith] ?? paidWith}` : ""}

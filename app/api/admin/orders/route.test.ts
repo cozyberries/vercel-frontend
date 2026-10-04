@@ -85,6 +85,8 @@ vi.mock("@/lib/services/admin-gate", () => ({
 }));
 vi.mock("@/lib/supabase-server", () => ({ createAdminSupabaseClient: () => h.admin }));
 vi.mock("@/lib/invoice/bill-link", () => ({ billUrl: (id: string) => `https://cozyberries.in/bill/${id}/sig` }));
+const overrides = vi.hoisted(() => ({ fetchPriceOverrides: vi.fn(async () => new Map()) }));
+vi.mock("@/lib/services/price-overrides", () => ({ fetchPriceOverrides: overrides.fetchPriceOverrides }));
 
 import { GET } from "./route";
 
@@ -93,6 +95,23 @@ const req = (qs = "") => new NextRequest(`http://localhost/api/admin/orders${qs}
 beforeEach(() => h.reset());
 
 describe("GET /api/admin/orders", () => {
+  it("attaches each order's price override, null when there is none", async () => {
+    const record = {
+      order_id: "o-1", mode: "percent_up", percent: 10, amount: 245, catalogue_subtotal: 2447,
+      reason: "Event price", admin_id: "admin-1", admin_email: "asha@cozyberries.in", created_at: "2026-10-04T08:00:00Z",
+    };
+    overrides.fetchPriceOverrides.mockResolvedValueOnce(new Map([["o-1", record]]));
+    h.state.orders = [
+      { id: "o-1", user_id: "u-1", status: "processing" },
+      { id: "o-2", user_id: "u-2", status: "processing" },
+    ];
+    h.state.total = 2;
+    const body = await (await GET(req())).json();
+    expect(overrides.fetchPriceOverrides).toHaveBeenCalledWith(h.admin, ["o-1", "o-2"]);
+    expect(body.orders[0].price_override).toEqual(record);
+    expect(body.orders[1].price_override).toBeNull();
+  });
+
   it("401/403 comes straight from the gate", async () => {
     h.state.user = null;
     expect((await GET(req())).status).toBe(401);

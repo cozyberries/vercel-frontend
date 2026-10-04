@@ -6,6 +6,7 @@ import {
   ADMIN_OVERRIDE_PERCENT_ERROR,
   ADMIN_PRICE_UP_GST_ERROR,
   applyAdminOverride,
+  formatPriceOverride,
   linesSubtotal,
   parseOverridePercent,
   priceAdminOverride,
@@ -278,5 +279,28 @@ describe("applyAdminOverride — percentage audit", () => {
       items: worth(1000),
     });
     expect(result).toEqual({ ok: false, error: ADMIN_OVERRIDE_PERCENT_ERROR });
+  });
+});
+
+describe("formatPriceOverride", () => {
+  const base = { reason: null, admin_email: null } as const;
+
+  it("describes a raise with its rupee figure, admin and reason", () => {
+    expect(formatPriceOverride({ ...base, mode: "percent_up", percent: 10, amount: 245, admin_email: "asha@cozyberries.in", reason: "Event price" }))
+      .toBe("Prices raised +10% (+₹245) by asha@cozyberries.in · Event price");
+  });
+
+  it("describes a backfilled raise without a rupee figure", () => {
+    expect(formatPriceOverride({ ...base, mode: "percent_up", percent: 50, amount: null })).toBe("Prices raised +50%");
+  });
+
+  it("describes a percentage discount", () => {
+    expect(formatPriceOverride({ ...base, mode: "percent_off", percent: 12.5, amount: 1306, admin_email: "asha@cozyberries.in" }))
+      .toBe("Admin discount −12.5% (₹1,306) by asha@cozyberries.in");
+  });
+
+  it("describes a rupee discount", () => {
+    expect(formatPriceOverride({ ...base, mode: "amount", percent: null, amount: 250, reason: "Offline discount" }))
+      .toBe("Admin discount ₹250 · Offline discount");
   });
 });

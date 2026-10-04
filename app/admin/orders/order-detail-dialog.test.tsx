@@ -35,6 +35,25 @@ function renderDialog(qc: QueryClient, order: AdminOrder | null) {
   );
 }
 
+describe("OrderDetailDialog price override", () => {
+  it("shows who raised the prices and why", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderDialog(qc, makeOrder({
+      price_override: {
+        order_id: "o-1", mode: "percent_up", percent: 10, amount: 245, catalogue_subtotal: 2447,
+        reason: "Event price", admin_id: "admin-1", admin_email: "asha@cozyberries.in", created_at: "2026-10-04T08:00:00Z",
+      },
+    }));
+    expect(screen.getByText("Prices raised +10% (+₹245) by asha@cozyberries.in · Event price")).toBeInTheDocument();
+  });
+
+  it("shows nothing for an order without an override", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderDialog(qc, makeOrder());
+    expect(screen.queryByText(/Prices raised|Admin discount/)).not.toBeInTheDocument();
+  });
+});
+
 describe("OrderDetailDialog resync", () => {
   it("keeps an unsaved tracking-number edit when the same order arrives as a new object reference (background refetch)", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

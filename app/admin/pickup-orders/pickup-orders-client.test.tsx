@@ -36,6 +36,20 @@ const respond = (body: unknown) =>
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => body }));
 
 describe("pickup orders card", () => {
+  it("shows an admin price override on the card", async () => {
+    respond({
+      orders: [{
+        ...order,
+        price_override: {
+          order_id: "order-1", mode: "percent_off", percent: 10, amount: 130, catalogue_subtotal: 1300,
+          reason: null, admin_id: "admin-1", admin_email: "asha@cozyberries.in", created_at: "2026-10-04T08:00:00Z",
+        },
+      }],
+    });
+    render(<PickupOrdersClient />);
+    expect(await screen.findByText("Admin discount −10% (₹130) by asha@cozyberries.in")).toBeInTheDocument();
+  });
+
   it("shows each line's price so staff can check it against the bill", async () => {
     render(<PickupOrdersClient />);
     expect(await screen.findByText(lineText("2 × Frock · 3-4Y · Pink — ₹1000"))).toBeInTheDocument();

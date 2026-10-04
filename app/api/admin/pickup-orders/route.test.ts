@@ -32,6 +32,9 @@ vi.mock('@/lib/supabase-server', () => ({
   createAdminSupabaseClient: vi.fn(() => h.admin),
 }));
 
+const overrides = vi.hoisted(() => ({ fetchPriceOverrides: vi.fn(async () => new Map()) }));
+vi.mock('@/lib/services/price-overrides', () => ({ fetchPriceOverrides: overrides.fetchPriceOverrides }));
+
 import { GET } from './route';
 import { billUrl } from '@/lib/invoice/bill-link';
 import { NextRequest } from 'next/server';
@@ -45,6 +48,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('GET /api/admin/pickup-orders', () => {
+  it("attaches the order's price override", async () => {
+    const record = { order_id: 'order-1', mode: 'amount', percent: null, amount: 250, catalogue_subtotal: 1300,
+      reason: null, admin_id: 'admin-1', admin_email: 'asha@cozyberries.in', created_at: '2026-10-04T08:00:00Z' };
+    overrides.fetchPriceOverrides.mockResolvedValueOnce(new Map([['order-1', record]]));
+    const body = await (await get('?tab=handover')).json();
+    expect(overrides.fetchPriceOverrides).toHaveBeenCalledWith(h.admin, ['order-1']);
+    expect(body.orders[0].price_override).toEqual(record);
+  });
+
   it('requires an admin', async () => {
     h.state.user = { id: 'u', app_metadata: {} };
     expect((await get()).status).toBe(403);
@@ -53,7 +65,7 @@ describe('GET /api/admin/pickup-orders', () => {
   it('lists paid pickup orders for the hand-over tab', async () => {
     const res = await get('?tab=handover');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1') }], awaiting_count: 0 });
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1'), price_override: null }], awaiting_count: 0 });
     expect(h.calls).toContainEqual(['eq', 'fulfilment_method', 'pickup']);
     expect(h.calls).toContainEqual(['in', 'status', ['payment_confirmed', 'processing']]);
   });
@@ -81,14 +93,14 @@ describe('GET /api/admin/pickup-orders', () => {
     h.state.count = { count: null, error: { message: 'boom' } };
     const res = await get('?tab=handover');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1') }], awaiting_count: null });
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: billUrl('order-1'), price_override: null }], awaiting_count: null });
   });
 
   it('still lists orders, without bill links, when the signing secret is missing', async () => {
     vi.stubEnv('INVOICE_LINK_SECRET', '');
     const res = await get('?tab=handover');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: null }], awaiting_count: 0 });
+    expect(await res.json()).toEqual({ orders: [{ id: 'order-1', bill_url: null, price_override: null }], awaiting_count: 0 });
   });
 
   it('selects each line price so staff can check the card against the bill', async () => {

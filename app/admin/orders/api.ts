@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@/lib/types/order";
+import type { OrderStatus, PriceOverrideRecord } from "@/lib/types/order";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -45,6 +45,8 @@ export interface AdminOrder {
   items: AdminOrderItem[];
   payments: AdminPayment[];
   bill_url: string | null;
+  /** Admin-only: who discounted or raised this order's prices, and why. */
+  price_override?: PriceOverrideRecord | null;
 }
 export interface AdminOrdersListResponse {
   orders: AdminOrder[];

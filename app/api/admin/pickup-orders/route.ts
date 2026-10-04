@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/services/effective-user";
 import { collectedAt, parsePickupTab, PICKUP_SEARCH_STATUSES, PICKUP_TAB_STATUSES, startOfIstDay } from "@/lib/orders/pickup";
 import { getIndianPhoneDigits } from "@/lib/utils/validation";
 import { billUrl } from "@/lib/invoice/bill-link";
+import { fetchPriceOverrides } from "@/lib/services/price-overrides";
 
 const SELECT =
   "id, order_number, status, total_amount, customer_name, customer_phone, invoice_number, created_at, updated_at, " +
@@ -89,13 +90,15 @@ export async function GET(request: NextRequest) {
           return out;
         });
     }
+    // Admin-only record of price overrides; a failed lookup just leaves them null.
+    const overrides = await fetchPriceOverrides(admin, rows.map((row) => row.id));
     let orders;
     try {
       // Signed public bill link per order, built here because the secret is server-only.
-      orders = rows.map((row) => ({ ...row, bill_url: billUrl(row.id) }));
+      orders = rows.map((row) => ({ ...row, bill_url: billUrl(row.id), price_override: overrides.get(row.id) ?? null }));
     } catch (configError) {
       console.error("[pickup-orders] INVOICE_LINK_SECRET misconfigured:", configError instanceof Error ? configError.message : configError);
-      orders = rows.map((row) => ({ ...row, bill_url: null }));
+      orders = rows.map((row) => ({ ...row, bill_url: null, price_override: overrides.get(row.id) ?? null }));
     }
     return NextResponse.json({ orders, awaiting_count: awaitingCount });
   } catch (error) {

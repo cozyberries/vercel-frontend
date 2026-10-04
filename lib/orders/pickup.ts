@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@/lib/types/order";
+import type { OrderStatus, PriceOverrideRecord } from "@/lib/types/order";
 
 export type PickupTab = "awaiting" | "handover" | "ready" | "collected";
 export type PickupAction = "ready" | "collected";
@@ -108,4 +108,6 @@ export interface PickupOrderRow {
   payments: { payment_method: string; status: string }[];
   /** Signed public link to the bill PDF; null when INVOICE_LINK_SECRET is not configured. */
   bill_url: string | null;
+  /** Admin-only: who discounted or raised this order's prices, and why. */
+  price_override?: PriceOverrideRecord | null;
 }

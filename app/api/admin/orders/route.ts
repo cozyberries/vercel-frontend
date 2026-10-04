@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { billUrl } from "@/lib/invoice/bill-link";
+import { fetchPriceOverrides } from "@/lib/services/price-overrides";
 
 type Row = Record<string, unknown>;
 
@@ -78,6 +79,8 @@ export async function GET(request: NextRequest) {
   };
   const itemMap = byOrder(items);
   const paymentMap = byOrder(payments);
+  // Admin-only record of price overrides; a failed lookup just leaves them null.
+  const overrides = await fetchPriceOverrides(admin, ids);
 
   return NextResponse.json({
     orders: rows.map((o) => ({
@@ -85,6 +88,7 @@ export async function GET(request: NextRequest) {
       items: itemMap.get(o.id as string) ?? [],
       payments: paymentMap.get(o.id as string) ?? [],
       bill_url: safeBillUrl(o.id as string),
+      price_override: overrides.get(o.id as string) ?? null,
     })),
     total: count ?? 0,
   });

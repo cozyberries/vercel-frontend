@@ -182,3 +182,29 @@ export function applyAdminOverride<T extends PricedLine>(
     },
   };
 }
+
+/**
+ * One line for admin pages, e.g. "Prices raised +10% (+₹245) by a@b.c · Event price".
+ * Admin-only: never render it on a customer page.
+ */
+export function formatPriceOverride(record: {
+  mode: AdminOverrideMode;
+  percent: number | null;
+  amount: number | null;
+  reason: string | null;
+  admin_email: string | null;
+}): string {
+  const rupees = (value: number) => `₹${Number(value).toLocaleString("en-IN")}`;
+  const percent = record.percent === null ? "" : String(Number(record.percent));
+  let head: string;
+  if (record.mode === "percent_up") {
+    head = `Prices raised +${percent}%${record.amount === null ? "" : ` (+${rupees(record.amount)})`}`;
+  } else if (record.mode === "percent_off") {
+    head = `Admin discount −${percent}%${record.amount === null ? "" : ` (${rupees(record.amount)})`}`;
+  } else {
+    head = record.amount === null ? "Admin discount" : `Admin discount ${rupees(record.amount)}`;
+  }
+  const by = record.admin_email ? ` by ${record.admin_email}` : "";
+  const why = record.reason ? ` · ${record.reason}` : "";
+  return `${head}${by}${why}`;
+}

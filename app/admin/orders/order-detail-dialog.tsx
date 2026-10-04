@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatOrderStatus } from "@/lib/utils/order-status";
 import type { OrderStatus } from "@/lib/types/order";
+import { formatPriceOverride } from "@/lib/utils/admin-override";
 import { api, ApiError, type AdminOrder } from "./api";
 import TrackingPanel from "./tracking-panel";
 
@@ -99,6 +100,9 @@ export default function OrderDetailDialog({
               <li key={it.id ?? i}>{it.sku || "item"}{it.size ? ` · ${it.size}` : ""} × {it.quantity ?? 1}</li>
             ))}
           </ul>
+          {order.price_override && (
+            <p className="mt-1 text-xs font-medium text-amber-800">{formatPriceOverride(order.price_override)}</p>
+          )}
         </div>
 
         <label className="block">
