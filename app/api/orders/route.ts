@@ -16,6 +16,7 @@ import { getIndianPhoneDigits } from "@/lib/utils/validation";
 import { SELLER } from "@/lib/config/business";
 import { notifyAdminsOrderPlacedFromCheckout } from "@/lib/services/admin-order-notifications";
 import { notifyNewOrder } from "@/lib/services/telegram";
+import { priceRaiseFrom } from "@/lib/services/price-overrides";
 import {
   effectiveUserErrorResponse,
   getEffectiveUser,
@@ -156,8 +157,6 @@ export async function POST(request: NextRequest) {
       const overrideResult = applyAdminOverride({
         override: admin_override,
         items,
-        actingAdminEmail: sessionUser.email ?? null,
-        existingNotes: normalizedCustomerNotes,
       });
 
       if (!overrideResult.ok) {
@@ -174,12 +173,11 @@ export async function POST(request: NextRequest) {
 
     let discountCode: string | null = null;
     let discountAmount = 0;
-    let orderNotes: string | null = normalizedCustomerNotes;
+    const orderNotes: string | null = normalizedCustomerNotes;
 
     if (appliedOverride) {
       discountCode = appliedOverride.discountCode;
       discountAmount = appliedOverride.discountAmount;
-      orderNotes = appliedOverride.notes;
       // coupon_code is intentionally ignored when admin_override is applied.
     } else if (coupon_code) {
       const offerResult = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
@@ -247,29 +245,54 @@ export async function POST(request: NextRequest) {
       .from("order_items")
       .insert(itemRows);
 
-    if (itemsError) {
-      // Compensate: delete the orphaned order so the DB stays consistent.
-      // `authenticated` no longer has DELETE on `orders` (deny-by-default RLS
-      // remediation), so this compensating delete runs through the
-      // service-role client rather than the caller's session client.
-      // NOTE: this is not atomic — a Supabase RPC wrapping both inserts in a
-      // Postgres transaction would be strictly more robust.
+    // Deletes a half-written order. `authenticated` no longer has DELETE on
+    // `orders` (deny-by-default RLS remediation), so this runs through the
+    // service-role client; the cascade removes its items and override record.
+    // NOTE: not atomic — a Supabase RPC wrapping the inserts in one Postgres
+    // transaction would be strictly more robust.
+    const rollbackOrder = async (orderId: string) => {
       const adminClient = createAdminSupabaseClient();
       const { error: deleteError } = await adminClient
         .from("orders")
         .delete()
-        .eq("id", order.id);
+        .eq("id", orderId);
       if (deleteError) {
         console.error("Compensating order delete failed — orphaned order may require manual cleanup:", {
           deleteError,
-          orderId: order.id,
+          orderId,
         });
       }
+    };
+
+    if (itemsError) {
+      await rollbackOrder(order.id);
       console.error("Error inserting order items:", itemsError);
       return NextResponse.json(
         { error: "Failed to save order items" },
         { status: 500 }
       );
+    }
+
+    if (appliedOverride) {
+      // Who changed the price, by how much and why lives only in the admin-only
+      // table: customers can read every column of their own orders row. An
+      // override exists only while an admin is acting, so `client` is the
+      // service-role client getEffectiveUser returns in shadow mode.
+      const { error: overrideError } = await client.from("order_price_overrides").insert({
+        order_id: order.id,
+        mode: appliedOverride.audit.mode,
+        percent: appliedOverride.audit.percent,
+        amount: appliedOverride.audit.amount,
+        catalogue_subtotal: appliedOverride.audit.catalogueSubtotal,
+        reason: appliedOverride.audit.reason,
+        admin_id: actingAdminId,
+        admin_email: sessionUser.email ?? null,
+      });
+      if (overrideError) {
+        await rollbackOrder(order.id);
+        console.error("Error saving price override:", overrideError);
+        return NextResponse.json({ error: "Failed to save order" }, { status: 500 });
+      }
     }
 
     if (actingAdminId) {
@@ -325,6 +348,7 @@ export async function POST(request: NextRequest) {
         deliveryCharge: serverDeliveryCharge,
         discountCode,
         discountAmount,
+        priceRaise: priceRaiseFrom(appliedOverride?.audit),
         items: pricedItems.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
         fulfilmentMethod: fulfilment,
         customerName,

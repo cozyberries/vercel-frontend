@@ -17,6 +17,7 @@ const {
   extractRequestMetadataMock,
   insertOrdersMock,
   insertItemsMock,
+  insertOverridesMock,
   singleOrdersMock,
   fromMock,
   clientMock,
@@ -31,6 +32,7 @@ const {
   const selectOrdersMock = vi.fn(() => ({ single: singleOrdersMock }));
   const insertOrdersMock = vi.fn(() => ({ select: selectOrdersMock }));
   const insertItemsMock = vi.fn();
+  const insertOverridesMock = vi.fn();
 
   // Session (user-scoped) client's delete spy for `orders`. Under
   // deny-by-default RLS, `authenticated` no longer holds DELETE on `orders`,
@@ -54,6 +56,9 @@ const {
     }
     if (table === 'order_items') {
       return { insert: insertItemsMock };
+    }
+    if (table === 'order_price_overrides') {
+      return { insert: insertOverridesMock };
     }
     return {};
   });
@@ -84,6 +89,7 @@ const {
     extractRequestMetadataMock: vi.fn(() => ({ ip: '1.2.3.4', user_agent: 'ua' })),
     insertOrdersMock,
     insertItemsMock,
+    insertOverridesMock,
     singleOrdersMock,
     fromMock,
     clientMock: { from: fromMock },
@@ -179,6 +185,7 @@ describe('POST /api/orders', () => {
       error: null,
     });
     insertItemsMock.mockResolvedValue({ error: null });
+    insertOverridesMock.mockResolvedValue({ error: null });
   });
 
   it('uses effective userId and actingAdminId when impersonating', async () => {
@@ -298,7 +305,11 @@ describe('POST /api/orders', () => {
     const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
     expect(inserted.discount_code).toBe('ADMIN_OVERRIDE');
     expect(inserted.discount_amount).toBe(250);
-    expect(inserted.notes).toBe('[ADMIN OVERRIDE by admin@example.com]: phone-order');
+    expect(inserted.notes).toBeUndefined();
+    expect(insertOverridesMock).toHaveBeenCalledWith({
+      order_id: 'order-1', mode: 'amount', percent: null, amount: 250, catalogue_subtotal: 1000,
+      reason: 'phone-order', admin_id: ADMIN_ID, admin_email: 'admin@example.com',
+    });
 
     expect(logImpersonationEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -367,18 +378,17 @@ describe('POST /api/orders', () => {
       const storedSum = stored.reduce((s: number, l: any) => s + l.price * l.quantity, 0);
 
       const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
-      expect(inserted).toMatchObject({
-        subtotal: storedSum,
-        discount_code: 'ADMIN_PRICE_UP',
-        discount_amount: 0,
-        delivery_charge: 0,
-        total_amount: 2692,
-        notes: '[ADMIN OVERRIDE by admin@example.com]: (+10% prices) Event price',
-      });
+      expect(inserted).toMatchObject({ subtotal: storedSum, discount_amount: 0, delivery_charge: 0, total_amount: 2692 });
+      expect(inserted.discount_code).toBeUndefined();
+      expect(inserted.notes).toBeUndefined();
       expect(storedSum).toBe(2692);
+      expect(insertOverridesMock).toHaveBeenCalledWith({
+        order_id: 'order-1', mode: 'percent_up', percent: 10, amount: 245, catalogue_subtotal: 2447,
+        reason: 'Event price', admin_id: ADMIN_ID, admin_email: 'admin@example.com',
+      });
 
       expect(notifyNewOrderMock).toHaveBeenCalledWith(
-        expect.objectContaining({ discountCode: 'ADMIN_PRICE_UP', discountAmount: 0, subtotal: 2692 }),
+        expect.objectContaining({ discountCode: null, discountAmount: 0, subtotal: 2692, priceRaise: { percent: 10, amount: 245 } }),
         expect.anything()
       );
       const body = await res.json();
@@ -416,7 +426,8 @@ describe('POST /api/orders', () => {
       expect(res.status).toBe(200);
       expect(validateAndApplyOfferMock).not.toHaveBeenCalled();
       const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
-      expect(inserted).toMatchObject({ discount_code: 'ADMIN_PRICE_UP', discount_amount: 0 });
+      expect(inserted.discount_code).toBeUndefined();
+      expect(inserted.discount_amount).toBe(0);
     });
 
     it('percent_off stores the rounded discount with ADMIN_OVERRIDE and catalogue prices', async () => {
@@ -437,8 +448,11 @@ describe('POST /api/orders', () => {
         discount_amount: 306,
         delivery_charge: 0,
         total_amount: 2141,
-        notes: '[ADMIN OVERRIDE by admin@example.com]: (−12.5% discount) Friend of the shop',
       });
+      expect(inserted.notes).toBeUndefined();
+      expect(insertOverridesMock).toHaveBeenCalledWith(expect.objectContaining({
+        mode: 'percent_off', percent: 12.5, amount: 306, catalogue_subtotal: 2447, reason: 'Friend of the shop',
+      }));
     });
 
     it('rejects an out-of-range percent with 400 and writes nothing', async () => {
@@ -511,8 +525,35 @@ describe('POST /api/orders', () => {
       expect(inserted).toMatchObject({
         discount_code: 'ADMIN_OVERRIDE',
         discount_amount: 245,
-        notes: '[ADMIN OVERRIDE by admin@example.com]: (−10% discount)',
       });
+      expect(inserted.notes).toBeUndefined();
+      expect(insertOverridesMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'percent_off', reason: null }));
+    });
+
+    it("keeps the customer's own note and nothing else on the order", async () => {
+      await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        notes: '  Gift wrap please ',
+        admin_override: { mode: 'percent_up', percent: 10, note: 'Event price' },
+      }));
+      const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+      expect(inserted.notes).toBe('Gift wrap please');
+      expect(JSON.stringify(inserted)).not.toMatch(/ADMIN OVERRIDE|ADMIN_PRICE_UP|Event price/);
+    });
+
+    it('rolls the order back when the override record cannot be saved', async () => {
+      insertOverridesMock.mockResolvedValueOnce({ error: { message: 'relation "order_price_overrides" does not exist' } });
+      const res = await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 10 },
+      }));
+      expect(res.status).toBe(500);
+      expect((await res.json()).error).toBe('Failed to save order');
+      expect(adminOrdersDeleteEq).toHaveBeenCalledWith('id', 'order-1');
+      expect(sessionOrdersDelete).not.toHaveBeenCalled();
+      expect(notifyNewOrderMock).not.toHaveBeenCalled();
     });
   });
 
@@ -679,6 +720,7 @@ describe('POST /api/orders — stall pickup', () => {
       error: null,
     });
     insertItemsMock.mockResolvedValue({ error: null });
+    insertOverridesMock.mockResolvedValue({ error: null });
   });
 
   it('skips the address, charges no delivery, and stores the verified phone and account name', async () => {
@@ -748,6 +790,7 @@ describe('POST /api/orders — stall pickup', () => {
       place_of_supply: '33',
       customer_name: 'Asha Rao',
     });
+    expect(insertOverridesMock).not.toHaveBeenCalled();
   });
 
   it('stops before inserting when stock is short', async () => {

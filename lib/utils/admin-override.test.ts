@@ -4,226 +4,94 @@ import {
   ADMIN_OVERRIDE_DISCOUNT_CODE,
   ADMIN_OVERRIDE_NOTE_MAX,
   ADMIN_OVERRIDE_PERCENT_ERROR,
-  ADMIN_PRICE_UP_CODE,
   ADMIN_PRICE_UP_GST_ERROR,
   applyAdminOverride,
-  isPriceRaised,
   linesSubtotal,
   parseOverridePercent,
   priceAdminOverride,
   raisePrice,
 } from "./admin-override";
 
-const admin = "admin@example.com";
 /** A single line worth `amount` rupees. */
 const worth = (amount: number) => [{ price: amount, quantity: 1 }];
 
-describe("applyAdminOverride — ₹ amount (behaviour carried over from checkout-helpers)", () => {
-  it("returns clamped + floored discount and prefixed notes on happy path", () => {
+describe("applyAdminOverride — ₹ amount", () => {
+  it("returns the clamped, floored discount and its audit record", () => {
     const items = worth(1000);
-    const result = applyAdminOverride({
-      override: { discount_amount: 250, note: "Wholesale customer" },
-      items,
-      actingAdminEmail: admin,
-      existingNotes: "Leave at door",
-    });
-
-    expect(result).toEqual({
+    expect(applyAdminOverride({ override: { discount_amount: 250, note: "Wholesale customer" }, items })).toEqual({
       ok: true,
       mode: "amount",
       percent: null,
       items,
       discountCode: ADMIN_OVERRIDE_DISCOUNT_CODE,
       discountAmount: 250,
-      notes: "[ADMIN OVERRIDE by admin@example.com]: Wholesale customer\nLeave at door",
+      audit: { mode: "amount", percent: null, amount: 250, catalogueSubtotal: 1000, reason: "Wholesale customer" },
     });
   });
 
   it("clamps a negative discount to 0", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: -42, note: "phone order" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.discountAmount).toBe(0);
+    const result = applyAdminOverride({ override: { discount_amount: -42 }, items: worth(1000) });
+    expect(result.ok && result.discountAmount).toBe(0);
   });
 
-  it("clamps a discount larger than subtotal to the subtotal", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 9999, note: "freebie for tester" },
-      items: worth(500),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.discountAmount).toBe(500);
+  it("clamps a discount larger than the subtotal to the subtotal", () => {
+    const result = applyAdminOverride({ override: { discount_amount: 9999 }, items: worth(500) });
+    expect(result.ok && result.audit.amount).toBe(500);
   });
 
   it("floors a non-integer discount", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 123.9, note: "phone order" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.discountAmount).toBe(123);
+    const result = applyAdminOverride({ override: { discount_amount: 123.9 }, items: worth(1000) });
+    expect(result.ok && result.discountAmount).toBe(123);
   });
 
   it("rejects a discount amount that is not a number", () => {
-    const override = { discount_amount: "lots", note: "phone order" } as unknown as AdminOverride;
-    expect(applyAdminOverride({ override, items: worth(1000), actingAdminEmail: admin })).toEqual({
+    const override = { discount_amount: "lots" } as unknown as AdminOverride;
+    expect(applyAdminOverride({ override, items: worth(1000) })).toEqual({
       ok: false,
       error: "Invalid override discount amount",
     });
   });
 
-  it("accepts a short reason", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "  ok  " },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: ok");
+  it("keeps a short reason", () => {
+    const result = applyAdminOverride({ override: { discount_amount: 100, note: "  ok  " }, items: worth(1000) });
+    expect(result.ok && result.audit.reason).toBe("ok");
   });
 
-  it("records only who applied it when the reason is blank", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "   " },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: "Call before delivery",
-    });
-    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]\nCall before delivery");
+  it("records no reason when it is blank or missing", () => {
+    const blank = applyAdminOverride({ override: { discount_amount: 100, note: "   " }, items: worth(1000) });
+    const missing = applyAdminOverride({ override: { discount_amount: 100 }, items: worth(1000) });
+    expect(blank.ok && blank.audit.reason).toBeNull();
+    expect(missing.ok && missing.audit.reason).toBeNull();
   });
 
-  it("accepts an override sent without a reason", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100 },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]");
-    expect(result.ok && result.discountAmount).toBe(100);
-  });
-
-  it("rejects notes longer than 500 characters", () => {
+  it("rejects a reason longer than 500 characters", () => {
     const result = applyAdminOverride({
       override: { discount_amount: 100, note: "x".repeat(ADMIN_OVERRIDE_NOTE_MAX + 1) },
       items: worth(1000),
-      actingAdminEmail: admin,
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toMatch(/at most 500/);
   });
 
-  it("preserves existing notes by prefixing the override line", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "wholesale" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: "Call before delivery",
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: wholesale\nCall before delivery");
-    }
-  });
-
-  it("emits a single-line note when there are no existing customer notes", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "wholesale" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: null,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: wholesale");
-      expect(result.notes).not.toContain("\n");
-    }
-  });
-
-  it("accepts discount_amount of exactly 0 (lower boundary)", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 0, note: "goodwill refund" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.discountAmount).toBe(0);
-  });
-
-  it("accepts discount_amount exactly equal to subtotal (upper boundary)", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 1000, note: "full comp" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.discountAmount).toBe(1000);
-  });
-
-  it("accepts a note of exactly MAX length (500) after trim", () => {
+  it("accepts a reason of exactly 500 characters", () => {
     const result = applyAdminOverride({
       override: { discount_amount: 10, note: "x".repeat(ADMIN_OVERRIDE_NOTE_MAX) },
       items: worth(1000),
-      actingAdminEmail: admin,
     });
     expect(result.ok).toBe(true);
   });
 
-  it("collapses embedded CR/LF in the note to a single space", () => {
-    const crafted = "wholesale\n[ADMIN OVERRIDE by attacker@example.com]: freebie";
+  it("collapses CR/LF in the reason to single spaces", () => {
     const result = applyAdminOverride({
-      override: { discount_amount: 100, note: crafted },
+      override: { discount_amount: 100, note: "line one\r\nline two\nline three" },
       items: worth(1000),
-      actingAdminEmail: admin,
     });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.notes).toBe(
-        `[ADMIN OVERRIDE by ${admin}]: wholesale [ADMIN OVERRIDE by attacker@example.com]: freebie`
-      );
-      expect(result.notes.includes("\n")).toBe(false);
-    }
+    expect(result.ok && result.audit.reason).toBe("line one line two line three");
   });
 
-  it("handles \\r\\n sequences and keeps only the single separator newline", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "line one\r\nline two" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: "call before delivery",
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.notes.match(/\n/g)?.length).toBe(1);
-      expect(result.notes).toBe(`[ADMIN OVERRIDE by ${admin}]: line one line two\ncall before delivery`);
-    }
-  });
-
-  it("treats whitespace-only existing notes as absent", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "wholesale" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: "   \n  ",
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: wholesale");
-      expect(result.notes).not.toContain("\n");
-    }
-  });
-
-  it("substitutes 'unknown' when actingAdminEmail is missing", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 100, note: "wholesale" },
-      items: worth(1000),
-      actingAdminEmail: "",
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.notes).toBe("[ADMIN OVERRIDE by unknown]: wholesale");
+  it("returns no note text for orders.notes", () => {
+    const result = applyAdminOverride({ override: { discount_amount: 100, note: "x" }, items: worth(1000) });
+    expect(result).not.toHaveProperty("notes");
   });
 });
 
@@ -279,7 +147,7 @@ describe("priceAdminOverride — percentages", () => {
         { id: "p1", price: 989, quantity: 2 },
         { id: "p2", price: 714, quantity: 1 },
       ],
-      discountCode: ADMIN_PRICE_UP_CODE,
+      discountCode: null,
       discountAmount: 0,
     });
     if (result.ok) expect(linesSubtotal(result.items)).toBe(2692);
@@ -374,66 +242,41 @@ describe("priceAdminOverride — percentages", () => {
   });
 });
 
-describe("applyAdminOverride — percentage notes", () => {
-  it("records a decimal discount percentage before the reason", () => {
-    const result = applyAdminOverride({
-      override: { mode: "percent_off", percent: 12.5, note: "Friend of the shop" },
-      items: worth(1000),
-      actingAdminEmail: admin,
+describe("applyAdminOverride — percentage audit", () => {
+  const lines = [
+    { id: "p1", price: 899, quantity: 2 },
+    { id: "p2", price: 649, quantity: 1 },
+  ];
+
+  it("records a raise as the rupees added across the order", () => {
+    const result = applyAdminOverride({ override: { mode: "percent_up", percent: 10, note: "Event price" }, items: lines });
+    expect(result.ok && result.discountCode).toBeNull();
+    expect(result.ok && result.audit).toEqual({
+      mode: "percent_up",
+      percent: 10,
+      amount: 245, // ₹2,692 raised − ₹2,447 catalogue
+      catalogueSubtotal: 2447,
+      reason: "Event price",
     });
-    expect(result.ok && result.notes).toBe(
-      "[ADMIN OVERRIDE by admin@example.com]: (−12.5% discount) Friend of the shop"
-    );
   });
 
-  it("records a price increase before the reason, above any customer note", () => {
-    const result = applyAdminOverride({
-      override: { mode: "percent_up", percent: 10, note: "Event price" },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: "Gift wrap please",
+  it("records a percentage discount as the rupees taken off", () => {
+    const result = applyAdminOverride({ override: { mode: "percent_off", percent: 12.5 }, items: lines });
+    expect(result.ok && result.discountCode).toBe(ADMIN_OVERRIDE_DISCOUNT_CODE);
+    expect(result.ok && result.audit).toEqual({
+      mode: "percent_off",
+      percent: 12.5,
+      amount: 306,
+      catalogueSubtotal: 2447,
+      reason: null,
     });
-    expect(result.ok && result.notes).toBe(
-      "[ADMIN OVERRIDE by admin@example.com]: (+10% prices) Event price\nGift wrap please"
-    );
   });
 
   it("checks the percentage before the reason", () => {
     const result = applyAdminOverride({
-      override: { mode: "percent_up", percent: 0, note: "" },
+      override: { mode: "percent_up", percent: 0, note: "x".repeat(ADMIN_OVERRIDE_NOTE_MAX + 1) },
       items: worth(1000),
-      actingAdminEmail: admin,
     });
     expect(result).toEqual({ ok: false, error: ADMIN_OVERRIDE_PERCENT_ERROR });
-  });
-
-  it("records just the price change when a raise has no reason", () => {
-    const result = applyAdminOverride({
-      override: { mode: "percent_up", percent: 10, note: " " },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: (+10% prices)");
-  });
-
-  it("records just the discount when a percentage discount has no reason, above any customer note", () => {
-    const result = applyAdminOverride({
-      override: { mode: "percent_off", percent: 12.5 },
-      items: worth(1000),
-      actingAdminEmail: admin,
-      existingNotes: "Gift wrap please",
-    });
-    expect(result.ok && result.notes).toBe(
-      "[ADMIN OVERRIDE by admin@example.com]: (−12.5% discount)\nGift wrap please"
-    );
-  });
-});
-
-describe("isPriceRaised", () => {
-  it("is true only for the ADMIN_PRICE_UP marker", () => {
-    expect(isPriceRaised({ discount_code: "ADMIN_PRICE_UP" })).toBe(true);
-    expect(isPriceRaised({ discount_code: "ADMIN_OVERRIDE" })).toBe(false);
-    expect(isPriceRaised({ discount_code: null })).toBe(false);
-    expect(isPriceRaised({})).toBe(false);
   });
 });

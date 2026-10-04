@@ -5,15 +5,14 @@ import type { AdminOverride, AdminOverrideMode } from "@/lib/types/order";
 // admin override through this module, so the screen and the stored order agree.
 
 export const ADMIN_OVERRIDE_DISCOUNT_CODE = "ADMIN_OVERRIDE";
-/** discount_code marking an order whose unit prices an admin raised (discount_amount is 0). */
-export const ADMIN_PRICE_UP_CODE = "ADMIN_PRICE_UP";
 export const ADMIN_OVERRIDE_NOTE_MAX = 500;
 export const ADMIN_OVERRIDE_PERCENT_ERROR =
   "Override percent must be from 0.1 to 100, with at most one decimal";
 export const ADMIN_PRICE_UP_GST_ERROR =
   "A raise can't take any item above ₹2,500 a piece: GST on clothing is 18% above that, and the invoice charges 5%";
 
-type AdminOverrideCode = typeof ADMIN_OVERRIDE_DISCOUNT_CODE | typeof ADMIN_PRICE_UP_CODE;
+/** A raise carries no code: nothing on the customer-readable order may show it. */
+type AdminOverrideCode = typeof ADMIN_OVERRIDE_DISCOUNT_CODE | null;
 
 /** The fields pricing needs from a cart line or an order line. */
 export interface PricedLine {
@@ -34,10 +33,22 @@ export type AdminOverridePricing<T extends PricedLine> =
     }
   | { ok: false; error: string };
 
+/** What POST /api/orders records in the admin-only order_price_overrides table. */
+export interface OverrideAudit {
+  mode: AdminOverrideMode;
+  percent: number | null;
+  /** ₹ taken off (discount modes) or ₹ added across the order (a raise). */
+  amount: number;
+  /** Σ catalogue price × quantity before the override. */
+  catalogueSubtotal: number;
+  /** The trimmed reason with CR/LF collapsed to spaces, or null. */
+  reason: string | null;
+}
+
 export type ApplyAdminOverrideSuccess<T extends PricedLine> = Extract<
   AdminOverridePricing<T>,
   { ok: true }
-> & { notes: string };
+> & { audit: OverrideAudit };
 
 export type ApplyAdminOverrideResult<T extends PricedLine> =
   | ApplyAdminOverrideSuccess<T>
@@ -46,8 +57,6 @@ export type ApplyAdminOverrideResult<T extends PricedLine> =
 export interface ApplyAdminOverrideInput<T extends PricedLine> {
   override: AdminOverride;
   items: T[];
-  actingAdminEmail?: string | null;
-  existingNotes?: string | null;
 }
 
 /** Σ price × quantity, summed in paise like calculateOrderSummary. */
@@ -119,7 +128,7 @@ export function priceAdminOverride<T extends PricedLine>(
     mode,
     percent,
     items: raised,
-    discountCode: ADMIN_PRICE_UP_CODE,
+    discountCode: null,
     discountAmount: 0,
   };
 }
@@ -138,16 +147,15 @@ export function overrideNoteError(note: unknown): string | null {
  *
  * - Prices the override with priceAdminOverride (checked before the reason).
  * - The reason is optional; when given it must be at most 500 chars (trimmed).
- * - Prefixes `orders.notes` with `[ADMIN OVERRIDE by <email>]`, then ": " and
- *   "(−10% discount)" / "(+10% prices)" in the percentage modes and the reason
- *   when there is one, so the audit trail sits alongside any customer note.
+ * - Returns the audit record for order_price_overrides. Nothing about the
+ *   override goes into orders.notes: customers can read that column.
  *
  * NO side effects — safe to unit-test and to call from any route handler.
  */
 export function applyAdminOverride<T extends PricedLine>(
   input: ApplyAdminOverrideInput<T>
 ): ApplyAdminOverrideResult<T> {
-  const { override, items, actingAdminEmail, existingNotes } = input;
+  const { override, items } = input;
 
   const pricing = priceAdminOverride(override, items);
   if (!pricing.ok) return pricing;
@@ -155,36 +163,22 @@ export function applyAdminOverride<T extends PricedLine>(
   const noteError = overrideNoteError(override?.note);
   if (noteError) return { ok: false, error: noteError };
 
-  // Collapse any embedded CR/LF sequences so the caller can't forge a second
-  // audit-looking line by smuggling a newline into the note.
-  const sanitizedNote =
+  const reason =
     typeof override?.note === "string" ? override.note.trim().replace(/[\r\n]+/g, " ") : "";
+  const catalogueSubtotal = linesSubtotal(items);
+  const amount =
+    pricing.mode === "percent_up"
+      ? Math.round((linesSubtotal(pricing.items) - catalogueSubtotal) * 100) / 100
+      : pricing.discountAmount;
 
-  const adminEmail =
-    typeof actingAdminEmail === "string" && actingAdminEmail.trim().length > 0
-      ? actingAdminEmail.trim()
-      : "unknown";
-
-  // Whitespace-only existing notes are treated as absent so the persisted
-  // value is clean regardless of whether the caller pre-trims.
-  const existing = typeof existingNotes === "string" ? existingNotes.trim() : "";
-
-  const change =
-    pricing.mode === "percent_off"
-      ? `(−${pricing.percent}% discount)`
-      : pricing.mode === "percent_up"
-        ? `(+${pricing.percent}% prices)`
-        : "";
-  const detail = [change, sanitizedNote].filter(Boolean).join(" ");
-  const prefix = detail
-    ? `[ADMIN OVERRIDE by ${adminEmail}]: ${detail}`
-    : `[ADMIN OVERRIDE by ${adminEmail}]`;
-  const notes = existing.length > 0 ? `${prefix}\n${existing}` : prefix;
-
-  return { ...pricing, notes };
-}
-
-/** True when an admin raised this order's unit prices (its MRP would be inflated). */
-export function isPriceRaised(order: { discount_code?: string | null }): boolean {
-  return order.discount_code === ADMIN_PRICE_UP_CODE;
+  return {
+    ...pricing,
+    audit: {
+      mode: pricing.mode,
+      percent: pricing.percent,
+      amount,
+      catalogueSubtotal,
+      reason: reason.length > 0 ? reason : null,
+    },
+  };
 }
