@@ -35,7 +35,6 @@ import type { AdminOverride, AdminOverrideMode, FulfilmentMethod } from "@/lib/t
 import {
   ADMIN_OVERRIDE_DISCOUNT_CODE,
   ADMIN_OVERRIDE_NOTE_MAX,
-  ADMIN_OVERRIDE_NOTE_MIN,
   ADMIN_OVERRIDE_PERCENT_ERROR,
   linesSubtotal,
   overrideNoteError,
@@ -535,7 +534,7 @@ export default function CheckoutPage() {
                     </div>
                     <div>
                       <Label htmlFor="admin-override-note" className="text-sm text-amber-900">
-                        Reason (required)
+                        Reason (optional)
                       </Label>
                       <Textarea
                         id="admin-override-note"
@@ -543,12 +542,12 @@ export default function CheckoutPage() {
                         value={adminOverrideNote}
                         maxLength={ADMIN_OVERRIDE_NOTE_MAX}
                         onChange={(e) => setAdminOverrideNote(e.target.value)}
-                        placeholder="e.g. Wholesale, phone-order negotiated price — min 3 chars"
+                        placeholder="e.g. Wholesale, phone-order negotiated price"
                         className="bg-white"
                       />
-                      {!overrideNoteValid && adminOverrideNote.length > 0 && (
+                      {!overrideNoteValid && (
                         <p className="mt-1 text-xs text-red-600">
-                          Reason must be {ADMIN_OVERRIDE_NOTE_MIN}–{ADMIN_OVERRIDE_NOTE_MAX} characters.
+                          Reason must be at most {ADMIN_OVERRIDE_NOTE_MAX} characters.
                         </p>
                       )}
                     </div>

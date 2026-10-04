@@ -498,6 +498,22 @@ describe('POST /api/orders', () => {
         })
       );
     });
+
+    it('places the order when the override has no reason', async () => {
+      const res = await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_off', percent: 10 },
+      }));
+      expect(res.status).toBe(200);
+      const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+      // 10% of ₹2,447 = ₹244.70 → ₹245.
+      expect(inserted).toMatchObject({
+        discount_code: 'ADMIN_OVERRIDE',
+        discount_amount: 245,
+        notes: '[ADMIN OVERRIDE by admin@example.com]: (−10% discount)',
+      });
+    });
   });
 
   it('rolls back the orphaned order through the admin client, never the session client, when the order_items insert fails', async () => {

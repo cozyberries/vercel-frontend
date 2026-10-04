@@ -102,7 +102,7 @@ describe("checkout — admin price override in shadow mode", () => {
       openOverride();
       fireEvent.click(screen.getByLabelText("Increase %"));
       type("Increase (%)", "50");
-      type("Reason (required)", "Event price");
+      type("Reason (optional)", "Event price");
       expect(screen.getByText(ADMIN_PRICE_UP_GST_ERROR)).toBeInTheDocument();
       expect(screen.queryByText("Enter a percentage from 0.1 to 100, with at most one decimal.")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Place Order" })).toBeDisabled();
@@ -157,7 +157,7 @@ describe("checkout — admin price override in shadow mode", () => {
     openOverride();
     fireEvent.click(screen.getByLabelText("Increase %"));
     type("Increase (%)", "150");
-    type("Reason (required)", "Event price");
+    type("Reason (optional)", "Event price");
 
     expect(screen.getByText("Enter a percentage from 0.1 to 100, with at most one decimal.")).toBeInTheDocument();
     const place = screen.getByRole("button", { name: "Place Order" });
@@ -172,7 +172,7 @@ describe("checkout — admin price override in shadow mode", () => {
     openOverride();
     fireEvent.click(screen.getByLabelText("Increase %"));
     type("Increase (%)", "10");
-    type("Reason (required)", "  Event price ");
+    type("Reason (optional)", "  Event price ");
     fireEvent.click(screen.getByRole("button", { name: "Place Order" }));
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -187,11 +187,27 @@ describe("checkout — admin price override in shadow mode", () => {
     vi.stubGlobal("fetch", fetchMock);
     openOverride();
     type("Discount amount (₹)", "250");
-    type("Reason (required)", "Wholesale");
+    type("Reason (optional)", "Wholesale");
     fireEvent.click(screen.getByRole("button", { name: "Place Order" }));
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.admin_override).toEqual({ mode: "amount", discount_amount: 250, note: "Wholesale" });
+  });
+
+  it("places the order with the reason left empty", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payment_url: "/payment/o1" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    openOverride();
+    fireEvent.click(screen.getByLabelText("Increase %"));
+    type("Increase (%)", "10");
+
+    const place = screen.getByRole("button", { name: "Place Order" });
+    expect(place).toBeEnabled();
+    fireEvent.click(place);
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.admin_override).toEqual({ mode: "percent_up", percent: 10, note: "" });
   });
 });

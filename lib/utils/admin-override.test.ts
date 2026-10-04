@@ -3,7 +3,6 @@ import type { AdminOverride } from "@/lib/types/order";
 import {
   ADMIN_OVERRIDE_DISCOUNT_CODE,
   ADMIN_OVERRIDE_NOTE_MAX,
-  ADMIN_OVERRIDE_NOTE_MIN,
   ADMIN_OVERRIDE_PERCENT_ERROR,
   ADMIN_PRICE_UP_CODE,
   ADMIN_PRICE_UP_GST_ERROR,
@@ -78,14 +77,33 @@ describe("applyAdminOverride — ₹ amount (behaviour carried over from checkou
     });
   });
 
-  it("rejects notes shorter than 3 characters after trim", () => {
+  it("accepts a short reason", () => {
     const result = applyAdminOverride({
       override: { discount_amount: 100, note: "  ok  " },
       items: worth(1000),
       actingAdminEmail: admin,
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatch(/at least 3/);
+    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: ok");
+  });
+
+  it("records only who applied it when the reason is blank", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 100, note: "   " },
+      items: worth(1000),
+      actingAdminEmail: admin,
+      existingNotes: "Call before delivery",
+    });
+    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]\nCall before delivery");
+  });
+
+  it("accepts an override sent without a reason", () => {
+    const result = applyAdminOverride({
+      override: { discount_amount: 100 },
+      items: worth(1000),
+      actingAdminEmail: admin,
+    });
+    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]");
+    expect(result.ok && result.discountAmount).toBe(100);
   });
 
   it("rejects notes longer than 500 characters", () => {
@@ -143,15 +161,6 @@ describe("applyAdminOverride — ₹ amount (behaviour carried over from checkou
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.discountAmount).toBe(1000);
-  });
-
-  it("accepts a note of exactly MIN length (3) after trim", () => {
-    const result = applyAdminOverride({
-      override: { discount_amount: 10, note: "x".repeat(ADMIN_OVERRIDE_NOTE_MIN) },
-      items: worth(1000),
-      actingAdminEmail: admin,
-    });
-    expect(result.ok).toBe(true);
   });
 
   it("accepts a note of exactly MAX length (500) after trim", () => {
@@ -398,14 +407,25 @@ describe("applyAdminOverride — percentage notes", () => {
     expect(result).toEqual({ ok: false, error: ADMIN_OVERRIDE_PERCENT_ERROR });
   });
 
-  it("still requires a reason in the percentage modes", () => {
+  it("records just the price change when a raise has no reason", () => {
     const result = applyAdminOverride({
       override: { mode: "percent_up", percent: 10, note: " " },
       items: worth(1000),
       actingAdminEmail: admin,
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatch(/at least 3/);
+    expect(result.ok && result.notes).toBe("[ADMIN OVERRIDE by admin@example.com]: (+10% prices)");
+  });
+
+  it("records just the discount when a percentage discount has no reason, above any customer note", () => {
+    const result = applyAdminOverride({
+      override: { mode: "percent_off", percent: 12.5 },
+      items: worth(1000),
+      actingAdminEmail: admin,
+      existingNotes: "Gift wrap please",
+    });
+    expect(result.ok && result.notes).toBe(
+      "[ADMIN OVERRIDE by admin@example.com]: (−12.5% discount)\nGift wrap please"
+    );
   });
 });
 

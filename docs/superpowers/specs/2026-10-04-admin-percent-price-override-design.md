@@ -54,7 +54,9 @@ checkbox. When checked, it shows:
 - One number field whose label follows the mode: "Discount amount (₹)",
   "Discount (%)", "Increase (%)". Percent modes use `step=0.1`, `min=0.1`,
   `max=100`.
-- The required reason field, unchanged (3–500 characters).
+- The required reason field, unchanged (3–500 characters). *Changed after
+  shipping, 2026-10-04: the reason is optional (at most 500 characters); with
+  no reason the note records only who applied the override and the % change.*
 
 Validation messages under the field:
 

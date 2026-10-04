@@ -7,7 +7,6 @@ import type { AdminOverride, AdminOverrideMode } from "@/lib/types/order";
 export const ADMIN_OVERRIDE_DISCOUNT_CODE = "ADMIN_OVERRIDE";
 /** discount_code marking an order whose unit prices an admin raised (discount_amount is 0). */
 export const ADMIN_PRICE_UP_CODE = "ADMIN_PRICE_UP";
-export const ADMIN_OVERRIDE_NOTE_MIN = 3;
 export const ADMIN_OVERRIDE_NOTE_MAX = 500;
 export const ADMIN_OVERRIDE_PERCENT_ERROR =
   "Override percent must be from 0.1 to 100, with at most one decimal";
@@ -125,12 +124,9 @@ export function priceAdminOverride<T extends PricedLine>(
   };
 }
 
-/** The reason's error message, or null when it is 3–500 characters after trimming. */
+/** The reason is optional: an error message only when it is over 500 characters after trimming. */
 export function overrideNoteError(note: unknown): string | null {
   const trimmed = typeof note === "string" ? note.trim() : "";
-  if (trimmed.length < ADMIN_OVERRIDE_NOTE_MIN) {
-    return `Override reason must be at least ${ADMIN_OVERRIDE_NOTE_MIN} characters`;
-  }
   if (trimmed.length > ADMIN_OVERRIDE_NOTE_MAX) {
     return `Override reason must be at most ${ADMIN_OVERRIDE_NOTE_MAX} characters`;
   }
@@ -141,10 +137,10 @@ export function overrideNoteError(note: unknown): string | null {
  * Pure validator / applier for the admin price override at checkout.
  *
  * - Prices the override with priceAdminOverride (checked before the reason).
- * - Requires the reason (trimmed) to be 3..500 chars.
- * - Prefixes `orders.notes` with `[ADMIN OVERRIDE by <email>]: <reason>`, with
- *   "(−10% discount) " or "(+10% prices) " before the reason in the percentage
- *   modes, so the audit trail sits alongside any existing customer note.
+ * - The reason is optional; when given it must be at most 500 chars (trimmed).
+ * - Prefixes `orders.notes` with `[ADMIN OVERRIDE by <email>]`, then ": " and
+ *   "(−10% discount)" / "(+10% prices)" in the percentage modes and the reason
+ *   when there is one, so the audit trail sits alongside any customer note.
  *
  * NO side effects — safe to unit-test and to call from any route handler.
  */
@@ -161,7 +157,8 @@ export function applyAdminOverride<T extends PricedLine>(
 
   // Collapse any embedded CR/LF sequences so the caller can't forge a second
   // audit-looking line by smuggling a newline into the note.
-  const sanitizedNote = override.note.trim().replace(/[\r\n]+/g, " ");
+  const sanitizedNote =
+    typeof override?.note === "string" ? override.note.trim().replace(/[\r\n]+/g, " ") : "";
 
   const adminEmail =
     typeof actingAdminEmail === "string" && actingAdminEmail.trim().length > 0
@@ -174,11 +171,14 @@ export function applyAdminOverride<T extends PricedLine>(
 
   const change =
     pricing.mode === "percent_off"
-      ? `(−${pricing.percent}% discount) `
+      ? `(−${pricing.percent}% discount)`
       : pricing.mode === "percent_up"
-        ? `(+${pricing.percent}% prices) `
+        ? `(+${pricing.percent}% prices)`
         : "";
-  const prefix = `[ADMIN OVERRIDE by ${adminEmail}]: ${change}${sanitizedNote}`;
+  const detail = [change, sanitizedNote].filter(Boolean).join(" ");
+  const prefix = detail
+    ? `[ADMIN OVERRIDE by ${adminEmail}]: ${detail}`
+    : `[ADMIN OVERRIDE by ${adminEmail}]`;
   const notes = existing.length > 0 ? `${prefix}\n${existing}` : prefix;
 
   return { ...pricing, notes };

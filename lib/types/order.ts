@@ -168,16 +168,16 @@ export type AdminOverride =
       mode?: "amount";
       /** Rupees. Server clamps to [0, subtotal] and floors to an integer. */
       discount_amount: number;
-      /** Required reason — trimmed length must be 3..500. */
-      note: string;
+      /** Optional reason — at most 500 characters after trimming. */
+      note?: string;
     }
   | {
       /** percent_off lowers the goods total; percent_up raises every unit price. */
       mode: "percent_off" | "percent_up";
       /** 0.1..100, at most one decimal place. */
       percent: number;
-      /** Required reason — trimmed length must be 3..500. */
-      note: string;
+      /** Optional reason — at most 500 characters after trimming. */
+      note?: string;
     };
 
 export interface CreateOrderRequest {
