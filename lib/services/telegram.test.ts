@@ -51,6 +51,22 @@ describe("buildNewOrderText", () => {
     const text = buildNewOrderText({ ...base, customerName: "<b>x</b>" }, "HEADER", "now");
     expect(text).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
+
+  it("prints the discount when it is above ₹0", () => {
+    const text = buildNewOrderText({ ...base, discountCode: "EARLY5", discountAmount: 52 }, "HEADER", "now");
+    expect(text).toContain("🏷️ Discount (EARLY5): −₹52");
+  });
+
+  it("prints no discount line for a ₹0 discount", () => {
+    const text = buildNewOrderText({ ...base, discountCode: "ADMIN_OVERRIDE", discountAmount: 0 }, "HEADER", "now");
+    expect(text).not.toContain("Discount");
+  });
+
+  it("tells the owner an admin raised the prices", () => {
+    const text = buildNewOrderText({ ...base, discountCode: "ADMIN_PRICE_UP", discountAmount: 0 }, "HEADER", "now");
+    expect(text).toContain("📈 Prices raised by admin");
+    expect(text).not.toContain("Discount");
+  });
 });
 
 describe("escapeTelegramHtml", () => {

@@ -2,6 +2,8 @@
 // Fire-and-forget Telegram alerts for the CozyBerries admin group.
 // All exported notify* functions are void — callers must NOT await them.
 
+import { ADMIN_PRICE_UP_CODE } from "@/lib/utils/admin-override";
+
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -149,6 +151,15 @@ export type NewOrderData = {
   placedByEmail?: string | null;
 };
 
+/** The pricing line for an admin price raise or a discount; empty when there is neither. */
+function adjustmentLine(discountCode: string | null, discountAmount: number): string {
+  if (discountCode === ADMIN_PRICE_UP_CODE) return "📈 Prices raised by admin\n";
+  if (discountCode && discountAmount > 0) {
+    return `🏷️ Discount (${escapeHtml(discountCode)}): −₹${discountAmount.toLocaleString("en-IN")}\n`;
+  }
+  return "";
+}
+
 /** Builds the order message body. Pass a different header to re-use after confirmation. */
 export function buildNewOrderText(data: NewOrderData, header: string, ts?: string): string {
   const timestamp = ts ?? toIST(new Date());
@@ -189,9 +200,7 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
     return `${num} ${escapeHtml(i.name)}${sizeLine}`;
   });
 
-  const discountLine = data.discountCode
-    ? `🏷️ Discount (${escapeHtml(data.discountCode)}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
-    : "";
+  const discountLine = adjustmentLine(data.discountCode, data.discountAmount);
   const deliveryLine = data.fulfilmentMethod === "pickup"
     ? `🚚 Delivery: None (pickup)\n`
     : data.deliveryCharge > 0
@@ -291,9 +300,7 @@ export function notifyOrderPlaced(data: {
     return `${num} ${escapeHtml(i.name)}${sizeLine}`;
   });
 
-  const discountLine = data.discountCode
-    ? `🏷️ Discount (${escapeHtml(data.discountCode)}): −₹${data.discountAmount.toLocaleString("en-IN")}\n`
-    : "";
+  const discountLine = adjustmentLine(data.discountCode, data.discountAmount);
   const deliveryLine = data.deliveryCharge > 0
     ? `🚚 Delivery: ₹${data.deliveryCharge.toLocaleString("en-IN")}\n`
     : `🚚 Delivery: Free\n`;
