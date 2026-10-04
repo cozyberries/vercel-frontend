@@ -9,7 +9,6 @@ const {
   validateAndFetchAddressesMock,
   validateItemPricesMock,
   calculateOrderSummaryMock,
-  applyAdminOverrideMock,
   validateAndApplyOfferMock,
   notifyAdminsOrderPlacedFromCheckoutMock,
   notifyNewOrderMock,
@@ -77,7 +76,6 @@ const {
     validateAndFetchAddressesMock: vi.fn(),
     validateItemPricesMock: vi.fn(),
     calculateOrderSummaryMock: vi.fn(),
-    applyAdminOverrideMock: vi.fn(),
     validateAndApplyOfferMock: vi.fn(),
     notifyAdminsOrderPlacedFromCheckoutMock: vi.fn(),
     notifyNewOrderMock: vi.fn(),
@@ -107,7 +105,6 @@ vi.mock('@/lib/utils/checkout-helpers', () => ({
   validateAndFetchAddresses: validateAndFetchAddressesMock,
   validateItemPrices: validateItemPricesMock,
   calculateOrderSummary: calculateOrderSummaryMock,
-  applyAdminOverride: applyAdminOverrideMock,
 }));
 
 vi.mock('@/lib/services/impersonation-audit', () => ({
@@ -279,7 +276,7 @@ describe('POST /api/orders', () => {
     );
   });
 
-  it('applies admin_override: ignores coupon, uses helper output, passes override metadata to audit', async () => {
+  it('applies admin_override: ignores coupon, stores the discount and audit note, flags the audit event', async () => {
     getEffectiveUserMock.mockResolvedValue({
       ok: true,
       userId: TARGET_ID,
@@ -289,13 +286,6 @@ describe('POST /api/orders', () => {
       effectiveUser: { id: TARGET_ID, email: 'target@example.com' },
     });
 
-    applyAdminOverrideMock.mockReturnValue({
-      ok: true,
-      discountCode: 'ADMIN_OVERRIDE',
-      discountAmount: 250,
-      notes: '[ADMIN OVERRIDE by admin@example.com]: phone-order',
-    });
-
     const res = await POST(makeRequest({
       items: [{ id: 'p1', name: 'Prod', price: 1000, quantity: 1 }],
       shipping_address_id: 'addr-1',
@@ -303,14 +293,6 @@ describe('POST /api/orders', () => {
       admin_override: { discount_amount: 250, note: 'phone-order' },
     }));
     expect(res.status).toBe(200);
-
-    expect(applyAdminOverrideMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        override: { discount_amount: 250, note: 'phone-order' },
-        subtotal: 1000,
-        actingAdminEmail: 'admin@example.com',
-      })
-    );
     expect(validateAndApplyOfferMock).not.toHaveBeenCalled();
 
     const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
@@ -344,7 +326,6 @@ describe('POST /api/orders', () => {
     }));
     expect(res.status).toBe(403);
     expect(insertOrdersMock).not.toHaveBeenCalled();
-    expect(applyAdminOverrideMock).not.toHaveBeenCalled();
   });
 
   it('rolls back the orphaned order through the admin client, never the session client, when the order_items insert fails', async () => {

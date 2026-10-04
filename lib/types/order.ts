@@ -159,13 +159,26 @@ export interface Payment extends PaymentBase {
   updated_at: string;
 }
 
+export type AdminOverrideMode = "amount" | "percent_off" | "percent_up";
+
 /** Admin-only price override applied at checkout during shadow mode. */
-export interface AdminOverride {
-  /** Rupees. Server clamps to [0, subtotal] and floors to an integer. */
-  discount_amount: number;
-  /** Required reason — trimmed length must be 3..500. */
-  note: string;
-}
+export type AdminOverride =
+  | {
+      /** Absent on requests sent before the percentage modes existed. */
+      mode?: "amount";
+      /** Rupees. Server clamps to [0, subtotal] and floors to an integer. */
+      discount_amount: number;
+      /** Required reason — trimmed length must be 3..500. */
+      note: string;
+    }
+  | {
+      /** percent_off lowers the goods total; percent_up raises every unit price. */
+      mode: "percent_off" | "percent_up";
+      /** 0.1..100, at most one decimal place. */
+      percent: number;
+      /** Required reason — trimmed length must be 3..500. */
+      note: string;
+    };
 
 export interface CreateOrderRequest {
   items: OrderItemInput[];

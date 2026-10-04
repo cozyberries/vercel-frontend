@@ -6,8 +6,8 @@ import {
   validateAndFetchAddresses,
   validateItemPrices,
   calculateOrderSummary,
-  applyAdminOverride,
 } from "@/lib/utils/checkout-helpers";
+import { applyAdminOverride } from "@/lib/utils/admin-override";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { deliveryChargeFor, parseFulfilmentMethod } from "@/lib/utils/fulfilment";
 import { resolveOrderVariants } from "@/lib/utils/variant-resolver";
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     if (admin_override && actingAdminId) {
       const overrideResult = applyAdminOverride({
         override: admin_override,
-        subtotal: orderSummary.subtotal,
+        items,
         actingAdminEmail: sessionUser.email ?? null,
         existingNotes: normalizedCustomerNotes,
       });
