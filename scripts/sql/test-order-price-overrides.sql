@@ -25,9 +25,9 @@ returns void language plpgsql as $$
 declare v_id uuid; v_uid uuid := (select v::uuid from t_ctx where k = 'uid');
 begin
   insert into public.orders (user_id, customer_email, subtotal, discount_code, discount_amount,
-                             delivery_charge, total_amount, fulfilment_method, notes, placed_by_admin_id)
+                             delivery_charge, total_amount, fulfilment_method, notes, placed_by_admin_id, updated_at)
   values (v_uid, 'zz@test.local', p_subtotal, p_code, p_discount, 0, p_subtotal - p_discount,
-          'pickup', p_notes, v_uid)
+          'pickup', p_notes, v_uid, '2026-09-27 12:00:00+05:30'::timestamptz)
   returning id into v_id;
   insert into t_ctx values (p_key, v_id::text);
   insert into t_ctx select p_key || ':updated_at', updated_at::text from public.orders where id = v_id;
@@ -137,7 +137,8 @@ declare v_now timestamptz;
 begin
   select updated_at into v_now from public.orders where id = pg_temp.oid('amt');
   insert into t_result values ('updated_at_kept',
-    v_now::text = (select v from t_ctx where k = 'amt:updated_at'),
+    v_now = '2026-09-27 12:00:00+05:30'::timestamptz
+      and v_now::text = (select v from t_ctx where k = 'amt:updated_at'),
     format('before=%s after=%s', (select v from t_ctx where k = 'amt:updated_at'), v_now));
 end $$;
 
