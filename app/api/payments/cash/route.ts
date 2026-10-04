@@ -4,6 +4,7 @@ import {
   getEffectiveUser,
 } from "@/lib/services/effective-user";
 import { notifyNewOrder } from "@/lib/services/telegram";
+import { fetchPriceRaise } from "@/lib/services/price-overrides";
 
 /**
  * Stall staff record a cash payment while impersonating the customer.
@@ -125,6 +126,9 @@ export async function POST(request: NextRequest) {
 
     // after(): the owner confirms from this message, so it must not be lost
     // when the function is frozen after the response.
+    // order_price_overrides is service-role only; this route returned 403 above
+    // unless an admin is acting, so `client` is the service-role client here.
+    const priceRaise = await fetchPriceRaise(client, orderId);
     after(() => notifyNewOrder(
       {
         orderId,
@@ -143,6 +147,7 @@ export async function POST(request: NextRequest) {
           size: i.size ?? null,
         })),
         fulfilmentMethod: order.fulfilment_method ?? "delivery",
+        priceRaise,
         paymentMethod: "cash",
         customerName: order.customer_name ?? null,
         placedByEmail: sessionUser.email ?? null,

@@ -62,9 +62,21 @@ describe("buildNewOrderText", () => {
     expect(text).not.toContain("Discount");
   });
 
-  it("tells the owner an admin raised the prices", () => {
+  it("tells the owner how much an admin raised the prices", () => {
+    const text = buildNewOrderText({ ...base, priceRaise: { percent: 10, amount: 1245 } }, "HEADER", "now");
+    expect(text).toContain("📈 Prices raised +10% (+₹1,245)");
+    expect(text).not.toContain("Discount");
+  });
+
+  it("leaves out the rupee figure when a raise was recorded without one", () => {
+    const text = buildNewOrderText({ ...base, priceRaise: { percent: 50, amount: null } }, "HEADER", "now");
+    expect(text).toContain("📈 Prices raised +50%\n");
+    expect(text).not.toContain("(+₹");
+  });
+
+  it("no longer treats the retired ADMIN_PRICE_UP code as a raise", () => {
     const text = buildNewOrderText({ ...base, discountCode: "ADMIN_PRICE_UP", discountAmount: 0 }, "HEADER", "now");
-    expect(text).toContain("📈 Prices raised by admin");
+    expect(text).not.toContain("📈");
     expect(text).not.toContain("Discount");
   });
 });

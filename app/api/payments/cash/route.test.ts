@@ -68,6 +68,8 @@ vi.mock('@/lib/services/effective-user', () => ({
   effectiveUserErrorResponse: vi.fn(async () => new Response(null, { status: 401 })),
 }));
 vi.mock('@/lib/services/telegram', () => ({ notifyNewOrder: h.notifyNewOrder }));
+const overrides = vi.hoisted(() => ({ fetchPriceRaise: vi.fn(async () => null as unknown) }));
+vi.mock('@/lib/services/price-overrides', () => ({ fetchPriceRaise: overrides.fetchPriceRaise }));
 
 // `after()` keeps the function alive until the Telegram send settles. Run the
 // callback inline so the notifyNewOrder assertions still see the call.
@@ -95,6 +97,17 @@ beforeEach(() => {
 });
 
 describe('POST /api/payments/cash', () => {
+  it('tells the owner when an admin raised the prices', async () => {
+    asStaff();
+    overrides.fetchPriceRaise.mockResolvedValueOnce({ percent: 10, amount: 245 });
+    await POST(req({ orderId: 'order-1' }));
+    expect(overrides.fetchPriceRaise).toHaveBeenCalledWith(h.client, 'order-1');
+    expect(h.notifyNewOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ priceRaise: { percent: 10, amount: 245 } }),
+      expect.anything()
+    );
+  });
+
   it('is refused for a customer session (no acting admin)', async () => {
     h.getEffectiveUser.mockResolvedValue({
       ok: true, userId: CUSTOMER_ID, actingAdminId: null, client: h.client,

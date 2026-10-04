@@ -2,7 +2,7 @@
 // Fire-and-forget Telegram alerts for the CozyBerries admin group.
 // All exported notify* functions are void — callers must NOT await them.
 
-import { ADMIN_PRICE_UP_CODE } from "@/lib/utils/admin-override";
+import type { PriceRaise } from "@/lib/types/order";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -149,11 +149,16 @@ export type NewOrderData = {
   customerName?: string | null;
   /** Staff email when an admin placed the order or recorded the payment. */
   placedByEmail?: string | null;
+  /** Set when an admin raised the prices (from order_price_overrides); admins only. */
+  priceRaise?: PriceRaise | null;
 };
 
 /** The pricing line for an admin price raise or a discount; empty when there is neither. */
-function adjustmentLine(discountCode: string | null, discountAmount: number): string {
-  if (discountCode === ADMIN_PRICE_UP_CODE) return "📈 Prices raised by admin\n";
+function adjustmentLine(discountCode: string | null, discountAmount: number, priceRaise?: PriceRaise | null): string {
+  if (priceRaise) {
+    const rupees = priceRaise.amount === null ? "" : ` (+₹${priceRaise.amount.toLocaleString("en-IN")})`;
+    return `📈 Prices raised +${priceRaise.percent}%${rupees}\n`;
+  }
   if (discountCode && discountAmount > 0) {
     return `🏷️ Discount (${escapeHtml(discountCode)}): −₹${discountAmount.toLocaleString("en-IN")}\n`;
   }
@@ -200,7 +205,7 @@ export function buildNewOrderText(data: NewOrderData, header: string, ts?: strin
     return `${num} ${escapeHtml(i.name)}${sizeLine}`;
   });
 
-  const discountLine = adjustmentLine(data.discountCode, data.discountAmount);
+  const discountLine = adjustmentLine(data.discountCode, data.discountAmount, data.priceRaise);
   const deliveryLine = data.fulfilmentMethod === "pickup"
     ? `🚚 Delivery: None (pickup)\n`
     : data.deliveryCharge > 0

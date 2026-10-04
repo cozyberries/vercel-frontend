@@ -78,6 +78,8 @@ vi.mock('@/lib/services/telegram', () => ({
   escapeTelegramHtml: h.escapeTelegramHtml,
 }));
 vi.mock('@/lib/admin/dashboard-actions', () => ({ clearDashboardActions: vi.fn(async () => {}) }));
+const overrides = vi.hoisted(() => ({ fetchPriceRaise: vi.fn(async () => null as unknown) }));
+vi.mock('@/lib/services/price-overrides', () => ({ fetchPriceRaise: overrides.fetchPriceRaise }));
 
 import { POST } from './route';
 import { NextRequest } from 'next/server';
@@ -113,6 +115,16 @@ beforeEach(() => {
 });
 
 describe('POST /api/telegram/webhook — confirm payment', () => {
+  it('keeps the price-raise line when it rebuilds the message', async () => {
+    overrides.fetchPriceRaise.mockResolvedValueOnce({ percent: 50, amount: null });
+    await POST(tap());
+    expect(overrides.fetchPriceRaise).toHaveBeenCalledWith(h.client, 'order-1');
+    expect(h.buildNewOrderText).toHaveBeenCalledWith(
+      expect.objectContaining({ priceRaise: { percent: 50, amount: null } }),
+      expect.stringContaining('Payment Confirmed')
+    );
+  });
+
   it('rejects a request without the webhook secret', async () => {
     const res = await POST(tap('wrong'));
     expect(res.status).toBe(401);

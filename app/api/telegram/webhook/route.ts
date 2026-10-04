@@ -7,6 +7,7 @@ import {
   escapeTelegramHtml,
 } from "@/lib/services/telegram";
 import { clearDashboardActions } from "@/lib/admin/dashboard-actions";
+import { fetchPriceRaise } from "@/lib/services/price-overrides";
 
 const UNPAID_STATUSES = ["payment_pending", "verifying_payment"];
 const STOCK_ERROR = /^(OUT_OF_STOCK|VARIANT_NOT_FOUND):(.*)$/;
@@ -218,6 +219,8 @@ export async function POST(request: NextRequest) {
       name: string; quantity: number; size?: string | null;
     }) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null }));
 
+    const priceRaise = await fetchPriceRaise(supabase, orderId);
+
     const updatedText =
       buildNewOrderText(
         {
@@ -234,6 +237,7 @@ export async function POST(request: NextRequest) {
           items,
           fulfilmentMethod: full.fulfilment_method ?? "delivery",
           customerName: full.customer_name ?? null,
+          priceRaise,
         },
         `✅ <b>Payment Confirmed</b>`
       ) +

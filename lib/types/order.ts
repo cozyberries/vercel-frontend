@@ -213,3 +213,23 @@ export interface ActiveOfferResponse {
   badgeText: string
   enabled: boolean
 }
+
+/** A row of order_price_overrides (admin/internal tier: service role only). */
+export interface PriceOverrideRecord {
+  order_id: string;
+  mode: AdminOverrideMode;
+  percent: number | null;
+  /** ₹ taken off (discounts) or ₹ added (a raise); null for a raise backfilled from an old note. */
+  amount: number | null;
+  catalogue_subtotal: number | null;
+  reason: string | null;
+  admin_id: string | null;
+  admin_email: string | null;
+  created_at: string;
+}
+
+/** What the owner's Telegram message says about a price raise. */
+export interface PriceRaise {
+  percent: number;
+  amount: number | null;
+}
