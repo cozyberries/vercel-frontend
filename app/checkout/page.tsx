@@ -31,13 +31,24 @@ import { toast } from "sonner";
 import { UPI_ID } from "@/lib/constants";
 import { getActiveOffer } from "@/lib/utils/discount";
 import MrpSummaryRows from "@/components/MrpSummaryRows";
-import type { FulfilmentMethod } from "@/lib/types/order";
+import type { AdminOverride, AdminOverrideMode, FulfilmentMethod } from "@/lib/types/order";
+import {
+  ADMIN_OVERRIDE_DISCOUNT_CODE,
+  ADMIN_OVERRIDE_NOTE_MAX,
+  ADMIN_OVERRIDE_NOTE_MIN,
+  linesSubtotal,
+  overrideNoteError,
+  priceAdminOverride,
+} from "@/lib/utils/admin-override";
 import { canContinueCheckout, deliveryChargeFor } from "@/lib/utils/fulfilment";
 import { FulfilmentPicker } from "@/components/checkout/FulfilmentPicker";
 import { StallCard } from "@/components/checkout/StallCard";
 
-const ADMIN_OVERRIDE_NOTE_MIN_LEN = 3;
-const ADMIN_OVERRIDE_NOTE_MAX_LEN = 500;
+const OVERRIDE_MODES: { value: AdminOverrideMode; label: string; field: string }[] = [
+  { value: "amount", label: "Discount ₹", field: "Discount amount (₹)" },
+  { value: "percent_off", label: "Discount %", field: "Discount (%)" },
+  { value: "percent_up", label: "Increase %", field: "Increase (%)" },
+];
 
 const TYPE_ICON: Record<string, typeof Home> = {
   home: Home,
@@ -79,7 +90,8 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [fulfilment, setFulfilment] = useState<FulfilmentMethod>("delivery");
   const [adminOverrideEnabled, setAdminOverrideEnabled] = useState(false);
-  const [adminOverrideAmount, setAdminOverrideAmount] = useState("");
+  const [adminOverrideMode, setAdminOverrideMode] = useState<AdminOverrideMode>("amount");
+  const [adminOverrideValue, setAdminOverrideValue] = useState("");
   const [adminOverrideNote, setAdminOverrideNote] = useState("");
 
   const {
@@ -101,26 +113,37 @@ export default function CheckoutPage() {
   const { subtotal, discountAmount: organicDiscount } = useCartTotals(cart, offer);
 
   const overrideActive = impersonation.active && adminOverrideEnabled;
-  const parsedOverrideAmount = (() => {
-    const trimmed = adminOverrideAmount.trim();
+  const activeOverrideMode = OVERRIDE_MODES.find((m) => m.value === adminOverrideMode) ?? OVERRIDE_MODES[0];
+  const parsedOverrideValue = (() => {
+    const trimmed = adminOverrideValue.trim();
     if (trimmed.length === 0) return NaN;
     const n = Number(trimmed);
     return Number.isFinite(n) ? n : NaN;
   })();
-  const overrideAmountValid =
-    Number.isFinite(parsedOverrideAmount) &&
-    Number.isInteger(parsedOverrideAmount) &&
-    parsedOverrideAmount >= 0 &&
-    parsedOverrideAmount <= subtotal;
   const trimmedOverrideNote = adminOverrideNote.trim();
-  const overrideNoteValid =
-    trimmedOverrideNote.length >= ADMIN_OVERRIDE_NOTE_MIN_LEN &&
-    trimmedOverrideNote.length <= ADMIN_OVERRIDE_NOTE_MAX_LEN;
-  const overrideValid = overrideAmountValid && overrideNoteValid;
-  const overrideAmountInt = overrideAmountValid ? parsedOverrideAmount : 0;
+  const overrideRequest: AdminOverride =
+    adminOverrideMode === "amount"
+      ? { mode: "amount", discount_amount: parsedOverrideValue, note: trimmedOverrideNote }
+      : { mode: adminOverrideMode, percent: parsedOverrideValue, note: trimmedOverrideNote };
+  // The same pricing POST /api/orders runs, so the preview matches the stored order.
+  const overridePricing = priceAdminOverride(overrideRequest, cart);
+  const overrideValueValid =
+    adminOverrideMode === "amount"
+      ? Number.isInteger(parsedOverrideValue) && parsedOverrideValue >= 0 && parsedOverrideValue <= subtotal
+      : overridePricing.ok;
+  const overrideNoteValid = overrideNoteError(adminOverrideNote) === null;
+  const overrideValid = overrideValueValid && overrideNoteValid;
+  const appliedOverride = overrideActive && overrideValueValid && overridePricing.ok ? overridePricing : null;
 
-  const discountAmount = overrideActive ? overrideAmountInt : organicDiscount;
-  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+  const summaryItems = appliedOverride ? appliedOverride.items : cart;
+  const goodsSubtotal = appliedOverride ? linesSubtotal(appliedOverride.items) : subtotal;
+  const priceRaise =
+    appliedOverride?.mode === "percent_up"
+      ? { percent: appliedOverride.percent ?? 0, amount: goodsSubtotal - subtotal }
+      : null;
+  const discountAmount = overrideActive ? appliedOverride?.discountAmount ?? 0 : organicDiscount;
+  const discountCode = overrideActive ? ADMIN_OVERRIDE_DISCOUNT_CODE : offer?.code ?? null;
+  const discountedSubtotal = Math.max(0, goodsSubtotal - discountAmount);
   const deliveryCharge = deliveryChargeFor(discountedSubtotal, fulfilment, cart.length);
   const readyToContinue = canContinueCheckout({ fulfilment, selectedAddressId });
   const total = discountedSubtotal + deliveryCharge;
@@ -185,7 +208,7 @@ export default function CheckoutPage() {
           fulfilment_method: fulfilment,
           ...(fulfilment === "delivery" ? { shipping_address_id: selectedAddressId } : {}),
           ...(overrideActive
-            ? { admin_override: { discount_amount: overrideAmountInt, note: trimmedOverrideNote } }
+            ? { admin_override: overrideRequest }
             : offer
               ? { coupon_code: offer.code }
               : {}),
@@ -326,12 +349,13 @@ export default function CheckoutPage() {
             )}
 
             <OrderSummary
-              cart={cart}
-              subtotal={subtotal}
+              items={summaryItems}
+              subtotal={goodsSubtotal}
               discountAmount={discountAmount}
               deliveryCharge={deliveryCharge}
               total={total}
-              offerCode={overrideActive ? null : offer?.code ?? null}
+              discountCode={discountCode}
+              priceRaise={priceRaise}
               fulfilment={fulfilment}
               showItems
             />
@@ -447,7 +471,8 @@ export default function CheckoutPage() {
                       const next = e.target.checked;
                       setAdminOverrideEnabled(next);
                       if (!next) {
-                        setAdminOverrideAmount("");
+                        setAdminOverrideMode("amount");
+                        setAdminOverrideValue("");
                         setAdminOverrideNote("");
                       }
                     }}
@@ -456,25 +481,52 @@ export default function CheckoutPage() {
                 </label>
                 {adminOverrideEnabled && (
                   <div className="space-y-3">
+                    <fieldset>
+                      <legend className="sr-only">Override type</legend>
+                      <div className="flex flex-wrap gap-2">
+                        {OVERRIDE_MODES.map((m) => (
+                          <label
+                            key={m.value}
+                            className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm text-amber-900 cursor-pointer ${
+                              adminOverrideMode === m.value ? "border-amber-500 bg-white font-semibold" : "border-amber-300"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="admin-override-mode"
+                              value={m.value}
+                              checked={adminOverrideMode === m.value}
+                              onChange={() => {
+                                setAdminOverrideMode(m.value);
+                                setAdminOverrideValue("");
+                              }}
+                            />
+                            {m.label}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
                     <div>
-                      <Label htmlFor="admin-override-amount" className="text-sm text-amber-900">
-                        Discount amount (₹)
+                      <Label htmlFor="admin-override-value" className="text-sm text-amber-900">
+                        {activeOverrideMode.field}
                       </Label>
                       <Input
-                        id="admin-override-amount"
+                        id="admin-override-value"
                         type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={subtotal}
-                        step={1}
-                        value={adminOverrideAmount}
-                        onChange={(e) => setAdminOverrideAmount(e.target.value)}
-                        placeholder="0"
+                        inputMode={adminOverrideMode === "amount" ? "numeric" : "decimal"}
+                        min={adminOverrideMode === "amount" ? 0 : 0.1}
+                        max={adminOverrideMode === "amount" ? subtotal : 100}
+                        step={adminOverrideMode === "amount" ? 1 : 0.1}
+                        value={adminOverrideValue}
+                        onChange={(e) => setAdminOverrideValue(e.target.value)}
+                        placeholder={adminOverrideMode === "amount" ? "0" : "10"}
                         className="bg-white"
                       />
-                      {!overrideAmountValid && adminOverrideAmount.length > 0 && (
+                      {!overrideValueValid && adminOverrideValue.length > 0 && (
                         <p className="mt-1 text-xs text-red-600">
-                          Amount must be a non-negative integer no greater than the subtotal (₹{subtotal.toFixed(0)}).
+                          {adminOverrideMode === "amount"
+                            ? `Amount must be a non-negative integer no greater than the subtotal (₹${subtotal.toFixed(0)}).`
+                            : "Enter a percentage from 0.1 to 100, with at most one decimal."}
                         </p>
                       )}
                     </div>
@@ -486,14 +538,14 @@ export default function CheckoutPage() {
                         id="admin-override-note"
                         rows={2}
                         value={adminOverrideNote}
-                        maxLength={ADMIN_OVERRIDE_NOTE_MAX_LEN}
+                        maxLength={ADMIN_OVERRIDE_NOTE_MAX}
                         onChange={(e) => setAdminOverrideNote(e.target.value)}
                         placeholder="e.g. Wholesale, phone-order negotiated price — min 3 chars"
                         className="bg-white"
                       />
                       {!overrideNoteValid && adminOverrideNote.length > 0 && (
                         <p className="mt-1 text-xs text-red-600">
-                          Reason must be {ADMIN_OVERRIDE_NOTE_MIN_LEN}–{ADMIN_OVERRIDE_NOTE_MAX_LEN} characters.
+                          Reason must be {ADMIN_OVERRIDE_NOTE_MIN}–{ADMIN_OVERRIDE_NOTE_MAX} characters.
                         </p>
                       )}
                     </div>
@@ -503,12 +555,13 @@ export default function CheckoutPage() {
             )}
 
             <OrderSummary
-              cart={cart}
-              subtotal={subtotal}
+              items={summaryItems}
+              subtotal={goodsSubtotal}
               discountAmount={discountAmount}
               deliveryCharge={deliveryCharge}
               total={total}
-              offerCode={overrideActive ? null : offer?.code ?? null}
+              discountCode={discountCode}
+              priceRaise={priceRaise}
               fulfilment={fulfilment}
               showItems={false}
             />
@@ -562,21 +615,25 @@ export default function CheckoutPage() {
 }
 
 function OrderSummary({
-  cart,
+  items,
   subtotal,
   discountAmount,
   deliveryCharge,
   total,
-  offerCode,
+  discountCode,
+  priceRaise,
   fulfilment,
   showItems,
 }: {
-  cart: { id: string; name: string; price: number; quantity: number; image?: string; size?: string; color?: string }[];
+  items: { id: string; name: string; price: number; quantity: number; image?: string; size?: string; color?: string }[];
   subtotal: number;
   discountAmount: number;
   deliveryCharge: number;
   total: number;
-  offerCode: string | null;
+  /** The offer code, or ADMIN_OVERRIDE while an admin override is on. */
+  discountCode: string | null;
+  /** Set while an admin raises the prices: the MRP rows are hidden then. */
+  priceRaise: { percent: number; amount: number } | null;
   fulfilment: FulfilmentMethod;
   showItems: boolean;
 }) {
@@ -589,7 +646,7 @@ function OrderSummary({
 
       {showItems && (
         <div className="space-y-3 mb-4">
-          {cart.map((item) => (
+          {items.map((item) => (
             <div key={`${item.id}-${item.size ?? ""}-${item.color ?? ""}`} className="flex items-center gap-3">
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-cb-linen">
                 {item.image && <SupabaseImage src={item.image} preset="thumbnail" alt={item.name} fill className="object-cover" />}
@@ -607,14 +664,19 @@ function OrderSummary({
       )}
 
       <div className="rounded-xl bg-cb-linen p-4 space-y-2">
-        <MrpSummaryRows items={cart} />
+        {!priceRaise && <MrpSummaryRows items={items} />}
         <div className="flex items-center justify-between text-sm">
           <span className="text-cb-muted-fg">Subtotal</span>
           <span className="font-semibold text-cb-fg">₹{subtotal.toFixed(0)}</span>
         </div>
-        {offerCode && discountAmount > 0 && (
+        {priceRaise && (
+          <p className="text-xs text-cb-muted-fg">
+            Includes admin price +{priceRaise.percent}% (+₹{priceRaise.amount.toFixed(0)})
+          </p>
+        )}
+        {discountCode && discountAmount > 0 && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-cb-muted-fg">Discount ({offerCode})</span>
+            <span className="text-cb-muted-fg">Discount ({discountCode})</span>
             <span className="font-semibold text-cb-terracotta">−₹{discountAmount.toFixed(0)}</span>
           </div>
         )}
