@@ -6,6 +6,12 @@
  */
 export const HSN_BABY_GARMENTS = "6111";
 export const GST_RATE_PERCENT = 5;
+/**
+ * GST_RATE_PERCENT applies to garments up to this price a piece; above it the
+ * rate is 18% (GST rates from 22 Sep 2025). Compared against the tax-inclusive
+ * unit price, which is the conservative reading.
+ */
+export const GST_LOW_RATE_MAX_UNIT_PRICE = 2500;
 
 export const STALL = {
   name: "Cozyberries Stall",

@@ -36,6 +36,7 @@ import {
   ADMIN_OVERRIDE_DISCOUNT_CODE,
   ADMIN_OVERRIDE_NOTE_MAX,
   ADMIN_OVERRIDE_NOTE_MIN,
+  ADMIN_OVERRIDE_PERCENT_ERROR,
   linesSubtotal,
   overrideNoteError,
   priceAdminOverride,
@@ -526,7 +527,9 @@ export default function CheckoutPage() {
                         <p className="mt-1 text-xs text-red-600">
                           {adminOverrideMode === "amount"
                             ? `Amount must be a non-negative integer no greater than the subtotal (₹${subtotal.toFixed(0)}).`
-                            : "Enter a percentage from 0.1 to 100, with at most one decimal."}
+                            : !overridePricing.ok && overridePricing.error !== ADMIN_OVERRIDE_PERCENT_ERROR
+                              ? overridePricing.error
+                              : "Enter a percentage from 0.1 to 100, with at most one decimal."}
                         </p>
                       )}
                     </div>

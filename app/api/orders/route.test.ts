@@ -455,6 +455,20 @@ describe('POST /api/orders', () => {
       expect(insertItemsMock).not.toHaveBeenCalled();
     });
 
+    it('refuses a raise that takes an item past the ₹2,500 GST slab and writes nothing', async () => {
+      const res = await POST(makeRequest({
+        items: [{ id: 'p1', name: 'Party dress', price: 1784, quantity: 1 }],
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 50, note: 'Event price' },
+      }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(
+        "A raise can't take any item above ₹2,500 a piece: GST on clothing is 18% above that, and the invoice charges 5%"
+      );
+      expect(insertOrdersMock).not.toHaveBeenCalled();
+      expect(insertItemsMock).not.toHaveBeenCalled();
+    });
+
     it('records the override mode and percent in the impersonation audit', async () => {
       await POST(makeRequest({
         items: lines,

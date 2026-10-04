@@ -40,6 +40,7 @@ vi.mock("@/components/profile/AddressFormModal", () => ({ default: () => null })
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import CheckoutPage from "./page";
+import { ADMIN_PRICE_UP_GST_ERROR } from "@/lib/utils/admin-override";
 
 const openPaymentStep = () => {
   render(<CheckoutPage />);
@@ -93,6 +94,21 @@ describe("checkout — admin price override in shadow mode", () => {
     // ₹1,100 is under ₹1,999, so ₹90 delivery: total ₹1,190 (amount-to-pay card, summary and bottom bar).
     expect(screen.getAllByText("₹1190")).toHaveLength(3);
     expect(screen.queryByText("Total MRP")).not.toBeInTheDocument();
+  });
+
+  it("explains a raise past the ₹2,500 GST slab and keeps Place Order disabled", () => {
+    h.cart.cart[0].price = 1784;
+    try {
+      openOverride();
+      fireEvent.click(screen.getByLabelText("Increase %"));
+      type("Increase (%)", "50");
+      type("Reason (required)", "Event price");
+      expect(screen.getByText(ADMIN_PRICE_UP_GST_ERROR)).toBeInTheDocument();
+      expect(screen.queryByText("Enter a percentage from 0.1 to 100, with at most one decimal.")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Place Order" })).toBeDisabled();
+    } finally {
+      h.cart.cart[0].price = 1000;
+    }
   });
 
   it("shows a decimal raise as typed", () => {

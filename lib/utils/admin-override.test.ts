@@ -6,6 +6,7 @@ import {
   ADMIN_OVERRIDE_NOTE_MIN,
   ADMIN_OVERRIDE_PERCENT_ERROR,
   ADMIN_PRICE_UP_CODE,
+  ADMIN_PRICE_UP_GST_ERROR,
   applyAdminOverride,
   isPriceRaised,
   linesSubtotal,
@@ -319,6 +320,48 @@ describe("priceAdminOverride — percentages", () => {
   it("treats an explicit amount mode like a request with no mode", () => {
     const result = priceAdminOverride({ mode: "amount", discount_amount: 100, note: "x" }, lines);
     expect(result.ok && result.discountAmount).toBe(100);
+  });
+
+  describe("GST ceiling on a raise", () => {
+    it("accepts ₹1,784 at +40% (₹2,498)", () => {
+      const result = priceAdminOverride({ mode: "percent_up", percent: 40, note: "x" }, worth(1784));
+      expect(result.ok && result.items[0].price).toBe(2498);
+    });
+
+    it("refuses ₹1,784 at +40.2% (₹2,501)", () => {
+      expect(priceAdminOverride({ mode: "percent_up", percent: 40.2, note: "x" }, worth(1784))).toEqual({
+        ok: false,
+        error: ADMIN_PRICE_UP_GST_ERROR,
+      });
+    });
+
+    it("accepts a raise that lands on exactly ₹2,500", () => {
+      const result = priceAdminOverride({ mode: "percent_up", percent: 25, note: "x" }, worth(2000));
+      expect(result.ok && result.items[0].price).toBe(2500);
+    });
+
+    it("refuses the whole order when one of two lines goes past ₹2,500", () => {
+      const lines = [
+        { price: 899, quantity: 2 },
+        { price: 1784, quantity: 1 },
+      ];
+      expect(priceAdminOverride({ mode: "percent_up", percent: 50, note: "x" }, lines)).toEqual({
+        ok: false,
+        error: ADMIN_PRICE_UP_GST_ERROR,
+      });
+    });
+
+    it("still reports a bad percent as a percent error", () => {
+      expect(priceAdminOverride({ mode: "percent_up", percent: 150, note: "x" }, worth(1784))).toEqual({
+        ok: false,
+        error: ADMIN_OVERRIDE_PERCENT_ERROR,
+      });
+    });
+
+    it("does not apply to a discount on a ₹3,000 line", () => {
+      const result = priceAdminOverride({ mode: "percent_off", percent: 50, note: "x" }, worth(3000));
+      expect(result.ok && result.discountAmount).toBe(1500);
+    });
   });
 });
 

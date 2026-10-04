@@ -1,3 +1,4 @@
+import { GST_LOW_RATE_MAX_UNIT_PRICE } from "@/lib/config/business";
 import type { AdminOverride, AdminOverrideMode } from "@/lib/types/order";
 
 // Pure and client-safe: the checkout preview and POST /api/orders both price an
@@ -10,6 +11,8 @@ export const ADMIN_OVERRIDE_NOTE_MIN = 3;
 export const ADMIN_OVERRIDE_NOTE_MAX = 500;
 export const ADMIN_OVERRIDE_PERCENT_ERROR =
   "Override percent must be from 0.1 to 100, with at most one decimal";
+export const ADMIN_PRICE_UP_GST_ERROR =
+  "A raise can't take any item above ₹2,500 a piece: GST on clothing is 18% above that, and the invoice charges 5%";
 
 type AdminOverrideCode = typeof ADMIN_OVERRIDE_DISCOUNT_CODE | typeof ADMIN_PRICE_UP_CODE;
 
@@ -75,7 +78,7 @@ export function raisePrice(price: number, tenths: number): number {
   return Math.round((price * (1000 + tenths)) / 1000);
 }
 
-/** Validates the amount or percentage and works out the lines to store and the discount. */
+/** Validates the amount or percentage (and, for a raise, the ₹2,500 GST ceiling) and works out the lines to store and the discount. */
 export function priceAdminOverride<T extends PricedLine>(
   override: AdminOverride,
   items: T[]
@@ -107,11 +110,16 @@ export function priceAdminOverride<T extends PricedLine>(
     return { ok: true, mode, percent, items, discountCode: ADMIN_OVERRIDE_DISCOUNT_CODE, discountAmount };
   }
 
+  const raised = items.map((item) => ({ ...item, price: raisePrice(item.price, tenths) }));
+  if (raised.some((item) => item.price > GST_LOW_RATE_MAX_UNIT_PRICE)) {
+    return { ok: false, error: ADMIN_PRICE_UP_GST_ERROR };
+  }
+
   return {
     ok: true,
     mode,
     percent,
-    items: items.map((item) => ({ ...item, price: raisePrice(item.price, tenths) })),
+    items: raised,
     discountCode: ADMIN_PRICE_UP_CODE,
     discountAmount: 0,
   };
