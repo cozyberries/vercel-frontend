@@ -1,7 +1,5 @@
 /**
- * Shared by /api/admin/users/send-otp and /api/admin/users/create: the same
- * input rules and the same duplicate lookup, so the OTP is only ever sent for
- * an account that create will accept.
+ * Input rules and duplicate lookup for /api/admin/users/create.
  *
  * The lookup pages through auth.admin.listUsers with a hard cap and stops at
  * the first match: auth.users is not exposed via PostgREST, and a single

@@ -1,9 +1,9 @@
 /**
- * Admin creation of a customer account, gated on an OTP the customer reads
- * out at the counter (sent by /api/admin/users/send-otp). The phone is
- * therefore verified, so the account is created with phone_confirm: true.
- * No session is ever minted for the new user: the admin stays logged in as
- * the admin and continues via impersonation.
+ * Admin creation of a customer account at the counter. There is no OTP:
+ * customers would not read one out, so the phone is stored unverified
+ * (phone_confirm: false). The customer's own OTP login still finds the
+ * account by phone. No session is ever minted for the new user: the admin
+ * stays logged in as the admin and continues via impersonation.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
@@ -14,7 +14,6 @@ import {
 } from '@/lib/supabase-server';
 import { isAdmin } from '@/lib/services/effective-user';
 import { UpstashService } from '@/lib/upstash';
-import { getAuthTokenFromEnv, validateOtp } from '@/lib/verifynow';
 import {
   findExistingUser,
   parseNewCustomer,
@@ -29,8 +28,6 @@ type CreateBody = {
   email?: unknown;
   phone?: unknown;
   full_name?: unknown;
-  verification_id?: unknown;
-  otp_code?: unknown;
 };
 
 function randomPassword(): string {
@@ -86,16 +83,6 @@ export async function POST(request: NextRequest) {
     const { rawEmail, normalizedEmail, phoneDigits, fullName } = parsed.value;
     const normalizedPhone = `+91${phoneDigits}`;
 
-    const verificationId =
-      typeof body.verification_id === 'string' ? body.verification_id.trim() : '';
-    const otpCode = typeof body.otp_code === 'string' ? body.otp_code.trim() : '';
-    if (!verificationId || !otpCode) {
-      return NextResponse.json(
-        { error: "Verify the customer's phone with an OTP first" },
-        { status: 400 }
-      );
-    }
-
     const adminClient = createAdminSupabaseClient() as SupabaseClient;
 
     let existing: User | null;
@@ -116,19 +103,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      await validateOtp(getAuthTokenFromEnv(), phoneDigits, verificationId, otpCode);
-    } catch (otpError) {
-      console.warn(`${LOG_PREFIX} OTP rejected`, otpError instanceof Error ? otpError.message : otpError);
-      return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 400 });
-    }
-
     const { data: createData, error: createError } =
       await adminClient.auth.admin.createUser({
         email: normalizedEmail,
         phone: normalizedPhone,
         email_confirm: true,
-        phone_confirm: true,
+        phone_confirm: false,
         password: randomPassword(),
         user_metadata: { full_name: fullName },
       });

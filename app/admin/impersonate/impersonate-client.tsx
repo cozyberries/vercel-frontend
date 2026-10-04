@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Loader2, Search, ShieldCheck, UserPlus } from "lucide-react";
+import { AlertCircle, Loader2, Search, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/admin/kit";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -46,8 +46,6 @@ export default function ImpersonateClient() {
     form?: string;
   }>({});
   const [creating, setCreating] = useState(false);
-  const [otpVerificationId, setOtpVerificationId] = useState<string | null>(null);
-  const [otpCode, setOtpCode] = useState("");
   const [existingUserId, setExistingUserId] = useState<string | null>(null);
 
   const [starting, setStarting] = useState(false);
@@ -195,49 +193,14 @@ export default function ImpersonateClient() {
 
       setCreating(true);
       try {
-        const identity = {
-          email: createEmail.trim(),
-          phone: createPhone,
-          full_name: trimmedName,
-        };
-
-        if (!otpVerificationId) {
-          // Step 1: send the OTP to the customer's phone.
-          const res = await fetch("/api/admin/users/send-otp", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(identity),
-          });
-          const body = await res.json().catch(() => ({}));
-          if (res.status === 409 && typeof body?.existing_user_id === "string") {
-            setExistingUserId(body.existing_user_id);
-            setCreateErrors({ form: "This customer already has an account." });
-            return;
-          }
-          if (!res.ok || typeof body?.verificationId !== "string") {
-            setCreateErrors({
-              form: typeof body?.error === "string" ? body.error : `Failed to send OTP (${res.status})`,
-            });
-            return;
-          }
-          setOtpVerificationId(body.verificationId);
-          return;
-        }
-
-        // Step 2: verify the code the customer read out, then create.
-        if (!/^\d{4,6}$/.test(otpCode.trim())) {
-          setCreateErrors({ form: "Enter the OTP the customer received" });
-          return;
-        }
         const res = await fetch("/api/admin/users/create", {
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            ...identity,
-            verification_id: otpVerificationId,
-            otp_code: otpCode.trim(),
+            email: createEmail.trim(),
+            phone: createPhone,
+            full_name: trimmedName,
           }),
         });
         const body = await res.json().catch(() => ({}));
@@ -267,7 +230,7 @@ export default function ImpersonateClient() {
         setCreating(false);
       }
     },
-    [createEmail, createFullName, createPhone, otpVerificationId, otpCode, startImpersonation]
+    [createEmail, createFullName, createPhone, startImpersonation]
   );
 
   const busy = starting || creating;
@@ -418,8 +381,6 @@ export default function ImpersonateClient() {
                     value={createPhone}
                     onChange={(digits) => {
                       setCreatePhone(digits);
-                      setOtpVerificationId(null);
-                      setOtpCode("");
                       setExistingUserId(null);
                     }}
                     placeholder="98765 43210"
@@ -443,8 +404,6 @@ export default function ImpersonateClient() {
                   value={createFullName}
                   onChange={(e) => {
                     setCreateFullName(e.target.value);
-                    setOtpVerificationId(null);
-                    setOtpCode("");
                     setExistingUserId(null);
                   }}
                   disabled={busy}
@@ -460,22 +419,6 @@ export default function ImpersonateClient() {
                   </p>
                 )}
               </div>
-
-              {otpVerificationId && (
-                <div className="space-y-1">
-                  <Label htmlFor="create-otp">OTP sent to +91 {createPhone}</Label>
-                  <Input
-                    id="create-otp"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    disabled={busy}
-                    placeholder="Ask the customer for the code"
-                  />
-                </div>
-              )}
 
               {existingUserId && (
                 <Button
@@ -522,12 +465,8 @@ export default function ImpersonateClient() {
                   </>
                 ) : (
                   <>
-                    {otpVerificationId ? (
-                      <ShieldCheck className="w-4 h-4 mr-2" />
-                    ) : (
-                      <UserPlus className="w-4 h-4 mr-2" />
-                    )}
-                    {otpVerificationId ? "Verify OTP & continue" : "Send OTP"}
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Create &amp; continue
                   </>
                 )}
               </Button>

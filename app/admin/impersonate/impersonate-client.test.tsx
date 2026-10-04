@@ -25,11 +25,52 @@ describe("ImpersonateClient", () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toContain("/api/admin/users/search?");
   });
 
-  it("shows the Send OTP button on the Create new user tab", () => {
+  it("creates a customer without an OTP: no OTP button or field", () => {
     vi.stubGlobal("fetch", vi.fn());
     render(<ImpersonateClient />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Create new user" }));
-    expect(screen.getByRole("button", { name: /Send OTP/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Create & continue/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OTP/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/OTP/)).not.toBeInTheDocument();
+  });
+
+  it("one tap creates the customer and starts impersonating them, with no OTP request", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/admin/users/create") {
+        return new Response(JSON.stringify({ user: { id: "new-1" } }), { status: 201 });
+      }
+      // Stop before the page navigates away (jsdom cannot navigate).
+      return new Response(JSON.stringify({ error: "start blocked in test" }), { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ImpersonateClient />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Create new user" }));
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "9876543210" } });
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Ayesha Khan" } });
+    fireEvent.click(screen.getByRole("button", { name: /Create & continue/ }));
+
+    await waitFor(() => expect(screen.getByText("start blocked in test")).toBeInTheDocument());
+    const urls = fetchMock.mock.calls.map(([url]) => url);
+    expect(urls).toEqual(["/api/admin/users/create", "/api/admin/impersonation/start"]);
+    const createBody = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(createBody).toEqual({ email: "", phone: "9876543210", full_name: "Ayesha Khan" });
+    const startBody = JSON.parse((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+    expect(startBody).toEqual({ target_user_id: "new-1" });
+  });
+
+  it("offers to continue as the existing customer when the phone already has an account", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "User already exists", existing_user_id: "old-1" }), { status: 409 })),
+    );
+    render(<ImpersonateClient />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Create new user" }));
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "9876543210" } });
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Ayesha Khan" } });
+    fireEvent.click(screen.getByRole("button", { name: /Create & continue/ }));
+
+    await waitFor(() => expect(screen.getByText("This customer already has an account.")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Continue as this customer" })).toBeInTheDocument();
   });
 
   it("does not call fetch for a one-character search", async () => {
