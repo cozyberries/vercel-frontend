@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
-import type { CreateOrderRequest, OrderCreate, OrderStatus, ShippingAddress } from "@/lib/types/order";
+import type { CreateOrderRequest, OrderCreate, OrderItemInput, OrderStatus, ShippingAddress } from "@/lib/types/order";
 import { mapOrderItems, mapOrderItemInputs, toCustomerOrder } from "@/lib/utils/order-mapper";
 import {
   validateAndFetchAddresses,
   validateItemPrices,
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
-import { applyAdminOverride } from "@/lib/utils/admin-override";
+import { applyAdminOverride, type ApplyAdminOverrideSuccess } from "@/lib/utils/admin-override";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { deliveryChargeFor, parseFulfilmentMethod } from "@/lib/utils/fulfilment";
 import { resolveOrderVariants } from "@/lib/utils/variant-resolver";
@@ -141,17 +141,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const orderSummary = calculateOrderSummary(items);
-
-    let discountCode: string | null = null;
-    let discountAmount = 0;
     const trimmedCustomerNotes = notes?.trim();
     const normalizedCustomerNotes =
       trimmedCustomerNotes && trimmedCustomerNotes.length > 0
         ? trimmedCustomerNotes
         : null;
-    let orderNotes: string | null = normalizedCustomerNotes;
 
+    // An override can re-price the lines (percent_up), so it runs before the
+    // summary: subtotal must equal Σ price × quantity of the stored lines, or
+    // the paid-status ITEMS_MISMATCH check refuses the order. The prices it
+    // starts from are the catalogue prices validateItemPrices just checked.
+    let appliedOverride: ApplyAdminOverrideSuccess<OrderItemInput> | null = null;
     if (admin_override && actingAdminId) {
       const overrideResult = applyAdminOverride({
         override: admin_override,
@@ -166,10 +166,20 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      appliedOverride = overrideResult;
+    }
+    const pricedItems = appliedOverride ? appliedOverride.items : items;
 
-      discountCode = overrideResult.discountCode;
-      discountAmount = overrideResult.discountAmount;
-      orderNotes = overrideResult.notes;
+    const orderSummary = calculateOrderSummary(pricedItems);
+
+    let discountCode: string | null = null;
+    let discountAmount = 0;
+    let orderNotes: string | null = normalizedCustomerNotes;
+
+    if (appliedOverride) {
+      discountCode = appliedOverride.discountCode;
+      discountAmount = appliedOverride.discountAmount;
+      orderNotes = appliedOverride.notes;
       // coupon_code is intentionally ignored when admin_override is applied.
     } else if (coupon_code) {
       const offerResult = validateAndApplyOffer(coupon_code, orderSummary.subtotal);
@@ -221,7 +231,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const itemRows = items.map((item, index) => ({
+    const itemRows = pricedItems.map((item, index) => ({
       order_id: order.id,
       product_id: item.id,
       name: item.name,
@@ -274,7 +284,9 @@ export async function POST(request: NextRequest) {
           user_agent,
           metadata: {
             order_number: order.order_number,
-            override_applied: Boolean(admin_override),
+            override_applied: Boolean(appliedOverride),
+            override_mode: appliedOverride?.mode ?? null,
+            override_percent: appliedOverride?.percent ?? null,
           },
         });
       } catch (auditError) {
@@ -313,7 +325,7 @@ export async function POST(request: NextRequest) {
         deliveryCharge: serverDeliveryCharge,
         discountCode,
         discountAmount,
-        items: items.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
+        items: pricedItems.map((i) => ({ name: i.name, quantity: i.quantity, size: i.size ?? null })),
         fulfilmentMethod: fulfilment,
         customerName,
         placedByEmail: actingAdminId ? sessionUser.email ?? null : null,
@@ -323,7 +335,7 @@ export async function POST(request: NextRequest) {
 
     const orderWithItems = {
       ...toCustomerOrder(order),
-      items: mapOrderItemInputs(items),
+      items: mapOrderItemInputs(pricedItems),
     };
 
     return NextResponse.json({

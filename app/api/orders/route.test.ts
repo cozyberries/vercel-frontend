@@ -328,6 +328,164 @@ describe('POST /api/orders', () => {
     expect(insertOrdersMock).not.toHaveBeenCalled();
   });
 
+  describe('admin override by percentage', () => {
+    const lines = [
+      { id: 'p1', name: 'Muslin frock', price: 899, quantity: 2 },
+      { id: 'p2', name: 'Pyjama', price: 649, quantity: 1 },
+    ];
+
+    beforeEach(async () => {
+      // The real summary, so the stored subtotal is the sum of the stored lines.
+      const actual = await vi.importActual<typeof import('@/lib/utils/checkout-helpers')>(
+        '@/lib/utils/checkout-helpers'
+      );
+      calculateOrderSummaryMock.mockImplementation(actual.calculateOrderSummary);
+      resolveOrderVariantsMock.mockResolvedValue({ ok: true, skus: ['p1-v', 'p2-v'] });
+      getEffectiveUserMock.mockResolvedValue({
+        ok: true,
+        userId: TARGET_ID,
+        actingAdminId: ADMIN_ID,
+        client: clientMock,
+        sessionUser: { id: ADMIN_ID, email: 'admin@example.com' },
+        effectiveUser: { id: TARGET_ID, email: 'target@example.com' },
+      });
+    });
+
+    it('percent_up stores raised unit prices and a subtotal equal to their sum', async () => {
+      const res = await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 10, note: 'Event price' },
+      }));
+      expect(res.status).toBe(200);
+
+      const stored = (insertItemsMock.mock.calls[0] as any[])[0];
+      expect(stored.map((l: any) => [l.product_id, l.price, l.quantity, l.sku])).toEqual([
+        ['p1', 989, 2, 'p1-v'],
+        ['p2', 714, 1, 'p2-v'],
+      ]);
+      const storedSum = stored.reduce((s: number, l: any) => s + l.price * l.quantity, 0);
+
+      const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+      expect(inserted).toMatchObject({
+        subtotal: storedSum,
+        discount_code: 'ADMIN_PRICE_UP',
+        discount_amount: 0,
+        delivery_charge: 0,
+        total_amount: 2692,
+        notes: '[ADMIN OVERRIDE by admin@example.com]: (+10% prices) Event price',
+      });
+      expect(storedSum).toBe(2692);
+
+      expect(notifyNewOrderMock).toHaveBeenCalledWith(
+        expect.objectContaining({ discountCode: 'ADMIN_PRICE_UP', discountAmount: 0, subtotal: 2692 }),
+        expect.anything()
+      );
+      const body = await res.json();
+      expect(body.order.items.map((i: any) => i.price)).toEqual([989, 714]);
+    });
+
+    it('checks the catalogue prices the client sent, not the raised ones', async () => {
+      await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 10, note: 'Event price' },
+      }));
+      expect(validateItemPricesMock).toHaveBeenCalledWith(clientMock, lines);
+    });
+
+    it('a raise that crosses the free-delivery threshold makes delivery free', async () => {
+      // ₹1,900 pays ₹90 delivery; raised 10% to ₹2,090 it passes ₹1,999.
+      const res = await POST(makeRequest({
+        items: [{ id: 'p1', name: 'Gift set', price: 1900, quantity: 1 }],
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 10, note: 'Event price' },
+      }));
+      expect(res.status).toBe(200);
+      const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+      expect(inserted).toMatchObject({ subtotal: 2090, delivery_charge: 0, total_amount: 2090 });
+    });
+
+    it('ignores a coupon sent with a raise', async () => {
+      const res = await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        coupon_code: 'EARLY5',
+        admin_override: { mode: 'percent_up', percent: 10, note: 'Event price' },
+      }));
+      expect(res.status).toBe(200);
+      expect(validateAndApplyOfferMock).not.toHaveBeenCalled();
+      const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+      expect(inserted).toMatchObject({ discount_code: 'ADMIN_PRICE_UP', discount_amount: 0 });
+    });
+
+    it('percent_off stores the rounded discount with ADMIN_OVERRIDE and catalogue prices', async () => {
+      const res = await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_off', percent: 12.5, note: 'Friend of the shop' },
+      }));
+      expect(res.status).toBe(200);
+
+      const stored = (insertItemsMock.mock.calls[0] as any[])[0];
+      expect(stored.map((l: any) => l.price)).toEqual([899, 649]);
+      const inserted = (insertOrdersMock.mock.calls[0] as any[])[0];
+      // 12.5% of ₹2,447 = ₹305.875 → ₹306; ₹2,141 is over ₹1,999, so delivery is free.
+      expect(inserted).toMatchObject({
+        subtotal: 2447,
+        discount_code: 'ADMIN_OVERRIDE',
+        discount_amount: 306,
+        delivery_charge: 0,
+        total_amount: 2141,
+        notes: '[ADMIN OVERRIDE by admin@example.com]: (−12.5% discount) Friend of the shop',
+      });
+    });
+
+    it('rejects an out-of-range percent with 400 and writes nothing', async () => {
+      const res = await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 150, note: 'Event price' },
+      }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(
+        'Override percent must be from 0.1 to 100, with at most one decimal'
+      );
+      expect(insertOrdersMock).not.toHaveBeenCalled();
+      expect(insertItemsMock).not.toHaveBeenCalled();
+    });
+
+    it('records the override mode and percent in the impersonation audit', async () => {
+      await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { mode: 'percent_up', percent: 10, note: 'Event price' },
+      }));
+      expect(logImpersonationEventMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            override_applied: true,
+            override_mode: 'percent_up',
+            override_percent: 10,
+          }),
+        })
+      );
+    });
+
+    it('records the ₹ mode with no percent', async () => {
+      await POST(makeRequest({
+        items: lines,
+        shipping_address_id: 'addr-1',
+        admin_override: { discount_amount: 100, note: 'phone-order' },
+      }));
+      expect(logImpersonationEventMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ override_mode: 'amount', override_percent: null }),
+        })
+      );
+    });
+  });
+
   it('rolls back the orphaned order through the admin client, never the session client, when the order_items insert fails', async () => {
     // `authenticated` no longer holds DELETE on `orders` (deny-by-default RLS
     // remediation), so the compensating delete on order_items-insert-failure
