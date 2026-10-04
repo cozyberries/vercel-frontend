@@ -51,13 +51,26 @@ export function mapOrderItemInputs(items: OrderItemInput[]): OrderItem[] {
   }));
 }
 
+/** A first line written into orders.notes by admin overrides before 2026-10-04. */
+const LEGACY_OVERRIDE_LINE = /^\[ADMIN OVERRIDE by [^\]]*\][^\n]*(\n|$)/;
+/** discount_code that marked admin-raised orders before 2026-10-04. */
+const LEGACY_PRICE_UP_CODE = "ADMIN_PRICE_UP";
+
 /**
- * Removes admin-only columns from an order row before it goes to a customer.
+ * Removes admin-only data from an order row before it goes to a customer.
  * `placed_by_admin_id` names the staff account that placed an on-behalf order;
- * customers must never see admin ids.
+ * customers must never see admin ids. New orders keep override details only in
+ * the admin table order_price_overrides, but rows cached in Redis before that
+ * migration may still carry the old note line or ADMIN_PRICE_UP code.
  */
 export function toCustomerOrder<T extends object>(order: T): Omit<T, "placed_by_admin_id"> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { placed_by_admin_id, ...rest } = order as T & { placed_by_admin_id?: unknown };
+  const out = rest as Record<string, unknown>;
+  if (typeof out.notes === "string" && LEGACY_OVERRIDE_LINE.test(out.notes)) {
+    const remaining = out.notes.replace(LEGACY_OVERRIDE_LINE, "").trim();
+    out.notes = remaining.length > 0 ? remaining : null;
+  }
+  if (out.discount_code === LEGACY_PRICE_UP_CODE) out.discount_code = null;
   return rest;
 }

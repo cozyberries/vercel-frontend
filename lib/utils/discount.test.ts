@@ -14,7 +14,7 @@ const cfg = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/config/offers", () => ({ EARLY_BIRD_OFFER: cfg.offer, MRP_DISPLAY: cfg.mrp }));
 
-import { getDiscountedPrice, mrpFor, mrpTotals, orderMrpSavings } from "./discount";
+import { getDiscountedPrice, mrpFor, mrpTotals } from "./discount";
 
 afterEach(() => {
   cfg.offer.enabled = false;
@@ -88,29 +88,5 @@ describe("mrpTotals", () => {
 
   it("reports the saving for an order placed once the MRP was shown", () => {
     expect(mrpTotals(items, "2026-09-26T18:30:00Z")).toEqual({ totalMrp: 1666, mrpSavings: 167 });
-  });
-});
-
-describe("orderMrpSavings", () => {
-  const items = [
-    { price: 450, quantity: 2 },
-    { price: 599, quantity: 1 },
-  ];
-  const placed = "2026-10-02T10:00:00+05:30";
-
-  it("reports the MRP saving for an ordinary order", () => {
-    expect(orderMrpSavings({ items, created_at: placed, discount_code: null })).toBe(167);
-  });
-
-  it("reports no saving when an admin raised the prices", () => {
-    expect(orderMrpSavings({ items, created_at: placed, discount_code: "ADMIN_PRICE_UP" })).toBe(0);
-  });
-
-  it("keeps the saving for an admin discount", () => {
-    expect(orderMrpSavings({ items, created_at: placed, discount_code: "ADMIN_OVERRIDE" })).toBe(167);
-  });
-
-  it("reports no saving for an order placed before the MRP was shown", () => {
-    expect(orderMrpSavings({ items, created_at: "2026-09-26T18:29:59Z" })).toBe(0);
   });
 });

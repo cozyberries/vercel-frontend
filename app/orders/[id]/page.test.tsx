@@ -74,9 +74,9 @@ describe("order details — bill", () => {
     expect(screen.getByText("Total MRP")).toBeInTheDocument();
   });
 
-  it("shows no MRP rows and no discount row when an admin raised the prices", async () => {
+  it("shows a raised order's MRP like any other order", async () => {
     Object.assign(h.order, {
-      discount_code: "ADMIN_PRICE_UP",
+      discount_code: null,
       discount_amount: 0,
       subtotal: 1100,
       total_amount: 1190,
@@ -84,8 +84,9 @@ describe("order details — bill", () => {
     });
     render(<OrderDetailsPage />);
     await screen.findByText("Bill details");
-    expect(screen.queryByText("Total MRP")).not.toBeInTheDocument();
-    expect(screen.queryByText("Discount on MRP")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Discount \(ADMIN_PRICE_UP\)/)).not.toBeInTheDocument();
+    // MRP = ₹1,100 ÷ 0.9 = ₹1,222.
+    expect(screen.getByText("Total MRP")).toBeInTheDocument();
+    expect(screen.getByText("₹1222")).toBeInTheDocument();
+    expect(screen.queryByText(/ADMIN/)).not.toBeInTheDocument();
   });
 });

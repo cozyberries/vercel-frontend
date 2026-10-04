@@ -1,6 +1,5 @@
 // lib/utils/discount.ts
 import { EARLY_BIRD_OFFER, MRP_DISPLAY, type Offer } from '@/lib/config/offers'
-import { isPriceRaised } from '@/lib/utils/admin-override'
 
 /**
  * Returns the active offer if enabled and not expired, otherwise null.
@@ -64,17 +63,4 @@ export function mrpTotals(
   }
   const totalMrp = items.reduce((sum, item) => sum + mrpFor(item.price) * item.quantity, 0)
   return { totalMrp, mrpSavings: totalMrp - subtotal }
-}
-
-/**
- * The "Saved ₹X on MRP" figure for an order card. None when an admin raised the
- * prices: the MRP worked out from a raised price would be inflated.
- */
-export function orderMrpSavings(order: {
-  items: { price: number; quantity: number }[]
-  created_at: string
-  discount_code?: string | null
-}): number {
-  if (isPriceRaised(order)) return 0
-  return mrpTotals(order.items, order.created_at).mrpSavings
 }

@@ -30,7 +30,6 @@ import { UPI_ID } from "@/lib/constants";
 import type { Order } from "@/lib/types/order";
 import { StallCard } from "@/components/checkout/StallCard";
 import MrpSummaryRows from "@/components/MrpSummaryRows";
-import { isPriceRaised } from "@/lib/utils/admin-override";
 
 const STAGE_ICON: Record<OrderStageKey, typeof Receipt> = {
   order_placed: Receipt,
@@ -288,7 +287,7 @@ export default function OrderDetailsPage() {
             Bill details
           </p>
           <div className="space-y-2 text-sm">
-            {!isPriceRaised(order) && <MrpSummaryRows items={order.items} placedAt={order.created_at} />}
+            <MrpSummaryRows items={order.items} placedAt={order.created_at} />
             <div className="flex items-center justify-between">
               <span className="text-cb-muted-fg">Item total</span>
               <span className="font-semibold text-cb-fg">₹{order.subtotal.toFixed(0)}</span>
