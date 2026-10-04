@@ -33,9 +33,17 @@ const doc = (o: Partial<InvoiceOrderRow> = {}) =>
 describe("renderInvoicePdf", () => {
   it("renders an invoice with the MRP block", async () => {
     const withMrp = doc({ created_at: "2026-10-02T10:00:00+05:30", discount_code: "ADMIN_OVERRIDE" });
-    expect(withMrp.mrp).not.toBeNull();
+    expect(withMrp.mrp).toMatchObject({
+      totalMrpPaise: 277400, // 1199 → ₹1,332; 649 → ₹721 × 2
+      mrpSavingPaise: 27700,
+      extraDiscountPaise: 10000,
+      extraDiscountLabel: "special discount",
+      discountPaise: 37700,
+    });
     const pdf = await renderInvoicePdf(withMrp);
     expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    const plainPdf = await renderInvoicePdf(doc()); // placed 26 Sep, before the MRP launch: mrp is null
+    expect(pdf.length).toBeGreaterThan(plainPdf.length);
   });
 
   it("renders an issued tax invoice as a PDF file", async () => {
