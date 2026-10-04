@@ -66,3 +66,26 @@ describe("order details — payment pending", () => {
     expect(screen.queryByRole("link", { name: /Show QR code/ })).not.toBeInTheDocument();
   });
 });
+
+describe("order details — bill", () => {
+  it("shows the MRP rows for an ordinary order", async () => {
+    render(<OrderDetailsPage />);
+    await screen.findByText("Bill details");
+    expect(screen.getByText("Total MRP")).toBeInTheDocument();
+  });
+
+  it("shows no MRP rows and no discount row when an admin raised the prices", async () => {
+    Object.assign(h.order, {
+      discount_code: "ADMIN_PRICE_UP",
+      discount_amount: 0,
+      subtotal: 1100,
+      total_amount: 1190,
+      items: [{ id: "p1", name: "Frock", price: 1100, quantity: 1, image: "", size: "3-4Y" }],
+    });
+    render(<OrderDetailsPage />);
+    await screen.findByText("Bill details");
+    expect(screen.queryByText("Total MRP")).not.toBeInTheDocument();
+    expect(screen.queryByText("Discount on MRP")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Discount \(ADMIN_PRICE_UP\)/)).not.toBeInTheDocument();
+  });
+});

@@ -30,7 +30,7 @@ import { sendNotification } from "@/lib/utils/notify";
 import { sendActivity } from "@/lib/utils/activities";
 import { toast } from "sonner";
 import { SOCIAL_CONTACTS } from "@/lib/constants/social";
-import { mrpTotals } from "@/lib/utils/discount";
+import { orderMrpSavings } from "@/lib/utils/discount";
 
 interface RatingFormData {
   user_id: string;
@@ -367,7 +367,7 @@ function DeliveredOrderCard({
 }) {
   const stage = getOrderStageInfo(order.status, undefined, order.fulfilment_method);
   const Icon = STAGE_ICON[stage.key];
-  const { mrpSavings } = mrpTotals(order.items, order.created_at);
+  const mrpSavings = orderMrpSavings(order);
   return (
     <div className="bg-white rounded-2xl border border-cb-border overflow-hidden">
       <Link href={`/orders/${order.id}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
