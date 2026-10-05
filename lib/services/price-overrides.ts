@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdminOverrideMode, PriceOverrideRecord, PriceRaise } from "@/lib/types/order";
+import { priceRaiseFrom } from "@/lib/utils/admin-override";
 
 // order_price_overrides is admin/internal tier: only a service-role client can
 // read it. Never call these with a customer's session client, and never import
@@ -51,13 +52,7 @@ export async function fetchPriceOverrides(
   return records;
 }
 
-/** The Telegram 📈 data for a raise; null for a discount or no record. */
-export function priceRaiseFrom(
-  record: { mode: AdminOverrideMode; percent: number | null; amount: number | null } | null | undefined
-): PriceRaise | null {
-  if (!record || record.mode !== "percent_up" || record.percent === null) return null;
-  return { percent: record.percent, amount: record.amount };
-}
+export { priceRaiseFrom } from "@/lib/utils/admin-override";
 
 /** The 📈 data for one order; null when there is none or the lookup failed. */
 export async function fetchPriceRaise(client: SupabaseClient, orderId: string): Promise<PriceRaise | null> {

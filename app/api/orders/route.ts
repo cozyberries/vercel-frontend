@@ -7,7 +7,7 @@ import {
   validateItemPrices,
   calculateOrderSummary,
 } from "@/lib/utils/checkout-helpers";
-import { applyAdminOverride, type ApplyAdminOverrideSuccess } from "@/lib/utils/admin-override";
+import { applyAdminOverride, priceRaiseFrom, type ApplyAdminOverrideSuccess } from "@/lib/utils/admin-override";
 import { validateAndApplyOffer } from "@/lib/utils/offers-server";
 import { deliveryChargeFor, parseFulfilmentMethod } from "@/lib/utils/fulfilment";
 import { resolveOrderVariants } from "@/lib/utils/variant-resolver";
@@ -16,7 +16,6 @@ import { getIndianPhoneDigits } from "@/lib/utils/validation";
 import { SELLER } from "@/lib/config/business";
 import { notifyAdminsOrderPlacedFromCheckout } from "@/lib/services/admin-order-notifications";
 import { notifyNewOrder } from "@/lib/services/telegram";
-import { priceRaiseFrom } from "@/lib/services/price-overrides";
 import {
   effectiveUserErrorResponse,
   getEffectiveUser,

@@ -1,5 +1,5 @@
 import { GST_LOW_RATE_MAX_UNIT_PRICE } from "@/lib/config/business";
-import type { AdminOverride, AdminOverrideMode } from "@/lib/types/order";
+import type { AdminOverride, AdminOverrideMode, PriceRaise } from "@/lib/types/order";
 
 // Pure and client-safe: the checkout preview and POST /api/orders both price an
 // admin override through this module, so the screen and the stored order agree.
@@ -207,4 +207,12 @@ export function formatPriceOverride(record: {
   const by = record.admin_email ? ` by ${record.admin_email}` : "";
   const why = record.reason ? ` · ${record.reason}` : "";
   return `${head}${by}${why}`;
+}
+
+/** The Telegram 📈 data for a raise; null for a discount or no record. Pure. */
+export function priceRaiseFrom(
+  record: { mode: AdminOverrideMode; percent: number | null; amount: number | null } | null | undefined
+): PriceRaise | null {
+  if (!record || record.mode !== "percent_up" || record.percent === null) return null;
+  return { percent: record.percent, amount: record.amount };
 }

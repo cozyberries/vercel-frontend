@@ -71,6 +71,26 @@ describe('GET /api/orders/[id]/invoice', () => {
     expect(invoice.seller.gstin).toBe('29EPDPR9174E1ZB');
   });
 
+  it('includes the MRP block and the admin-discount label for an order placed after the MRP launch', async () => {
+    h.state.order = {
+      ...paidPickup,
+      created_at: '2026-10-02T10:00:00+05:30',
+      discount_code: 'ADMIN_OVERRIDE',
+      discount_amount: 50,
+      total_amount: 1000,
+    };
+    const { invoice } = await (await call()).json();
+    // ₹1,050 ÷ 0.9 = ₹1,166.67 → ₹1,167.
+    expect(invoice.mrp).toMatchObject({
+      totalMrpPaise: 116700,
+      mrpSavingPaise: 11700,
+      extraDiscountPaise: 5000,
+      extraDiscountLabel: 'special discount',
+      discountPaise: 16700,
+    });
+    expect(invoice.totals.totalPaise).toBe(100000);
+  });
+
   it('refuses to render an invoice without a valid GSTIN', async () => {
     vi.stubEnv('BUSINESS_GSTIN', '');
     const res = await call();
