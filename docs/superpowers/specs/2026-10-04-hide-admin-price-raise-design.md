@@ -105,12 +105,13 @@ For every order whose `notes` starts with `[ADMIN OVERRIDE by `:
   - `admin_email` from the bracket, `admin_id = placed_by_admin_id`.
 - Remove that first line from `notes` (null when nothing remains).
 - Set `discount_code = null` where it is `ADMIN_PRICE_UP`.
-- Keep `updated_at` as it was: `trigger_orders_updated_at` (BEFORE UPDATE,
-  sets `now()`) is disabled around this one update and re-enabled in the same
-  transaction. Otherwise the two orders collected on 27 Sep (before
-  `order_status_events` existed, so `collectedAt()` falls back to
-  `updated_at`) would jump into today's "Collected" tab on
-  `/admin/pickup-orders`.
+- Keep `updated_at` as it was: both triggers that stamp it with `now()` on
+  UPDATE — `trigger_orders_updated_at` and `trigger_set_order_number` — are
+  disabled around these updates and re-enabled in the same transaction.
+  *Correction 2026-10-05: the first apply disabled only the first trigger, so
+  the 7 orders it moved got `updated_at` = the apply time. No visible effect:
+  "Collected today" goes by each order's `collected` status event, which all 6
+  collected ones have.*
 
 Re-running finds nothing left to move. The migration has no `begin/commit`,
 so the SQL test can load it inside a rolled-back transaction (house style).

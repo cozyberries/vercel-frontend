@@ -46,6 +46,19 @@ select pg_temp.make('plain',   'Leave at the gate', null, 0, 500);
 select pg_temp.make('forged',  '[ADMIN OVERRIDE by owner@zz.test]: (+50% prices)', null, 0, 700, false);
 select pg_temp.make('edited',  'Customer rewrote this note', 'ADMIN_PRICE_UP', 0, 800);
 
+-- trigger_set_order_number stamps updated_at = now() on INSERT too, so the
+-- fixtures' past updated_at has to be set afterwards with both stamping
+-- triggers off; otherwise insert and backfill share one now() and
+-- updated_at_kept could not fail.
+alter table public.orders disable trigger trigger_set_order_number;
+alter table public.orders disable trigger trigger_orders_updated_at;
+update public.orders
+   set updated_at = '2026-09-27 12:00:00+05:30'::timestamptz
+ where id in (select v::uuid from t_ctx
+               where k in ('amt', 'off', 'up', 'bare', 'decimal', 'plain', 'forged', 'edited'));
+alter table public.orders enable trigger trigger_orders_updated_at;
+alter table public.orders enable trigger trigger_set_order_number;
+
 -- Second load: backfills the fixtures.
 \ir ../../supabase/migrations/20261004120000_order_price_overrides.sql
 
@@ -133,24 +146,32 @@ begin
     format('notes=%s rows=%s', o.notes, n));
 end $$;
 
--- 8. updated_at is kept (the trigger is off around the backfill update).
+-- 8. updated_at is kept on every moved order and on the cleared orphan
+--    (both stamping triggers are off around the backfill updates).
 do $$
-declare v_now timestamptz;
+declare v_moved int;
 begin
-  select updated_at into v_now from public.orders where id = pg_temp.oid('amt');
-  insert into t_result values ('updated_at_kept',
-    v_now = '2026-09-27 12:00:00+05:30'::timestamptz
-      and v_now::text = (select v from t_ctx where k = 'amt:updated_at'),
-    format('before=%s after=%s', (select v from t_ctx where k = 'amt:updated_at'), v_now));
+  select count(*) into v_moved from public.orders
+   where id in (select v::uuid from t_ctx where k in ('amt', 'off', 'up', 'bare', 'decimal', 'edited'))
+     and updated_at is distinct from '2026-09-27 12:00:00+05:30'::timestamptz;
+  insert into t_result values ('updated_at_kept', v_moved = 0,
+    format('%s of 6 orders had updated_at moved', v_moved));
 end $$;
 
--- 9. The trigger is back on afterwards.
+-- 9. Both stamping triggers are back on afterwards.
 do $$
-declare v_enabled "char";
+declare v_off text;
 begin
-  select tgenabled into v_enabled from pg_trigger
-   where tgrelid = 'public.orders'::regclass and tgname = 'trigger_orders_updated_at';
-  insert into t_result values ('updated_at_trigger_reenabled', v_enabled = 'O', format('tgenabled=%s', v_enabled));
+  select string_agg(tgname, ', ') into v_off from pg_trigger
+   where tgrelid = 'public.orders'::regclass
+     and tgname in ('trigger_orders_updated_at', 'trigger_set_order_number')
+     and tgenabled <> 'O';
+  insert into t_result values ('updated_at_trigger_reenabled',
+    v_off is null
+      and (select count(*) from pg_trigger
+            where tgrelid = 'public.orders'::regclass
+              and tgname in ('trigger_orders_updated_at', 'trigger_set_order_number')) = 2,
+    format('still disabled: %s', coalesce(v_off, 'none')));
 end $$;
 
 -- A self-placed order's note is customer-written: never trusted.

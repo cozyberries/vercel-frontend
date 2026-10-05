@@ -73,10 +73,15 @@ select c.order_id,
 on conflict (order_id) do nothing;
 
 -- Strip the moved line and the retired ADMIN_PRICE_UP marker. updated_at must
--- not move: two orders collected on 2026-09-27 predate order_status_events, so
--- collectedAt() falls back to updated_at and would list them under today's
--- "Collected" tab. The trigger is off only inside this transaction.
+-- not move: it is the order's last real change, and the pickup page's
+-- "Collected today" query filters on it. Two BEFORE UPDATE triggers stamp it
+-- with now(): trigger_orders_updated_at and trigger_set_order_number (which
+-- otherwise only fills an empty order_number, and every existing order has
+-- one). Both are off only inside this transaction.
+-- (The first apply, 2026-10-05, disabled only trigger_orders_updated_at, so
+-- the 7 orders it moved got updated_at = that apply's time.)
 alter table public.orders disable trigger trigger_orders_updated_at;
+alter table public.orders disable trigger trigger_set_order_number;
 
 update public.orders o
    set notes = nullif(btrim(substr(o.notes, length(split_part(o.notes, E'\n', 1)) + 2)), ''),
@@ -92,4 +97,5 @@ update public.orders
    set discount_code = null
  where discount_code = 'ADMIN_PRICE_UP';
 
+alter table public.orders enable trigger trigger_set_order_number;
 alter table public.orders enable trigger trigger_orders_updated_at;
