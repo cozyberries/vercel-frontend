@@ -38,6 +38,9 @@ grant select, insert, delete on table public.order_price_overrides to service_ro
 -- Backfill: until 2026-10-04 the override was written into orders.notes as a
 -- first line "[ADMIN OVERRIDE by <email>]" + optional ": " + optional
 -- "(−p% discount)" / "(+p% prices)" + optional reason. Move it into the table.
+-- Only orders staff placed on a customer's behalf (placed_by_admin_id set) are
+-- read: customers can write orders.notes, so a note on a self-placed order is
+-- never trusted as an admin record.
 insert into public.order_price_overrides
   (order_id, mode, percent, amount, catalogue_subtotal, reason, admin_id, admin_email, created_at)
 select c.order_id,
@@ -48,7 +51,7 @@ select c.order_id,
        left(c.reason, 500),
        c.placed_by_admin_id,
        nullif(c.admin_email, ''),
-       c.created_at
+       coalesce(c.created_at, now())
   from (
     select f.*,
            case when f.detail ~ '^\(\+[0-9]+(\.[0-9])?% prices\)' then 'percent_up'
@@ -64,6 +67,7 @@ select c.order_id,
                                       from '^\[ADMIN OVERRIDE by [^\]]*\](?:: )?(.*)$')), '') as detail
           from public.orders o
          where o.notes like '[ADMIN OVERRIDE by %'
+           and o.placed_by_admin_id is not null
       ) f
   ) c
 on conflict (order_id) do nothing;
@@ -78,6 +82,14 @@ update public.orders o
    set notes = nullif(btrim(substr(o.notes, length(split_part(o.notes, E'\n', 1)) + 2)), ''),
        discount_code = case when o.discount_code = 'ADMIN_PRICE_UP' then null else o.discount_code end
  where o.notes like '[ADMIN OVERRIDE by %'
+   and o.placed_by_admin_id is not null
    and exists (select 1 from public.order_price_overrides r where r.order_id = o.id);
+
+-- Any ADMIN_PRICE_UP left behind (e.g. a raised order whose note was later
+-- edited) would still tell a customer the prices were raised: clear it on
+-- every order. The record of the raise lives in order_price_overrides.
+update public.orders
+   set discount_code = null
+ where discount_code = 'ADMIN_PRICE_UP';
 
 alter table public.orders enable trigger trigger_orders_updated_at;

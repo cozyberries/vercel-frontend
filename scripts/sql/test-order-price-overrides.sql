@@ -20,14 +20,14 @@ begin
   insert into t_ctx values ('uid', v_uid::text);
 end $$;
 
-create function pg_temp.make(p_key text, p_notes text, p_code text, p_discount numeric, p_subtotal numeric)
+create function pg_temp.make(p_key text, p_notes text, p_code text, p_discount numeric, p_subtotal numeric, p_on_behalf boolean default true)
 returns void language plpgsql as $$
 declare v_id uuid; v_uid uuid := (select v::uuid from t_ctx where k = 'uid');
 begin
   insert into public.orders (user_id, customer_email, subtotal, discount_code, discount_amount,
                              delivery_charge, total_amount, fulfilment_method, notes, placed_by_admin_id, updated_at)
   values (v_uid, 'zz@test.local', p_subtotal, p_code, p_discount, 0, p_subtotal - p_discount,
-          'pickup', p_notes, v_uid, '2026-09-27 12:00:00+05:30'::timestamptz)
+          'pickup', p_notes, case when p_on_behalf then v_uid else null end, '2026-09-27 12:00:00+05:30'::timestamptz)
   returning id into v_id;
   insert into t_ctx values (p_key, v_id::text);
   insert into t_ctx select p_key || ':updated_at', updated_at::text from public.orders where id = v_id;
@@ -43,6 +43,8 @@ select pg_temp.make('up',      '[ADMIN OVERRIDE by asha@zz.test]: (+50% prices) 
 select pg_temp.make('bare',    '[ADMIN OVERRIDE by asha@zz.test]', 'ADMIN_OVERRIDE', 100, 1000);
 select pg_temp.make('decimal', '[ADMIN OVERRIDE by asha@zz.test]: (+12.5% prices)', 'ADMIN_PRICE_UP', 0, 900);
 select pg_temp.make('plain',   'Leave at the gate', null, 0, 500);
+select pg_temp.make('forged',  '[ADMIN OVERRIDE by owner@zz.test]: (+50% prices)', null, 0, 700, false);
+select pg_temp.make('edited',  'Customer rewrote this note', 'ADMIN_PRICE_UP', 0, 800);
 
 -- Second load: backfills the fixtures.
 \ir ../../supabase/migrations/20261004120000_order_price_overrides.sql
@@ -149,6 +151,27 @@ begin
   select tgenabled into v_enabled from pg_trigger
    where tgrelid = 'public.orders'::regclass and tgname = 'trigger_orders_updated_at';
   insert into t_result values ('updated_at_trigger_reenabled', v_enabled = 'O', format('tgenabled=%s', v_enabled));
+end $$;
+
+-- A self-placed order's note is customer-written: never trusted.
+do $$
+declare o public.orders; n int;
+begin
+  select * into o from public.orders where id = pg_temp.oid('forged');
+  select count(*) into n from public.order_price_overrides where order_id = pg_temp.oid('forged');
+  insert into t_result values ('customer_written_note_ignored',
+    n = 0 and o.notes = '[ADMIN OVERRIDE by owner@zz.test]: (+50% prices)',
+    format('rows=%s notes=%s', n, o.notes));
+end $$;
+
+-- A leftover ADMIN_PRICE_UP without its note is cleared anyway.
+do $$
+declare o public.orders;
+begin
+  select * into o from public.orders where id = pg_temp.oid('edited');
+  insert into t_result values ('orphan_price_up_code_cleared',
+    o.discount_code is null and o.notes = 'Customer rewrote this note',
+    format('code=%s notes=%s', o.discount_code, o.notes));
 end $$;
 
 -- 10. A third load changes nothing.
