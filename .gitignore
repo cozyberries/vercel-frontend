@@ -96,6 +96,9 @@ logs
 .mcp.json
 node-compile-cache/
 node-jiti/
+playwright-transform-cache-*/
+tsx-*/
+v8-compile-cache-*/
 
 # Marketplace export sheets and product photos (local only)
 exports/
