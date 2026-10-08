@@ -43,6 +43,7 @@
     "db:test-category-data": "node scripts/db-test-category-data.mjs",
     "db:test-overrides": "node scripts/db-test-overrides.mjs",
     "db:test-sales-register": "node scripts/db-test-sales-register.mjs",
+    "db:test-retail": "node scripts/db-test-retail.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {
