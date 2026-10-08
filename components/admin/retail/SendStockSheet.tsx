@@ -19,6 +19,8 @@ export function SendStockSheet({ retailerId, today, open, onOpenChange, onDone }
   const [date, setDate] = useState(today);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A draft created by a failed issue is reused on retry, so retries never pile up orphan drafts.
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -38,10 +40,13 @@ export function SendStockSheet({ retailerId, today, open, onOpenChange, onDone }
     try {
       const { doc_id } = await sendJson<{ doc_id: string }>(`/api/admin/retail/${retailerId}/docs`, {
         kind: "challan",
+        ...(draftId ? { doc_id: draftId } : {}),
         doc_date: date,
         lines: picks.map((p) => ({ variant_slug: p.option.slug, quantity: Number(p.quantity), mrp_paise: Math.round(Number(p.mrp) * 100) })),
       });
+      setDraftId(doc_id);
       if (issue) await sendJson(`/api/admin/retail/docs/${doc_id}`, { action: "issue" });
+      setDraftId(null);
       setPicks([]);
       onOpenChange(false);
       onDone();
@@ -54,7 +59,7 @@ export function SendStockSheet({ retailerId, today, open, onOpenChange, onDone }
   };
 
   return (
-    <ActionSheet open={open} onOpenChange={onOpenChange} title="Send stock" description="Pieces leave your online stock when the challan is issued.">
+    <ActionSheet open={open} onOpenChange={(o) => { if (!o) setDraftId(null); onOpenChange(o); }} title="Send stock" description="Pieces leave your online stock when the challan is issued.">
       <div className="grid gap-3 pt-2">
         <div className="grid gap-1.5">
           <Label htmlFor="send-date">Date sent</Label>

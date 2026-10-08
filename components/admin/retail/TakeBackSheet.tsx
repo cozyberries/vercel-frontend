@@ -13,6 +13,8 @@ export function TakeBackSheet({ detail, open, onOpenChange, onDone }: { detail: 
   const [date, setDate] = useState(detail.today);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A draft created by a failed issue is reused on retry, so retries never pile up orphan drafts.
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   const submit = async () => {
     setBusy(true);
@@ -20,10 +22,13 @@ export function TakeBackSheet({ detail, open, onOpenChange, onDone }: { detail: 
     try {
       const { doc_id } = await sendJson<{ doc_id: string }>(`/api/admin/retail/${detail.retailer.id}/docs`, {
         kind: "return",
+        ...(draftId ? { doc_id: draftId } : {}),
         doc_date: date,
         lines: detail.holdings.map((h) => ({ variant_slug: h.variantSlug, quantity: Number(qty[h.variantSlug] || 0) })),
       });
+      setDraftId(doc_id);
       await sendJson(`/api/admin/retail/docs/${doc_id}`, { action: "issue" });
+      setDraftId(null);
       setQty({});
       onOpenChange(false);
       onDone();
@@ -36,7 +41,7 @@ export function TakeBackSheet({ detail, open, onOpenChange, onDone }: { detail: 
   };
 
   return (
-    <ActionSheet open={open} onOpenChange={onOpenChange} title="Take back" description="Returned pieces go back into your online stock.">
+    <ActionSheet open={open} onOpenChange={(o) => { if (!o) setDraftId(null); onOpenChange(o); }} title="Take back" description="Returned pieces go back into your online stock.">
       <div className="grid gap-3 pt-2">
         <div className="grid gap-1.5">
           <Label htmlFor="return-date">Date received</Label>

@@ -16,9 +16,12 @@ export function PaymentsPanel({ detail, onChanged }: { detail: RetailerDetail; o
   const invoices = detail.docs.filter((d) => d.kind === "sale" && d.status === "issued" && d.number);
   const [form, setForm] = useState({ amount: "", paid_on: detail.today, method: "upi", reference: "", doc_id: "" });
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setError(null);
     try {
       await sendJson(`/api/admin/retail/${detail.retailer.id}/payments`, {
@@ -32,6 +35,8 @@ export function PaymentsPanel({ detail, onChanged }: { detail: RetailerDetail; o
       onChanged();
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -66,7 +71,7 @@ export function PaymentsPanel({ detail, onChanged }: { detail: RetailerDetail; o
           </select>
         </div>
         {error && <p role="alert" className="text-red-700">{error}</p>}
-        <Button type="submit" size="sm">Save payment</Button>
+        <Button type="submit" size="sm" disabled={busy}>Save payment</Button>
       </form>
       {detail.payments.length === 0 ? <EmptyState title="No payments yet" /> : (
         <ul className="space-y-2">
