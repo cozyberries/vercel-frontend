@@ -174,4 +174,24 @@ describe("SalesRegisterClient", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the sales register");
     expect(tile("Invoice value")).toHaveTextContent("₹2,190.00");
   });
+
+  it("lists shop invoices in their own table and adds them to the net", async () => {
+    const { retailer, doc } = await import("@/lib/retail/__fixtures__/retail");
+    const { orderRow } = await import("@/lib/gst/__fixtures__/register");
+    const register = buildSalesRegister({
+      month: "2026-09", orders: [orderRow()], cancelledEarlier: [], missingNumbers: [], gstin: GSTIN, now: NOW,
+      retail: {
+        invoices: [{ ...doc({ period: "2026-09", doc_date: "2026-09-30", number: "CBR/26-27/0001" }), retailers: retailer() }],
+        challans: [{ number: "CBC/26-27/0001", status: "issued" }],
+      },
+    });
+    stubRegister(() => json({ register }));
+    renderPage();
+    const shops = await screen.findByRole("region", { name: "Shops (B2B)" });
+    expect(shops).toHaveTextContent("CBR/26-27/0001");
+    expect(shops).toHaveTextContent("29AAGFC4321M1ZB");
+    expect(tile("Invoice value")).toHaveTextContent("₹1,800.00");
+    expect(within(tile("Net invoices")).getByText("2")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Challan numbers used" })).toHaveTextContent("CBC/26-27/0001");
+  });
 });

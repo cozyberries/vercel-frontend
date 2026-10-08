@@ -101,9 +101,12 @@ export function b2csRows(invoices: RegisterInvoice[], cancelledEarlier: Register
  * lines (B2CS and B2CL), less earlier months' cancellations. Shipping lines
  * carry quantity 0, so they add value but not pieces.
  */
-export function hsnRows(invoices: RegisterInvoice[], cancelledEarlier: RegisterInvoice[]): HsnRow[] {
+export function hsnRows(
+  invoices: Pick<RegisterInvoice, "status" | "lines" | "ratePercent">[],
+  cancelledEarlier: Pick<RegisterInvoice, "status" | "lines" | "ratePercent">[],
+): HsnRow[] {
   const rows = new Map<string, { hsn: string; ratePercent: number; quantity: number; net: TaxAmounts }>();
-  const add = (inv: RegisterInvoice, sign: 1 | -1) => {
+  const add = (inv: Pick<RegisterInvoice, "status" | "lines" | "ratePercent">, sign: 1 | -1) => {
     for (const line of inv.lines) {
       const key = `${line.hsn}|${inv.ratePercent}`;
       const row = rows.get(key) ?? { hsn: line.hsn, ratePercent: inv.ratePercent, quantity: 0, net: ZERO };
@@ -127,7 +130,7 @@ export function hsnRows(invoices: RegisterInvoice[], cancelledEarlier: RegisterI
 }
 
 /** GSTR-1 table 13: runs of consecutive numbers within one series, each with its cancelled count. */
-export function documentRuns(invoices: RegisterInvoice[]): DocumentRun[] {
+export function documentRuns(invoices: Pick<RegisterInvoice, "invoiceNumber" | "status">[]): DocumentRun[] {
   const sorted = [...invoices].sort((a, b) => compareInvoiceNumbers(a.invoiceNumber, b.invoiceNumber));
   const runs: DocumentRun[] = [];
   let previous: { prefix: string; seq: number } | null = null;

@@ -1,11 +1,11 @@
 import writeExcelFile, { type Row, type SheetData } from "write-excel-file/node";
-import { cancellationNote, formatIstDateTime, istDateCell, paiseToRupees, placeOfSupplyLabel } from "./register-format";
+import { cancellationNote, formatIstDateTime, formatPaise, istDateCell, paiseToRupees, placeOfSupplyLabel } from "./register-format";
 import { monthLabel } from "./register-month";
 import { effectiveAmounts, taxOf } from "./register-summaries";
 import type { RegisterInvoice, SalesRegister, TaxAmounts } from "./register-types";
 
 export const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-export const SHEET_NAMES = ["Summary", "Invoices", "B2CS", "B2CL", "HSN summary", "Documents issued", "Cancelled earlier"] as const;
+export const SHEET_NAMES = ["Summary", "Invoices", "B2B", "B2CS", "B2CL", "HSN summary", "HSN B2B", "Documents issued", "Cancelled earlier"] as const;
 export const INVOICE_COLUMNS = [
   "Invoice no.", "Invoice date", "Order no.", "Channel", "Customer name", "Place of supply", "Supply", "Rate %",
   "Taxable value", "CGST", "SGST", "IGST", "Invoice value", "Discount", "Shipping", "Payment method", "Status",
@@ -53,11 +53,16 @@ function summarySheet(r: SalesRegister): SheetData {
     [text("Online invoices"), count(t.byChannel.online.count)],
     [text("Online invoice value"), money(t.byChannel.online.valuePaise)],
     [],
+    head(["Shop invoices (B2B)", ""]),
+    [text("Shop invoices issued"), count(t.b2bIssued)],
+    [text("Shop invoices cancelled"), count(t.b2bCancelled)],
+    ...amountRows(t.b2b),
+    [],
     head(["Less: earlier months' invoices cancelled this month", ""]),
     ...amountRows(t.cancelledEarlier),
     [],
     head(["Net for the month (GSTR-3B 3.1(a))", ""]),
-    ...amountRows(t.net),
+    ...amountRows(t.combinedNet),
     ...(r.warnings.length ? [[], head(["Warnings", ""]), ...r.warnings.map((w) => [text(w)])] : []),
   ];
 }
@@ -103,6 +108,31 @@ function invoicesSheet(r: SalesRegister): SheetData {
   ];
 }
 
+function b2bSheet(r: SalesRegister): SheetData {
+  return orNone(
+    head(["GSTIN of recipient", "Receiver name", "Invoice no.", "Invoice date", "Invoice value", "Place of supply", "Reverse charge", "Invoice type", "Rate %", "Taxable value", "IGST", "CGST", "SGST", "Cess", "Status"]),
+    r.b2b.map((inv) => {
+      const a = inv.status === "valid" ? inv.amounts : { taxablePaise: 0, cgstPaise: 0, sgstPaise: 0, igstPaise: 0, valuePaise: 0 };
+      return [
+        text(inv.retailerGstin), text(inv.retailerName), text(inv.invoiceNumber), date(inv.invoiceDate), money(a.valuePaise),
+        text(placeOfSupplyLabel(inv.placeOfSupply)), text("N"), text("Regular"), count(inv.ratePercent), money(a.taxablePaise),
+        money(a.igstPaise), money(a.cgstPaise), money(a.sgstPaise), money(0),
+        text(inv.status === "valid" ? "Valid" : `Cancelled (was ${formatPaise(inv.amounts.valuePaise)})`),
+      ];
+    }),
+  );
+}
+
+function hsnB2bSheet(r: SalesRegister): SheetData {
+  return orNone(
+    head(["HSN", "Description", "UQC", "Total quantity", "Rate %", "Taxable value", "IGST", "CGST", "SGST", "Cess", "Total value"]),
+    r.hsnB2b.map((row) => [
+      text(row.hsn), text(row.description), text(row.uqc), count(row.quantity), count(row.ratePercent), money(row.net.taxablePaise),
+      money(row.net.igstPaise), money(row.net.cgstPaise), money(row.net.sgstPaise), money(0), money(row.net.valuePaise),
+    ]),
+  );
+}
+
 function b2csSheet(r: SalesRegister): SheetData {
   return orNone(
     head(["Type", "Place of supply", "Rate %", "Taxable value (this month)", "Less: cancelled earlier", "Net taxable value", "IGST", "CGST", "SGST", "Cess"]),
@@ -136,9 +166,14 @@ function hsnSheet(r: SalesRegister): SheetData {
 function documentsSheet(r: SalesRegister): SheetData {
   return orNone(
     head(["Nature of document", "Sr. no. from", "Sr. no. to", "Total number", "Cancelled", "Net issued"]),
-    r.documents.map((run) => [
-      text("Invoices for outward supply"), text(run.from), text(run.to), count(run.total), count(run.cancelled), count(run.total - run.cancelled),
-    ]),
+    [
+      ...r.documents.map((run) => [
+        text("Invoices for outward supply"), text(run.from), text(run.to), count(run.total), count(run.cancelled), count(run.total - run.cancelled),
+      ]),
+      ...r.challans.map((run) => [
+        text("Delivery challan in cases other than by way of supply"), text(run.from), text(run.to), count(run.total), count(run.cancelled), count(run.total - run.cancelled),
+      ]),
+    ],
   );
 }
 
@@ -156,9 +191,11 @@ function cancelledEarlierSheet(r: SalesRegister): SheetData {
 const WIDTHS: Record<(typeof SHEET_NAMES)[number], number[]> = {
   Summary: [48, 24],
   Invoices: [16, 12, 26, 8, 24, 18, 7, 7, 14, 12, 12, 12, 14, 12, 12, 14, 36],
+  B2B: [18, 28, 16, 12, 14, 18, 8, 10, 7, 14, 12, 12, 12, 8, 28],
   B2CS: [6, 22, 7, 22, 20, 16, 12, 12, 12, 8],
   B2CL: [16, 12, 22, 14, 7, 14, 12, 8],
   "HSN summary": [8, 52, 12, 14, 7, 14, 12, 12, 12, 8, 14],
+  "HSN B2B": [8, 52, 12, 14, 7, 14, 12, 12, 12, 8, 14],
   "Documents issued": [28, 16, 16, 12, 10, 10],
   "Cancelled earlier": [16, 12, 12, 22, 7, 14, 12, 12, 12, 14],
 };
@@ -168,9 +205,11 @@ export async function registerXlsx(register: SalesRegister): Promise<Buffer> {
   const data: Record<(typeof SHEET_NAMES)[number], SheetData> = {
     Summary: summarySheet(register),
     Invoices: invoicesSheet(register),
+    B2B: b2bSheet(register),
     B2CS: b2csSheet(register),
     B2CL: b2clSheet(register),
     "HSN summary": hsnSheet(register),
+    "HSN B2B": hsnB2bSheet(register),
     "Documents issued": documentsSheet(register),
     "Cancelled earlier": cancelledEarlierSheet(register),
   };

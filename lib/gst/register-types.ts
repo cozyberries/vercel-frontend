@@ -40,6 +40,23 @@ export interface RegisterInvoice {
   lines: RegisterLine[];
 }
 
+/** A shop (B2B) invoice: GSTR-1 table 4A. Cancellation is as at now (allowed only before GSTR-1 is due). */
+export interface B2bInvoice {
+  docId: string;
+  invoiceNumber: string;
+  /** YYYY-MM-DD, an IST calendar day. */
+  invoiceDate: string;
+  retailerName: string;
+  retailerGstin: string;
+  placeOfSupply: { code: string; name: string };
+  mode: TaxMode;
+  ratePercent: number;
+  status: "valid" | "cancelled";
+  /** The invoice's own amounts, never zeroed. */
+  amounts: TaxAmounts;
+  lines: RegisterLine[];
+}
+
 /** GSTR-1 table 7. placeOfSupply is the "29-Karnataka" label. */
 export interface B2csRow {
   placeOfSupply: string;
@@ -79,8 +96,14 @@ export interface RegisterTotals {
   month: TaxAmounts;
   /** Earlier months' invoices cancelled in this month (positive amounts). */
   cancelledEarlier: TaxAmounts;
-  /** month − cancelledEarlier: the GSTR-3B 3.1(a) figures. */
+  /** month − cancelledEarlier, store (B2C) sales only. */
   net: TaxAmounts;
+  /** Valid shop invoices dated in the month. */
+  b2b: TaxAmounts;
+  b2bIssued: number;
+  b2bCancelled: number;
+  /** net + b2b: the GSTR-3B 3.1(a) figures. */
+  combinedNet: TaxAmounts;
   byChannel: Record<Channel, ChannelTotal>;
 }
 
@@ -96,6 +119,11 @@ export interface SalesRegister {
   b2cs: B2csRow[];
   b2cl: RegisterInvoice[];
   hsn: HsnRow[];
+  b2b: B2bInvoice[];
+  /** GSTR-1 table 12 (B2B). */
+  hsnB2b: HsnRow[];
+  /** GSTR-1 table 13: delivery challan runs. */
+  challans: DocumentRun[];
   documents: DocumentRun[];
   totals: RegisterTotals;
   warnings: string[];

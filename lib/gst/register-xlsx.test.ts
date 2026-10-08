@@ -36,9 +36,9 @@ function september(): SalesRegister {
 const valueOf = (rows: Cell[][], label: string): Cell[] => rows.filter((r) => r[0] === label).map((r) => r[1]);
 
 describe("registerXlsx", () => {
-  it("writes seven sheets in order", async () => {
+  it("writes nine sheets in order", async () => {
     expect(Object.keys(await workbook(september()))).toEqual([...SHEET_NAMES]);
-    expect(SHEET_NAMES).toEqual(["Summary", "Invoices", "B2CS", "B2CL", "HSN summary", "Documents issued", "Cancelled earlier"]);
+    expect(SHEET_NAMES).toEqual(["Summary", "Invoices", "B2B", "B2CS", "B2CL", "HSN summary", "HSN B2B", "Documents issued", "Cancelled earlier"]);
   });
 
   it("lists every invoice with a Total row equal to the Summary and to the sum of its rows", async () => {
@@ -53,7 +53,21 @@ describe("registerXlsx", () => {
       const sum = rows.slice(1, 4).reduce((s, r) => s + Number(r[col]), 0);
       expect(sum).toBeCloseTo(Number(total[col]), 2);
     }
-    expect(valueOf(book.Summary, "Invoice value")).toEqual([2190, 0, 2190]);
+    expect(valueOf(book.Summary, "Invoice value")).toEqual([2190, 0, 0, 2190]);
+  });
+
+  it("writes shop invoices to the B2B sheet and challans to Documents issued", async () => {
+    const { retailer, doc } = await import("@/lib/retail/__fixtures__/retail");
+    const r = buildSalesRegister({
+      month: "2026-09", orders: [orderRow()], cancelledEarlier: [], missingNumbers: [], gstin: GSTIN, now: NOW,
+      retail: { invoices: [{ ...doc({ period: "2026-09", doc_date: "2026-09-30" }), retailers: retailer() }], challans: [{ number: "CBC/26-27/0001", status: "issued" }] },
+    });
+    const book = await workbook(r);
+    expect(book.B2B[0].slice(0, 4)).toEqual(["GSTIN of recipient", "Receiver name", "Invoice no.", "Invoice date"]);
+    expect(book.B2B[1].slice(0, 3)).toEqual(["29AAGFC4321M1ZB", "Kids Corner LLP", "CBR/26-27/0001"]);
+    expect(book.B2B[1][4]).toBe(750);
+    expect(book["Documents issued"].map((row) => row[0])).toContain("Delivery challan in cases other than by way of supply");
+    expect(valueOf(book.Summary, "Invoice value")).toEqual([1050, 750, 0, 1800]);
   });
 
   it("zeroes a cancelled row and notes the cancellation", async () => {

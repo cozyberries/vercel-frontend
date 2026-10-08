@@ -53,7 +53,7 @@ describe("GET /api/admin/sales-register/download", () => {
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
     const sheets = await readExcelFile(Buffer.from(await res.arrayBuffer()));
-    expect(sheets.map((s) => s.sheet)).toEqual(["Summary", "Invoices", "B2CS", "B2CL", "HSN summary", "Documents issued", "Cancelled earlier"]);
+    expect(sheets.map((s) => s.sheet)).toEqual(["Summary", "Invoices", "B2B", "B2CS", "B2CL", "HSN summary", "HSN B2B", "Documents issued", "Cancelled earlier"]);
   });
 
   it("names an unfinished month's file up to today", async () => {

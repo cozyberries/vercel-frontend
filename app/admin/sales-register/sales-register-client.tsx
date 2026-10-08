@@ -99,7 +99,7 @@ export default function SalesRegisterClient() {
 
 function RegisterBody({ register: r }: { register: SalesRegister }) {
   const t = r.totals;
-  const empty = r.invoices.length === 0 && r.cancelledEarlier.length === 0;
+  const empty = r.invoices.length === 0 && r.cancelledEarlier.length === 0 && r.b2b.length === 0;
   return (
     <div className="grid grid-cols-1 gap-3">
       {r.warnings.length > 0 && <Warnings warnings={r.warnings} />}
@@ -110,19 +110,19 @@ function RegisterBody({ register: r }: { register: SalesRegister }) {
           <StatGrid>
             <StatTile
               label="Invoice value"
-              value={formatPaise(t.net.valuePaise)}
+              value={formatPaise(t.combinedNet.valuePaise)}
               hint={
                 t.cancelledEarlier.valuePaise > 0
                   ? `after ${formatPaise(t.cancelledEarlier.valuePaise)} of earlier cancellations`
                   : "net for the month"
               }
             />
-            <StatTile label="Net invoices" value={String(t.issued - t.cancelled)} hint={`${t.issued} issued · ${t.cancelled} cancelled`} />
-            <StatTile label="Taxable value" value={formatPaise(t.net.taxablePaise)} />
+            <StatTile label="Net invoices" value={String(t.issued - t.cancelled + t.b2bIssued - t.b2bCancelled)} hint={`${t.issued + t.b2bIssued} issued · ${t.cancelled + t.b2bCancelled} cancelled`} />
+            <StatTile label="Taxable value" value={formatPaise(t.combinedNet.taxablePaise)} />
             <StatTile
               label="Total tax"
-              value={formatPaise(taxOf(t.net))}
-              hint={`CGST ${formatPaise(t.net.cgstPaise)} · SGST ${formatPaise(t.net.sgstPaise)} · IGST ${formatPaise(t.net.igstPaise)}`}
+              value={formatPaise(taxOf(t.combinedNet))}
+              hint={`CGST ${formatPaise(t.combinedNet.cgstPaise)} · SGST ${formatPaise(t.combinedNet.sgstPaise)} · IGST ${formatPaise(t.combinedNet.igstPaise)}`}
             />
           </StatGrid>
           <SegmentBar
@@ -168,6 +168,28 @@ function RegisterBody({ register: r }: { register: SalesRegister }) {
               }))}
             />
           )}
+          {r.b2b.length > 0 && (
+            <RegisterTable
+              title="Shops (B2B)"
+              columns={[
+                { key: "number", label: "Invoice" },
+                { key: "shop", label: "Shop GSTIN" },
+                { key: "taxable", label: "Taxable", numeric: true },
+                { key: "tax", label: "Tax", numeric: true },
+                { key: "value", label: "Value", numeric: true },
+              ]}
+              rows={r.b2b.map((inv) => {
+                const a = inv.status === "valid" ? inv.amounts : { taxablePaise: 0, cgstPaise: 0, sgstPaise: 0, igstPaise: 0, valuePaise: 0 };
+                return {
+                  number: inv.status === "valid" ? inv.invoiceNumber : `${inv.invoiceNumber} (cancelled)`,
+                  shop: inv.retailerGstin,
+                  taxable: formatPaise(a.taxablePaise),
+                  tax: formatPaise(taxOf(a)),
+                  value: formatPaise(a.valuePaise),
+                };
+              })}
+            />
+          )}
           <RegisterTable
             title="HSN summary"
             columns={[
@@ -195,6 +217,18 @@ function RegisterBody({ register: r }: { register: SalesRegister }) {
             ]}
             rows={r.documents.map((run) => ({ from: run.from, to: run.to, total: String(run.total), cancelled: String(run.cancelled) }))}
           />
+          {r.challans.length > 0 && (
+            <RegisterTable
+              title="Challan numbers used"
+              columns={[
+                { key: "from", label: "From" },
+                { key: "to", label: "To" },
+                { key: "total", label: "Issued", numeric: true },
+                { key: "cancelled", label: "Cancelled", numeric: true },
+              ]}
+              rows={r.challans.map((run) => ({ from: run.from, to: run.to, total: String(run.total), cancelled: String(run.cancelled) }))}
+            />
+          )}
           <InvoiceList title="Invoices" invoices={r.invoices} />
           {r.cancelledEarlier.length > 0 && <InvoiceList title="Cancelled from earlier months" invoices={r.cancelledEarlier} earlier />}
         </>

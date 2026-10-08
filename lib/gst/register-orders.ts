@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PAID_ORDER_STATUSES } from "@/lib/admin/sales-metrics";
-import { monthBounds } from "./register-month";
+import { DOC_COLUMNS } from "@/lib/retail/queries";
+import { monthBounds, monthKey } from "./register-month";
+import type { ChallanRow, RetailRegisterRow } from "./retail-register";
 import { buildSalesRegister, type MissingNumberRow, type RegisterOrderRow } from "./sales-register";
 import type { SalesRegister } from "./register-types";
 
@@ -80,16 +82,60 @@ export function fetchMissingNumbers(admin: SupabaseClient, start: Date, end: Dat
   );
 }
 
+/** [first day of month, first day of next month) as YYYY-MM-DD, for date columns. */
+function monthDays(month: string): { from: string; to: string } {
+  const [y, m] = month.split("-").map(Number);
+  return { from: `${month}-01`, to: `${monthKey(y, m)}-01` };
+}
+
+/** The shop fields an invoice needs. Phone and email are deliberately absent (same rule as REGISTER_COLUMNS). */
+export const REGISTER_RETAILER_COLUMNS = "id, legal_name, trade_name, gstin, state_code, address, contact_name, our_share_pct, active, created_at";
+
+/** Shop invoices (issued or cancelled) dated in the month. */
+export function fetchMonthRetailInvoices(admin: SupabaseClient, month: string): Promise<RetailRegisterRow[]> {
+  const { from, to } = monthDays(month);
+  return readAll<RetailRegisterRow>((start, end) =>
+    admin
+      .from("consignment_docs")
+      .select(`${DOC_COLUMNS}, retailers(${REGISTER_RETAILER_COLUMNS})`)
+      .eq("kind", "sale")
+      .not("number", "is", null)
+      .in("status", ["issued", "cancelled"])
+      .gte("doc_date", from)
+      .lt("doc_date", to)
+      .order("number", { ascending: true })
+      .range(start, end),
+  ).then((rows) => rows.map((r) => ({ ...r, share_pct: r.share_pct === null ? null : Number(r.share_pct), retailers: { ...r.retailers, phone: null, email: null, our_share_pct: Number(r.retailers.our_share_pct) } })));
+}
+
+/** Challan numbers issued in the month, for GSTR-1 table 13. */
+export function fetchMonthChallans(admin: SupabaseClient, month: string): Promise<ChallanRow[]> {
+  const { from, to } = monthDays(month);
+  return readAll<ChallanRow>((start, end) =>
+    admin
+      .from("consignment_docs")
+      .select("number, status")
+      .eq("kind", "challan")
+      .not("number", "is", null)
+      .gte("doc_date", from)
+      .lt("doc_date", to)
+      .order("number", { ascending: true })
+      .range(start, end),
+  );
+}
+
 /** The month's register, read live. */
 export async function loadSalesRegister(
   admin: SupabaseClient,
   { month, gstin, now }: { month: string; gstin: string; now: Date },
 ): Promise<SalesRegister> {
   const { start, end } = monthBounds(month);
-  const [orders, cancelledEarlier, missingNumbers] = await Promise.all([
+  const [orders, cancelledEarlier, missingNumbers, invoices, challans] = await Promise.all([
     fetchMonthInvoices(admin, start, end),
     fetchCancelledEarlier(admin, start, end),
     fetchMissingNumbers(admin, start, end),
+    fetchMonthRetailInvoices(admin, month),
+    fetchMonthChallans(admin, month),
   ]);
-  return buildSalesRegister({ month, orders, cancelledEarlier, missingNumbers, gstin, now });
+  return buildSalesRegister({ month, orders, cancelledEarlier, missingNumbers, gstin, now, retail: { invoices, challans } });
 }

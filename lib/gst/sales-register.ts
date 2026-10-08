@@ -4,7 +4,8 @@ import { buildInvoice, type InvoiceOrderRow } from "@/lib/invoice/build-invoice"
 import { gstStateName } from "@/lib/invoice/state-codes";
 import { formatPaise } from "./register-format";
 import { monthBounds, registerPeriod } from "./register-month";
-import { b2csRows, compareInvoiceNumbers, documentRuns, hsnRows, isB2cl, subtractAmounts, sumAmounts } from "./register-summaries";
+import { toB2bInvoice, type ChallanRow, type RetailRegisterRow } from "./retail-register";
+import { addAmounts, b2csRows, compareInvoiceNumbers, documentRuns, hsnRows, isB2cl, subtractAmounts, sumAmounts } from "./register-summaries";
 import type { Channel, ChannelTotal, RegisterInvoice, RegisterLine, SalesRegister } from "./register-types";
 
 /** An invoiced order as the register reads it. Phone and email are never selected. */
@@ -101,6 +102,7 @@ export function buildSalesRegister(input: {
   missingNumbers: MissingNumberRow[];
   gstin: string;
   now: Date;
+  retail?: { invoices: RetailRegisterRow[]; challans: ChallanRow[] };
 }): SalesRegister {
   const { month, gstin, now } = input;
   const { end } = monthBounds(month);
@@ -126,6 +128,15 @@ export function buildSalesRegister(input: {
   const monthTotals = sumAmounts(valid.map((inv) => inv.amounts));
   const earlierTotals = sumAmounts(cancelledEarlier.map((inv) => inv.amounts));
   const stateCode = gstin.slice(0, 2);
+  const b2b = [...(input.retail?.invoices ?? [])]
+    .sort((a, b) => compareInvoiceNumbers(a.number ?? "", b.number ?? ""))
+    .map((row) => toB2bInvoice(row, gstin));
+  const b2bValid = b2b.filter((inv) => inv.status === "valid");
+  const b2bTotals = sumAmounts(b2bValid.map((inv) => inv.amounts));
+  const net = subtractAmounts(monthTotals, earlierTotals);
+  const challans = documentRuns(
+    (input.retail?.challans ?? []).map((c) => ({ invoiceNumber: c.number, status: c.status === "issued" ? ("valid" as const) : ("cancelled" as const) })),
+  );
 
   return {
     month,
@@ -137,13 +148,20 @@ export function buildSalesRegister(input: {
     b2cs: b2csRows(invoices, cancelledEarlier),
     b2cl: valid.filter(isB2cl),
     hsn: hsnRows(invoices, cancelledEarlier),
-    documents: documentRuns(invoices),
+    b2b,
+    hsnB2b: hsnRows(b2b, []),
+    challans,
+    documents: [...documentRuns(invoices), ...documentRuns(b2b)],
     totals: {
       issued: invoices.length,
       cancelled: invoices.length - valid.length,
       month: monthTotals,
       cancelledEarlier: earlierTotals,
-      net: subtractAmounts(monthTotals, earlierTotals),
+      net,
+      b2b: b2bTotals,
+      b2bIssued: b2b.length,
+      b2bCancelled: b2b.length - b2bValid.length,
+      combinedNet: addAmounts(net, b2bTotals),
       byChannel: channelTotals(valid),
     },
     warnings,

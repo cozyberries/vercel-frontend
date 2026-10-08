@@ -7,6 +7,7 @@ import {
   fetchMonthInvoices,
   loadSalesRegister,
   REGISTER_COLUMNS,
+  REGISTER_RETAILER_COLUMNS,
   toRegisterRow,
 } from "./register-orders";
 import { monthBounds } from "./register-month";
@@ -127,5 +128,9 @@ describe("register reads", () => {
     const r = await loadSalesRegister(admin, { month: "2026-09", gstin: GSTIN, now: NOW });
     expect(r.invoices.map((i) => i.invoiceNumber)).toEqual(["CB/26-27/0001"]);
     expect(r.warnings).toEqual(["Paid orders with no invoice number: ORD-A"]);
+  });
+
+  it("never selects a shop's phone or email", () => {
+    expect(REGISTER_RETAILER_COLUMNS).not.toMatch(/phone|email/);
   });
 });
