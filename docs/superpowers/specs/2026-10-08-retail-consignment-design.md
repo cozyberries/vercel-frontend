@@ -1,7 +1,7 @@
 # Retail consignment (sale-or-return to shops) — design
 
 **Date:** 2026-10-08
-**Status:** awaiting owner review
+**Status:** approved 2026-10-08; plan at `docs/superpowers/plans/2026-10-08-retail-consignment.md`
 **Branch:** `feature/retail-consignment`
 
 ## Problem
