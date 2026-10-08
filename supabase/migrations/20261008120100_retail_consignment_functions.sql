@@ -332,6 +332,10 @@ begin
 
     if v_doc.kind = 'sale' then
       v_doc.share_pct := v_retailer.our_share_pct;
+      -- Invoice date is fixed at issue: the period's last day, or today if the period is still running.
+      v_doc.doc_date := least(
+        (to_date(v_doc.period || '-01', 'YYYY-MM-DD') + interval '1 month' - interval '1 day')::date,
+        (now() at time zone 'Asia/Kolkata')::date);
       update public.consignment_lines
          set unit_price_paise = round(mrp_paise * v_doc.share_pct / 100)::integer
        where doc_id = p_doc_id;
@@ -358,7 +362,8 @@ begin
   end if;
 
   update public.consignment_docs
-     set status = 'issued', issued_at = now(), number = v_doc.number, share_pct = v_doc.share_pct
+     set status = 'issued', issued_at = now(), number = v_doc.number, share_pct = v_doc.share_pct,
+         doc_date = v_doc.doc_date
    where id = p_doc_id
   returning * into v_doc;
   return v_doc;

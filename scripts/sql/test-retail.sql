@@ -379,6 +379,17 @@ begin
     format('status=%s number=%s', v_doc.status, coalesce(v_doc.number, 'null')));
 end $$;
 
+-- 28b. A draft saved early is dated at issue: the period's last day.
+do $$
+declare v_id uuid; v_doc public.consignment_docs;
+begin
+  v_id := public.consignment_save_sale(pg_temp.shop(), '2026-03', '[]', pg_temp.actor());
+  update public.consignment_docs set doc_date = '2026-03-02' where id = v_id;
+  v_doc := public.consignment_issue(v_id);
+  insert into t_result values ('sale_issue_redates_to_period_end', v_doc.doc_date = '2026-03-31',
+    'doc_date=' || v_doc.doc_date);
+end $$;
+
 -- 29. A return cannot be cancelled once those units have left our stock again.
 do $$
 declare v_err text; v_res text;
