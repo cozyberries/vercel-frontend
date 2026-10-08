@@ -6,7 +6,7 @@
 begin;
 
 \ir ../../supabase/migrations/20261008120000_retail_consignment.sql
--- FUNCTIONS MIGRATION (Task 2 adds the \ir line here)
+\ir ../../supabase/migrations/20261008120100_retail_consignment_functions.sql
 
 create temporary table t_result(name text, ok boolean, reason text) on commit drop;
 create temporary table t_ctx(k text primary key, v text) on commit drop;
@@ -133,7 +133,300 @@ begin
   delete from public.consignment_docs where id = v_doc;
 end $$;
 
--- FUNCTION ASSERTIONS (Task 2 inserts its blocks here)
+create function pg_temp.today() returns date language sql as $$ select (now() at time zone 'Asia/Kolkata')::date $$;
+create function pg_temp.period() returns text language sql as $$ select to_char(pg_temp.today(), 'YYYY-MM') $$;
+create function pg_temp.challan(p_date date, p_lines jsonb) returns uuid language sql as $$
+  select public.consignment_save_challan(pg_temp.shop(), p_date, p_lines, pg_temp.actor(), null)
+$$;
+create function pg_temp.held(p_variant text) returns int language sql as $$
+  select coalesce(sum(held), 0)::int from public.retailer_batch_balances
+   where retailer_id = pg_temp.shop() and variant_slug = p_variant
+$$;
+create function pg_temp.seq(p_number text) returns int language sql as $$
+  select split_part(p_number, '/', 3)::int
+$$;
+create function pg_temp.lines(p_doc uuid) returns text language sql as $$
+  select string_agg(quantity || '@' || mrp_paise, ',' order by mrp_paise, quantity)
+    from public.consignment_lines where doc_id = p_doc
+$$;
+
+-- 9. Every function is service-role only.
+do $$
+declare f text; bad text[] := '{}';
+begin
+  foreach f in array array[
+    'public.consignment_next_number(text,date)',
+    'public.consignment_open_draft(uuid,uuid,text)',
+    'public.consignment_fill_from_batches(uuid,uuid,jsonb,date)',
+    'public.consignment_save_challan(uuid,date,jsonb,uuid,uuid)',
+    'public.consignment_save_return(uuid,date,jsonb,uuid,uuid)',
+    'public.consignment_save_sale(uuid,text,jsonb,uuid)',
+    'public.consignment_issue(uuid)',
+    'public.consignment_cancel(uuid)'] loop
+    if has_function_privilege('anon', f, 'EXECUTE') or has_function_privilege('authenticated', f, 'EXECUTE')
+       or not has_function_privilege('service_role', f, 'EXECUTE') then
+      bad := bad || f;
+    end if;
+  end loop;
+  insert into t_result values ('functions_are_service_role_only', cardinality(bad) = 0, array_to_string(bad, ', '));
+end $$;
+
+-- 10. A challan dated 15 Jan 2026 is numbered in the 25-26 series and takes stock.
+do $$
+declare v_doc public.consignment_docs;
+begin
+  v_doc := public.consignment_issue(pg_temp.challan('2026-01-15',
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2,"mrp_paise":100000}]'));
+  insert into t_ctx values ('c0', v_doc.id::text);
+  insert into t_result values ('challan_number_uses_its_date_fy',
+    v_doc.number like 'CBC/25-26/%' and pg_temp.stock('zz-retail-frock-a') = 8,
+    format('number=%s stock=%s', v_doc.number, pg_temp.stock('zz-retail-frock-a')));
+end $$;
+
+-- 11. Issuing today's challan takes stock for each line and numbers it in today's FY.
+do $$
+declare v_doc public.consignment_docs;
+begin
+  v_doc := public.consignment_issue(pg_temp.challan(pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":3,"mrp_paise":110000},
+      {"variant_slug":"zz-retail-frock-b","quantity":1,"mrp_paise":100000}]'));
+  insert into t_ctx values ('c1', v_doc.id::text), ('c1_number', v_doc.number);
+  insert into t_result values ('challan_issue_takes_stock_and_numbers',
+    v_doc.status = 'issued' and v_doc.number like 'CBC/' || public.gst_financial_year(now()) || '/%'
+      and pg_temp.stock('zz-retail-frock-a') = 5 and pg_temp.stock('zz-retail-frock-b') = 2
+      and pg_temp.held('zz-retail-frock-a') = 5,
+    format('status=%s number=%s a=%s b=%s held_a=%s', v_doc.status, v_doc.number,
+           pg_temp.stock('zz-retail-frock-a'), pg_temp.stock('zz-retail-frock-b'), pg_temp.held('zz-retail-frock-a')));
+end $$;
+
+-- 12. A shortfall is refused, the stock is untouched and the draft stays a draft.
+do $$
+declare v_doc uuid; v_err text; v_status text;
+begin
+  v_doc := pg_temp.challan(pg_temp.today(), '[{"variant_slug":"zz-retail-frock-b","quantity":5,"mrp_paise":100000}]');
+  v_err := pg_temp.err(format('select public.consignment_issue(%L)', v_doc));
+  select status into v_status from public.consignment_docs where id = v_doc;
+  insert into t_ctx values ('short', v_doc::text);
+  insert into t_result values ('challan_issue_refuses_shortfall',
+    v_err like 'OUT_OF_STOCK:%' and pg_temp.stock('zz-retail-frock-b') = 2 and v_status = 'draft',
+    format('err=%s stock=%s status=%s', v_err, pg_temp.stock('zz-retail-frock-b'), v_status));
+end $$;
+
+-- 13. Cancelling a draft deletes it.
+do $$
+declare v_res text;
+begin
+  v_res := public.consignment_cancel((select v::uuid from t_ctx where k = 'short'));
+  insert into t_result values ('cancel_draft_deletes',
+    v_res = 'deleted' and not exists (select 1 from public.consignment_docs where id = (select v::uuid from t_ctx where k = 'short')),
+    'result=' || v_res);
+end $$;
+
+-- 14. Issuing an issued document again is refused and takes no more stock.
+insert into t_result
+select 'issue_twice_refused', e = 'NOT_DRAFT' and pg_temp.stock('zz-retail-frock-a') = 5,
+       format('err=%s stock=%s', coalesce(e, 'none'), pg_temp.stock('zz-retail-frock-a'))
+  from pg_temp.err(format('select public.consignment_issue(%L)', (select v from t_ctx where k = 'c1'))) e;
+
+-- 15. An inactive shop gets no new challans.
+do $$
+declare v_err text;
+begin
+  update public.retailers set active = false where id = pg_temp.shop();
+  v_err := pg_temp.err(format('select public.consignment_save_challan(%L, %L, %L, %L, null)', pg_temp.shop(),
+    pg_temp.today(), '[{"variant_slug":"zz-retail-frock-a","quantity":1,"mrp_paise":100000}]', pg_temp.actor()));
+  update public.retailers set active = true where id = pg_temp.shop();
+  insert into t_result values ('challan_refused_for_inactive_shop', v_err = 'RETAILER_INACTIVE', coalesce(v_err, 'accepted'));
+end $$;
+
+-- 16. A January sale can only draw on stock sent by 31 January (2 pieces).
+insert into t_result
+select 'sale_only_from_batches_sent_by_period_end', e like 'NOT_HELD:2:%', coalesce(e, 'accepted')
+  from pg_temp.err(format('select public.consignment_save_sale(%L, ''2026-01'', %L, %L)', pg_temp.shop(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":3}]', pg_temp.actor())) e;
+
+-- 17. The January invoice is dated 31 Jan and numbered in the 25-26 series.
+do $$
+declare v_doc public.consignment_docs;
+begin
+  v_doc := public.consignment_issue(public.consignment_save_sale(pg_temp.shop(), '2026-01',
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1}]', pg_temp.actor()));
+  insert into t_ctx values ('s_jan', v_doc.id::text);
+  insert into t_result values ('sale_number_uses_invoice_date_fy',
+    v_doc.number like 'CBR/25-26/%' and v_doc.doc_date = '2026-01-31' and v_doc.share_pct = 75,
+    format('number=%s date=%s share=%s', v_doc.number, v_doc.doc_date, v_doc.share_pct));
+end $$;
+
+-- 18. After the 10th of the following month the invoice cannot be cancelled.
+insert into t_result
+select 'cancel_sale_after_deadline_refused', e = 'TOO_LATE', coalesce(e, 'cancelled')
+  from pg_temp.err(format('select public.consignment_cancel(%L)', (select v from t_ctx where k = 's_jan'))) e;
+
+-- 19. Sales draw on the oldest batch first: 1 left at Rs 1,000, then 3 at Rs 1,100.
+do $$
+declare v_doc uuid;
+begin
+  v_doc := public.consignment_save_sale(pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":4}]', pg_temp.actor());
+  insert into t_ctx values ('s_now', v_doc::text);
+  insert into t_result values ('sale_fifo_oldest_first', pg_temp.lines(v_doc) = '1@100000,3@110000',
+    'lines=' || coalesce(pg_temp.lines(v_doc), 'none'));
+end $$;
+
+-- 20. A draft cannot take more than the shop holds (b: 1 held); the old draft survives.
+do $$
+declare v_err text;
+begin
+  v_err := pg_temp.err(format('select public.consignment_save_sale(%L, %L, %L, %L)', pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-b","quantity":2}]', pg_temp.actor()));
+  insert into t_result values ('sale_cannot_exceed_held',
+    v_err like 'NOT_HELD:1:%' and pg_temp.lines((select v::uuid from t_ctx where k = 's_now')) = '1@100000,3@110000',
+    format('err=%s lines=%s', v_err, pg_temp.lines((select v::uuid from t_ctx where k = 's_now'))));
+end $$;
+
+-- 21. Saving the same month again replaces the draft in place.
+do $$
+declare v_doc uuid; v_first text;
+begin
+  v_doc := public.consignment_save_sale(pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1}]', pg_temp.actor());
+  v_first := pg_temp.lines(v_doc);
+  perform public.consignment_save_sale(pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":4}]', pg_temp.actor());
+  insert into t_result values ('sale_upload_replaces_draft',
+    v_doc = (select v::uuid from t_ctx where k = 's_now') and v_first = '1@100000',
+    format('same=%s first=%s', v_doc = (select v::uuid from t_ctx where k = 's_now'), v_first));
+end $$;
+
+-- 22. Taking 2 back returns them to stock, oldest batch first.
+do $$
+declare v_doc public.consignment_docs;
+begin
+  v_doc := public.consignment_issue(public.consignment_save_return(pg_temp.shop(), pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2}]', pg_temp.actor(), null));
+  insert into t_ctx values ('r1', v_doc.id::text);
+  insert into t_result values ('return_adds_stock_back',
+    v_doc.number like 'RET/%' and pg_temp.stock('zz-retail-frock-a') = 7 and pg_temp.held('zz-retail-frock-a') = 2
+      and pg_temp.lines(v_doc.id) = '1@100000,1@110000',
+    format('number=%s stock=%s held=%s lines=%s', v_doc.number, pg_temp.stock('zz-retail-frock-a'),
+           pg_temp.held('zz-retail-frock-a'), pg_temp.lines(v_doc.id)));
+end $$;
+
+-- 23. The 4-piece draft is now stale: issuing re-checks and refuses.
+do $$
+declare v_err text; v_status text;
+begin
+  v_err := pg_temp.err(format('select public.consignment_issue(%L)', (select v from t_ctx where k = 's_now')));
+  select status into v_status from public.consignment_docs where id = (select v::uuid from t_ctx where k = 's_now');
+  insert into t_result values ('sale_issue_rechecks_balance', v_err like 'NOT_HELD:2:%' and v_status = 'draft',
+    format('err=%s status=%s', v_err, v_status));
+end $$;
+
+-- 24. The invoice uses the shop's share at issue time (70% of Rs 1,100 = Rs 770).
+do $$
+declare v_doc public.consignment_docs; v_price int;
+begin
+  perform public.consignment_save_sale(pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2}]', pg_temp.actor());
+  update public.retailers set our_share_pct = 70 where id = pg_temp.shop();
+  v_doc := public.consignment_issue((select v::uuid from t_ctx where k = 's_now'));
+  update public.retailers set our_share_pct = 75 where id = pg_temp.shop();
+  select max(unit_price_paise) into v_price from public.consignment_lines where doc_id = v_doc.id;
+  insert into t_result values ('sale_unit_price_uses_share_at_issue',
+    v_doc.share_pct = 70 and v_price = 77000 and v_doc.number like 'CBR/%'
+      and v_doc.doc_date = pg_temp.today() and pg_temp.held('zz-retail-frock-a') = 0,
+    format('share=%s price=%s number=%s date=%s held=%s', v_doc.share_pct, v_price, v_doc.number,
+           v_doc.doc_date, pg_temp.held('zz-retail-frock-a')));
+end $$;
+
+-- 25. A challan that sales or returns draw on cannot be cancelled.
+insert into t_result
+select 'cancel_challan_in_use_refused', e = 'IN_USE', coalesce(e, 'cancelled')
+  from pg_temp.err(format('select public.consignment_cancel(%L)', (select v from t_ctx where k = 'c1'))) e;
+
+-- 26. This month's invoice can be cancelled; it keeps its number, and a new draft is allowed.
+do $$
+declare v_res text; v_doc public.consignment_docs; v_new uuid;
+begin
+  v_res := public.consignment_cancel((select v::uuid from t_ctx where k = 's_now'));
+  select * into v_doc from public.consignment_docs where id = (select v::uuid from t_ctx where k = 's_now');
+  v_new := public.consignment_save_sale(pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1}]', pg_temp.actor());
+  insert into t_ctx values ('s_new', v_new::text);
+  insert into t_result values ('cancel_sale_in_window_keeps_number',
+    v_res = 'cancelled' and v_doc.status = 'cancelled' and v_doc.number like 'CBR/%'
+      and v_doc.cancelled_at is not null and pg_temp.held('zz-retail-frock-a') = 2 and v_new <> v_doc.id,
+    format('res=%s status=%s number=%s held=%s', v_res, v_doc.status, v_doc.number, pg_temp.held('zz-retail-frock-a')));
+end $$;
+
+-- 27. Once the month is issued, another upload is refused.
+do $$
+declare v_err text;
+begin
+  perform public.consignment_issue((select v::uuid from t_ctx where k = 's_new'));
+  v_err := pg_temp.err(format('select public.consignment_save_sale(%L, %L, %L, %L)', pg_temp.shop(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1}]', pg_temp.actor()));
+  insert into t_result values ('upload_refused_after_issue', v_err = 'ALREADY_ISSUED', coalesce(v_err, 'accepted'));
+end $$;
+
+-- 28. A "nothing sold" month is issued without a number.
+do $$
+declare v_doc public.consignment_docs;
+begin
+  v_doc := public.consignment_issue(public.consignment_save_sale(pg_temp.shop(), '2026-02', '[]', pg_temp.actor()));
+  insert into t_result values ('nothing_sold_issues_without_number',
+    v_doc.status = 'issued' and v_doc.number is null,
+    format('status=%s number=%s', v_doc.status, coalesce(v_doc.number, 'null')));
+end $$;
+
+-- 29. A return cannot be cancelled once those units have left our stock again.
+do $$
+declare v_err text; v_res text;
+begin
+  update public.product_variants set stock_quantity = 0 where slug = 'zz-retail-frock-a';
+  v_err := pg_temp.err(format('select public.consignment_cancel(%L)', (select v from t_ctx where k = 'r1')));
+  update public.product_variants set stock_quantity = 7 where slug = 'zz-retail-frock-a';
+  v_res := public.consignment_cancel((select v::uuid from t_ctx where k = 'r1'));
+  insert into t_result values ('cancel_return_needs_stock',
+    v_err like 'STOCK_GONE:%' and v_res = 'cancelled' and pg_temp.stock('zz-retail-frock-a') = 5,
+    format('err=%s res=%s stock=%s', v_err, v_res, pg_temp.stock('zz-retail-frock-a')));
+end $$;
+
+-- 30. An unused challan can be cancelled and its stock comes back; numbers are consecutive.
+do $$
+declare v_doc public.consignment_docs; v_res text;
+begin
+  v_doc := public.consignment_issue(pg_temp.challan(pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-b","quantity":1,"mrp_paise":100000}]'));
+  insert into t_result values ('numbering_is_consecutive',
+    pg_temp.seq(v_doc.number) = pg_temp.seq((select v from t_ctx where k = 'c1_number')) + 1,
+    format('c1=%s c2=%s', (select v from t_ctx where k = 'c1_number'), v_doc.number));
+  v_res := public.consignment_cancel(v_doc.id);
+  insert into t_result values ('cancel_unused_challan_restores_stock',
+    v_res = 'cancelled' and pg_temp.stock('zz-retail-frock-b') = 2,
+    format('res=%s stock=%s', v_res, pg_temp.stock('zz-retail-frock-b')));
+end $$;
+
+-- 31. The API's role (service_role) can save and issue. The temp helpers and
+--     t_ctx belong to the session user, so read them before switching role.
+do $$
+declare
+  v_err text;
+  v_shop uuid := pg_temp.shop();
+  v_actor uuid := pg_temp.actor();
+  v_today date := pg_temp.today();
+begin
+  begin
+    perform set_config('role', 'service_role', true);
+    perform public.consignment_issue(public.consignment_save_challan(v_shop, v_today,
+      '[{"variant_slug":"zz-retail-frock-b","quantity":1,"mrp_paise":100000}]', v_actor, null));
+    perform set_config('role', session_user, true);
+  exception when others then
+    v_err := sqlerrm;
+  end;
+  perform set_config('role', session_user, true);
+  insert into t_result values ('service_role_can_run_flow', v_err is null, coalesce(v_err, 'ok'));
+end $$;
 
 select case when ok then 'PASS ' else 'FAIL ' end || name
        || case when ok then '' else ': ' || coalesce(reason, '') end
