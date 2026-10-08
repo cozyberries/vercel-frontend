@@ -14,10 +14,18 @@ export const PAYMENT_COLUMNS = "id, retailer_id, doc_id, amount_paise, paid_on, 
 
 type Result = { data: unknown; error: { message: string } | null };
 
-async function rows<T>(query: PromiseLike<Result>): Promise<T[]> {
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as T[];
+const PAGE = 1000; // PostgREST caps a response at 1,000 rows
+
+/** Reads every row, a page at a time. Each query must have a total order so pages don't skip or repeat. */
+async function rows<T>(page: (from: number, to: number) => PromiseLike<Result>): Promise<T[]> {
+  const all: T[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await page(offset, offset + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as T[];
+    all.push(...batch);
+    if (batch.length < PAGE) return all;
+  }
 }
 
 async function one<T>(query: PromiseLike<Result>): Promise<T | null> {
@@ -51,18 +59,18 @@ export async function fetchDoc(admin: SupabaseClient, docId: string): Promise<Co
 /** Challan numbers behind a sale's batch lines, for the invoice note. */
 export async function fetchChallanNumbers(admin: SupabaseClient, batchLineIds: string[]): Promise<string[]> {
   if (batchLineIds.length === 0) return [];
-  const list = await rows<{ challan_number: string }>(
-    admin.from("retailer_batch_balances").select("challan_number").in("batch_line_id", [...new Set(batchLineIds)]),
+  const list = await rows<{ challan_number: string }>((f, t) =>
+    admin.from("retailer_batch_balances").select("challan_number").in("batch_line_id", [...new Set(batchLineIds)]).order("batch_line_id", { ascending: true }).range(f, t),
   );
   return [...new Set(list.map((r) => r.challan_number))].sort();
 }
 
 export async function loadRetailerList(admin: SupabaseClient, now: Date): Promise<RetailerListResponse> {
   const [retailers, balances, sales, payments] = await Promise.all([
-    rows<Retailer>(admin.from("retailers").select(RETAILER_COLUMNS).order("legal_name", { ascending: true })),
-    rows<BatchBalance>(admin.from("retailer_batch_balances").select(BALANCE_COLUMNS)),
-    rows<ConsignmentDoc>(admin.from("consignment_docs").select(DOC_COLUMNS).eq("kind", "sale").eq("status", "issued")),
-    rows<RetailerPayment>(admin.from("retailer_payments").select(PAYMENT_COLUMNS)),
+    rows<Retailer>((f, t) => admin.from("retailers").select(RETAILER_COLUMNS).order("legal_name", { ascending: true }).order("id", { ascending: true }).range(f, t)),
+    rows<BatchBalance>((f, t) => admin.from("retailer_batch_balances").select(BALANCE_COLUMNS).order("batch_line_id", { ascending: true }).range(f, t)),
+    rows<ConsignmentDoc>((f, t) => admin.from("consignment_docs").select(DOC_COLUMNS).eq("kind", "sale").eq("status", "issued").order("id", { ascending: true }).range(f, t)),
+    rows<RetailerPayment>((f, t) => admin.from("retailer_payments").select(PAYMENT_COLUMNS).order("id", { ascending: true }).range(f, t)),
   ]);
   const today = istToday(now);
   const lastPeriod = recentPeriods(now, 2)[1];
@@ -88,12 +96,12 @@ export async function loadRetailerDetail(admin: SupabaseClient, id: string, now:
   const retailer = await fetchRetailer(admin, id);
   if (!retailer) return null;
   const [balances, docs, payments] = await Promise.all([
-    rows<BatchBalance>(admin.from("retailer_batch_balances").select(BALANCE_COLUMNS).eq("retailer_id", id)),
-    rows<ConsignmentDoc>(
+    rows<BatchBalance>((f, t) => admin.from("retailer_batch_balances").select(BALANCE_COLUMNS).eq("retailer_id", id).order("batch_line_id", { ascending: true }).range(f, t)),
+    rows<ConsignmentDoc>((f, t) =>
       admin.from("consignment_docs").select(DOC_COLUMNS).eq("retailer_id", id)
-        .order("doc_date", { ascending: false }).order("created_at", { ascending: false }),
+        .order("doc_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: true }).range(f, t),
     ),
-    rows<RetailerPayment>(admin.from("retailer_payments").select(PAYMENT_COLUMNS).eq("retailer_id", id).order("paid_on", { ascending: false })),
+    rows<RetailerPayment>((f, t) => admin.from("retailer_payments").select(PAYMENT_COLUMNS).eq("retailer_id", id).order("paid_on", { ascending: false }).order("id", { ascending: true }).range(f, t)),
   ]);
   const today = istToday(now);
   const allDocs = docs.map(toDoc);

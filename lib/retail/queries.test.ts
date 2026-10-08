@@ -6,13 +6,15 @@ import { loadRetailerDetail, loadRetailerList, shopName } from "./queries";
 type Response = { data: unknown; error: { message: string } | null };
 
 /** A Supabase stand-in: answers by table name, records every query's calls. */
-function fakeAdmin(byTable: Record<string, Response>) {
+function fakeAdmin(byTable: Record<string, Response | Response[]>) {
   const calls: { table: string; ops: [string, unknown[]][] }[] = [];
   const admin = {
     from(table: string) {
       const entry = { table, ops: [] as [string, unknown[]][] };
       calls.push(entry);
-      const response = byTable[table] ?? { data: [], error: null };
+      const seen = calls.filter((c) => c.table === table).length - 1;
+      const configured = byTable[table] ?? { data: [], error: null };
+      const response = Array.isArray(configured) ? (configured[seen] ?? { data: [], error: null }) : configured;
       const builder: object = new Proxy({}, {
         get(_t, prop) {
           if (prop === "then") return (resolve: (v: Response) => unknown) => resolve(response);
@@ -68,6 +70,23 @@ describe("retail loaders", () => {
 
     const missing = fakeAdmin({ retailers: { data: null, error: null } });
     expect(await loadRetailerDetail(missing.admin, retailer().id, NOW)).toBeNull();
+  });
+
+  it("reads every page of a table that passes 1,000 rows", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => balance({ batch_line_id: `b${i}`, held: 1, sent: 1 }));
+    const { admin, calls } = fakeAdmin({
+      retailers: { data: retailer(), error: null },
+      retailer_batch_balances: [
+        { data: full, error: null },
+        { data: [balance({ batch_line_id: "b1000", held: 1, sent: 1 })], error: null },
+      ],
+    });
+    const d = await loadRetailerDetail(admin, retailer().id, NOW);
+    const reads = calls.filter((c) => c.table === "retailer_batch_balances");
+    expect(reads).toHaveLength(2);
+    expect(reads[0].ops).toContainEqual(["range", [0, 999]]);
+    expect(reads[1].ops).toContainEqual(["range", [1000, 1999]]);
+    expect(d?.summary.unitsHeld).toBe(1001);
   });
 
   it("throws when a read fails", async () => {
