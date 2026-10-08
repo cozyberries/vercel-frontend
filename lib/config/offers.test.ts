@@ -36,4 +36,15 @@ describe("MRP_DISPLAY", () => {
     const bad = await loadMrpDisplay({ NEXT_PUBLIC_MRP_SHOWN_SINCE: "soon" });
     expect(bad.shownSince.toISOString()).toBe("2026-09-26T18:30:00.000Z");
   });
+
+  it("ends the MRP display at the start of 7 Oct 2026 (IST), when prices went up 10%", async () => {
+    expect((await loadMrpDisplay({})).shownUntil.toISOString()).toBe("2026-10-06T18:30:00.000Z");
+  });
+
+  it("takes the end date from env and keeps the default when it is unreadable", async () => {
+    const custom = await loadMrpDisplay({ NEXT_PUBLIC_MRP_SHOWN_UNTIL: "2026-11-01T00:00:00+05:30" });
+    expect(custom.shownUntil.toISOString()).toBe("2026-10-31T18:30:00.000Z");
+    const bad = await loadMrpDisplay({ NEXT_PUBLIC_MRP_SHOWN_UNTIL: "never" });
+    expect(bad.shownUntil.toISOString()).toBe("2026-10-06T18:30:00.000Z");
+  });
 });

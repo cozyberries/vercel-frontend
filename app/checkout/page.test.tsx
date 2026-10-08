@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   // Stable references: effects in the page depend on their identity.
@@ -41,6 +41,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import CheckoutPage from "./page";
 import { ADMIN_PRICE_UP_GST_ERROR } from "@/lib/utils/admin-override";
+import { MRP_DISPLAY } from "@/lib/config/offers";
 
 const openPaymentStep = () => {
   render(<CheckoutPage />);
@@ -83,6 +84,12 @@ describe("checkout — admin price override in shadow mode", () => {
     fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
   it("raises the subtotal, shows the raise under it and hides the MRP rows", () => {
+    // The MRP display ended on 7 Oct 2026; reopen it so the rows have something to hide.
+    const shownUntil = MRP_DISPLAY.shownUntil;
+    MRP_DISPLAY.shownUntil = new Date("2099-01-01T00:00:00Z");
+    onTestFinished(() => {
+      MRP_DISPLAY.shownUntil = shownUntil;
+    });
     openOverride();
     expect(screen.getByText("Total MRP")).toBeInTheDocument();
 

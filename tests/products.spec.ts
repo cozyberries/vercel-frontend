@@ -69,8 +69,8 @@ function parsePrice(text: string): number {
   return Number(match[1].replace(/,/g, ""));
 }
 
-/** First ₹ price text inside each currently rendered card: the struck-through MRP while the MRP
- *  display or a sitewide offer is on. Both are constant rates over the catalogue price (mrpFor
+/** First ₹ price text inside each currently rendered card: the struck-through MRP while a sitewide
+ *  offer (or the MRP display, ended 2026-10-07) is on, otherwise the price charged. Both are constant rates over the catalogue price (mrpFor
  *  never reorders two prices), so ordering by MRP or by the price charged is equivalent. */
 async function cardPrices(page: Page): Promise<number[]> {
   const cards = page.locator('[data-testid="product-grid"] > div');

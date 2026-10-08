@@ -20,14 +20,22 @@ export function applyDiscount(price: number, rate: number): number {
   return Math.floor(price * (1 - rate))
 }
 
+/** Whether the MRP was on display at `at`: a valid rate, inside [shownSince, shownUntil). */
+function mrpShownAt(at: Date): boolean {
+  const { discountRate: rate, shownSince, shownUntil } = MRP_DISPLAY
+  if (!(rate > 0 && rate < 1)) return false
+  return at >= shownSince && !(shownUntil && at >= shownUntil)
+}
+
 /**
  * The struck-through MRP for a catalogue price: the price sits MRP_DISPLAY.discountRate below it.
+ * `at` is the moment it is shown for (an order's placed time; now by default); outside the
+ * display window the MRP is the price itself.
  * Display only — carts, orders and invoices always use the catalogue price.
  */
-export function mrpFor(price: number): number {
-  const rate = MRP_DISPLAY.discountRate
-  if (!(rate > 0 && rate < 1)) return price
-  return Math.round(price / (1 - rate))
+export function mrpFor(price: number, at: string | Date = new Date()): number {
+  if (!mrpShownAt(new Date(at))) return price
+  return Math.round(price / (1 - MRP_DISPLAY.discountRate))
 }
 
 /**
@@ -51,16 +59,15 @@ export function getDiscountedPrice(price: number): {
 
 /**
  * MRP total and the saving against the catalogue subtotal for cart lines or order items.
- * Pass `placedAt` for an existing order: one placed before the MRP was shown reports no saving.
+ * Pass `placedAt` for an existing order: one placed outside the MRP display window reports no
+ * saving. Without it (a cart) the MRP is the one shown now.
  */
 export function mrpTotals(
   items: { price: number; quantity: number }[],
   placedAt?: string | Date,
 ): { totalMrp: number; mrpSavings: number } {
+  const at = placedAt ?? new Date()
+  const totalMrp = items.reduce((sum, item) => sum + mrpFor(item.price, at) * item.quantity, 0)
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  if (placedAt !== undefined && new Date(placedAt) < MRP_DISPLAY.shownSince) {
-    return { totalMrp: subtotal, mrpSavings: 0 }
-  }
-  const totalMrp = items.reduce((sum, item) => sum + mrpFor(item.price) * item.quantity, 0)
   return { totalMrp, mrpSavings: totalMrp - subtotal }
 }

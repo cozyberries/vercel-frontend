@@ -11,7 +11,11 @@ const cfg = vi.hoisted(() => ({
     label: "Early Bird Offer",
     badgeText: "5% OFF",
   },
-  mrp: { discountRate: 0.1, shownSince: new Date("2026-09-27T00:00:00+05:30") },
+  mrp: {
+    discountRate: 0.1,
+    shownSince: new Date("2026-09-27T00:00:00+05:30"),
+    shownUntil: new Date("2099-01-01T00:00:00Z") as Date,
+  },
 }));
 vi.mock("@/lib/config/offers", () => ({ EARLY_BIRD_OFFER: cfg.offer, MRP_DISPLAY: cfg.mrp }));
 
@@ -24,6 +28,7 @@ const items = [
 
 afterEach(() => {
   cfg.mrp.discountRate = 0.1;
+  cfg.mrp.shownUntil = new Date("2099-01-01T00:00:00Z");
 });
 
 function row(label: string) {
@@ -45,6 +50,18 @@ describe("MrpSummaryRows", () => {
   it("shows the rows on an order placed once the MRP was shown", () => {
     render(<MrpSummaryRows items={items} placedAt="2026-09-28T10:00:00Z" />);
     expect(row("Discount on MRP")).toBe("Discount on MRP−₹167");
+  });
+
+  it("keeps the rows on an order placed while the MRP was shown, after the display ended", () => {
+    cfg.mrp.shownUntil = new Date("2026-10-07T00:00:00+05:30");
+    render(<MrpSummaryRows items={items} placedAt="2026-10-04T10:00:00Z" />);
+    expect(row("Discount on MRP")).toBe("Discount on MRP−₹167");
+  });
+
+  it("shows nothing in the cart once the MRP display has ended", () => {
+    cfg.mrp.shownUntil = new Date("2026-10-07T00:00:00+05:30");
+    const { container } = render(<MrpSummaryRows items={items} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows nothing while the MRP display is off", () => {

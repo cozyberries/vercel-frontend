@@ -102,11 +102,14 @@ function invoiceMrp(order: InvoiceOrderRow, lineCount: number, extraDiscountPais
   const items = order.order_items.map((item) => ({ price: Number(item.price), quantity: item.quantity }));
   if (mrpTotals(items, order.created_at).mrpSavings <= 0) return null;
   const goodsPaise = items.reduce((sum, item) => sum + paise(item.price) * item.quantity, 0);
-  const totalMrpPaise = items.reduce((sum, item) => sum + paise(mrpFor(item.price)) * item.quantity, 0);
+  const totalMrpPaise = items.reduce(
+    (sum, item) => sum + paise(mrpFor(item.price, order.created_at)) * item.quantity,
+    0
+  );
   const mrpSavingPaise = totalMrpPaise - goodsPaise;
   return {
     unitMrpPaise: Array.from({ length: lineCount }, (_, idx) =>
-      idx < items.length ? paise(mrpFor(items[idx].price)) : null
+      idx < items.length ? paise(mrpFor(items[idx].price, order.created_at)) : null
     ),
     totalMrpPaise,
     mrpSavingPaise,

@@ -1,13 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildInvoice, type InvoiceOrderRow } from "./build-invoice";
 
-const mrp = vi.hoisted(() => ({ discountRate: 0.1, shownSince: new Date("2026-09-27T00:00:00+05:30") }));
+const mrp = vi.hoisted(() => ({
+  discountRate: 0.1,
+  shownSince: new Date("2026-09-27T00:00:00+05:30"),
+  shownUntil: new Date("2099-01-01T00:00:00Z") as Date,
+}));
 vi.mock("@/lib/config/offers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/config/offers")>()),
   MRP_DISPLAY: mrp,
 }));
 afterEach(() => {
   mrp.discountRate = 0.1;
+  mrp.shownUntil = new Date("2099-01-01T00:00:00Z");
 });
 
 const baseOrder: InvoiceOrderRow = {
@@ -125,6 +130,16 @@ describe("buildInvoice — MRP and the full discount", () => {
   it("shows no MRP while the MRP display is off", () => {
     mrp.discountRate = 0;
     expect(build({ created_at: placed }).mrp).toBeNull();
+  });
+
+  it("keeps the MRP on an order placed while it was shown, after the display ended", () => {
+    mrp.shownUntil = new Date("2026-10-07T00:00:00+05:30");
+    expect(build({ created_at: placed }).mrp).toMatchObject({ unitMrpPaise: [116700], mrpSavingPaise: 11700 });
+  });
+
+  it("shows no MRP for an order placed after the MRP display ended", () => {
+    mrp.shownUntil = new Date("2026-10-07T00:00:00+05:30");
+    expect(build({ created_at: "2026-10-07T10:00:00+05:30" }).mrp).toBeNull();
   });
 
   it("lists the MRP saving as the discount on a plain order", () => {
