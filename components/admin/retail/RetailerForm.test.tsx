@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { retailer } from "@/lib/retail/__fixtures__/retail";
 import { RetailerForm } from "./RetailerForm";
 
 // jsdom has no ResizeObserver, which the Radix Switch needs.
@@ -27,5 +28,15 @@ describe("RetailerForm", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ legal_name: "Kids Corner LLP", gstin: "29AAGFC4321M1ZB", address: "12 MG Road", our_share_pct: 72.5, active: true });
     expect(await screen.findByRole("alert")).toHaveTextContent("A shop with this GSTIN already exists");
+  });
+  it("edit mode submits every field, keeping active and the share as loaded", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const initial = retailer({ active: false, our_share_pct: 60 });
+    render(<RetailerForm initial={initial} submitLabel="Save" onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    const body = onSubmit.mock.calls[0][0];
+    expect(body).toMatchObject({ legal_name: initial.legal_name, gstin: initial.gstin, address: initial.address, active: false, our_share_pct: 60 });
+    for (const k of ["legal_name", "trade_name", "gstin", "address", "email", "phone", "our_share_pct", "active"]) expect(body).toHaveProperty(k);
   });
 });
