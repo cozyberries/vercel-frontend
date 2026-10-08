@@ -32,13 +32,28 @@ describe("SalesPanel", () => {
     const draft = doc({ id: "d1", status: "draft", number: null, share_pct: null, period: "2026-10", consignment_lines: [line({ quantity: 2, batch_line_id: "batch-1" })] });
     const fetchMock = vi.fn(async () => json({ doc: { id: "d1" } }));
     vi.stubGlobal("fetch", fetchMock);
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
     const onChanged = vi.fn();
     render(<SalesPanel detail={detail([draft])} onChanged={onChanged} />);
     expect(screen.getByTestId("sale-preview")).toHaveTextContent("Total ₹1,500.00");
     expect(screen.getByTestId("sale-preview")).toHaveTextContent("CGST ₹35.71");
     fireEvent.click(screen.getByRole("button", { name: "Issue invoice" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(confirm).toHaveBeenCalledWith("Issue the invoice for October 2026? This takes the next invoice number and closes October for this shop.");
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/retail/docs/d1", expect.objectContaining({ method: "POST", body: JSON.stringify({ action: "issue" }) }));
+  });
+
+  it("issues nothing when the confirmation is declined", () => {
+    const draft = doc({ id: "d1", status: "draft", number: null, share_pct: null, period: "2026-10", consignment_lines: [line({ batch_line_id: "batch-1" })] });
+    const fetchMock = vi.fn(async () => json({ doc: { id: "d1" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    const onChanged = vi.fn();
+    render(<SalesPanel detail={detail([draft])} onChanged={onChanged} />);
+    fireEvent.click(screen.getByRole("button", { name: "Issue invoice" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
   });
 
   it("shows an issued month with its PDF and no upload", () => {

@@ -18,6 +18,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("TakeBackSheet", () => {
+  it("offers dates from the first open GST month up to today", () => {
+    render(<TakeBackSheet detail={detail} open onOpenChange={vi.fn()} onDone={vi.fn()} />);
+    expect(screen.getByLabelText("Date received")).toHaveAttribute("min", "2026-10-01");
+    expect(screen.getByLabelText("Date received")).toHaveAttribute("max", "2026-11-08");
+  });
+
   it("reuses the draft when issuing is retried after a failure", async () => {
     let issues = 0;
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {

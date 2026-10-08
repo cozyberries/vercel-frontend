@@ -8,7 +8,7 @@ import type { BatchBalance, ConsignmentDoc, Retailer, RetailerPayment } from "./
 /** Server-only reads with the service-role client. Callers gate on requireAdmin() first. */
 export const RETAILER_COLUMNS = "id, legal_name, trade_name, gstin, state_code, address, contact_name, phone, email, our_share_pct, active, created_at";
 export const LINE_COLUMNS = "id, doc_id, variant_slug, product_name, size, quantity, mrp_paise, batch_line_id, unit_price_paise";
-export const DOC_COLUMNS = `id, retailer_id, kind, status, number, doc_date, period, share_pct, note, created_at, issued_at, cancelled_at, consignment_lines(${LINE_COLUMNS})`;
+export const DOC_COLUMNS = `id, retailer_id, kind, status, number, doc_date, period, share_pct, note, created_at, issued_at, cancelled_at, buyer_legal_name, buyer_trade_name, buyer_gstin, buyer_address, buyer_state_code, consignment_lines(${LINE_COLUMNS})`;
 export const BALANCE_COLUMNS = "batch_line_id, retailer_id, variant_slug, product_name, size, mrp_paise, sent_on, challan_number, sent, held";
 export const PAYMENT_COLUMNS = "id, retailer_id, doc_id, amount_paise, paid_on, method, reference, created_at";
 

@@ -55,7 +55,7 @@ function sellerParty(gstin: string): Party {
   };
 }
 
-function shopParty(r: Retailer): Party {
+function shopParty(r: Pick<Retailer, "legal_name" | "trade_name" | "gstin" | "address" | "state_code">): Party {
   return {
     legalName: r.legal_name,
     tradeName: r.trade_name,
@@ -66,13 +66,29 @@ function shopParty(r: Retailer): Party {
   };
 }
 
+/**
+ * The shop a document is addressed to: the snapshot taken when it was issued,
+ * so editing the shop never rewrites an issued invoice or challan. Drafts (no
+ * snapshot) preview the shop as it is now.
+ */
+export function docParty(doc: ConsignmentDoc, retailer: Retailer): Party {
+  if (doc.buyer_gstin === null) return shopParty(retailer);
+  return shopParty({
+    legal_name: doc.buyer_legal_name ?? retailer.legal_name,
+    trade_name: doc.buyer_trade_name,
+    gstin: doc.buyer_gstin,
+    address: doc.buyer_address ?? "",
+    state_code: doc.buyer_state_code ?? doc.buyer_gstin.slice(0, 2),
+  });
+}
+
 /** A B2B tax invoice for one sales report. Draft documents preview at the shop's current share. */
 export function buildRetailInvoice({ doc, retailer, gstin, challanNumbers }: { doc: ConsignmentDoc; retailer: Retailer; gstin: string; challanNumbers: string[] }): RetailInvoiceDocument {
   if (doc.kind !== "sale" || !doc.period) throw new Error("Not a sale document");
   const sharePct = Number(doc.share_pct ?? retailer.our_share_pct);
   const priced = priceSaleLines(doc.consignment_lines, sharePct);
-  const gst = retailGst(priced, retailer.state_code, gstin.slice(0, 2));
-  const buyer = shopParty(retailer);
+  const buyer = docParty(doc, retailer);
+  const gst = retailGst(priced, buyer.stateCode, gstin.slice(0, 2));
   return {
     status: doc.status,
     number: doc.number,
@@ -109,7 +125,7 @@ export function buildChallan({ doc, retailer, gstin }: { doc: ConsignmentDoc; re
     number: doc.number,
     date: doc.doc_date,
     seller: sellerParty(gstin),
-    consignee: shopParty(retailer),
+    consignee: docParty(doc, retailer),
     lines: [...merged.values()].sort((a, b) => a.description.localeCompare(b.description) || a.mrpPaise - b.mrpPaise),
     totalQuantity: piecesOf(doc),
     totalMrpPaise: mrpValueOf(doc),

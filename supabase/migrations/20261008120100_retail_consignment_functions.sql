@@ -112,6 +112,21 @@ begin
 end;
 $$;
 
+-- The first day a challan or return may be dated: the current IST month, plus
+-- the previous month until 00:00 IST on the 11th (GSTR-1 due date). Mirrored
+-- by firstOpenDay() in lib/retail/dates.ts.
+create or replace function public.consignment_first_open_day()
+returns date
+language sql
+stable
+set search_path = ''
+as $$
+  select case when extract(day from (now() at time zone 'Asia/Kolkata')::date) <= 10
+              then (date_trunc('month', now() at time zone 'Asia/Kolkata') - interval '1 month')::date
+              else date_trunc('month', now() at time zone 'Asia/Kolkata')::date
+         end
+$$;
+
 create or replace function public.consignment_save_challan(
   p_retailer_id uuid,
   p_doc_date date,
@@ -138,6 +153,9 @@ begin
   end if;
   if p_doc_date is null or p_doc_date > (now() at time zone 'Asia/Kolkata')::date then
     raise exception 'BAD_DATE' using errcode = 'P0001';
+  end if;
+  if p_doc_date < public.consignment_first_open_day() then
+    raise exception 'CLOSED_MONTH' using errcode = 'P0001';
   end if;
   if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
     raise exception 'NO_LINES' using errcode = 'P0001';
@@ -196,6 +214,9 @@ begin
   end if;
   if p_doc_date is null or p_doc_date > (now() at time zone 'Asia/Kolkata')::date then
     raise exception 'BAD_DATE' using errcode = 'P0001';
+  end if;
+  if p_doc_date < public.consignment_first_open_day() then
+    raise exception 'CLOSED_MONTH' using errcode = 'P0001';
   end if;
   if jsonb_typeof(p_lines) is distinct from 'array' or not exists (
     select 1 from jsonb_to_recordset(p_lines) as x(variant_slug text, quantity integer) where x.quantity > 0
@@ -273,14 +294,18 @@ declare
   item record;
   v_bad record;
   v_held integer;
+  v_label text;
 begin
   select * into v_doc from public.consignment_docs where id = p_doc_id;
   if not found then
     raise exception 'NOT_FOUND' using errcode = 'P0001';
   end if;
   perform pg_advisory_xact_lock(hashtext('consignment:' || v_doc.retailer_id::text));
-  -- Re-read under the lock: another call may have issued it meanwhile.
+  -- Re-read under the lock: another call may have issued or deleted it meanwhile.
   select * into v_doc from public.consignment_docs where id = p_doc_id for update;
+  if not found then
+    raise exception 'NOT_FOUND' using errcode = 'P0001';
+  end if;
   if v_doc.status <> 'draft' then
     raise exception 'NOT_DRAFT' using errcode = 'P0001';
   end if;
@@ -301,9 +326,9 @@ begin
        order by l.variant_slug
     loop
       update public.product_variants v
-         set stock_quantity = v.stock_quantity - item.quantity
+         set stock_quantity = coalesce(v.stock_quantity, 0) - item.quantity
        where v.slug = item.variant_slug
-         and v.stock_quantity >= item.quantity;
+         and coalesce(v.stock_quantity, 0) >= item.quantity;
       if not found then
         raise exception 'OUT_OF_STOCK:%', item.label using errcode = 'P0001';
       end if;
@@ -332,13 +357,31 @@ begin
 
     if v_doc.kind = 'sale' then
       v_doc.share_pct := v_retailer.our_share_pct;
-      -- Invoice date is fixed at issue: the period's last day, or today if the period is still running.
-      v_doc.doc_date := least(
-        (to_date(v_doc.period || '-01', 'YYYY-MM-DD') + interval '1 month' - interval '1 day')::date,
-        (now() at time zone 'Asia/Kolkata')::date);
+      -- Invoice date is fixed at issue. While the period's GSTR-1 is not yet due
+      -- (before 00:00 IST on the 11th of the next month): the period's last day,
+      -- or today if the period is still running. After that the month is filed,
+      -- so a late invoice is dated today and lands in an open month.
+      if now() < ((to_date(v_doc.period || '-01', 'YYYY-MM-DD') + interval '1 month' + interval '10 days')::timestamp
+                  at time zone 'Asia/Kolkata') then
+        v_doc.doc_date := least(
+          (to_date(v_doc.period || '-01', 'YYYY-MM-DD') + interval '1 month' - interval '1 day')::date,
+          (now() at time zone 'Asia/Kolkata')::date);
+      else
+        v_doc.doc_date := (now() at time zone 'Asia/Kolkata')::date;
+      end if;
       update public.consignment_lines
          set unit_price_paise = round(mrp_paise * v_doc.share_pct / 100)::integer
        where doc_id = p_doc_id;
+      -- Clothing above Rs 2,500 a piece is 18% GST; the invoice charges a flat 5%
+      -- (GST_LOW_RATE_MAX_UNIT_PRICE in lib/config/business.ts).
+      select trim(l.product_name || ' ' || l.size) into v_label
+        from public.consignment_lines l
+       where l.doc_id = p_doc_id and l.unit_price_paise > 250000
+       order by l.product_name, l.size
+       limit 1;
+      if v_label is not null then
+        raise exception 'ABOVE_LOW_RATE:%', v_label using errcode = 'P0001';
+      end if;
       if exists (select 1 from public.consignment_lines where doc_id = p_doc_id) then
         v_doc.number := public.consignment_next_number('CBR', v_doc.doc_date);
       end if;
@@ -354,16 +397,22 @@ begin
          order by l.variant_slug
       loop
         update public.product_variants v
-           set stock_quantity = v.stock_quantity + item.quantity
+           set stock_quantity = coalesce(v.stock_quantity, 0) + item.quantity
          where v.slug = item.variant_slug;
       end loop;
       v_doc.number := public.consignment_next_number('RET', v_doc.doc_date);
     end if;
   end if;
 
+  -- Challans and sale invoices keep the shop's details as issued (returns don't need them).
   update public.consignment_docs
      set status = 'issued', issued_at = now(), number = v_doc.number, share_pct = v_doc.share_pct,
-         doc_date = v_doc.doc_date
+         doc_date = v_doc.doc_date,
+         buyer_legal_name = case when v_doc.kind in ('challan', 'sale') then v_retailer.legal_name end,
+         buyer_trade_name = case when v_doc.kind in ('challan', 'sale') then v_retailer.trade_name end,
+         buyer_gstin = case when v_doc.kind in ('challan', 'sale') then v_retailer.gstin end,
+         buyer_address = case when v_doc.kind in ('challan', 'sale') then v_retailer.address end,
+         buyer_state_code = case when v_doc.kind in ('challan', 'sale') then v_retailer.state_code end
    where id = p_doc_id
   returning * into v_doc;
   return v_doc;
@@ -372,8 +421,9 @@ $$;
 
 -- Draft: deleted. Challan: only while nothing issued draws on it; stock comes
 -- back. Return: only while our stock still covers it; stock goes out again.
--- Sale: only before 00:00 IST on the 11th of the following month (GSTR-1 due
--- date); number kept.
+-- Sale: only before 00:00 IST on the 11th of the month after its invoice date
+-- (GSTR-1 due date); number kept. A late invoice (dated when issued) gets its
+-- own window.
 create or replace function public.consignment_cancel(p_doc_id uuid)
 returns text
 language plpgsql
@@ -389,6 +439,9 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtext('consignment:' || v_doc.retailer_id::text));
   select * into v_doc from public.consignment_docs where id = p_doc_id for update;
+  if not found then
+    raise exception 'NOT_FOUND' using errcode = 'P0001';
+  end if;
 
   if v_doc.status = 'cancelled' then
     raise exception 'ALREADY_CANCELLED' using errcode = 'P0001';
@@ -413,7 +466,7 @@ begin
         from public.consignment_lines l where l.doc_id = p_doc_id
        group by l.variant_slug order by l.variant_slug
     loop
-      update public.product_variants v set stock_quantity = v.stock_quantity + item.quantity
+      update public.product_variants v set stock_quantity = coalesce(v.stock_quantity, 0) + item.quantity
        where v.slug = item.variant_slug;
     end loop;
   elsif v_doc.kind = 'return' then
@@ -422,14 +475,14 @@ begin
         from public.consignment_lines l where l.doc_id = p_doc_id
        group by l.variant_slug order by l.variant_slug
     loop
-      update public.product_variants v set stock_quantity = v.stock_quantity - item.quantity
-       where v.slug = item.variant_slug and v.stock_quantity >= item.quantity;
+      update public.product_variants v set stock_quantity = coalesce(v.stock_quantity, 0) - item.quantity
+       where v.slug = item.variant_slug and coalesce(v.stock_quantity, 0) >= item.quantity;
       if not found then
         raise exception 'STOCK_GONE:%', item.label using errcode = 'P0001';
       end if;
     end loop;
   else
-    if now() >= ((to_date(v_doc.period || '-01', 'YYYY-MM-DD') + interval '1 month' + interval '10 days')::timestamp
+    if now() >= ((date_trunc('month', v_doc.doc_date::timestamp) + interval '1 month' + interval '10 days')::timestamp
                  at time zone 'Asia/Kolkata') then
       raise exception 'TOO_LATE' using errcode = 'P0001';
     end if;
@@ -441,6 +494,7 @@ end;
 $$;
 
 revoke all on function public.consignment_next_number(text, date) from public, anon, authenticated;
+revoke all on function public.consignment_first_open_day() from public, anon, authenticated;
 revoke all on function public.consignment_open_draft(uuid, uuid, text) from public, anon, authenticated;
 revoke all on function public.consignment_fill_from_batches(uuid, uuid, jsonb, date) from public, anon, authenticated;
 revoke all on function public.consignment_save_challan(uuid, date, jsonb, uuid, uuid) from public, anon, authenticated;
@@ -449,6 +503,7 @@ revoke all on function public.consignment_save_sale(uuid, text, jsonb, uuid) fro
 revoke all on function public.consignment_issue(uuid) from public, anon, authenticated;
 revoke all on function public.consignment_cancel(uuid) from public, anon, authenticated;
 grant execute on function public.consignment_next_number(text, date) to service_role;
+grant execute on function public.consignment_first_open_day() to service_role;
 grant execute on function public.consignment_open_draft(uuid, uuid, text) to service_role;
 grant execute on function public.consignment_fill_from_batches(uuid, uuid, jsonb, date) to service_role;
 grant execute on function public.consignment_save_challan(uuid, date, jsonb, uuid, uuid) to service_role;

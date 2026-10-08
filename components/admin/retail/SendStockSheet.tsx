@@ -9,6 +9,7 @@ import { ActionSheet } from "@/components/admin/kit";
 import { formatPaise } from "@/lib/gst/register-format";
 import type { VariantOption } from "@/lib/retail/api-types";
 import { retailFetch, sendJson } from "@/lib/retail/client";
+import { firstOpenDay } from "@/lib/retail/dates";
 
 type Pick = { option: VariantOption; quantity: string; mrp: string };
 
@@ -63,7 +64,7 @@ export function SendStockSheet({ retailerId, today, open, onOpenChange, onDone }
       <div className="grid gap-3 pt-2">
         <div className="grid gap-1.5">
           <Label htmlFor="send-date">Date sent</Label>
-          <Input id="send-date" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input id="send-date" type="date" min={firstOpenDay(today)} max={today} value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <Input placeholder="Search products" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search products" />
         <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">

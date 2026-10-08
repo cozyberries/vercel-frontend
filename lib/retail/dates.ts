@@ -46,6 +46,17 @@ export function addMonths(date: string, months: number): string {
   return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
 }
 
+/**
+ * The first day a challan or return may be dated (`today` is the IST date,
+ * YYYY-MM-DD): the current month, plus last month until its GSTR-1 is due at
+ * 00:00 IST on the 11th. Mirrors public.consignment_first_open_day().
+ */
+export function firstOpenDay(today: string): string {
+  const [y, m, d] = today.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1 - (d <= 10 ? 1 : 0), 1));
+  return `${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}-01`;
+}
+
 /** "08-10-2026" for "2026-10-08". */
 export function formatDay(date: string): string {
   const [y, m, d] = date.split("-");

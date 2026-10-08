@@ -50,6 +50,11 @@ export function doc(o: Partial<ConsignmentDoc> = {}): ConsignmentDoc {
     created_at: "2026-11-02T05:00:00.000Z",
     issued_at: "2026-11-02T05:05:00.000Z",
     cancelled_at: null,
+    buyer_legal_name: null,
+    buyer_trade_name: null,
+    buyer_gstin: null,
+    buyer_address: null,
+    buyer_state_code: null,
     consignment_lines: [line({ batch_line_id: "batch-1", unit_price_paise: 75000 })],
     ...o,
   };

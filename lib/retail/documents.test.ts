@@ -42,6 +42,21 @@ describe("buildRetailInvoice", () => {
     expect(inv.totals.totalPaise).toBe(70000);
   });
 
+  it("bills an issued invoice to the shop as it was at issue, not as edited since", () => {
+    const issued = doc({ buyer_legal_name: "Kids Corner Chennai LLP", buyer_trade_name: null, buyer_gstin: TN_GSTIN, buyer_address: "4 Anna Salai\nChennai 600002", buyer_state_code: "33" });
+    const inv = buildRetailInvoice({ doc: issued, retailer: retailer(), gstin: GSTIN, challanNumbers: [] });
+    expect(inv.buyer).toEqual({ legalName: "Kids Corner Chennai LLP", tradeName: null, gstin: TN_GSTIN, addressLines: ["4 Anna Salai", "Chennai 600002"], stateName: "Tamil Nadu", stateCode: "33" });
+    expect(inv.mode).toBe("inter");
+    expect(inv.placeOfSupply).toEqual({ code: "33", name: "Tamil Nadu" });
+    expect(inv.totals.igstPaise).toBe(3571);
+  });
+
+  it("previews a draft (no snapshot) with the shop's current details", () => {
+    const inv = buildRetailInvoice({ doc: doc({ status: "draft", number: null }), retailer: retailer({ gstin: TN_GSTIN, state_code: "33" }), gstin: GSTIN, challanNumbers: [] });
+    expect(inv.buyer.gstin).toBe(TN_GSTIN);
+    expect(inv.mode).toBe("inter");
+  });
+
   it("refuses a document that is not a sale", () => {
     expect(() => buildRetailInvoice({ doc: doc({ kind: "challan", period: null }), retailer: retailer(), gstin: GSTIN, challanNumbers: [] })).toThrow("Not a sale document");
   });
@@ -61,6 +76,15 @@ describe("buildChallan", () => {
     ]);
     expect(ch.totalQuantity).toBe(5);
     expect(ch.totalMrpPaise).toBe(479800);
+  });
+
+  it("addresses an issued challan to the shop as it was at issue", () => {
+    const ch = buildChallan({
+      doc: doc({ kind: "challan", period: null, share_pct: null, buyer_legal_name: "Kids Corner LLP", buyer_trade_name: "Kids Corner", buyer_gstin: "29AAGFC4321M1ZB", buyer_address: "Old Address", buyer_state_code: "29" }),
+      retailer: retailer({ gstin: TN_GSTIN, state_code: "33", address: "Moved" }),
+      gstin: GSTIN,
+    });
+    expect(ch.consignee).toMatchObject({ gstin: "29AAGFC4321M1ZB", addressLines: ["Old Address"], stateCode: "29", stateName: "Karnataka" });
   });
 });
 

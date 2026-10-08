@@ -130,7 +130,7 @@ describe("register reads", () => {
     expect(r.warnings).toEqual(["Paid orders with no invoice number: ORD-A"]);
   });
 
-  it("never selects a shop's phone or email", () => {
-    expect(REGISTER_RETAILER_COLUMNS).not.toMatch(/phone|email/);
+  it("never selects a shop's phone, email or contact name", () => {
+    expect(REGISTER_RETAILER_COLUMNS).not.toMatch(/phone|email|contact_name/);
   });
 });

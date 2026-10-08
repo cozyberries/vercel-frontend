@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { currentPeriod, isIsoDate, isPeriod, istToday } from "./dates";
+import { currentPeriod, firstOpenDay, isIsoDate, isPeriod, istToday } from "./dates";
 import { validateGstin } from "./gstin";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -62,6 +62,8 @@ export type DocSave =
   | { kind: "return"; doc_id: string | null; doc_date: string; lines: { variant_slug: string; quantity: number }[] }
   | { kind: "sale"; period: string; lines: { variant_slug: string; quantity: number }[] };
 
+export const CLOSED_MONTH_ERROR = "That month is closed for GST: use a date in an open month";
+
 export function parseDocSave(body: unknown, now: Date): Parsed<DocSave> {
   const parsed = docSaveSchema.safeParse(body ?? {});
   if (!parsed.success) return { ok: false, error: first(parsed.error) };
@@ -70,7 +72,9 @@ export function parseDocSave(body: unknown, now: Date): Parsed<DocSave> {
     if (!isPeriod(v.period) || v.period > currentPeriod(now)) return { ok: false, error: "Pick a month up to this one" };
     return { ok: true, value: { kind: "sale", period: v.period, lines: v.lines.filter((l) => l.quantity > 0) } };
   }
-  if (!isIsoDate(v.doc_date) || v.doc_date > istToday(now)) return { ok: false, error: "The date can't be in the future" };
+  const today = istToday(now);
+  if (!isIsoDate(v.doc_date) || v.doc_date > today) return { ok: false, error: "The date can't be in the future" };
+  if (v.doc_date < firstOpenDay(today)) return { ok: false, error: CLOSED_MONTH_ERROR };
   if (v.doc_id != null && !isUuid(v.doc_id)) return { ok: false, error: "Invalid request" };
   const lines = v.lines.filter((l) => l.quantity > 0);
   if (lines.length === 0) return { ok: false, error: "Add at least one item" };

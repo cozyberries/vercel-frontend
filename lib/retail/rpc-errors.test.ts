@@ -17,6 +17,8 @@ describe("retailRpcError", () => {
     ["ALREADY_CANCELLED", 409, "Already cancelled"],
     ["IN_USE", 409, "Sales or returns already draw on this challan, so it can't be cancelled"],
     ["STOCK_GONE:Petal Pops Frock 1-2Y", 409, "Those pieces of Petal Pops Frock 1-2Y have left your stock again"],
+    ["CLOSED_MONTH", 400, "That month is closed for GST: use a date in an open month"],
+    ["ABOVE_LOW_RATE:Petal Pops Frock 1-2Y", 409, "A piece of Petal Pops Frock 1-2Y would be invoiced above ₹2,500, which is taxed at 18%: ask your CA before issuing"],
     ["TOO_LATE", 409, "That month is closed for GST (GSTR-1 is due on the 11th). A credit note is needed: ask your CA."],
     ["something odd", 500, "Couldn't save"],
   ])("%s → %i", (message, status, error) => {

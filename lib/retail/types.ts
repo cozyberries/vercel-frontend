@@ -47,6 +47,12 @@ export interface ConsignmentDoc {
   created_at: string;
   issued_at: string | null;
   cancelled_at: string | null;
+  /** The shop's details when a challan or sale invoice was issued; null on drafts and returns. */
+  buyer_legal_name: string | null;
+  buyer_trade_name: string | null;
+  buyer_gstin: string | null;
+  buyer_address: string | null;
+  buyer_state_code: string | null;
   consignment_lines: ConsignmentLine[];
 }
 

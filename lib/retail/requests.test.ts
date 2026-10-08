@@ -30,6 +30,13 @@ describe("parseDocSave", () => {
     expect(parseDocSave({ kind: "challan", doc_date: "2026-10-08", lines: [] }, NOW)).toEqual({ ok: false, error: "Add at least one item" });
     expect(parseDocSave({ kind: "return", doc_date: "2026-10-08", lines: [{ variant_slug: "a", quantity: 1.5 }] }, NOW)).toMatchObject({ ok: false });
   });
+  it("refuses a date in a month already filed for GST", () => {
+    const closed = { ok: false, error: "That month is closed for GST: use a date in an open month" };
+    // 8 Oct: September is open until its GSTR-1 is due on the 11th.
+    expect(parseDocSave({ kind: "challan", doc_date: "2026-09-01", lines: [{ variant_slug: "a", quantity: 1, mrp_paise: 1 }] }, NOW)).toMatchObject({ ok: true });
+    expect(parseDocSave({ kind: "challan", doc_date: "2026-08-31", lines: [{ variant_slug: "a", quantity: 1, mrp_paise: 1 }] }, NOW)).toEqual(closed);
+    expect(parseDocSave({ kind: "return", doc_date: "2026-09-30", lines: [{ variant_slug: "a", quantity: 1 }] }, new Date("2026-10-11T00:00:00+05:30"))).toEqual(closed);
+  });
   it("accepts a sale for this month or earlier, dropping zero lines", () => {
     expect(parseDocSave({ kind: "sale", period: "2026-09", lines: [{ variant_slug: "a", quantity: 0 }, { variant_slug: "b", quantity: 3 }] }, NOW)).toEqual({
       ok: true,

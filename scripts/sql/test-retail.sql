@@ -156,6 +156,7 @@ declare f text; bad text[] := '{}';
 begin
   foreach f in array array[
     'public.consignment_next_number(text,date)',
+    'public.consignment_first_open_day()',
     'public.consignment_open_draft(uuid,uuid,text)',
     'public.consignment_fill_from_batches(uuid,uuid,jsonb,date)',
     'public.consignment_save_challan(uuid,date,jsonb,uuid,uuid)',
@@ -172,11 +173,15 @@ begin
 end $$;
 
 -- 10. A challan dated 15 Jan 2026 is numbered in the 25-26 series and takes stock.
+--     January is closed for GST, so it is saved today and back-dated directly
+--     (the harness runs as postgres): this models historic data.
 do $$
-declare v_doc public.consignment_docs;
+declare v_doc public.consignment_docs; v_id uuid;
 begin
-  v_doc := public.consignment_issue(pg_temp.challan('2026-01-15',
-    '[{"variant_slug":"zz-retail-frock-a","quantity":2,"mrp_paise":100000}]'));
+  v_id := pg_temp.challan(pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2,"mrp_paise":100000}]');
+  update public.consignment_docs set doc_date = '2026-01-15' where id = v_id;
+  v_doc := public.consignment_issue(v_id);
   insert into t_ctx values ('c0', v_doc.id::text);
   insert into t_result values ('challan_number_uses_its_date_fy',
     v_doc.number like 'CBC/25-26/%' and pg_temp.stock('zz-retail-frock-a') = 8,
@@ -245,19 +250,24 @@ select 'sale_only_from_batches_sent_by_period_end', e like 'NOT_HELD:2:%', coale
   from pg_temp.err(format('select public.consignment_save_sale(%L, ''2026-01'', %L, %L)', pg_temp.shop(),
     '[{"variant_slug":"zz-retail-frock-a","quantity":3}]', pg_temp.actor())) e;
 
--- 17. The January invoice is dated 31 Jan and numbered in the 25-26 series.
+-- 17. January's GSTR-1 was due on 11 Feb, so the January invoice issued now is
+--     a late invoice: dated today (it lands in an open month) and numbered in
+--     the financial year of that date.
 do $$
 declare v_doc public.consignment_docs;
 begin
   v_doc := public.consignment_issue(public.consignment_save_sale(pg_temp.shop(), '2026-01',
     '[{"variant_slug":"zz-retail-frock-a","quantity":1}]', pg_temp.actor()));
   insert into t_ctx values ('s_jan', v_doc.id::text);
-  insert into t_result values ('sale_number_uses_invoice_date_fy',
-    v_doc.number like 'CBR/25-26/%' and v_doc.doc_date = '2026-01-31' and v_doc.share_pct = 75,
+  insert into t_result values ('late_sale_dated_today_numbered_in_its_fy',
+    v_doc.number like 'CBR/' || public.gst_financial_year(now()) || '/%' and v_doc.doc_date = pg_temp.today()
+      and v_doc.share_pct = 75,
     format('number=%s date=%s share=%s', v_doc.number, v_doc.doc_date, v_doc.share_pct));
 end $$;
 
--- 18. After the 10th of the following month the invoice cannot be cancelled.
+-- 18. After the 10th of the month following the invoice date the invoice cannot
+--     be cancelled. Back-dated directly to 31 Jan to model an on-time January invoice.
+update public.consignment_docs set doc_date = '2026-01-31' where id = (select v::uuid from t_ctx where k = 's_jan');
 insert into t_result
 select 'cancel_sale_after_deadline_refused', e = 'TOO_LATE', coalesce(e, 'cancelled')
   from pg_temp.err(format('select public.consignment_cancel(%L)', (select v from t_ctx where k = 's_jan'))) e;
@@ -328,6 +338,8 @@ declare v_doc public.consignment_docs; v_price int;
 begin
   perform public.consignment_save_sale(pg_temp.shop(), pg_temp.period(),
     '[{"variant_slug":"zz-retail-frock-a","quantity":2}]', pg_temp.actor());
+  -- A stale draft date must not survive issue.
+  update public.consignment_docs set doc_date = '2026-01-01' where id = (select v::uuid from t_ctx where k = 's_now');
   update public.retailers set our_share_pct = 70 where id = pg_temp.shop();
   v_doc := public.consignment_issue((select v::uuid from t_ctx where k = 's_now'));
   update public.retailers set our_share_pct = 75 where id = pg_temp.shop();
@@ -337,6 +349,27 @@ begin
       and v_doc.doc_date = pg_temp.today() and pg_temp.held('zz-retail-frock-a') = 0,
     format('share=%s price=%s number=%s date=%s held=%s', v_doc.share_pct, v_price, v_doc.number,
            v_doc.doc_date, pg_temp.held('zz-retail-frock-a')));
+  -- On time (this month): dated least(period end, today), which is today.
+  insert into t_result values ('on_time_sale_dated_period_end_or_today',
+    v_doc.doc_date = least((date_trunc('month', pg_temp.today()::timestamp) + interval '1 month' - interval '1 day')::date, pg_temp.today()),
+    'doc_date=' || v_doc.doc_date);
+end $$;
+
+-- 24b. Issued documents keep the shop's details as they were at issue.
+do $$
+declare v_ch public.consignment_docs; v_sale public.consignment_docs;
+begin
+  update public.retailers set gstin = '33AAACR5055K1ZE', address = 'moved' where id = pg_temp.shop();
+  select * into v_ch from public.consignment_docs where id = (select v::uuid from t_ctx where k = 'c1');
+  select * into v_sale from public.consignment_docs where id = (select v::uuid from t_ctx where k = 's_now');
+  update public.retailers set gstin = '29AAGFC4321M1ZB', address = '1 Test Road, Bengaluru' where id = pg_temp.shop();
+  insert into t_result values ('issued_docs_keep_shop_snapshot',
+    v_ch.buyer_gstin = '29AAGFC4321M1ZB' and v_ch.buyer_state_code = '29' and v_ch.buyer_address = '1 Test Road, Bengaluru'
+      and v_ch.buyer_legal_name = 'ZZ Kids Corner' and v_ch.buyer_trade_name is null
+      and v_sale.buyer_gstin = '29AAGFC4321M1ZB' and v_sale.buyer_state_code = '29' and v_sale.buyer_address = '1 Test Road, Bengaluru'
+      and v_sale.buyer_legal_name = 'ZZ Kids Corner',
+    format('challan=%s/%s/%s sale=%s/%s/%s', v_ch.buyer_gstin, v_ch.buyer_state_code, v_ch.buyer_address,
+           v_sale.buyer_gstin, v_sale.buyer_state_code, v_sale.buyer_address));
 end $$;
 
 -- 25. A challan that sales or returns draw on cannot be cancelled.
@@ -379,15 +412,47 @@ begin
     format('status=%s number=%s', v_doc.status, coalesce(v_doc.number, 'null')));
 end $$;
 
--- 28b. A draft saved early is dated at issue: the period's last day.
+-- 28b. A draft saved early is dated at issue. March's GSTR-1 is past due, so
+--      the late invoice is dated today, not 31 March and not the draft's date.
 do $$
 declare v_id uuid; v_doc public.consignment_docs;
 begin
   v_id := public.consignment_save_sale(pg_temp.shop(), '2026-03', '[]', pg_temp.actor());
   update public.consignment_docs set doc_date = '2026-03-02' where id = v_id;
   v_doc := public.consignment_issue(v_id);
-  insert into t_result values ('sale_issue_redates_to_period_end', v_doc.doc_date = '2026-03-31',
+  insert into t_ctx values ('s_mar', v_id::text);
+  insert into t_result values ('late_sale_issue_dated_today', v_doc.doc_date = pg_temp.today(),
     'doc_date=' || v_doc.doc_date);
+end $$;
+
+-- 28c. A late invoice's cancel window follows its own date, so it can still be cancelled.
+do $$
+declare v_err text; v_status text;
+begin
+  v_err := pg_temp.err(format('select public.consignment_cancel(%L)', (select v from t_ctx where k = 's_mar')));
+  select status into v_status from public.consignment_docs where id = (select v::uuid from t_ctx where k = 's_mar');
+  insert into t_result values ('cancel_late_sale_in_its_window', v_err is null and v_status = 'cancelled',
+    format('err=%s status=%s', coalesce(v_err, 'none'), v_status));
+end $$;
+
+-- 28d. Challans and returns can't be dated into a month whose GSTR-1 is due
+--      (before the 11th the previous month is still open); the first open day is fine.
+do $$
+declare
+  v_first date := case when extract(day from pg_temp.today()) <= 10
+                       then (date_trunc('month', pg_temp.today()::timestamp) - interval '1 month')::date
+                       else date_trunc('month', pg_temp.today()::timestamp)::date end;
+  e_ch text; e_ret text; v_ok uuid;
+begin
+  e_ch := pg_temp.err(format('select public.consignment_save_challan(%L, %L, %L, %L, null)', pg_temp.shop(),
+    v_first - 1, '[{"variant_slug":"zz-retail-frock-a","quantity":1,"mrp_paise":100000}]', pg_temp.actor()));
+  e_ret := pg_temp.err(format('select public.consignment_save_return(%L, %L, %L, %L, null)', pg_temp.shop(),
+    v_first - 1, '[{"variant_slug":"zz-retail-frock-a","quantity":1}]', pg_temp.actor()));
+  v_ok := pg_temp.challan(v_first, '[{"variant_slug":"zz-retail-frock-a","quantity":1,"mrp_paise":100000}]');
+  delete from public.consignment_docs where id = v_ok;
+  insert into t_result values ('closed_month_date_refused',
+    e_ch = 'CLOSED_MONTH' and e_ret = 'CLOSED_MONTH' and v_ok is not null,
+    format('challan=%s return=%s first_open=%s', coalesce(e_ch, 'accepted'), coalesce(e_ret, 'accepted'), v_first));
 end $$;
 
 -- 29. A return cannot be cancelled once those units have left our stock again.
@@ -437,6 +502,35 @@ begin
   end;
   perform set_config('role', session_user, true);
   insert into t_result values ('service_role_can_run_flow', v_err is null, coalesce(v_err, 'ok'));
+end $$;
+
+-- 32. A variant whose stock was never set (null) gets the returned pieces.
+do $$
+declare v_doc public.consignment_docs;
+begin
+  update public.product_variants set stock_quantity = null where slug = 'zz-retail-frock-b';
+  v_doc := public.consignment_issue(public.consignment_save_return(pg_temp.shop(), pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-b","quantity":1}]', pg_temp.actor(), null));
+  insert into t_result values ('return_into_null_stock',
+    v_doc.status = 'issued' and pg_temp.stock('zz-retail-frock-b') = 1,
+    format('status=%s stock=%s', v_doc.status, coalesce(pg_temp.stock('zz-retail-frock-b')::text, 'null')));
+end $$;
+
+-- 33. A piece invoiced above Rs 2,500 is taxed at 18%, so issuing it is refused.
+--     Rs 4,000 MRP sent (back-dated to April), sold in April: 75% = Rs 3,000.
+do $$
+declare v_id uuid; v_sale uuid; v_err text; v_status text;
+begin
+  v_id := pg_temp.challan(pg_temp.today(), '[{"variant_slug":"zz-retail-frock-b","quantity":1,"mrp_paise":400000}]');
+  update public.consignment_docs set doc_date = '2026-04-15' where id = v_id;
+  perform public.consignment_issue(v_id);
+  v_sale := public.consignment_save_sale(pg_temp.shop(), '2026-04',
+    '[{"variant_slug":"zz-retail-frock-b","quantity":1}]', pg_temp.actor());
+  v_err := pg_temp.err(format('select public.consignment_issue(%L)', v_sale));
+  select status into v_status from public.consignment_docs where id = v_sale;
+  insert into t_result values ('sale_above_low_rate_refused',
+    v_err like 'ABOVE_LOW_RATE:ZZ Retail Frock%' and v_status = 'draft',
+    format('err=%s status=%s', coalesce(v_err, 'issued'), v_status));
 end $$;
 
 select case when ok then 'PASS ' else 'FAIL ' end || name

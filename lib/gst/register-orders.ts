@@ -88,8 +88,8 @@ function monthDays(month: string): { from: string; to: string } {
   return { from: `${month}-01`, to: `${monthKey(y, m)}-01` };
 }
 
-/** The shop fields an invoice needs. Phone and email are deliberately absent (same rule as REGISTER_COLUMNS). */
-export const REGISTER_RETAILER_COLUMNS = "id, legal_name, trade_name, gstin, state_code, address, contact_name, our_share_pct, active, created_at";
+/** The shop fields an invoice needs. Phone, email and the contact's name are deliberately absent (same rule as REGISTER_COLUMNS). */
+export const REGISTER_RETAILER_COLUMNS = "id, legal_name, trade_name, gstin, state_code, address, our_share_pct, active, created_at";
 
 /** Shop invoices (issued or cancelled) dated in the month. */
 export function fetchMonthRetailInvoices(admin: SupabaseClient, month: string): Promise<RetailRegisterRow[]> {
@@ -105,7 +105,7 @@ export function fetchMonthRetailInvoices(admin: SupabaseClient, month: string): 
       .lt("doc_date", to)
       .order("number", { ascending: true })
       .range(start, end),
-  ).then((rows) => rows.map((r) => ({ ...r, share_pct: r.share_pct === null ? null : Number(r.share_pct), retailers: { ...r.retailers, phone: null, email: null, our_share_pct: Number(r.retailers.our_share_pct) } })));
+  ).then((rows) => rows.map((r) => ({ ...r, share_pct: r.share_pct === null ? null : Number(r.share_pct), retailers: { ...r.retailers, contact_name: null, phone: null, email: null, our_share_pct: Number(r.retailers.our_share_pct) } })));
 }
 
 /** Challan numbers issued in the month, for GSTR-1 table 13. */

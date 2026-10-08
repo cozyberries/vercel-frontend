@@ -115,7 +115,7 @@ function b2bSheet(r: SalesRegister): SheetData {
       const a = inv.status === "valid" ? inv.amounts : { taxablePaise: 0, cgstPaise: 0, sgstPaise: 0, igstPaise: 0, valuePaise: 0 };
       return [
         text(inv.retailerGstin), text(inv.retailerName), text(inv.invoiceNumber), date(inv.invoiceDate), money(a.valuePaise),
-        text(placeOfSupplyLabel(inv.placeOfSupply)), text("N"), text("Regular"), count(inv.ratePercent), money(a.taxablePaise),
+        text(placeOfSupplyLabel(inv.placeOfSupply)), text("N"), text("Regular B2B"), count(inv.ratePercent), money(a.taxablePaise),
         money(a.igstPaise), money(a.cgstPaise), money(a.sgstPaise), money(0),
         text(inv.status === "valid" ? "Valid" : `Cancelled (was ${formatPaise(inv.amounts.valuePaise)})`),
       ];

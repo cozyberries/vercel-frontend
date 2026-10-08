@@ -22,6 +22,11 @@ describe("toB2bInvoice", () => {
       lines: [{ hsn: "6111", quantity: 1, taxablePaise: 71429, cgstPaise: 1785, sgstPaise: 1786, igstPaise: 0, valuePaise: 75000 }],
     });
   });
+
+  it("keeps the shop's details from issue when the shop was edited since", () => {
+    const issued = row({ buyer_legal_name: "Kids Corner LLP", buyer_trade_name: "Kids Corner", buyer_gstin: "29AAGFC4321M1ZB", buyer_address: "12 MG Road", buyer_state_code: "29", retailers: retailer({ legal_name: "Kids Corner TN", gstin: TN_GSTIN, state_code: "33" }) });
+    expect(toB2bInvoice(issued, GSTIN)).toMatchObject({ retailerName: "Kids Corner LLP", retailerGstin: "29AAGFC4321M1ZB", placeOfSupply: { code: "29", name: "Karnataka" }, mode: "intra" });
+  });
 });
 
 describe("buildSalesRegister with shops", () => {

@@ -66,6 +66,7 @@ describe("registerXlsx", () => {
     expect(book.B2B[0].slice(0, 4)).toEqual(["GSTIN of recipient", "Receiver name", "Invoice no.", "Invoice date"]);
     expect(book.B2B[1].slice(0, 3)).toEqual(["29AAGFC4321M1ZB", "Kids Corner LLP", "CBR/26-27/0001"]);
     expect(book.B2B[1][4]).toBe(750);
+    expect(book.B2B[1][7]).toBe("Regular B2B");
     expect(book["Documents issued"].map((row) => row[0])).toContain("Delivery challan in cases other than by way of supply");
     expect(valueOf(book.Summary, "Invoice value")).toEqual([1050, 750, 0, 1800]);
   });

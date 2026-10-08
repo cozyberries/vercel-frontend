@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, currentPeriod, formatDay, isIsoDate, isPeriod, istToday, recentPeriods } from "./dates";
+import { addMonths, currentPeriod, firstOpenDay, formatDay, isIsoDate, isPeriod, istToday, recentPeriods } from "./dates";
 
 describe("retail dates", () => {
   it("uses the IST calendar day", () => {
@@ -21,6 +21,13 @@ describe("retail dates", () => {
     expect(addMonths("2026-01-15", 6)).toBe("2026-07-15");
     expect(addMonths("2026-08-31", 6)).toBe("2027-02-28");
     expect(addMonths("2026-11-30", 3)).toBe("2027-02-28");
+  });
+  it("keeps last month open until its GSTR-1 is due on the 11th", () => {
+    expect(firstOpenDay("2026-10-01")).toBe("2026-09-01");
+    expect(firstOpenDay("2026-10-10")).toBe("2026-09-01");
+    expect(firstOpenDay("2026-10-11")).toBe("2026-10-01");
+    expect(firstOpenDay("2026-10-31")).toBe("2026-10-01");
+    expect(firstOpenDay("2027-01-05")).toBe("2026-12-01");
   });
   it("formats a day as dd-mm-yyyy", () => {
     expect(formatDay("2026-10-08")).toBe("08-10-2026");

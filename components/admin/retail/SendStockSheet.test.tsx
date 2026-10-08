@@ -14,6 +14,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("SendStockSheet", () => {
+  it("offers dates from the first open GST month up to today", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ variants: [] })));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><SendStockSheet retailerId="r1" today="2026-11-08" open onOpenChange={vi.fn()} onDone={vi.fn()} /></QueryClientProvider>);
+    expect(screen.getByLabelText("Date sent")).toHaveAttribute("min", "2026-10-01");
+    expect(screen.getByLabelText("Date sent")).toHaveAttribute("max", "2026-11-08");
+  });
+
   it("reuses the draft when issuing is retried after a failure", async () => {
     let issues = 0;
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {

@@ -11,7 +11,7 @@ import type { RetailerDetail } from "@/lib/retail/api-types";
 import { retailFetch, sendJson } from "@/lib/retail/client";
 import { formatDay, recentPeriods } from "@/lib/retail/dates";
 import { priceSaleLines, retailGst } from "@/lib/retail/pricing";
-import { retailPdfFilename } from "@/lib/retail/documents";
+import { docParty, retailPdfFilename } from "@/lib/retail/documents";
 import { PdfButtons } from "./PdfButtons";
 import type { RowError } from "@/lib/retail/types";
 
@@ -61,7 +61,13 @@ export function SalesPanel({ detail, onChanged }: { detail: RetailerDetail; onCh
     );
 
   const priced = sale ? priceSaleLines(sale.consignment_lines, sale.share_pct ?? retailer.our_share_pct) : [];
-  const gst = sale ? retailGst(priced, retailer.state_code) : null;
+  const gst = sale ? retailGst(priced, docParty(sale, retailer).stateCode) : null;
+
+  const issue = (docId: string) => {
+    const name = new Date(`${month}-01T00:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" });
+    if (!window.confirm(`Issue the invoice for ${name} ${month.slice(0, 4)}? This takes the next invoice number and closes ${name} for this shop.`)) return;
+    void run(() => sendJson(`/api/admin/retail/docs/${docId}`, { action: "issue" }));
+  };
 
   return (
     <div className="grid gap-3">
@@ -107,7 +113,7 @@ export function SalesPanel({ detail, onChanged }: { detail: RetailerDetail; onCh
                 : <p>IGST {formatPaise(gst.totals.igstPaise)}</p>}
               <p className="font-semibold">Total {formatPaise(gst.totals.totalPaise)}</p>
               <div className="mt-3 flex gap-2">
-                <Button size="sm" disabled={busy} onClick={() => void run(() => sendJson(`/api/admin/retail/docs/${sale.id}`, { action: "issue" }))}>Issue invoice</Button>
+                <Button size="sm" disabled={busy} onClick={() => issue(sale.id)}>Issue invoice</Button>
                 <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => sendJson(`/api/admin/retail/docs/${sale.id}`, { action: "cancel" }))}>Discard draft</Button>
               </div>
             </section>

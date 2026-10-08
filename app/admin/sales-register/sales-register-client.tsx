@@ -99,7 +99,7 @@ export default function SalesRegisterClient() {
 
 function RegisterBody({ register: r }: { register: SalesRegister }) {
   const t = r.totals;
-  const empty = r.invoices.length === 0 && r.cancelledEarlier.length === 0 && r.b2b.length === 0;
+  const empty = r.invoices.length === 0 && r.cancelledEarlier.length === 0 && r.b2b.length === 0 && r.challans.length === 0;
   return (
     <div className="grid grid-cols-1 gap-3">
       {r.warnings.length > 0 && <Warnings warnings={r.warnings} />}

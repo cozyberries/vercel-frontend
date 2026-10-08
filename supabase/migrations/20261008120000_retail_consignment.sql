@@ -42,6 +42,15 @@ create table if not exists public.consignment_docs (
   constraint consignment_docs_issued_has_time check (status = 'draft' or issued_at is not null)
 );
 
+-- The shop's details as they were when a challan or sale invoice was issued,
+-- so editing the shop never rewrites an issued document (or flips its GST
+-- between CGST+SGST and IGST in a filed month). Null on drafts and returns.
+alter table public.consignment_docs add column if not exists buyer_legal_name text;
+alter table public.consignment_docs add column if not exists buyer_trade_name text;
+alter table public.consignment_docs add column if not exists buyer_gstin text;
+alter table public.consignment_docs add column if not exists buyer_address text;
+alter table public.consignment_docs add column if not exists buyer_state_code text;
+
 create unique index if not exists consignment_docs_one_open_sale
   on public.consignment_docs (retailer_id, period)
   where kind = 'sale' and status <> 'cancelled';

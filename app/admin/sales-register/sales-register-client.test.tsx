@@ -194,4 +194,14 @@ describe("SalesRegisterClient", () => {
     expect(within(tile("Net invoices")).getByText("2")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Challan numbers used" })).toHaveTextContent("CBC/26-27/0001");
   });
+
+  it("shows the challan numbers of a month with only challans", async () => {
+    const register = buildSalesRegister({
+      month: "2026-09", orders: [], cancelledEarlier: [], missingNumbers: [], gstin: GSTIN, now: NOW,
+      retail: { invoices: [], challans: [{ number: "CBC/26-27/0001", status: "issued" }] },
+    });
+    stubRegister(() => json({ register }));
+    renderPage();
+    expect(await screen.findByRole("region", { name: "Challan numbers used" })).toHaveTextContent("CBC/26-27/0001");
+  });
 });

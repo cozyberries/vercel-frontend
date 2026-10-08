@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ActionSheet } from "@/components/admin/kit";
 import type { RetailerDetail } from "@/lib/retail/api-types";
 import { sendJson } from "@/lib/retail/client";
+import { firstOpenDay } from "@/lib/retail/dates";
 
 export function TakeBackSheet({ detail, open, onOpenChange, onDone }: { detail: RetailerDetail; open: boolean; onOpenChange: (o: boolean) => void; onDone: () => void }) {
   const [qty, setQty] = useState<Record<string, string>>({});
@@ -45,7 +46,7 @@ export function TakeBackSheet({ detail, open, onOpenChange, onDone }: { detail: 
       <div className="grid gap-3 pt-2">
         <div className="grid gap-1.5">
           <Label htmlFor="return-date">Date received</Label>
-          <Input id="return-date" type="date" max={detail.today} value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input id="return-date" type="date" min={firstOpenDay(detail.today)} max={detail.today} value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <ul className="grid gap-2 text-sm">
           {detail.holdings.map((h) => (
