@@ -2,6 +2,7 @@ import React from "react";
 import { Document, Font, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { formatDay } from "./dates";
 import type { ChallanDocument, Party, RetailInvoiceDocument } from "./documents";
+import type { DocStatus } from "./types";
 
 /**
  * Server-only. Shop invoice and delivery challan PDFs, emailed by the owner.
@@ -30,12 +31,25 @@ const s = StyleSheet.create({
   cQty: { width: "6%", textAlign: "right" },
   cNum: { width: "11%", textAlign: "right" },
   cWide: { width: "22%", textAlign: "right" },
+  iItem: { width: "24%", paddingRight: 8 },
+  iHsn: { width: "7%" },
+  iQty: { width: "5%", textAlign: "right" },
+  iMrp: { width: "10%", textAlign: "right" },
+  iNum: { width: "11%", textAlign: "right" },
   totals: { marginLeft: "auto", width: "45%", marginTop: 10 },
   tline: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   grand: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#d1d5db", paddingTop: 4, marginTop: 2, fontFamily: "Helvetica-Bold", fontSize: 11 },
   note: { marginTop: 14 },
   footer: { position: "absolute", bottom: 28, left: 36, right: 36, textAlign: "center", fontSize: 7, color: "#9ca3af" },
 });
+
+export function invoiceHeading(status: DocStatus): string {
+  return status === "draft" ? "DRAFT — NOT A TAX INVOICE" : "TAX INVOICE";
+}
+
+export function challanHeading(status: DocStatus): string {
+  return status === "draft" ? "DRAFT — NOT A DELIVERY CHALLAN" : "DELIVERY CHALLAN";
+}
 
 function SellerBlock({ seller }: { seller: Party }) {
   return (
@@ -70,7 +84,7 @@ function RetailInvoicePdf({ doc }: { doc: RetailInvoiceDocument }) {
         <View style={s.row}>
           <SellerBlock seller={doc.seller} />
           <View>
-            <Text style={s.heading}>{doc.status === "draft" ? "DRAFT — NOT A TAX INVOICE" : "TAX INVOICE"}</Text>
+            <Text style={s.heading}>{invoiceHeading(doc.status)}</Text>
             {doc.number && <Text style={s.right}>Invoice No: <Text style={s.bold}>{doc.number}</Text></Text>}
             <Text style={s.right}>Invoice date: {formatDay(doc.date)}</Text>
             <Text style={[s.muted, s.right]}>Sales for {doc.period}</Text>
@@ -88,37 +102,39 @@ function RetailInvoicePdf({ doc }: { doc: RetailInvoiceDocument }) {
         </View>
         <View style={{ marginTop: 14 }}>
           <View style={s.th}>
-            <Text style={s.cItem}>Item</Text>
-            <Text style={s.cHsn}>HSN</Text>
-            <Text style={s.cQty}>Qty</Text>
-            <Text style={s.cNum}>MRP</Text>
-            <Text style={s.cNum}>Rate</Text>
-            <Text style={s.cNum}>Taxable</Text>
+            <Text style={s.iItem}>Item</Text>
+            <Text style={s.iHsn}>HSN</Text>
+            <Text style={s.iQty}>Qty</Text>
+            <Text style={s.iMrp}>MRP</Text>
+            <Text style={s.iMrp}>Rate (incl. GST)</Text>
+            <Text style={s.iNum}>Taxable</Text>
             {intra ? (
               <>
-                <Text style={s.cNum}>CGST 2.5%</Text>
-                <Text style={s.cNum}>SGST 2.5%</Text>
+                <Text style={s.iNum}>CGST 2.5%</Text>
+                <Text style={s.iNum}>SGST 2.5%</Text>
               </>
             ) : (
-              <Text style={s.cWide}>IGST 5%</Text>
+              <Text style={[s.iNum, { width: "22%" }]}>IGST 5%</Text>
             )}
+            <Text style={s.iNum}>Amount</Text>
           </View>
           {doc.lines.map((l, i) => (
             <View key={`${l.description}-${i}`} style={s.tr} wrap={false}>
-              <Text style={s.cItem}>{l.description}</Text>
-              <Text style={s.cHsn}>{l.hsn}</Text>
-              <Text style={s.cQty}>{l.quantity}</Text>
-              <Text style={s.cNum}>{rs(l.mrpPaise)}</Text>
-              <Text style={s.cNum}>{rs(l.unitPricePaise)}</Text>
-              <Text style={s.cNum}>{rs(l.taxablePaise)}</Text>
+              <Text style={s.iItem}>{l.description}</Text>
+              <Text style={s.iHsn}>{l.hsn}</Text>
+              <Text style={s.iQty}>{l.quantity}</Text>
+              <Text style={s.iMrp}>{rs(l.mrpPaise)}</Text>
+              <Text style={s.iMrp}>{rs(l.unitPricePaise)}</Text>
+              <Text style={s.iNum}>{rs(l.taxablePaise)}</Text>
               {intra ? (
                 <>
-                  <Text style={s.cNum}>{rs(l.cgstPaise)}</Text>
-                  <Text style={s.cNum}>{rs(l.sgstPaise)}</Text>
+                  <Text style={s.iNum}>{rs(l.cgstPaise)}</Text>
+                  <Text style={s.iNum}>{rs(l.sgstPaise)}</Text>
                 </>
               ) : (
-                <Text style={s.cWide}>{rs(l.igstPaise)}</Text>
+                <Text style={[s.iNum, { width: "22%" }]}>{rs(l.igstPaise)}</Text>
               )}
+              <Text style={s.iNum}>{rs(l.amountPaise)}</Text>
             </View>
           ))}
         </View>
@@ -156,7 +172,7 @@ function ChallanPdf({ doc }: { doc: ChallanDocument }) {
         <View style={s.row}>
           <SellerBlock seller={doc.seller} />
           <View>
-            <Text style={s.heading}>DELIVERY CHALLAN</Text>
+            <Text style={s.heading}>{challanHeading(doc.status)}</Text>
             <Text style={[s.muted, s.right]}>Supply on sale-or-return basis</Text>
             {doc.number && <Text style={s.right}>Challan No: <Text style={s.bold}>{doc.number}</Text></Text>}
             <Text style={s.right}>Date: {formatDay(doc.date)}</Text>
