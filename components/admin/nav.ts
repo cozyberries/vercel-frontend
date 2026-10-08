@@ -17,6 +17,7 @@ export const ADMIN_TABS: readonly AdminTab[] = [
   { href: "/admin/stall-refills", label: "Refills", bottom: true },
   { href: "/admin/stock", label: "Stock", bottom: true },
   { href: "/admin/sales-register", label: "Sales register" },
+  { href: "/admin/retail", label: "Retail" },
   { href: "/admin/on-behalf-orders", label: "On-behalf" },
   { href: "/admin/impersonate", label: "Impersonate" },
   { href: "/admin/admins", label: "Admins", superAdminOnly: true },
