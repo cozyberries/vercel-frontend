@@ -58,6 +58,7 @@ npm run db:test-split-frocks             # Frocks → four style categories migr
 npm run db:test-category-data            # Girls Coord Sets gender + category descriptions fix (rolled back)
 npm run db:test-overrides                # admin price-override table + note backfill SQL tests (rolled back)
 npm run db:test-sales-register           # invoice_voided_at trigger, guard and invoice-number backfill (rolled back)
+npm run db:test-retail                   # retail consignment tables + functions SQL tests (rolled back)
 ```
 
 ## Architecture
@@ -195,7 +196,10 @@ app/
 ### Retail consignment (`/admin/retail`)
 - Stock placed in GST-registered shops on sale-or-return. Spec: `docs/superpowers/specs/2026-10-08-retail-consignment-design.md`. Cozyberries raises one B2B tax invoice per shop per month for its share (`our_share_pct`, default 75% of the tag MRP, GST included); the shop bills its own customers. Owner to confirm the model with the CA.
 - Tables (admin/internal tier, service role only): `retailers`, `consignment_docs` (`challan` `CBC/yy-yy/NNNN`, `sale` `CBR/…`, `return` `RET/…`; draft → issued → cancelled), `consignment_lines` (challan lines are batches with the MRP locked at dispatch; sale/return lines point at a batch), `retailer_payments`, `consignment_counters`. What a shop holds is the view `retailer_batch_balances` (sent − issued sales − issued returns), never stored.
-- All writes go through `consignment_save_challan|return|sale`, `consignment_issue`, `consignment_cancel` (per-shop advisory lock). Issuing a challan takes `product_variants.stock_quantity`; issuing a return gives it back; sales never touch stock. Sales and returns draw on the oldest batch first. A shop invoice can be cancelled only before 00:00 IST on the 11th of the next month (TOO_LATE → credit note via the CA).
+- All writes go through `consignment_save_challan|return|sale`, `consignment_issue`, `consignment_cancel` (per-shop advisory lock). Issuing a challan takes `product_variants.stock_quantity`; issuing a return gives it back; sales never touch stock. Sales and returns draw on the oldest batch first. A shop invoice can be cancelled only before 00:00 IST on the 11th of the month after its invoice date (TOO_LATE → credit note via the CA).
+- Open months for GST: the current IST month, plus the previous month until 00:00 IST on the 11th (GSTR-1 due date). A sale is dated at issue: the period's last day (or today if the period is still running) while that period is open, otherwise today, so a late invoice lands in an open month's register, never a filed one. Challans and returns can't be dated before the first open day (`CLOSED_MONTH` → 400; `public.consignment_first_open_day()` = `firstOpenDay()` in `lib/retail/dates.ts`, which also sets the date inputs' `min`).
+- Issued challans and sale invoices keep a snapshot of the shop (`consignment_docs.buyer_legal_name|trade_name|gstin|address|state_code`, copied by `consignment_issue`). The PDF and the register read it (`docParty()` in `lib/retail/documents.ts`), so editing a shop never rewrites an issued document or flips CGST+SGST↔IGST in a filed month; drafts preview the shop as it is now.
+- A sale is refused at issue when any unit price (share × MRP) is above ₹2,500 (`ABOVE_LOW_RATE` → 409; same ceiling as `GST_LOW_RATE_MAX_UNIT_PRICE`): clothing above ₹2,500 a piece is 18% GST and the invoice charges 5%.
 - Monthly flow: download `/api/admin/retail/[id]/sheet?month=` (Sales + About sheets), the shop fills "Sold this month", upload it back (row errors → 422, nothing saved), issue, download/share the PDF. Six-month rule (Section 31(7)): batches amber from 5 months, red from 6.
 - The sales register adds B2B, HSN B2B and challan runs; `totals.combinedNet` is the GSTR-3B figure. Shop sales stay out of the sales dashboard.
 - Tests: `npm run db:test-retail` (rolled back) and vitest under `lib/retail`, `app/api/admin/retail`, `app/admin/retail`, `components/admin/retail`.
