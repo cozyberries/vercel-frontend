@@ -16,7 +16,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("SendStockSheet", () => {
   it("reuses the draft when issuing is retried after a failure", async () => {
     let issues = 0;
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (url === "/api/admin/retail/variants") return json({ variants: [{ slug: "petal-frock-1-2y", productName: "Petal Frock", size: "1-2Y", pricePaise: 100000, stock: 5 }] });
       if (url.endsWith("/docs")) return json({ doc_id: DRAFT });
       issues += 1;

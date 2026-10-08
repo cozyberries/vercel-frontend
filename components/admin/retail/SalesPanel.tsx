@@ -76,7 +76,7 @@ export function SalesPanel({ detail, onChanged }: { detail: RetailerDetail; onCh
       ) : (
         <>
           <section className="grid gap-2 rounded-2xl border border-cb-border bg-cb-white p-4">
-            <p className="text-sm">Send the shop this month's sheet, then upload it once filled.</p>
+            <p className="text-sm">Send the shop this month&apos;s sheet, then upload it once filled.</p>
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild size="sm" variant="outline"><a href={`/api/admin/retail/${retailer.id}/sheet?month=${month}`}>Download sheet</a></Button>
               <Label htmlFor="sheet-upload" className="sr-only">Upload filled sheet</Label>
