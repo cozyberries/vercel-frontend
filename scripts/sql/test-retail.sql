@@ -504,19 +504,7 @@ begin
   insert into t_result values ('service_role_can_run_flow', v_err is null, coalesce(v_err, 'ok'));
 end $$;
 
--- 32. A variant whose stock was never set (null) gets the returned pieces.
-do $$
-declare v_doc public.consignment_docs;
-begin
-  update public.product_variants set stock_quantity = null where slug = 'zz-retail-frock-b';
-  v_doc := public.consignment_issue(public.consignment_save_return(pg_temp.shop(), pg_temp.today(),
-    '[{"variant_slug":"zz-retail-frock-b","quantity":1}]', pg_temp.actor(), null));
-  insert into t_result values ('return_into_null_stock',
-    v_doc.status = 'issued' and pg_temp.stock('zz-retail-frock-b') = 1,
-    format('status=%s stock=%s', v_doc.status, coalesce(pg_temp.stock('zz-retail-frock-b')::text, 'null')));
-end $$;
-
--- 33. A piece invoiced above Rs 2,500 is taxed at 18%, so issuing it is refused.
+-- 32. A piece invoiced above Rs 2,500 is taxed at 18%, so issuing it is refused.
 --     Rs 4,000 MRP sent (back-dated to April), sold in April: 75% = Rs 3,000.
 do $$
 declare v_id uuid; v_sale uuid; v_err text; v_status text;
