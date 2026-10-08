@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the **public-facing storefront** for CozyBerries (cozyberries.com, port 3000).
 Customers browse products, manage their cart, checkout, pay via UPI, and track orders here.
 
-Admin order management lives in this repo too, under one `/admin` section (`app/admin/layout.tsx` gates every route on `getUser()` + `isAdmin()` and wraps pages in `components/admin/AdminShell.tsx`; pages are built from `components/admin/kit/*`): `/admin` (action counts), `/admin/orders`, `/admin/pickup-orders`, `/admin/on-behalf-orders`, `/admin/stall-refills`, `/admin/stock`, `/admin/sales-register`, `/admin/impersonate`, `/admin/admins` (`super_admin` only). The former admin app (admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
+Admin order management lives in this repo too, under one `/admin` section (`app/admin/layout.tsx` gates every route on `getUser()` + `isAdmin()` and wraps pages in `components/admin/AdminShell.tsx`; pages are built from `components/admin/kit/*`): `/admin` (action counts), `/admin/orders`, `/admin/pickup-orders`, `/admin/on-behalf-orders`, `/admin/stall-refills`, `/admin/stock`, `/admin/sales-register`, `/admin/retail`, `/admin/impersonate`, `/admin/admins` (`super_admin` only). The former admin app (admin.cozyberries.com) was merged here on 2026-09-28 and then deleted. Admin identity is
 `auth.users.app_metadata.role` only — the old `admin_users` bcrypt login is gone.
 
 The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/generate-token`, the auth provider's `jwtToken`) was removed on 2026-09-30 — its only consumer was the deleted admin app's API. `SUPABASE_JWT_SECRET` (Supabase's own) is unrelated and stays.
@@ -15,7 +15,7 @@ The pre-merge custom JWT layer (`JWT_SECRET`, `lib/jwt-auth.ts`, `/api/auth/gene
 - **Avoiding RLS/GRANT drift on user-owned rows** — the notifications API (`/api/notifications`).
 - **Compensating deletes after a failed transaction** — rolling back a half-written order once the caller's own RLS-visible insert has already been confirmed (`/api/orders`, `/api/payments/confirm`).
 - **Writes to service-role-only tables** — tables in the admin/internal tier that hold PII and grant `anon`/`authenticated` nothing (`recent_activities` via `/api/activities`).
-- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions, dashboard/sales, stock, sales-register). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
+- **Admin-gated routes** — `/api/admin/*` (impersonation, on-behalf orders, stall pickups, admin customer creation, orders list/edit, shipments, tracking, broadcast notifications, admins (super_admin via requireSuperAdmin()), dashboard/actions, dashboard/sales, stock, sales-register, retail consignment routes). `getUser()` then `isAdmin()` must both pass before the service-role client is created, and every write is scoped by the row id the admin acted on.
 - **Signed public bill links** — `GET /bill/[orderId]/[sig]` only. There is no session: the HMAC over that exact order id (`INVOICE_LINK_SECRET`, compared with `timingSafeEqual`) is verified first, and the service role then reads that one order, read-only. The signature, not the client, is what authorises the id; never reuse this shape for anything that writes.
 - **Signed webhook intake** — `POST /api/webhooks/delhivery` (the `x-delhivery-token`
   header, compared constant-time, is the authorisation) and
@@ -87,6 +87,7 @@ app/
   /admin/stall-refills       # Admin: what sold today/yesterday, shelf refill ticks
   /admin/stock               # Admin: stock on hand, restock next, not selling, size gaps (live)
   /admin/sales-register      # Admin: monthly GST sales register preview + .xlsx for the CA (live)
+  /admin/retail              # Admin: consignment shops, challans, monthly sales, returns, payments
   /admin/orders              # Admin order management (server-gated by role)
   /admin/impersonate         # Find or create a customer, then act as them
   /admin/admins              # super_admin: list, add, remove admins (role in app_metadata)
@@ -101,6 +102,7 @@ app/
   /api/admin/dashboard/sales # ?range=30d|3m|12m|all; aggregates only, no customer fields
   /api/admin/stock           # live stock metrics; no cache, no customer fields
   /api/admin/sales-register  # ?month=YYYY-MM JSON; /download → .xlsx; live, no cache
+  /api/admin/retail/*        # shops, drafts, issue/cancel, PDFs, sales sheet, payments (admin-gated)
   /api/shipping/pincode-check   # Delhivery serviceability check
   /api/shipping/order-tracking  # Delhivery package tracking (auth + orderId; proxies carrier)
   /api/webhooks/delhivery    # Delhivery scan intake (x-delhivery-token)
@@ -189,6 +191,14 @@ app/
 - "As at month end": `orders.invoice_voided_at` is stamped by `orders_on_status_change` when an invoiced order leaves a paid status and cleared when it is paid again. An invoice voided in its own month stays listed with zero amounts; one voided in a later month stays valid in its own month and appears in the later month's "Cancelled earlier" as minus figures. A past month's figures stay fixed, except when an order is reinstated (paid again) after that month closed: the trigger clears `invoice_voided_at`, so the closed month changes (a cancelled row turns valid again, or a "Cancelled earlier" line disappears). Tell the CA if that happens.
 - `public.backfill_invoice_numbers(p_from)` (service role only) numbers paid orders that have none, in paid-time order, dated with their paid time. The migration ran it from 1 Sep 2026: the two delivered orders paid on 1 Sep 2026 got the next free numbers on the migration date, so they sit after later invoices in the series.
 - `lib/gst/` holds it: `register-month` (IST months), `sales-register` (pure builder), `register-summaries` (B2CS/B2CL/HSN/runs), `register-xlsx` (`write-excel-file`), `register-orders` (reads; phone and email never selected). Both routes run `requireAdmin()` first; the download is `private, no-store` and `noindex`.
+
+### Retail consignment (`/admin/retail`)
+- Stock placed in GST-registered shops on sale-or-return. Spec: `docs/superpowers/specs/2026-10-08-retail-consignment-design.md`. Cozyberries raises one B2B tax invoice per shop per month for its share (`our_share_pct`, default 75% of the tag MRP, GST included); the shop bills its own customers. Owner to confirm the model with the CA.
+- Tables (admin/internal tier, service role only): `retailers`, `consignment_docs` (`challan` `CBC/yy-yy/NNNN`, `sale` `CBR/…`, `return` `RET/…`; draft → issued → cancelled), `consignment_lines` (challan lines are batches with the MRP locked at dispatch; sale/return lines point at a batch), `retailer_payments`, `consignment_counters`. What a shop holds is the view `retailer_batch_balances` (sent − issued sales − issued returns), never stored.
+- All writes go through `consignment_save_challan|return|sale`, `consignment_issue`, `consignment_cancel` (per-shop advisory lock). Issuing a challan takes `product_variants.stock_quantity`; issuing a return gives it back; sales never touch stock. Sales and returns draw on the oldest batch first. A shop invoice can be cancelled only before 00:00 IST on the 11th of the next month (TOO_LATE → credit note via the CA).
+- Monthly flow: download `/api/admin/retail/[id]/sheet?month=` (Sales + About sheets), the shop fills "Sold this month", upload it back (row errors → 422, nothing saved), issue, download/share the PDF. Six-month rule (Section 31(7)): batches amber from 5 months, red from 6.
+- The sales register adds B2B, HSN B2B and challan runs; `totals.combinedNet` is the GSTR-3B figure. Shop sales stay out of the sales dashboard.
+- Tests: `npm run db:test-retail` (rolled back) and vitest under `lib/retail`, `app/api/admin/retail`, `app/admin/retail`, `components/admin/retail`.
 
 ### MRP display (display-only, ended 2026-10-07)
 - **Ended 7 Oct 2026 00:00 IST** (`NEXT_PUBLIC_MRP_SHOWN_UNTIL`, default `2026-10-07T00:00:00+05:30`): products, carts, checkout and new orders show a plain price with no badge, and every catalogue price went up 10% instead (`node scripts/raise-prices.mjs --percent=10 [--execute]`, nearest rupee, base_price recomputed, backup in `exports/price-changes/`, refuses a second raise without `--again` and any price over ₹2,500). Orders placed between `shownSince` and `shownUntil` keep their MRP rows on `/orders` and on the invoice/bill PDF exactly as issued: `mrpFor(price, at)` / `mrpTotals(items, placedAt)` judge the window at the order's `created_at`. The rest of this section describes how that window behaves.

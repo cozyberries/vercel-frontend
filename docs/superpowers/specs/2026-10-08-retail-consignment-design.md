@@ -298,3 +298,17 @@ single assembler.
 - `app/api/admin/retail/**`, `app/admin/retail/**`
 - `components/admin/AdminShell.tsx` (tab), `components/admin/retail/*`
 - `CLAUDE.md` — a "Retail consignment" section and the new routes
+
+## Implementation notes (2026-10-08)
+
+Deliberate deviations from the design above:
+
+- Functions are `SECURITY INVOKER` (not definer) and granted to `service_role` only, matching `stall_refill_*`; `gst_financial_year` is granted to `service_role` for them.
+- The shop/month marker is a visible "About" sheet (the xlsx writer cannot hide sheets); the MRP column is informational and not checked on upload.
+- FIFO allocation lives only in SQL (`consignment_fill_from_batches`), and a sale can only draw on batches sent by its month's last day.
+- B2B cancellation is as at now (no "Cancelled earlier" for shop invoices).
+- Payments can be deleted (`DELETE /api/admin/retail/payments/[id]`) to fix typos.
+- A sale's invoice date is recomputed at issue as `least(last day of period, today IST)`, so a draft saved mid-month and issued after month end is dated the month's last day.
+- The shop invoice PDF has a "Rate (incl. GST)" column and an "Amount" column (GST-inclusive line total); draft documents are headed "DRAFT — NOT A TAX INVOICE" / "DRAFT — NOT A DELIVERY CHALLAN".
+- Retail list reads page past PostgREST's 1,000-row cap.
+- `PATCH /api/admin/retail/[id]` replaces the whole shop record; the form always sends every field.
