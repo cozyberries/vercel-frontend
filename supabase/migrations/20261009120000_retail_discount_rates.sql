@@ -158,6 +158,9 @@ begin
         values (p_doc_id, v.variant_slug, b.product_name, b.size, v_take, b.mrp_paise, b.batch_line_id, item.discount_pct);
         v_left := v_left - v_take;
       end loop;
+      if v_left > 0 then
+        raise exception 'NOT_HELD:%:%', v_avail, coalesce(v_label, v.variant_slug) using errcode = 'P0001';
+      end if;
     end loop;
   end loop;
 end;
