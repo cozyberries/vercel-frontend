@@ -78,7 +78,10 @@ begin
   -- not be listed here.
   foreach t in array array['expenses','expense_categories',
                            'impersonation_events','webhook_events','recent_activities',
-                           'shelf_refills','order_price_overrides']
+                           'shelf_refills','order_price_overrides',
+                           'retailers','consignment_docs','consignment_lines',
+                           'retailer_payments','consignment_counters',
+                           'retailer_batch_balances']
   loop
     if pg_temp.priv_any('anon',('public.'||t)::regclass,'SELECT')
     or pg_temp.priv_any('anon',('public.'||t)::regclass,'INSERT')
