@@ -1,13 +1,26 @@
 import writeExcelFile, { type Row, type SheetData } from "write-excel-file/node";
 import { monthLabel } from "@/lib/gst/register-month";
 import type { Holding } from "./holdings";
+import { formatRate } from "./pricing";
 import type { RowError } from "./types";
 
 /** Server-only: the monthly sales sheet a shop fills in, and the parser for the filled copy. */
 export const SALES_SHEET = "Sales";
 export const ABOUT_SHEET = "About";
-export const TEMPLATE_ID = "cozyberries-retail-sales-v1";
-export const SALES_COLUMNS = ["Code (do not edit)", "Product", "Size", "MRP", "You hold", "Sold this month"] as const;
+export const TEMPLATE_ID = "cozyberries-retail-sales-v2";
+export const BASE_COLUMNS = ["Code (do not edit)", "Product", "Size", "MRP", "You hold"] as const;
+const FULL_PRICE = "Sold at full MRP";
+const FIRST_SOLD = BASE_COLUMNS.length;
+
+/** The Sales sheet headings for a month with these approved rates (ascending). */
+export function salesColumns(rates: number[]): string[] {
+  return [...BASE_COLUMNS, FULL_PRICE, ...rates.map((r) => `Sold at ${formatRate(r)}% off`)];
+}
+
+/** "10%, 12.5%", or "None": the About sheet's Discounts row. */
+export function ratesLabel(rates: number[]): string {
+  return rates.length ? rates.map((r) => `${formatRate(r)}%`).join(", ") : "None";
+}
 
 export interface SheetShop {
   id: string;
@@ -22,6 +35,8 @@ export interface ParsedSheet {
 export interface SheetLine {
   variant_slug: string;
   quantity: number;
+  /** 0 = full MRP. */
+  discount_pct: number;
 }
 export type ParseResult =
   | { ok: true; lines: SheetLine[] }
@@ -39,22 +54,33 @@ function mrpCell(h: Holding) {
   return text(mrps.map((p) => RUPEES.format(p / 100)).join(" / "));
 }
 
-export async function buildSalesSheet({ shop, month, holdings }: { shop: SheetShop; month: string; holdings: Holding[] }): Promise<Buffer> {
+export async function buildSalesSheet({ shop, month, holdings, rates }: { shop: SheetShop; month: string; holdings: Holding[]; rates: number[] }): Promise<Buffer> {
+  const columns = salesColumns(rates);
+  const blanks = columns.slice(FIRST_SOLD).map(() => null);
   const sales: SheetData = [
-    head(SALES_COLUMNS),
-    ...holdings.map((h) => [text(h.variantSlug), text(h.productName), text(h.size), mrpCell(h), { value: h.held, type: Number }, null]),
+    head(columns),
+    ...holdings.map((h) => [text(h.variantSlug), text(h.productName), text(h.size), mrpCell(h), { value: h.held, type: Number }, ...blanks]),
   ];
+  const how = rates.length
+    ? `Type how many pieces of each size sold in ${monthLabel(month)}: at full MRP in "${FULL_PRICE}", and at an approved discount in its "Sold at …% off" column. Leave a cell blank if none sold.`
+    : `Type how many pieces of each size sold in ${monthLabel(month)} in the "${FULL_PRICE}" column of the Sales sheet. Leave it blank if none sold.`;
   const about: SheetData = [
     [text("Shop"), text(shop.name)],
     [text("Shop id"), text(shop.id)],
     [text("Month"), text(month)],
     [text("Template"), text(TEMPLATE_ID)],
+    [text("Discounts"), text(ratesLabel(rates))],
     [],
-    [text("How to fill"), text(`Type how many pieces of each size sold in ${monthLabel(month)} in the "Sold this month" column of the Sales sheet. Leave it blank if none sold.`)],
+    [text("How to fill"), text(how)],
     [text("Do not edit"), text("This sheet, the codes, or any column heading. Send the file back as it is.")],
   ];
   return writeExcelFile([
-    { sheet: SALES_SHEET, data: sales, columns: [{ width: 30 }, { width: 36 }, { width: 10 }, { width: 18 }, { width: 10 }, { width: 16 }], stickyRowsCount: 1 },
+    {
+      sheet: SALES_SHEET,
+      data: sales,
+      columns: [{ width: 30 }, { width: 36 }, { width: 10 }, { width: 18 }, { width: 10 }, ...blanks.map(() => ({ width: 18 }))],
+      stickyRowsCount: 1,
+    },
     { sheet: ABOUT_SHEET, data: about, columns: [{ width: 14 }, { width: 90 }] },
   ]).toBuffer();
 }
@@ -81,7 +107,7 @@ const str = (cell: Cell | undefined) => (cell === null || cell === undefined ? "
 
 export function parseSalesSheet(
   sheets: ParsedSheet[],
-  expected: { shop: SheetShop; month: string; holdings: Pick<Holding, "variantSlug" | "held" | "productName" | "size">[] },
+  expected: { shop: SheetShop; month: string; holdings: Pick<Holding, "variantSlug" | "held" | "productName" | "size">[]; rates: number[] },
 ): ParseResult {
   const wrongFile = `Please use the sheet downloaded for ${expected.shop.name}, ${monthLabel(expected.month)}`;
   const about = sheets.find((s) => s.sheet === ABOUT_SHEET);
@@ -92,24 +118,34 @@ export function parseSalesSheet(
   if (meta.get("Template") !== TEMPLATE_ID || meta.get("Shop id") !== expected.shop.id || meta.get("Month") !== expected.month) {
     return { ok: false, fileError: wrongFile };
   }
+  if (meta.get("Discounts") !== ratesLabel(expected.rates)) {
+    return { ok: false, fileError: `The discount rates for ${monthLabel(expected.month)} changed after this sheet was downloaded. Download it again.` };
+  }
+  const columns = salesColumns(expected.rates);
   const header = (sales.data[0] ?? []).map(str);
-  if (SALES_COLUMNS.some((label, i) => header[i] !== label)) {
+  if (columns.some((label, i) => header[i] !== label) || header.slice(columns.length).some((h) => h !== "")) {
     return { ok: false, fileError: `${wrongFile}. Its column headings were changed.` };
   }
+  const soldRates = [0, ...expected.rates];
 
   const held = new Map(expected.holdings.map((h) => [h.variantSlug, h]));
-  const totals = new Map<string, { quantity: number; firstRow: number }>();
+  const totals = new Map<string, { quantity: number; firstRow: number; byRate: number[] }>();
   const errors: RowError[] = [];
 
   sales.data.slice(1).forEach((r, i) => {
     const row = i + 2;
     const code = str(r[0]);
-    const sold = parseSold(r[5]);
-    if (sold.kind === "bad") {
-      errors.push({ row, code, message: `Sold must be a whole number of pieces (found "${str(r[5])}")` });
-      return;
+    const counts: number[] = [];
+    for (let k = 0; k < soldRates.length; k++) {
+      const cell = r[FIRST_SOLD + k];
+      const sold = parseSold(cell);
+      if (sold.kind === "bad") {
+        errors.push({ row, code, message: `${columns[FIRST_SOLD + k]} must be a whole number of pieces (found "${str(cell)}")` });
+        return;
+      }
+      counts.push(sold.kind === "ok" ? sold.value : 0);
     }
-    const quantity = sold.kind === "ok" ? sold.value : 0;
+    const quantity = counts.reduce((a, b) => a + b, 0);
     if (!code) {
       if (quantity > 0) errors.push({ row, code: "", message: "This row has a quantity but no code" });
       return;
@@ -119,8 +155,12 @@ export function parseSalesSheet(
       return;
     }
     const t = totals.get(code);
-    if (t) t.quantity += quantity;
-    else totals.set(code, { quantity, firstRow: row });
+    if (t) {
+      t.quantity += quantity;
+      counts.forEach((c, k) => (t.byRate[k] += c));
+    } else {
+      totals.set(code, { quantity, firstRow: row, byRate: counts });
+    }
   });
 
   for (const [code, t] of totals) {
@@ -132,6 +172,8 @@ export function parseSalesSheet(
   if (errors.length) return { ok: false, rowErrors: errors.sort((a, b) => a.row - b.row) };
   return {
     ok: true,
-    lines: [...totals].filter(([, t]) => t.quantity > 0).map(([variant_slug, t]) => ({ variant_slug, quantity: t.quantity })),
+    lines: [...totals].flatMap(([variant_slug, t]) =>
+      t.byRate.flatMap((quantity, k) => (quantity > 0 ? [{ variant_slug, quantity, discount_pct: soldRates[k] }] : [])),
+    ),
   };
 }

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { XLSX_CONTENT_TYPE } from "@/lib/gst/register-xlsx";
 import { currentPeriod, isPeriod } from "@/lib/retail/dates";
+import { ratesFor } from "@/lib/retail/pricing";
 import { loadRetailerDetail, shopName } from "@/lib/retail/queries";
 import { isUuid } from "@/lib/retail/requests";
 import { retailRpcError } from "@/lib/retail/rpc-errors";
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     const detail = await loadRetailerDetail(createAdminSupabaseClient(), id, now);
     if (!detail) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const name = shopName(detail.retailer);
-    const file = await buildSalesSheet({ shop: { id, name }, month, holdings: detail.holdings });
+    const file = await buildSalesSheet({ shop: { id, name }, month, holdings: detail.holdings, rates: ratesFor(detail.discountRates, month) });
     return new NextResponse(new Uint8Array(file), {
       headers: {
         "Content-Type": XLSX_CONTENT_TYPE,
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     const admin = createAdminSupabaseClient();
     const detail = await loadRetailerDetail(admin, id, now);
     if (!detail) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const parsed = parseSalesSheet(sheets, { shop: { id, name: shopName(detail.retailer) }, month, holdings: detail.holdings });
+    const parsed = parseSalesSheet(sheets, { shop: { id, name: shopName(detail.retailer) }, month, holdings: detail.holdings, rates: ratesFor(detail.discountRates, month) });
     if (!parsed.ok) {
       return parsed.rowErrors
         ? NextResponse.json({ error: "Fix these rows in the sheet and upload it again", rowErrors: parsed.rowErrors }, { status: 422 })

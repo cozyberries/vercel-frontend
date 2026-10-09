@@ -28,13 +28,13 @@ async function upload(file: Blob | null, month = "2026-09") {
   return POST(new NextRequest(`http://localhost/api/admin/retail/${ID}/sheet`, { method: "POST", body: form }), ctx);
 }
 
-async function filled(sold: number | null, month = "2026-09"): Promise<Blob> {
-  const book = await readExcelFile(await buildSalesSheet({ shop: SHOP, month, holdings: HOLDINGS }));
-  // Rebuild with the Sold cell filled: write the parsed rows back through the builder's shape.
+async function filled(cells: Record<number, number | null>, month = "2026-09", rates: number[] = []): Promise<Blob> {
+  const book = await readExcelFile(await buildSalesSheet({ shop: SHOP, month, holdings: HOLDINGS, rates }));
   const { default: writeExcelFile } = await import("write-excel-file/node");
+  const cell = (v: unknown) => (v === null || v === undefined ? null : { value: v, type: typeof v === "number" ? Number : String });
   const data = book.map((s) => ({
     sheet: s.sheet,
-    data: s.data.map((r, i) => r.map((v, j) => (s.sheet === "Sales" && i === 1 && j === 5 ? (sold === null ? null : { value: sold, type: Number }) : v === null ? null : { value: v, type: typeof v === "number" ? Number : String }))),
+    data: s.data.map((r, i) => r.map((v, j) => (s.sheet === "Sales" && i === 1 && j in cells ? cell(cells[j]) : cell(v)))),
   }));
   const buffer = await writeExcelFile(data as never).toBuffer();
   return new Blob([new Uint8Array(buffer)]);
@@ -43,7 +43,7 @@ async function filled(sold: number | null, month = "2026-09"): Promise<Blob> {
 beforeEach(() => {
   h.user = ADMIN_USER;
   h.rpc.mockReset();
-  h.loadRetailerDetail.mockResolvedValue({ retailer: retailer(), holdings: HOLDINGS });
+  h.loadRetailerDetail.mockResolvedValue({ retailer: retailer(), holdings: HOLDINGS, discountRates: [] });
   vi.mocked(createAdminSupabaseClient).mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-08T06:00:00Z"));
@@ -70,15 +70,33 @@ describe("/api/admin/retail/[id]/sheet", () => {
 
   it("turns a filled sheet into the month's draft", async () => {
     h.rpc.mockResolvedValue({ data: "doc-9", error: null });
-    const res = await upload(await filled(2));
+    const res = await upload(await filled({ 5: 2 }));
     expect(res.status).toBe(201);
     expect(h.rpc).toHaveBeenCalledWith("consignment_save_sale", {
-      p_retailer_id: ID, p_period: "2026-09", p_lines: [{ variant_slug: "petal-frock-1-2y", quantity: 2 }], p_actor: "admin-1",
+      p_retailer_id: ID, p_period: "2026-09", p_lines: [{ variant_slug: "petal-frock-1-2y", quantity: 2, discount_pct: 0 }], p_actor: "admin-1",
     });
   });
 
+  it("reads the month's discount columns and passes each rate", async () => {
+    h.loadRetailerDetail.mockResolvedValue({ retailer: retailer(), holdings: HOLDINGS, discountRates: [{ period: "2026-09", rate_pct: 10 }, { period: "2026-08", rate_pct: 20 }] });
+    h.rpc.mockResolvedValue({ data: "doc-9", error: null });
+    const res = await upload(await filled({ 5: 1, 6: 2 }, "2026-09", [10]));
+    expect(res.status).toBe(201);
+    expect(h.rpc).toHaveBeenCalledWith("consignment_save_sale", {
+      p_retailer_id: ID, p_period: "2026-09", p_actor: "admin-1",
+      p_lines: [{ variant_slug: "petal-frock-1-2y", quantity: 1, discount_pct: 0 }, { variant_slug: "petal-frock-1-2y", quantity: 2, discount_pct: 10 }],
+    });
+  });
+
+  it("downloads a sheet with a column per approved rate for that month", async () => {
+    h.loadRetailerDetail.mockResolvedValue({ retailer: retailer(), holdings: HOLDINGS, discountRates: [{ period: "2026-09", rate_pct: 10 }] });
+    const res = await GET(new NextRequest(`http://localhost/x?month=2026-09`), ctx);
+    const book = await readExcelFile(Buffer.from(await res.arrayBuffer()));
+    expect(book.find((s) => s.sheet === "Sales")!.data[0]).toContain("Sold at 10% off");
+  });
+
   it("422s with row errors and saves nothing", async () => {
-    const res = await upload(await filled(9));
+    const res = await upload(await filled({ 5: 9 }));
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({
       error: "Fix these rows in the sheet and upload it again",
@@ -88,7 +106,7 @@ describe("/api/admin/retail/[id]/sheet", () => {
   });
 
   it("400s a sheet for another month, a missing file and an unreadable file", async () => {
-    expect((await upload(await filled(1, "2026-08"))).status).toBe(400);
+    expect((await upload(await filled({ 5: 1 }, "2026-08"))).status).toBe(400);
     expect((await upload(null)).status).toBe(400);
     const res = await upload(new Blob(["not a spreadsheet"]));
     expect(res.status).toBe(400);
