@@ -9,8 +9,8 @@ import { SalesPanel } from "./SalesPanel";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const summary = { unitsHeld: 3, mrpValueHeldPaise: 300000, invoicedPaise: 0, paidPaise: 0, owedPaise: 0, lastReportedPeriod: null, amberBatches: 0, redBatches: 0, oldestSentOn: "2026-10-01" };
 
-function detail(docs = [] as RetailerDetail["docs"]): RetailerDetail {
-  return { retailer: retailer(), summary, holdings: holdingsFrom([balance()], "2026-11-08"), docs, payments: [], discountRates: [], today: "2026-11-08" };
+function detail(docs = [] as RetailerDetail["docs"], discountRates: RetailerDetail["discountRates"] = []): RetailerDetail {
+  return { retailer: retailer(), summary, holdings: holdingsFrom([balance()], "2026-11-08"), docs, payments: [], discountRates, today: "2026-11-08" };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -61,5 +61,55 @@ describe("SalesPanel", () => {
     expect(screen.getByText("Invoice CBR/26-27/0001")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Download PDF" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Upload filled sheet")).not.toBeInTheDocument();
+  });
+
+  it("lists the month's discounts and adds one", async () => {
+    const fetchMock = vi.fn(async () => json({ ok: true }, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    const onChanged = vi.fn();
+    render(<SalesPanel detail={detail([], [{ period: "2026-10", rate_pct: 10 }, { period: "2026-09", rate_pct: 30 }])} onChanged={onChanged} />);
+    // "10% off" also labels a manual-entry input, so find the chip by its remove button.
+    expect(screen.getByRole("button", { name: "Remove 10% off" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove 30% off" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("New discount %"), { target: { value: "12.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add discount" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/retail/${retailer().id}/rates`, expect.objectContaining({ method: "POST", body: JSON.stringify({ period: "2026-10", rate_pct: 12.5 }) }));
+  });
+
+  it("removes a discount", async () => {
+    const fetchMock = vi.fn(async () => json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onChanged = vi.fn();
+    render(<SalesPanel detail={detail([], [{ period: "2026-10", rate_pct: 10 }])} onChanged={onChanged} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove 10% off" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/retail/${retailer().id}/rates?period=2026-10&rate=10`, expect.objectContaining({ method: "DELETE" }));
+  });
+
+  it("types quantities per discount and saves them as lines", async () => {
+    const fetchMock = vi.fn(async () => json({ doc_id: "d9" }, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SalesPanel detail={detail([], [{ period: "2026-10", rate_pct: 10 }])} onChanged={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Sold Petal Pops Frock 1-2Y at full MRP"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Sold Petal Pops Frock 1-2Y at 10% off"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save as draft" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/retail/${retailer().id}/docs`, expect.objectContaining({
+      body: JSON.stringify({
+        kind: "sale",
+        period: "2026-10",
+        lines: [
+          { variant_slug: "petal-frock-1-2y", quantity: 1, discount_pct: 0 },
+          { variant_slug: "petal-frock-1-2y", quantity: 2, discount_pct: 10 },
+        ],
+      }),
+    }));
+  });
+
+  it("previews a discounted line with its rate", () => {
+    const draft = doc({ id: "d1", status: "draft", number: null, share_pct: null, period: "2026-10", consignment_lines: [line({ mrp_paise: 92300, discount_pct: 10, batch_line_id: "batch-1" })] });
+    render(<SalesPanel detail={detail([draft], [{ period: "2026-10", rate_pct: 10 }])} onChanged={vi.fn()} />);
+    expect(screen.getByTestId("sale-preview")).toHaveTextContent("Petal Pops Frock (1-2Y) × 1 · MRP ₹923.00 · 10% off · ₹623.03 each");
   });
 });
