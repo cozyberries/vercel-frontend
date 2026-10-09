@@ -316,3 +316,4 @@ Deliberate deviations from the design above:
 - The shop invoice PDF has a "Rate (incl. GST)" column and an "Amount" column (GST-inclusive line total); draft documents are headed "DRAFT — NOT A TAX INVOICE" / "DRAFT — NOT A DELIVERY CHALLAN".
 - Retail list reads page past PostgREST's 1,000-row cap.
 - `PATCH /api/admin/retail/[id]` replaces the whole shop record; the form always sends every field.
+- 2026-10-09: sale lines can carry an approved discount (`discount_pct`); see `2026-10-09-retail-approved-discounts-design.md`. `unit_price_paise = round(mrp × (100 − discount) × share / 10000)`.
