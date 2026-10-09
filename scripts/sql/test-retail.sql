@@ -663,6 +663,34 @@ begin
     v_doc.status = 'issued' and v_price = 240000, format('status=%s price=%s', v_doc.status, v_price));
 end $$;
 
+-- 43. FIFO across two rates of one variant: a third shop holds an older batch
+--     (2 @ Rs 1,000) and a newer one (2 @ Rs 1,100). Selling 3 at full MRP and 1 at
+--     10% takes the older batch first, so full MRP is 2@100000 + 1@110000 and the
+--     10% piece comes from what is left of the newer batch (1@110000).
+do $$
+declare v_shop uuid; v_old uuid; v_new uuid; v_sale uuid; v_lines text;
+begin
+  insert into public.retailers (legal_name, gstin, address)
+    values ('ZZ Two Rate Shop', '29AAACR5055K2Z4', '3 Test Road, Bengaluru')
+    returning id into v_shop;
+  update public.product_variants set stock_quantity = 10 where slug = 'zz-retail-frock-a';
+  v_old := public.consignment_save_challan(v_shop, pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2,"mrp_paise":100000}]', pg_temp.actor(), null);
+  perform public.consignment_issue(v_old);
+  update public.consignment_docs set doc_date = pg_temp.today() - 1 where id = v_old;
+  v_new := public.consignment_save_challan(v_shop, pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2,"mrp_paise":110000}]', pg_temp.actor(), null);
+  perform public.consignment_issue(v_new);
+  perform public.consignment_add_rate(v_shop, pg_temp.period(), 10, pg_temp.actor());
+  v_sale := public.consignment_save_sale(v_shop, pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":3},
+      {"variant_slug":"zz-retail-frock-a","quantity":1,"discount_pct":10}]', pg_temp.actor());
+  select string_agg(trim_scale(discount_pct) || ':' || quantity || '@' || mrp_paise, ',' order by discount_pct, mrp_paise)
+    into v_lines from public.consignment_lines where doc_id = v_sale;
+  insert into t_result values ('sale_fifo_spans_batches_across_rates',
+    v_lines = '0:2@100000,0:1@110000,10:1@110000', 'lines=' || coalesce(v_lines, 'none'));
+end $$;
+
 select case when ok then 'PASS ' else 'FAIL ' end || name
        || case when ok then '' else ': ' || coalesce(reason, '') end
   from t_result order by name;
