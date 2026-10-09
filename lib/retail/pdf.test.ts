@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { doc, line, retailer } from "./__fixtures__/retail";
 import { buildChallan, buildRetailInvoice } from "./documents";
-import { challanHeading, invoiceHeading, renderChallanPdf, renderRetailInvoicePdf } from "./pdf";
+import { challanHeading, discountCell, invoiceBasis, invoiceHeading, renderChallanPdf, renderRetailInvoicePdf } from "./pdf";
 
 const GSTIN = "29EPDPR9174E1ZB";
 
@@ -34,4 +34,19 @@ describe("document headings", () => {
     expect(challanHeading("issued")).toBe("DELIVERY CHALLAN");
     expect(challanHeading("cancelled")).toBe("DELIVERY CHALLAN");
   });
+});
+
+describe("invoice wording", () => {
+  it("states the basis as the share of the selling price", () => {
+    expect(invoiceBasis(75)).toBe("Supply on sale-or-return basis at 75% of the selling price (MRP less any approved discount)");
+  });
+  it("shows a line's discount, or a dash at full MRP", () => {
+    expect(discountCell(10)).toBe("10%");
+    expect(discountCell(12.5)).toBe("12.5%");
+    expect(discountCell(0)).toBe("—");
+  });
+  it("renders an invoice with a discounted line", async () => {
+    const pdf = await renderRetailInvoicePdf(buildRetailInvoice({ doc: doc({ consignment_lines: [line({ batch_line_id: "b", discount_pct: 10, unit_price_paise: 67500 })] }), retailer: retailer(), gstin: GSTIN, challanNumbers: [] }));
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  }, 20_000);
 });

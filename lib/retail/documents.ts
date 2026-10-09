@@ -25,7 +25,7 @@ export interface RetailInvoiceDocument {
   placeOfSupply: { code: string; name: string };
   mode: TaxMode;
   sharePct: number;
-  lines: (InvoiceLine & { mrpPaise: number })[];
+  lines: (InvoiceLine & { mrpPaise: number; discountPct: number })[];
   totals: InvoiceTotals;
   totalMrpPaise: number;
   amountInWords: string;
@@ -99,7 +99,7 @@ export function buildRetailInvoice({ doc, retailer, gstin, challanNumbers }: { d
     placeOfSupply: { code: buyer.stateCode, name: buyer.stateName },
     mode: gst.mode,
     sharePct,
-    lines: gst.lines.map((l, i) => ({ ...l, mrpPaise: priced[i].mrpPaise })),
+    lines: gst.lines.map((l, i) => ({ ...l, mrpPaise: priced[i].mrpPaise, discountPct: priced[i].discountPct })),
     totals: gst.totals,
     totalMrpPaise: priced.reduce((s, l) => s + l.mrpPaise * l.quantity, 0),
     amountInWords: amountInWords(gst.totals.totalPaise),

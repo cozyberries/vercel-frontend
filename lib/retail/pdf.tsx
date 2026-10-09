@@ -2,6 +2,7 @@ import React from "react";
 import { Document, Font, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { formatDay } from "./dates";
 import type { ChallanDocument, Party, RetailInvoiceDocument } from "./documents";
+import { formatRate } from "./pricing";
 import type { DocStatus } from "./types";
 
 /**
@@ -31,10 +32,11 @@ const s = StyleSheet.create({
   cQty: { width: "6%", textAlign: "right" },
   cNum: { width: "11%", textAlign: "right" },
   cWide: { width: "22%", textAlign: "right" },
-  iItem: { width: "24%", paddingRight: 8 },
+  iItem: { width: "18%", paddingRight: 8 },
   iHsn: { width: "7%" },
   iQty: { width: "5%", textAlign: "right" },
   iMrp: { width: "10%", textAlign: "right" },
+  iDisc: { width: "6%", textAlign: "right" },
   iNum: { width: "11%", textAlign: "right" },
   totals: { marginLeft: "auto", width: "45%", marginTop: 10 },
   tline: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
@@ -45,6 +47,16 @@ const s = StyleSheet.create({
 
 export function invoiceHeading(status: DocStatus): string {
   return status === "draft" ? "DRAFT — NOT A TAX INVOICE" : "TAX INVOICE";
+}
+
+/** The invoice note's basis line (agreement clause 6.1). */
+export function invoiceBasis(sharePct: number): string {
+  return `Supply on sale-or-return basis at ${sharePct}% of the selling price (MRP less any approved discount)`;
+}
+
+/** A line's discount for the Disc. column. */
+export function discountCell(pct: number): string {
+  return pct ? `${formatRate(pct)}%` : "—";
 }
 
 export function challanHeading(status: DocStatus): string {
@@ -106,6 +118,7 @@ function RetailInvoicePdf({ doc }: { doc: RetailInvoiceDocument }) {
             <Text style={s.iHsn}>HSN</Text>
             <Text style={s.iQty}>Qty</Text>
             <Text style={s.iMrp}>MRP</Text>
+            <Text style={s.iDisc}>Disc.</Text>
             <Text style={s.iMrp}>Rate (incl. GST)</Text>
             <Text style={s.iNum}>Taxable</Text>
             {intra ? (
@@ -124,6 +137,7 @@ function RetailInvoicePdf({ doc }: { doc: RetailInvoiceDocument }) {
               <Text style={s.iHsn}>{l.hsn}</Text>
               <Text style={s.iQty}>{l.quantity}</Text>
               <Text style={s.iMrp}>{rs(l.mrpPaise)}</Text>
+              <Text style={s.iDisc}>{discountCell(l.discountPct)}</Text>
               <Text style={s.iMrp}>{rs(l.unitPricePaise)}</Text>
               <Text style={s.iNum}>{rs(l.taxablePaise)}</Text>
               {intra ? (
@@ -154,7 +168,7 @@ function RetailInvoicePdf({ doc }: { doc: RetailInvoiceDocument }) {
         <View style={s.note} wrap={false}>
           <Text><Text style={s.muted}>Amount in words: </Text>{doc.amountInWords}</Text>
           <Text style={{ marginTop: 3 }}>
-            Supply on sale-or-return basis at {doc.sharePct}% of MRP
+            {invoiceBasis(doc.sharePct)}
             {doc.challanNumbers.length ? `, against challans ${doc.challanNumbers.join(", ")}` : ""}.
           </Text>
         </View>

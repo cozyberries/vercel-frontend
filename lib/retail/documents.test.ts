@@ -60,6 +60,20 @@ describe("buildRetailInvoice", () => {
   it("refuses a document that is not a sale", () => {
     expect(() => buildRetailInvoice({ doc: doc({ kind: "challan", period: null }), retailer: retailer(), gstin: GSTIN, challanNumbers: [] })).toThrow("Not a sale document");
   });
+
+  it("carries each line's discount and prices it at the share of the selling price", () => {
+    const inv = buildRetailInvoice({
+      doc: doc({ status: "draft", number: null, share_pct: null, consignment_lines: [line({ mrp_paise: 92300 }), line({ id: "l2", mrp_paise: 92300, discount_pct: 10 })] }),
+      retailer: retailer(),
+      gstin: GSTIN,
+      challanNumbers: [],
+    });
+    expect(inv.lines.map((l) => [l.mrpPaise, l.discountPct, l.unitPricePaise])).toEqual([
+      [92300, 0, 69225],
+      [92300, 10, 62303],
+    ]);
+    expect(inv.totals.totalPaise).toBe(69225 + 62303);
+  });
 });
 
 describe("buildChallan", () => {
