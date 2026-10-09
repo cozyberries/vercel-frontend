@@ -61,4 +61,13 @@ describe("POST /api/admin/retail/[id]/docs", () => {
     expect((await post({ kind: "challan", doc_date: "2026-10-09", lines: [{ variant_slug: "a", quantity: 1, mrp_paise: 1 }] })).status).toBe(400);
     expect(h.rpc).not.toHaveBeenCalled();
   });
+
+  it("passes each sale line's discount to the database", async () => {
+    h.rpc.mockResolvedValue({ data: "doc-3", error: null });
+    await post({ kind: "sale", period: "2026-09", lines: [{ variant_slug: "a", quantity: 1 }, { variant_slug: "a", quantity: 2, discount_pct: 10 }] });
+    expect(h.rpc).toHaveBeenLastCalledWith("consignment_save_sale", {
+      p_retailer_id: ID, p_period: "2026-09", p_actor: "admin-1",
+      p_lines: [{ variant_slug: "a", quantity: 1, discount_pct: 0 }, { variant_slug: "a", quantity: 2, discount_pct: 10 }],
+    });
+  });
 });

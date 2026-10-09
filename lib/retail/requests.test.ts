@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDocAction, parseDocSave, parsePayment, parseRetailer } from "./requests";
+import { parseDocAction, parseDocSave, parsePayment, parseRateInput, parseRetailer } from "./requests";
 
 const NOW = new Date("2026-10-08T06:00:00Z"); // 8 Oct 2026, 11:30 IST
 
@@ -40,7 +40,7 @@ describe("parseDocSave", () => {
   it("accepts a sale for this month or earlier, dropping zero lines", () => {
     expect(parseDocSave({ kind: "sale", period: "2026-09", lines: [{ variant_slug: "a", quantity: 0 }, { variant_slug: "b", quantity: 3 }] }, NOW)).toEqual({
       ok: true,
-      value: { kind: "sale", period: "2026-09", lines: [{ variant_slug: "b", quantity: 3 }] },
+      value: { kind: "sale", period: "2026-09", lines: [{ variant_slug: "b", quantity: 3, discount_pct: 0 }] },
     });
     expect(parseDocSave({ kind: "sale", period: "2026-11", lines: [] }, NOW)).toEqual({ ok: false, error: "Pick a month up to this one" });
   });
@@ -61,5 +61,35 @@ describe("parseDocAction and parsePayment", () => {
     });
     expect(parsePayment({ amount_paise: 0, paid_on: "2026-10-05", method: "upi" }, NOW)).toMatchObject({ ok: false });
     expect(parsePayment({ amount_paise: 1, paid_on: "2026-10-05", method: "card" }, NOW)).toMatchObject({ ok: false });
+  });
+});
+
+describe("parseRateInput", () => {
+  const NOW = new Date("2026-10-09T06:00:00Z");
+  it("accepts a rate for this month or an earlier one", () => {
+    expect(parseRateInput({ period: "2026-10", rate_pct: 10 }, NOW)).toEqual({ ok: true, value: { period: "2026-10", rate_pct: 10 } });
+    expect(parseRateInput({ period: "2026-09", rate_pct: 12.5 }, NOW)).toEqual({ ok: true, value: { period: "2026-09", rate_pct: 12.5 } });
+  });
+  it.each([
+    [{ period: "2026-10", rate_pct: 0 }, "Discount must be above 0% and below 100%"],
+    [{ period: "2026-10", rate_pct: 100 }, "Discount must be above 0% and below 100%"],
+    [{ period: "2026-10", rate_pct: "10" }, "Discount must be above 0% and below 100%"],
+    [{ period: "2026-10" }, "Discount must be above 0% and below 100%"],
+    [{ period: "2026-10", rate_pct: 12.345 }, "Use at most two decimals"],
+    [{ period: "2026-11", rate_pct: 10 }, "Pick a month up to this one"],
+    [{ period: "October", rate_pct: 10 }, "Pick a month up to this one"],
+  ])("refuses %j", (body, error) => {
+    expect(parseRateInput(body, NOW)).toEqual({ ok: false, error });
+  });
+});
+
+describe("parseDocSave sale discounts", () => {
+  const NOW = new Date("2026-10-09T06:00:00Z");
+  it("defaults a sale line's discount to 0 and keeps a given one", () => {
+    const r = parseDocSave({ kind: "sale", period: "2026-09", lines: [{ variant_slug: "a", quantity: 1 }, { variant_slug: "a", quantity: 2, discount_pct: 10 }] }, NOW);
+    expect(r).toEqual({ ok: true, value: { kind: "sale", period: "2026-09", lines: [{ variant_slug: "a", quantity: 1, discount_pct: 0 }, { variant_slug: "a", quantity: 2, discount_pct: 10 }] } });
+  });
+  it("refuses a discount of 100% or more", () => {
+    expect(parseDocSave({ kind: "sale", period: "2026-09", lines: [{ variant_slug: "a", quantity: 1, discount_pct: 100 }] }, NOW).ok).toBe(false);
   });
 });

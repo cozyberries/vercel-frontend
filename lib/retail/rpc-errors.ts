@@ -1,4 +1,4 @@
-import { CLOSED_MONTH_ERROR } from "./requests";
+import { CLOSED_MONTH_ERROR, DISCOUNT_ERROR } from "./requests";
 
 /** Maps a consignment_* function error (P0001 message) to an HTTP status and a message for the admin. */
 export function retailRpcError(message: string): { status: number; error: string } {
@@ -41,6 +41,14 @@ export function retailRpcError(message: string): { status: number; error: string
       return { status: 409, error: `A piece of ${tail} would be invoiced above ₹2,500, which is taxed at 18%: ask your CA before issuing` };
     case "TOO_LATE":
       return { status: 409, error: "That month is closed for GST (GSTR-1 is due on the 11th). A credit note is needed: ask your CA." };
+    case "BAD_RATE":
+      return { status: 400, error: DISCOUNT_ERROR };
+    case "TOO_MANY_RATES":
+      return { status: 409, error: "A month can have at most 4 discount rates" };
+    case "RATE_IN_USE":
+      return { status: 409, error: `The draft has sales at ${tail}% off. Change the draft first` };
+    case "RATE_NOT_APPROVED":
+      return { status: 409, error: `${tail}% isn't an approved discount for this month` };
     default:
       return { status: 500, error: "Couldn't save" };
   }

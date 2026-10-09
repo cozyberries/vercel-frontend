@@ -36,6 +36,8 @@ export function parseRetailer(body: unknown): Parsed<RetailerInput> {
 
 const quantity = z.number().int("Quantities must be whole pieces").min(0).max(10_000);
 const slug = z.string().trim().min(1).max(200);
+export const DISCOUNT_ERROR = "Discount must be above 0% and below 100%";
+const discountPct = z.number().min(0, DISCOUNT_ERROR).lt(100, DISCOUNT_ERROR).multipleOf(0.01, "Use at most two decimals");
 
 const docSaveSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -53,14 +55,14 @@ const docSaveSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("sale"),
     period: z.string(),
-    lines: z.array(z.object({ variant_slug: slug, quantity })).max(500),
+    lines: z.array(z.object({ variant_slug: slug, quantity, discount_pct: discountPct.default(0) })).max(500),
   }),
 ]);
 
 export type DocSave =
   | { kind: "challan"; doc_id: string | null; doc_date: string; lines: { variant_slug: string; quantity: number; mrp_paise: number }[] }
   | { kind: "return"; doc_id: string | null; doc_date: string; lines: { variant_slug: string; quantity: number }[] }
-  | { kind: "sale"; period: string; lines: { variant_slug: string; quantity: number }[] };
+  | { kind: "sale"; period: string; lines: { variant_slug: string; quantity: number; discount_pct: number }[] };
 
 export const CLOSED_MONTH_ERROR = "That month is closed for GST: use a date in an open month";
 
@@ -111,4 +113,22 @@ export function parsePayment(body: unknown, now: Date): Parsed<PaymentInput> {
   if (!isIsoDate(v.paid_on) || v.paid_on > istToday(now)) return { ok: false, error: "The date can't be in the future" };
   if (v.doc_id != null && !isUuid(v.doc_id)) return { ok: false, error: "Invalid request" };
   return { ok: true, value: { amount_paise: v.amount_paise, paid_on: v.paid_on, method: v.method, reference: v.reference, doc_id: v.doc_id ?? null } };
+}
+
+const rateSchema = z.object({
+  period: z.unknown(),
+  rate_pct: z
+    .number({ required_error: DISCOUNT_ERROR, invalid_type_error: DISCOUNT_ERROR })
+    .gt(0, DISCOUNT_ERROR)
+    .lt(100, DISCOUNT_ERROR)
+    .multipleOf(0.01, "Use at most two decimals"),
+});
+
+/** A discount rate to approve or remove for one month (up to the current IST month). */
+export function parseRateInput(body: unknown, now: Date): Parsed<{ period: string; rate_pct: number }> {
+  const parsed = rateSchema.safeParse(body ?? {});
+  if (!parsed.success) return { ok: false, error: first(parsed.error) };
+  const { period, rate_pct } = parsed.data;
+  if (!isPeriod(period) || period > currentPeriod(now)) return { ok: false, error: "Pick a month up to this one" };
+  return { ok: true, value: { period, rate_pct } };
 }

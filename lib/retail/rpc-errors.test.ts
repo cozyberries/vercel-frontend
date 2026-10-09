@@ -20,6 +20,10 @@ describe("retailRpcError", () => {
     ["CLOSED_MONTH", 400, "That month is closed for GST: use a date in an open month"],
     ["ABOVE_LOW_RATE:Petal Pops Frock 1-2Y", 409, "A piece of Petal Pops Frock 1-2Y would be invoiced above ₹2,500, which is taxed at 18%: ask your CA before issuing"],
     ["TOO_LATE", 409, "That month is closed for GST (GSTR-1 is due on the 11th). A credit note is needed: ask your CA."],
+    ["BAD_RATE", 400, "Discount must be above 0% and below 100%"],
+    ["TOO_MANY_RATES", 409, "A month can have at most 4 discount rates"],
+    ["RATE_IN_USE:10", 409, "The draft has sales at 10% off. Change the draft first"],
+    ["RATE_NOT_APPROVED:12.5", 409, "12.5% isn't an approved discount for this month"],
     ["something odd", 500, "Couldn't save"],
   ])("%s → %i", (message, status, error) => {
     expect(retailRpcError(message)).toEqual({ status, error });
