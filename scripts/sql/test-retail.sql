@@ -7,7 +7,7 @@ begin;
 
 \ir ../../supabase/migrations/20261008120000_retail_consignment.sql
 \ir ../../supabase/migrations/20261008120100_retail_consignment_functions.sql
-\ir ../../supabase/migrations/20261009120000_retail_discount_rates.sql
+\ir ../../supabase/migrations/20261009140000_retail_discount_rates.sql
 
 create temporary table t_result(name text, ok boolean, reason text) on commit drop;
 create temporary table t_ctx(k text primary key, v text) on commit drop;
