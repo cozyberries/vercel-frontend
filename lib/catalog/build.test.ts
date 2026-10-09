@@ -11,8 +11,10 @@ import {
   normalizeAgeSlug,
   sortDefault,
   toListCard,
+  withSalesRanks,
 } from "./build";
 import { coordRow, frockRow, jhablaRow, productRows, ratingRows, referenceRows } from "./__fixtures__/catalog-rows";
+import type { ListCard } from "./types";
 
 const reference = buildReference(referenceRows);
 const ratings = computeRatingSummaries(ratingRows);
@@ -149,6 +151,47 @@ describe("sortDefault / mergeCards", () => {
       "jhabla-sleeveless-moons-and-stars",
     ]);
   });
+  describe("best sellers and photos", () => {
+    const [coord, frock, jhabla] = sortDefault(cards);
+    const card = (base: ListCard, patch: Partial<ListCard>): ListCard => ({ ...base, images: ["https://img/x.jpg"], sales_rank: null, ...patch });
+
+    it("puts best sellers first, then unsold products newest first", () => {
+      const sorted = sortDefault([
+        card(coord!, {}),
+        card(frock!, { sales_rank: 2 }),
+        card(jhabla!, { sales_rank: 1 }),
+      ]);
+      expect(sorted.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug, coord!.slug]);
+    });
+
+    it("lists products without photos last, even the best seller", () => {
+      const sorted = sortDefault([
+        card(coord!, { images: [], sales_rank: 1 }),
+        card(frock!, {}),
+        card(jhabla!, { sales_rank: 5 }),
+      ]);
+      expect(sorted.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug, coord!.slug]);
+    });
+
+    it("breaks a shared rank newest first", () => {
+      const sorted = sortDefault([card(jhabla!, { sales_rank: 3 }), card(coord!, { sales_rank: 3 })]);
+      expect(sorted.map((c) => c.slug)).toEqual([coord!.slug, jhabla!.slug]);
+    });
+
+    it("treats cards cached before sales ranks existed as unsold", () => {
+      const { sales_rank: _omit, ...legacy } = card(coord!, {});
+      const sorted = sortDefault([legacy as ListCard, card(jhabla!, { sales_rank: 9 })]);
+      expect(sorted.map((c) => c.slug)).toEqual([jhabla!.slug, coord!.slug]);
+    });
+  });
+
+  it("stamps sales ranks on every card, unsold ones as null", () => {
+    const stamped = withSalesRanks(cards, [{ product_slug: "frock-japanese-soft-pear", sales_rank: 1 }]);
+    expect(stamped.map((c) => [c.slug, c.sales_rank])).toEqual(
+      cards.map((c) => [c.slug, c.slug === "frock-japanese-soft-pear" ? 1 : null]),
+    );
+  });
+
   it("replaces, adds and deletes cards", () => {
     const updatedFrock = { ...cards[0]!, name: "Renamed" };
     const merged = mergeCards(cards, [updatedFrock], ["jhabla-sleeveless-moons-and-stars"]);

@@ -1,9 +1,17 @@
 // Rebuilds catalog documents for a scope. Called by /api/catalog/rebuild (QStash) and by
 // the nightly schedule. Idempotent: identical content yields an identical version.
-import { buildProductDoc, buildReference, buildSnapshot, computeRatingSummaries, mergeCards, toListCard } from "./build";
+import {
+  buildProductDoc,
+  buildReference,
+  buildSnapshot,
+  computeRatingSummaries,
+  mergeCards,
+  toListCard,
+  withSalesRanks,
+} from "./build";
 import type { CatalogStore } from "./store";
 import type { CatalogDb } from "./supabase";
-import type { CatalogMeta, Scope } from "./types";
+import type { CatalogMeta, SalesRankRow, Scope, Snapshot } from "./types";
 
 export interface RebuildDeps {
   store: CatalogStore;
@@ -32,6 +40,12 @@ export function scopeLabel(scope: Scope): string {
   }
 }
 
+function previousRanks(previous: Snapshot | null): SalesRankRow[] {
+  return (previous?.products ?? []).flatMap((card) =>
+    card.sales_rank != null ? [{ product_slug: card.slug, sales_rank: card.sales_rank }] : [],
+  );
+}
+
 export async function rebuild(scope: Scope, deps: RebuildDeps): Promise<RebuildResult> {
   const now = deps.now ?? (() => new Date());
   const started = Date.now();
@@ -57,7 +71,15 @@ export async function rebuild(scope: Scope, deps: RebuildDeps): Promise<RebuildR
   }
 
   const slugs = effective.kind === "product" ? [effective.slug] : undefined;
-  const [rows, ratingRows] = await Promise.all([db.fetchProductRows(slugs), db.fetchRatingRows(slugs)]);
+  const [rows, ratingRows, salesRanks] = await Promise.all([
+    db.fetchProductRows(slugs),
+    db.fetchRatingRows(slugs),
+    // The order is cosmetic: a ranking failure must not hold back stock and price changes.
+    db.fetchSalesRanking().catch((error: unknown) => {
+      console.warn("[catalog/rebuild] sales ranking unavailable, keeping previous ranks:", error instanceof Error ? error.message : error);
+      return null;
+    }),
+  ]);
   const ratings = computeRatingSummaries(ratingRows);
   const docs = rows.map((row) => buildProductDoc(row, { reference: reference!, ratings }));
   const currentSlugs = new Set(docs.map((doc) => doc.slug));
@@ -69,7 +91,9 @@ export async function rebuild(scope: Scope, deps: RebuildDeps): Promise<RebuildR
 
   const cards = docs.map(toListCard);
   const merged = effective.kind === "product" && previous ? mergeCards(previous.products, cards, deleteSlugs) : cards;
-  const { snapshot, changed } = buildSnapshot(merged, reference, previous, now());
+  // Every card is re-stamped, not only the rebuilt ones: one sale can move any product's rank.
+  const ranked = withSalesRanks(merged, salesRanks ?? previousRanks(previous));
+  const { snapshot, changed } = buildSnapshot(ranked, reference, previous, now());
 
   // Idempotent (existsOk) and one command: a dropped index heals on the next rebuild of any scope.
   await store.ensureIndex();

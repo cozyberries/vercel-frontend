@@ -59,6 +59,7 @@ npm run db:test-category-data            # Girls Coord Sets gender + category de
 npm run db:test-overrides                # admin price-override table + note backfill SQL tests (rolled back)
 npm run db:test-sales-register           # invoice_voided_at trigger, guard and invoice-number backfill (rolled back)
 npm run db:test-retail                   # retail consignment tables + functions SQL tests (rolled back)
+npm run db:test-sales-ranking            # product_sales_ranks table + refresh triggers SQL tests (rolled back)
 ```
 
 ## Architecture
@@ -227,6 +228,8 @@ app/
   - Freshness is event-driven: Supabase triggers → `POST /api/catalog/events` (secret header, Redis debounce 8s, burst collapse) → QStash → `POST /api/catalog/rebuild` (signed) → `revalidateTag`. Nightly QStash schedule plus two daily Vercel crons as backstops. A change is live in about 10 seconds.
   - Nothing under `lib/catalog/` may import `next/headers`; that is what keeps `/`, `/products/[id]` and `/api/catalog` static.
   - Free tiers only (Upstash Redis/QStash Free, Vercel Hobby, Supabase Free). Budget: under 3,000 Redis commands and 1,000 QStash messages per day.
+- Product order (`lib/catalog/order.ts`, client-safe): every sort puts products without a photo last. The default ("Popular") sort is then best sellers first (all-time units on paid orders, stall + online), then newest. Price and name sorts and search relevance come after the photo rule. The snapshot is stored in that order, so the home featured row, related products and "Frequently bought together" follow it too.
+  - Ranks come from `public.product_sales_ranks` (catalogue tier, ranks only, never unit counts; migration 20261009120000, `npm run db:test-sales-ranking`). Statement-level triggers on `orders` (status) and `order_items` rewrite it via `refresh_product_sales_ranks()` (security definer, not RPC-callable). Every rebuild re-stamps `sales_rank` on all cards; a paid order changes stock, so the order updates with the next rebuild. If the ranks can't be read, the rebuild keeps the previous ranks rather than failing.
 - `/products` on mobile defaults to the list view; `?view=grid` opts into the grid; desktop is always a grid (`lib/utils/product-view.ts`). The card container is `[data-testid="product-grid"]` in both views; do not select it by `.grid`.
 - Filters sheet options are re-counted against the pending choices (`lib/catalog/facets.ts`); an option that would leave zero products is disabled, never hidden, and the selected option is never disabled. Counting reuses `applyFilters`, so it always agrees with the grid.
 - The Filters sheet has no Size group: size and age are one axis, so it shows Age as the homepage bands via `ageFilterOptions` (single sizes folded into their group, e.g. 3-4Y/4-5Y/5-6Y → 3-6 Years). `?size=` in URLs is still honoured by the filter engine. `useCatalog` never replaces a snapshot with an older `generatedAt` (service worker / persisted cache can hand back a stale copy right after a rebuild).

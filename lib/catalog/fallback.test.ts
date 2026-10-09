@@ -28,6 +28,7 @@ vi.mock("./supabase", () => ({
     fetchReferenceRows: async () => ({ categories: [], sizes: [], genders: [], colors: [] }),
     fetchProductRows: async () => [],
     fetchRatingRows: async () => [],
+    fetchSalesRanking: async () => [],
   },
 }));
 

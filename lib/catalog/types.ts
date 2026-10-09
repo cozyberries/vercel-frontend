@@ -118,6 +118,17 @@ export interface ListCard {
   sizes: ProductSizeSummary[];
   /** Colour slugs, as today. */
   colors: string[];
+  /**
+   * Position by units sold on paid orders, all time (1 = best seller; equal sellers share it).
+   * Null when never sold; absent on cards cached before ranks existed.
+   */
+  sales_rank?: number | null;
+}
+
+/** One row of public.product_sales_ranking(). Ranks only: unit counts never leave the database. */
+export interface SalesRankRow {
+  product_slug: string;
+  sales_rank: number;
 }
 
 /** Full product document stored at cat:product:{slug}. */

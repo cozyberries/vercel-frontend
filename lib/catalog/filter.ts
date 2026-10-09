@@ -1,5 +1,6 @@
 // Pure filter/sort/paginate engine. Client-safe: no node or Next imports.
 // Semantics mirror app/api/products/route.ts so the URL contract does not change.
+import { compareListed, comparePhotoFirst } from "./order";
 import type { Filters, ListCard, ProductListResponse, Reference, ReferenceAge, SortBy, SortOrder } from "./types";
 
 export const DEFAULT_FILTERS: Filters = {
@@ -125,18 +126,20 @@ export function matchesFilters(card: ListCard, f: Filters): boolean {
   return true;
 }
 
+/** Every order puts products without a photo last; default is best sellers first (see ./order). */
 export function sortCards(cards: ListCard[], sortBy: SortBy, sortOrder: SortOrder): ListCard[] {
   const direction = sortOrder === "asc" ? 1 : -1;
   return [...cards].sort((a, b) => {
-    if (sortBy === "price") return (a.price - b.price) * direction || a.slug.localeCompare(b.slug);
-    if (sortBy === "name") return a.name.localeCompare(b.name) * direction || a.slug.localeCompare(b.slug);
-    return b.created_at.localeCompare(a.created_at) || a.slug.localeCompare(b.slug);
+    if (sortBy === "price") return comparePhotoFirst(a, b) || (a.price - b.price) * direction || a.slug.localeCompare(b.slug);
+    if (sortBy === "name") return comparePhotoFirst(a, b) || a.name.localeCompare(b.name) * direction || a.slug.localeCompare(b.slug);
+    return compareListed(a, b);
   });
 }
 
 /**
  * Filter, search and sort. When `ranking` (ordered slugs from Redis Search) is given,
- * cards missing from it are dropped and, for the default sort, ranking order wins.
+ * cards missing from it are dropped and, for the default sort, ranking order wins
+ * (after the photo rule).
  */
 export function applyFilters(cards: ListCard[], f: Filters, ranking?: string[] | null): ListCard[] {
   let result = cards.filter((card) => matchesFilters(card, f));
@@ -145,7 +148,7 @@ export function applyFilters(cards: ListCard[], f: Filters, ranking?: string[] |
       const position = new Map(ranking.map((slug, index) => [slug, index] as const));
       result = result.filter((card) => position.has(card.slug));
       if (f.sortBy === "default") {
-        return result.sort((a, b) => (position.get(a.slug) ?? 0) - (position.get(b.slug) ?? 0));
+        return result.sort((a, b) => comparePhotoFirst(a, b) || (position.get(a.slug) ?? 0) - (position.get(b.slug) ?? 0));
       }
     } else {
       result = result.filter((card) => localSearchMatch(card, f.search));

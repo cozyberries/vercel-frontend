@@ -129,11 +129,31 @@ describe("matchesFilters", () => {
 });
 
 describe("sorting", () => {
-  it("default is created_at desc, price and name honour sortOrder", () => {
-    expect(sortCards(cards, "default", "desc").map((c) => c.slug)).toEqual([coord!.slug, frock!.slug, jhabla!.slug]);
-    expect(sortCards(cards, "price", "asc").map((c) => c.price)).toEqual([499, 899, 1299]);
-    expect(sortCards(cards, "price", "desc").map((c) => c.price)).toEqual([1299, 899, 499]);
-    expect(sortCards(cards, "name", "asc").map((c) => c.name[0])).toEqual(["M", "P", "S"]);
+  const photo = ["https://img/x.jpg"];
+  const pictured = cards.map((c) => ({ ...c, images: photo }));
+  it("default is created_at desc when nothing has sold, price and name honour sortOrder", () => {
+    expect(sortCards(pictured, "default", "desc").map((c) => c.slug)).toEqual([coord!.slug, frock!.slug, jhabla!.slug]);
+    expect(sortCards(pictured, "price", "asc").map((c) => c.price)).toEqual([499, 899, 1299]);
+    expect(sortCards(pictured, "price", "desc").map((c) => c.price)).toEqual([1299, 899, 499]);
+    expect(sortCards(pictured, "name", "asc").map((c) => c.name[0])).toEqual(["M", "P", "S"]);
+  });
+
+  it("default lists best sellers first and products without photos last", () => {
+    const ranked = [
+      { ...coord!, images: [], sales_rank: 1 },
+      { ...frock!, images: photo, sales_rank: 2 },
+      { ...jhabla!, images: photo, sales_rank: null },
+    ];
+    expect(sortCards(ranked, "default", "desc").map((c) => c.slug)).toEqual([frock!.slug, jhabla!.slug, coord!.slug]);
+  });
+  it("price sorts keep products without photos last", () => {
+    const mixed = [
+      { ...coord!, images: photo },
+      { ...frock!, images: photo },
+      { ...jhabla!, images: [] },
+    ];
+    expect(sortCards(mixed, "price", "asc").map((c) => c.slug)).toEqual([frock!.slug, coord!.slug, jhabla!.slug]);
+    expect(sortCards(mixed, "price", "desc").map((c) => c.slug)).toEqual([coord!.slug, frock!.slug, jhabla!.slug]);
   });
 });
 
@@ -145,11 +165,18 @@ describe("search", () => {
     expect(localSearchMatch(coord!, "frock")).toBe(false);
   });
   it("uses server ranking order when provided and drops unranked cards", () => {
-    const ranked = applyFilters(cards, { ...DEFAULT_FILTERS, search: "soft" }, [jhabla!.slug, frock!.slug]);
+    const pictured = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"] }));
+    const ranked = applyFilters(pictured, { ...DEFAULT_FILTERS, search: "soft" }, [jhabla!.slug, frock!.slug]);
+    expect(ranked.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug]);
+  });
+  it("keeps search matches without photos after those with photos", () => {
+    const withoutFrockPhoto = cards.map((c) => (c.slug === frock!.slug ? { ...c, images: [] } : { ...c, images: ["https://img/x.jpg"] }));
+    const ranked = applyFilters(withoutFrockPhoto, { ...DEFAULT_FILTERS, search: "soft" }, [frock!.slug, jhabla!.slug]);
     expect(ranked.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug]);
   });
   it("re-sorts a ranked result when an explicit sort is requested", () => {
-    const ranked = applyFilters(cards, { ...DEFAULT_FILTERS, search: "soft", sortBy: "price", sortOrder: "asc" }, [frock!.slug, jhabla!.slug]);
+    const pictured = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"] }));
+    const ranked = applyFilters(pictured, { ...DEFAULT_FILTERS, search: "soft", sortBy: "price", sortOrder: "asc" }, [frock!.slug, jhabla!.slug]);
     expect(ranked.map((c) => c.price)).toEqual([499, 899]);
   });
   it("falls back to local matching without a ranking", () => {

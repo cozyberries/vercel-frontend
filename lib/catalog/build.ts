@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { slugToTitle } from "@/lib/utils/product";
 import { baseColourSlug } from "./colours";
+import { compareListed, type Listed } from "./order";
 import type {
   ListCard,
   ProductDoc,
@@ -14,6 +15,7 @@ import type {
   Reference,
   ReferenceAge,
   ReferenceRows,
+  SalesRankRow,
   Snapshot,
 } from "./types";
 
@@ -207,8 +209,14 @@ export function toListCard(doc: ProductDoc): ListCard {
   return { ...card, images: doc.images.slice(0, 3) };
 }
 
-export function sortDefault<T extends { created_at: string; slug: string }>(items: T[]): T[] {
-  return [...items].sort((a, b) => b.created_at.localeCompare(a.created_at) || a.slug.localeCompare(b.slug));
+export function sortDefault<T extends Listed>(items: T[]): T[] {
+  return [...items].sort(compareListed);
+}
+
+/** Sets every card's sales_rank from the ranking; products missing from it have never sold. */
+export function withSalesRanks(cards: ListCard[], ranks: SalesRankRow[]): ListCard[] {
+  const bySlug = new Map(ranks.map((row) => [row.product_slug, row.sales_rank] as const));
+  return cards.map((card) => ({ ...card, sales_rank: bySlug.get(card.slug) ?? null }));
 }
 
 export function mergeCards(previous: ListCard[], updated: ListCard[], deleteSlugs: string[]): ListCard[] {

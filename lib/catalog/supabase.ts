@@ -1,7 +1,7 @@
 // Supabase reads for the catalog rebuild and fallback paths. Uses the cookie-free public
 // client only, so importing this module never opts a route into dynamic rendering.
 import { createPublicSupabaseClient } from "@/lib/supabase-server";
-import type { ProductRow, RatingRow, ReferenceRows } from "./types";
+import type { ProductRow, RatingRow, ReferenceRows, SalesRankRow } from "./types";
 
 /** Same joins as the legacy getProductBySlug, so documents carry everything the PDP needs. */
 export const PRODUCT_DOC_SELECT = `
@@ -94,6 +94,13 @@ export async function fetchRatingRows(slugs?: string[]): Promise<RatingRow[]> {
   return (data ?? []) as RatingRow[];
 }
 
+/** Best-seller ranks (public.product_sales_ranks: ranks only, never unit counts). */
+export async function fetchSalesRanking(): Promise<SalesRankRow[]> {
+  const { data, error } = await client().from("product_sales_ranks").select("product_slug, sales_rank");
+  if (error) fail("sales ranking", error);
+  return (data ?? []) as SalesRankRow[];
+}
+
 /** Products are keyed by slug; an `id` column may not exist. Any error resolves to null. */
 export async function resolveProductSlugById(id: string): Promise<string | null> {
   const { data, error } = await client().from("products").select("slug").eq("id", id).maybeSingle();
@@ -106,6 +113,7 @@ export const catalogDb = {
   fetchAllProductSlugs,
   fetchReferenceRows,
   fetchRatingRows,
+  fetchSalesRanking,
   resolveProductSlugById,
 };
 export type CatalogDb = typeof catalogDb;

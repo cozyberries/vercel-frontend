@@ -4,10 +4,15 @@ import { rebuild, scopeLabel } from "./rebuild";
 import { KEYS, createCatalogStore } from "./store";
 import type { CatalogDb } from "./supabase";
 import { FakeRedis } from "./testing/fake-redis";
-import type { ProductRow } from "./types";
+import type { ProductRow, SalesRankRow } from "./types";
 
-function makeDb(rows: ProductRow[] = productRows, idToSlug: Record<string, string> = {}): CatalogDb {
+function makeDb(
+  rows: ProductRow[] = productRows,
+  idToSlug: Record<string, string> = {},
+  salesRanks: SalesRankRow[] = [],
+): CatalogDb {
   return {
+    fetchSalesRanking: vi.fn(async () => salesRanks),
     fetchProductRows: vi.fn(async (slugs?: string[]) => (slugs ? rows.filter((r) => slugs.includes(r.slug)) : rows)),
     fetchAllProductSlugs: vi.fn(async () => rows.map((r) => r.slug)),
     fetchReferenceRows: vi.fn(async () => referenceRows),
@@ -126,5 +131,48 @@ describe("rebuild product", () => {
     expect(result.scope).toEqual({ kind: "full" });
     expect(db.fetchReferenceRows).toHaveBeenCalledTimes(1);
     expect(await store.exists(KEYS.reference)).toBe(true);
+  });
+});
+
+describe("rebuild sales ranking", () => {
+  const ranks = (snapshot: { products: Array<{ slug: string; sales_rank?: number | null }> } | null) =>
+    Object.fromEntries((snapshot?.products ?? []).map((p) => [p.slug, p.sales_rank]));
+
+  it("stamps every card with its sales rank and orders best sellers first", async () => {
+    const store = createCatalogStore(new FakeRedis());
+    const db = makeDb(productRows, {}, [{ product_slug: frockRow.slug, sales_rank: 1 }]);
+    await rebuild({ kind: "full" }, { store, db, now });
+    const snapshot = await store.readSnapshot();
+    expect(ranks(snapshot)).toEqual({ [frockRow.slug]: 1, [coordRow.slug]: null, [jhablaRow.slug]: null });
+    // jhabla has no photo, so it stays last.
+    expect(snapshot?.products.map((p) => p.slug)).toEqual([frockRow.slug, coordRow.slug, jhablaRow.slug]);
+  });
+
+  it("re-stamps untouched cards on a product rebuild", async () => {
+    const store = createCatalogStore(new FakeRedis());
+    await rebuild({ kind: "full" }, { store, db: makeDb(productRows, {}, [{ product_slug: frockRow.slug, sales_rank: 1 }]), now });
+    const db = makeDb(productRows, {}, [
+      { product_slug: coordRow.slug, sales_rank: 1 },
+      { product_slug: frockRow.slug, sales_rank: 2 },
+    ]);
+    await rebuild({ kind: "product", slug: jhablaRow.slug }, { store, db, now });
+    const snapshot = await store.readSnapshot();
+    expect(ranks(snapshot)).toEqual({ [coordRow.slug]: 1, [frockRow.slug]: 2, [jhablaRow.slug]: null });
+    expect(snapshot?.products.map((p) => p.slug)).toEqual([coordRow.slug, frockRow.slug, jhablaRow.slug]);
+  });
+
+  it("keeps the previous ranks when the ranking cannot be read", async () => {
+    const store = createCatalogStore(new FakeRedis());
+    await rebuild({ kind: "full" }, { store, db: makeDb(productRows, {}, [{ product_slug: frockRow.slug, sales_rank: 1 }]), now });
+    const db = makeDb([{ ...coordRow, name: "Renamed Coord" }, frockRow, jhablaRow]);
+    db.fetchSalesRanking = vi.fn(async () => {
+      throw new Error("[catalog/supabase] sales ranking: boom");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await rebuild({ kind: "product", slug: coordRow.slug }, { store, db, now });
+    expect(result.changed).toBe(true);
+    expect(ranks(await store.readSnapshot())).toEqual({ [frockRow.slug]: 1, [coordRow.slug]: null, [jhablaRow.slug]: null });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

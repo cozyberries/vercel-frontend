@@ -17,6 +17,21 @@ describe("catalogDb", () => {
     fake = new FakeSupabase(() => ({ data: [], error: null }));
   });
 
+  it("reads the best-seller ranks from product_sales_ranks", async () => {
+    const ranks = [{ product_slug: "a", sales_rank: 1 }];
+    fake = new FakeSupabase((table, calls) => {
+      expect(table).toBe("product_sales_ranks");
+      expect(calls[0]).toEqual(["select", ["product_slug, sales_rank"]]);
+      return { data: ranks, error: null };
+    });
+    expect(await catalogDb.fetchSalesRanking()).toEqual(ranks);
+  });
+
+  it("throws when the best-seller ranks cannot be read", async () => {
+    fake = new FakeSupabase(() => ({ data: null, error: { message: "boom" } }));
+    await expect(catalogDb.fetchSalesRanking()).rejects.toThrow("sales ranking: boom");
+  });
+
   it("fetches specific products by slug with the document select", async () => {
     const resolver: FakeResolver = (table, calls) => {
       expect(table).toBe("products");

@@ -11,6 +11,7 @@ function db(overrides: Partial<CatalogDb> = {}): CatalogDb {
     fetchAllProductSlugs: vi.fn(async () => productRows.map((r) => r.slug)),
     fetchReferenceRows: vi.fn(async () => referenceRows),
     fetchRatingRows: vi.fn(async () => ratingRows),
+    fetchSalesRanking: vi.fn(async () => []),
     resolveProductSlugById: vi.fn(async () => null),
     ...overrides,
   };

@@ -44,6 +44,7 @@
     "db:test-overrides": "node scripts/db-test-overrides.mjs",
     "db:test-sales-register": "node scripts/db-test-sales-register.mjs",
     "db:test-retail": "node scripts/db-test-retail.mjs",
+    "db:test-sales-ranking": "node scripts/db-test-sales-ranking.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {
