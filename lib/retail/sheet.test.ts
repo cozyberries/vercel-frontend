@@ -125,6 +125,19 @@ describe("parseSalesSheet", () => {
     });
   });
 
+  it("refuses a value typed in a column with no heading, and ignores a blank one", () => {
+    const r = parseSalesSheet(
+      sheets([["petal-frock-1-2y", "", "", null, null, 1, null, 3], ["bloom-romper-0-3m", "", "", null, null, 1, null, "  "]], [10]),
+      { ...expected, rates: [10] },
+    );
+    expect(r).toEqual({
+      ok: false,
+      rowErrors: [{ row: 2, code: "petal-frock-1-2y", message: "This row has a value in column 8 (no heading). Put sales only in the Sold columns" }],
+    });
+    const ok = parseSalesSheet(sheets([["bloom-romper-0-3m", "", "", null, null, 1, null, null, ""]], [10]), { ...expected, rates: [10] });
+    expect(ok.ok).toBe(true);
+  });
+
   it("refuses selling more than the shop holds, at the code's first row", () => {
     const r = parseSalesSheet(sheets([["bloom-romper-0-3m", "", "", null, null, 2], ["bloom-romper-0-3m", "", "", null, null, 1]]), expected);
     expect(r).toEqual({ ok: false, rowErrors: [{ row: 2, code: "bloom-romper-0-3m", message: "Sold 3 of Bloom Romper (0-3M) but the shop holds 2" }] });

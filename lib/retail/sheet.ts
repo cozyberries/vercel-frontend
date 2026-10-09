@@ -135,6 +135,11 @@ export function parseSalesSheet(
   sales.data.slice(1).forEach((r, i) => {
     const row = i + 2;
     const code = str(r[0]);
+    const stray = r.findIndex((cell, c) => c >= columns.length && str(cell) !== "");
+    if (stray >= 0) {
+      errors.push({ row, code, message: `This row has a value in column ${stray + 1} (no heading). Put sales only in the Sold columns` });
+      return;
+    }
     const counts: number[] = [];
     for (let k = 0; k < soldRates.length; k++) {
       const cell = r[FIRST_SOLD + k];
