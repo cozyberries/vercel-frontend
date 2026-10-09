@@ -7,6 +7,7 @@ begin;
 
 \ir ../../supabase/migrations/20261008120000_retail_consignment.sql
 \ir ../../supabase/migrations/20261008120100_retail_consignment_functions.sql
+\ir ../../supabase/migrations/20261009120000_retail_discount_rates.sql
 
 create temporary table t_result(name text, ok boolean, reason text) on commit drop;
 create temporary table t_ctx(k text primary key, v text) on commit drop;
@@ -50,7 +51,8 @@ do $$
 declare t text; p text; bad text[] := '{}';
 begin
   foreach t in array array['retailers', 'consignment_docs', 'consignment_lines',
-                           'retailer_payments', 'consignment_counters', 'retailer_batch_balances'] loop
+                           'retailer_payments', 'consignment_counters', 'retailer_batch_balances',
+                           'retailer_discount_rates'] loop
     foreach p in array array['SELECT', 'INSERT', 'UPDATE', 'DELETE'] loop
       if has_table_privilege('anon', 'public.' || t, p) or has_table_privilege('authenticated', 'public.' || t, p) then
         bad := bad || (t || ':' || p);
@@ -163,7 +165,9 @@ begin
     'public.consignment_save_return(uuid,date,jsonb,uuid,uuid)',
     'public.consignment_save_sale(uuid,text,jsonb,uuid)',
     'public.consignment_issue(uuid)',
-    'public.consignment_cancel(uuid)'] loop
+    'public.consignment_cancel(uuid)',
+    'public.consignment_add_rate(uuid,text,numeric,uuid)',
+    'public.consignment_remove_rate(uuid,text,numeric)'] loop
     if has_function_privilege('anon', f, 'EXECUTE') or has_function_privilege('authenticated', f, 'EXECUTE')
        or not has_function_privilege('service_role', f, 'EXECUTE') then
       bad := bad || f;
@@ -519,6 +523,144 @@ begin
   insert into t_result values ('sale_above_low_rate_refused',
     v_err like 'ABOVE_LOW_RATE:ZZ Retail Frock%' and v_status = 'draft',
     format('err=%s status=%s', coalesce(v_err, 'issued'), v_status));
+end $$;
+
+-- Approved discounts (agreement revised 2026-10-09). A second shop gets 4 pieces
+-- of size a at Rs 923 today; rates are per shop and month.
+do $$
+declare v_shop uuid;
+begin
+  insert into public.retailers (legal_name, gstin, address)
+    values ('ZZ Discount Shop', '29AAACR5055K1Z5', '2 Test Road, Bengaluru')
+    returning id into v_shop;
+  insert into t_ctx values ('shop2', v_shop::text);
+  perform public.consignment_issue(public.consignment_save_challan(v_shop, pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":4,"mrp_paise":92300}]', pg_temp.actor(), null));
+end $$;
+
+create function pg_temp.shop2() returns uuid language sql as $$ select v::uuid from t_ctx where k = 'shop2' $$;
+create function pg_temp.rate_lines(p_doc uuid) returns text language sql as $$
+  select string_agg(quantity || '@' || trim_scale(discount_pct), ',' order by discount_pct, quantity)
+    from public.consignment_lines where doc_id = p_doc
+$$;
+
+-- 33. A rate must be above 0, below 100, with at most two decimals; the month can't be in the future.
+do $$
+declare e0 text; e100 text; e3 text; ef text;
+begin
+  e0 := pg_temp.err(format('select public.consignment_add_rate(%L, %L, 0, %L)', pg_temp.shop2(), pg_temp.period(), pg_temp.actor()));
+  e100 := pg_temp.err(format('select public.consignment_add_rate(%L, %L, 100, %L)', pg_temp.shop2(), pg_temp.period(), pg_temp.actor()));
+  e3 := pg_temp.err(format('select public.consignment_add_rate(%L, %L, 12.345, %L)', pg_temp.shop2(), pg_temp.period(), pg_temp.actor()));
+  ef := pg_temp.err(format('select public.consignment_add_rate(%L, %L, 10, %L)', pg_temp.shop2(),
+    to_char(pg_temp.today() + interval '1 month', 'YYYY-MM'), pg_temp.actor()));
+  insert into t_result values ('rate_bounds_refused',
+    e0 = 'BAD_RATE' and e100 = 'BAD_RATE' and e3 = 'BAD_RATE' and ef = 'BAD_PERIOD',
+    format('0=%s 100=%s 12.345=%s future=%s', e0, e100, e3, ef));
+end $$;
+
+-- 34. Adding a rate twice is a no-op; a fifth rate is refused.
+do $$
+declare v_err text; v_n int;
+begin
+  perform public.consignment_add_rate(pg_temp.shop2(), pg_temp.period(), 10, pg_temp.actor());
+  perform public.consignment_add_rate(pg_temp.shop2(), pg_temp.period(), 10, pg_temp.actor());
+  perform public.consignment_add_rate(pg_temp.shop2(), pg_temp.period(), 20, pg_temp.actor());
+  perform public.consignment_add_rate(pg_temp.shop2(), pg_temp.period(), 30, pg_temp.actor());
+  perform public.consignment_add_rate(pg_temp.shop2(), pg_temp.period(), 40, pg_temp.actor());
+  v_err := pg_temp.err(format('select public.consignment_add_rate(%L, %L, 50, %L)', pg_temp.shop2(), pg_temp.period(), pg_temp.actor()));
+  select count(*) into v_n from public.retailer_discount_rates where retailer_id = pg_temp.shop2() and period = pg_temp.period();
+  perform public.consignment_remove_rate(pg_temp.shop2(), pg_temp.period(), 40);
+  insert into t_result values ('rate_duplicate_noop_and_max_four',
+    v_err = 'TOO_MANY_RATES' and v_n = 4, format('err=%s count=%s', coalesce(v_err, 'accepted'), v_n));
+end $$;
+
+-- 35. A sale line at a rate that was not approved for its month is refused.
+insert into t_result
+select 'sale_unapproved_rate_refused', e = 'RATE_NOT_APPROVED:15', coalesce(e, 'accepted')
+  from pg_temp.err(format('select public.consignment_save_sale(%L, %L, %L, %L)', pg_temp.shop2(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1,"discount_pct":15}]', pg_temp.actor())) e;
+
+-- 36. One product sold at full MRP and at two rates becomes one line per rate.
+do $$
+declare v_doc uuid;
+begin
+  v_doc := public.consignment_save_sale(pg_temp.shop2(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":2},
+      {"variant_slug":"zz-retail-frock-a","quantity":1,"discount_pct":10},
+      {"variant_slug":"zz-retail-frock-a","quantity":1,"discount_pct":20}]', pg_temp.actor());
+  insert into t_ctx values ('s2', v_doc::text);
+  insert into t_result values ('sale_splits_lines_per_rate', pg_temp.rate_lines(v_doc) = '2@0,1@10,1@20',
+    'lines=' || coalesce(pg_temp.rate_lines(v_doc), 'none'));
+end $$;
+
+-- 37. The held check counts every rate together (3 + 2 > 4); the old draft survives.
+insert into t_result
+select 'sale_held_check_spans_rates',
+       e like 'NOT_HELD:4:%' and pg_temp.rate_lines((select v::uuid from t_ctx where k = 's2')) = '2@0,1@10,1@20',
+       coalesce(e, 'accepted')
+  from pg_temp.err(format('select public.consignment_save_sale(%L, %L, %L, %L)', pg_temp.shop2(), pg_temp.period(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":3},{"variant_slug":"zz-retail-frock-a","quantity":2,"discount_pct":10}]',
+    pg_temp.actor())) e;
+
+-- 38. A rate the draft uses can't be removed; an unused one can (and removing it again is a no-op).
+do $$
+declare v_err text; v_n int;
+begin
+  v_err := pg_temp.err(format('select public.consignment_remove_rate(%L, %L, 10)', pg_temp.shop2(), pg_temp.period()));
+  perform public.consignment_remove_rate(pg_temp.shop2(), pg_temp.period(), 30);
+  perform public.consignment_remove_rate(pg_temp.shop2(), pg_temp.period(), 30);
+  select count(*) into v_n from public.retailer_discount_rates where retailer_id = pg_temp.shop2() and period = pg_temp.period();
+  insert into t_result values ('remove_rate_in_use_refused', v_err = 'RATE_IN_USE:10' and v_n = 2,
+    format('err=%s count=%s', coalesce(v_err, 'removed'), v_n));
+end $$;
+
+-- 39. Issue prices each line at 75% of MRP less its rate: 69225, 62303, 55380.
+do $$
+declare v_doc public.consignment_docs; v_prices text;
+begin
+  v_doc := public.consignment_issue((select v::uuid from t_ctx where k = 's2'));
+  select string_agg(trim_scale(discount_pct) || ':' || unit_price_paise, ',' order by discount_pct) into v_prices
+    from public.consignment_lines where doc_id = v_doc.id;
+  insert into t_result values ('issue_prices_selling_price_share', v_prices = '0:69225,10:62303,20:55380',
+    'prices=' || coalesce(v_prices, 'none'));
+end $$;
+
+-- 40. Once the month's invoice is issued its rates are frozen.
+do $$
+declare e_add text; e_rm text;
+begin
+  e_add := pg_temp.err(format('select public.consignment_add_rate(%L, %L, 5, %L)', pg_temp.shop2(), pg_temp.period(), pg_temp.actor()));
+  e_rm := pg_temp.err(format('select public.consignment_remove_rate(%L, %L, 20)', pg_temp.shop2(), pg_temp.period()));
+  insert into t_result values ('rates_frozen_after_issue', e_add = 'ALREADY_ISSUED' and e_rm = 'ALREADY_ISSUED',
+    format('add=%s remove=%s', coalesce(e_add, 'accepted'), coalesce(e_rm, 'accepted')));
+end $$;
+
+-- 41. Challan and return lines never carry a discount.
+insert into t_result
+select 'non_sale_lines_have_no_discount', bool_and(l.discount_pct = 0), 'a non-sale line has a discount'
+  from public.consignment_lines l join public.consignment_docs d on d.id = l.doc_id
+ where d.kind <> 'sale';
+
+-- 42. Issue re-checks the rates, and the Rs 2,500 ceiling is judged on the discounted
+--     price: MRP Rs 4,000 at 20% off → 75% × 3,200 = Rs 2,400 (full MRP would be Rs 3,000).
+do $$
+declare v_ch uuid; v_sale uuid; v_err text; v_doc public.consignment_docs; v_price int;
+begin
+  v_ch := public.consignment_save_challan(pg_temp.shop2(), pg_temp.today(),
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1,"mrp_paise":400000}]', pg_temp.actor(), null);
+  update public.consignment_docs set doc_date = '2026-05-15' where id = v_ch;
+  perform public.consignment_issue(v_ch);
+  perform public.consignment_add_rate(pg_temp.shop2(), '2026-05', 20, pg_temp.actor());
+  v_sale := public.consignment_save_sale(pg_temp.shop2(), '2026-05',
+    '[{"variant_slug":"zz-retail-frock-a","quantity":1,"discount_pct":20}]', pg_temp.actor());
+  delete from public.retailer_discount_rates where retailer_id = pg_temp.shop2() and period = '2026-05';
+  v_err := pg_temp.err(format('select public.consignment_issue(%L)', v_sale));
+  insert into t_result values ('issue_rechecks_rates', v_err = 'RATE_NOT_APPROVED:20', coalesce(v_err, 'issued'));
+  insert into public.retailer_discount_rates (retailer_id, period, rate_pct) values (pg_temp.shop2(), '2026-05', 20);
+  v_doc := public.consignment_issue(v_sale);
+  select unit_price_paise into v_price from public.consignment_lines where doc_id = v_sale;
+  insert into t_result values ('low_rate_ceiling_uses_discounted_price',
+    v_doc.status = 'issued' and v_price = 240000, format('status=%s price=%s', v_doc.status, v_price));
 end $$;
 
 select case when ok then 'PASS ' else 'FAIL ' end || name

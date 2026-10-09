@@ -81,7 +81,7 @@ begin
                            'shelf_refills','order_price_overrides',
                            'retailers','consignment_docs','consignment_lines',
                            'retailer_payments','consignment_counters',
-                           'retailer_batch_balances']
+                           'retailer_batch_balances','retailer_discount_rates']
   loop
     if pg_temp.priv_any('anon',('public.'||t)::regclass,'SELECT')
     or pg_temp.priv_any('anon',('public.'||t)::regclass,'INSERT')
