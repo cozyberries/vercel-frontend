@@ -30,6 +30,8 @@ export interface ConsignmentLine {
   batch_line_id: string | null;
   /** Sale lines, set when the sale is issued. */
   unit_price_paise: number | null;
+  /** Sale lines: the approved discount on the MRP these pieces sold at (0 = full MRP). Always 0 on challans and returns. */
+  discount_pct: number;
 }
 
 export interface ConsignmentDoc {
@@ -86,4 +88,11 @@ export interface RowError {
   row: number;
   code: string;
   message: string;
+}
+
+/** A discount rate Cozyberries approved for one shop and month (agreement clause 3.5). */
+export interface DiscountRate {
+  /** YYYY-MM. */
+  period: string;
+  rate_pct: number;
 }

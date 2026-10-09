@@ -1,5 +1,5 @@
 import type { Holding, RetailerSummary } from "./holdings";
-import type { ConsignmentDoc, Retailer, RetailerPayment } from "./types";
+import type { ConsignmentDoc, DiscountRate, Retailer, RetailerPayment } from "./types";
 
 export interface RetailerListItem {
   retailer: Retailer;
@@ -21,6 +21,8 @@ export interface RetailerDetail {
   holdings: Holding[];
   docs: ConsignmentDoc[];
   payments: RetailerPayment[];
+  /** Approved discount rates for every month of this shop. */
+  discountRates: DiscountRate[];
   today: string;
 }
 

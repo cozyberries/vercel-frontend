@@ -21,7 +21,7 @@ beforeEach(() => {
       retailer: retailer(), summary,
       holdings: holdingsFrom([balance({ sent_on: "2026-04-01" })], "2026-11-08"),
       docs: [doc(), doc({ id: "c1", kind: "challan", period: null, number: "CBC/26-27/0001", doc_date: "2026-04-01" })],
-      payments: [payment()], today: "2026-11-08",
+      payments: [payment()], discountRates: [], today: "2026-11-08",
     },
   })));
 });

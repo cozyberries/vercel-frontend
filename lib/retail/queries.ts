@@ -3,11 +3,12 @@ import { fetchActiveVariants } from "@/lib/admin/stock-variants";
 import type { RetailerDetail, RetailerListResponse, VariantOption } from "./api-types";
 import { istToday, recentPeriods } from "./dates";
 import { holdingsFrom, retailerSummary } from "./holdings";
-import type { BatchBalance, ConsignmentDoc, Retailer, RetailerPayment } from "./types";
+import type { BatchBalance, ConsignmentDoc, DiscountRate, Retailer, RetailerPayment } from "./types";
 
 /** Server-only reads with the service-role client. Callers gate on requireAdmin() first. */
 export const RETAILER_COLUMNS = "id, legal_name, trade_name, gstin, state_code, address, contact_name, phone, email, our_share_pct, active, created_at";
-export const LINE_COLUMNS = "id, doc_id, variant_slug, product_name, size, quantity, mrp_paise, batch_line_id, unit_price_paise";
+export const LINE_COLUMNS = "id, doc_id, variant_slug, product_name, size, quantity, mrp_paise, batch_line_id, unit_price_paise, discount_pct";
+export const RATE_COLUMNS = "period, rate_pct";
 export const DOC_COLUMNS = `id, retailer_id, kind, status, number, doc_date, period, share_pct, note, created_at, issued_at, cancelled_at, buyer_legal_name, buyer_trade_name, buyer_gstin, buyer_address, buyer_state_code, consignment_lines(${LINE_COLUMNS})`;
 export const BALANCE_COLUMNS = "batch_line_id, retailer_id, variant_slug, product_name, size, mrp_paise, sent_on, challan_number, sent, held";
 export const PAYMENT_COLUMNS = "id, retailer_id, doc_id, amount_paise, paid_on, method, reference, created_at";
@@ -39,7 +40,9 @@ const toRetailer = (r: Retailer): Retailer => ({ ...r, our_share_pct: Number(r.o
 const toDoc = (d: ConsignmentDoc): ConsignmentDoc => ({
   ...d,
   share_pct: d.share_pct === null ? null : Number(d.share_pct),
-  consignment_lines: [...(d.consignment_lines ?? [])].sort((a, b) => a.product_name.localeCompare(b.product_name) || a.size.localeCompare(b.size) || a.mrp_paise - b.mrp_paise),
+  consignment_lines: [...(d.consignment_lines ?? [])]
+    .map((l) => ({ ...l, discount_pct: Number(l.discount_pct ?? 0) }))
+    .sort((a, b) => a.product_name.localeCompare(b.product_name) || a.size.localeCompare(b.size) || a.mrp_paise - b.mrp_paise || a.discount_pct - b.discount_pct),
 });
 
 export function shopName(r: Pick<Retailer, "trade_name" | "legal_name">): string {
@@ -95,13 +98,17 @@ export async function loadRetailerList(admin: SupabaseClient, now: Date): Promis
 export async function loadRetailerDetail(admin: SupabaseClient, id: string, now: Date): Promise<RetailerDetail | null> {
   const retailer = await fetchRetailer(admin, id);
   if (!retailer) return null;
-  const [balances, docs, payments] = await Promise.all([
+  const [balances, docs, payments, rates] = await Promise.all([
     rows<BatchBalance>((f, t) => admin.from("retailer_batch_balances").select(BALANCE_COLUMNS).eq("retailer_id", id).order("batch_line_id", { ascending: true }).range(f, t)),
     rows<ConsignmentDoc>((f, t) =>
       admin.from("consignment_docs").select(DOC_COLUMNS).eq("retailer_id", id)
         .order("doc_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: true }).range(f, t),
     ),
     rows<RetailerPayment>((f, t) => admin.from("retailer_payments").select(PAYMENT_COLUMNS).eq("retailer_id", id).order("paid_on", { ascending: false }).order("id", { ascending: true }).range(f, t)),
+    rows<DiscountRate>((f, t) =>
+      admin.from("retailer_discount_rates").select(RATE_COLUMNS).eq("retailer_id", id)
+        .order("period", { ascending: true }).order("rate_pct", { ascending: true }).range(f, t),
+    ),
   ]);
   const today = istToday(now);
   const allDocs = docs.map(toDoc);
@@ -111,6 +118,7 @@ export async function loadRetailerDetail(admin: SupabaseClient, id: string, now:
     holdings: holdingsFrom(balances, today),
     docs: allDocs,
     payments,
+    discountRates: rates.map((r) => ({ period: r.period, rate_pct: Number(r.rate_pct) })),
     today,
   };
 }

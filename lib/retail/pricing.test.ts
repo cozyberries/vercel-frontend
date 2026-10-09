@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { line } from "./__fixtures__/retail";
-import { docTotalPaise, mrpValueOf, piecesOf, priceSaleLines, retailGst, unitPricePaise } from "./pricing";
+import { docTotalPaise, formatRate, mrpValueOf, piecesOf, priceSaleLines, ratesFor, retailGst, unitPricePaise } from "./pricing";
 
 describe("retail pricing", () => {
   it("prices our share of MRP to the paisa, rounding half up once", () => {
@@ -47,5 +47,49 @@ describe("retail pricing", () => {
     expect(docTotalPaise({ ...d, share_pct: null }, 70)).toBe(140000 + 77000);
     expect(piecesOf(d)).toBe(3);
     expect(mrpValueOf(d)).toBe(310000);
+  });
+
+  it("prices our share of the selling price: MRP less the approved discount", () => {
+    expect(unitPricePaise(92300, 75, 10)).toBe(62303);
+    expect(unitPricePaise(92300, 75, 20)).toBe(55380);
+    expect(unitPricePaise(92300, 75, 12.5)).toBe(60572);
+  });
+
+  it("keeps the old price at rate 0", () => {
+    expect(unitPricePaise(92300, 75, 0)).toBe(unitPricePaise(92300, 75));
+    expect(unitPricePaise(92300, 75)).toBe(69225);
+  });
+
+  it("keeps lines at different discounts apart and carries the rate", () => {
+    const priced = priceSaleLines(
+      [
+        line({ id: "a", quantity: 2, mrp_paise: 92300 }),
+        line({ id: "b", quantity: 1, mrp_paise: 92300, discount_pct: 10 }),
+        line({ id: "c", quantity: 1, mrp_paise: 92300, discount_pct: 10 }),
+      ],
+      75,
+    );
+    expect(priced.map((p) => [p.quantity, p.discountPct, p.unitPricePaise])).toEqual([
+      [2, 0, 69225],
+      [2, 10, 62303],
+    ]);
+  });
+
+  it("totals a draft at its lines' discounts", () => {
+    const d = { share_pct: null, consignment_lines: [line({ mrp_paise: 92300, discount_pct: 10, quantity: 2 })] };
+    expect(docTotalPaise(d, 75)).toBe(2 * 62303);
+  });
+
+  it("formats rates without trailing zeros and lists a month's rates in order", () => {
+    expect(formatRate(10)).toBe("10");
+    expect(formatRate(12.5)).toBe("12.5");
+    expect(formatRate(7.25)).toBe("7.25");
+    const rates = [
+      { period: "2026-10", rate_pct: 20 },
+      { period: "2026-09", rate_pct: 5 },
+      { period: "2026-10", rate_pct: 10 },
+    ];
+    expect(ratesFor(rates, "2026-10")).toEqual([10, 20]);
+    expect(ratesFor(rates, "2026-08")).toEqual([]);
   });
 });

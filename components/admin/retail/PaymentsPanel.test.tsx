@@ -6,7 +6,7 @@ import type { RetailerDetail } from "@/lib/retail/api-types";
 import { PaymentsPanel } from "./PaymentsPanel";
 
 const summary = { unitsHeld: 0, mrpValueHeldPaise: 0, invoicedPaise: 0, paidPaise: 0, owedPaise: 0, lastReportedPeriod: null, amberBatches: 0, redBatches: 0, oldestSentOn: null };
-const detail: RetailerDetail = { retailer: retailer(), summary, holdings: [], docs: [], payments: [], today: "2026-11-08" };
+const detail: RetailerDetail = { retailer: retailer(), summary, holdings: [], docs: [], payments: [], discountRates: [], today: "2026-11-08" };
 
 afterEach(() => vi.unstubAllGlobals());
 

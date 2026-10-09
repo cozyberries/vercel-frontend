@@ -32,6 +32,7 @@ export function line(o: Partial<ConsignmentLine> = {}): ConsignmentLine {
     mrp_paise: 100000,
     batch_line_id: null,
     unit_price_paise: null,
+    discount_pct: 0,
     ...o,
   };
 }

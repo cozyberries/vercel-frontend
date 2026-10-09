@@ -93,4 +93,16 @@ describe("retail loaders", () => {
     const { admin } = fakeAdmin({ retailers: { data: null, error: { message: "boom" } } });
     await expect(loadRetailerList(admin, NOW)).rejects.toThrow("boom");
   });
+
+  it("loads the shop's approved discount rates as numbers", async () => {
+    const { admin, calls } = fakeAdmin({
+      retailers: { data: retailer(), error: null },
+      retailer_discount_rates: { data: [{ period: "2026-10", rate_pct: "10.00" }, { period: "2026-10", rate_pct: "12.50" }], error: null },
+      consignment_docs: { data: [doc({ consignment_lines: [{ ...doc().consignment_lines[0], discount_pct: "10.00" as unknown as number }] })], error: null },
+    });
+    const d = await loadRetailerDetail(admin, retailer().id, NOW);
+    expect(d?.discountRates).toEqual([{ period: "2026-10", rate_pct: 10 }, { period: "2026-10", rate_pct: 12.5 }]);
+    expect(d?.docs[0].consignment_lines[0].discount_pct).toBe(10);
+    expect(calls.find((c) => c.table === "retailer_discount_rates")?.ops).toContainEqual(["eq", ["retailer_id", retailer().id]]);
+  });
 });

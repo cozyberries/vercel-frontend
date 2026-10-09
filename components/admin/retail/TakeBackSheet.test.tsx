@@ -9,7 +9,7 @@ import { TakeBackSheet } from "./TakeBackSheet";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const DRAFT = "22222222-2222-4222-8222-222222222222";
 const summary = { unitsHeld: 3, mrpValueHeldPaise: 300000, invoicedPaise: 0, paidPaise: 0, owedPaise: 0, lastReportedPeriod: null, amberBatches: 0, redBatches: 0, oldestSentOn: "2026-10-01" };
-const detail: RetailerDetail = { retailer: retailer(), summary, holdings: holdingsFrom([balance()], "2026-11-08"), docs: [], payments: [], today: "2026-11-08" };
+const detail: RetailerDetail = { retailer: retailer(), summary, holdings: holdingsFrom([balance()], "2026-11-08"), docs: [], payments: [], discountRates: [], today: "2026-11-08" };
 
 beforeEach(() => {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
