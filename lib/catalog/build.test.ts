@@ -57,7 +57,7 @@ describe("deriveAgeSlugs / normalizeAgeSlug", () => {
 describe("computeRatingSummaries", () => {
   it("averages to one decimal and ignores null ratings", () => {
     expect(ratings["frock-japanese-soft-pear"]).toEqual({ average: 4.5, count: 2 });
-    expect(ratings["coords-set-chinese-collar-soft-pear"]).toBeUndefined();
+    expect(ratings["coords-set-boys-soft-pear"]).toBeUndefined();
   });
 });
 
@@ -146,7 +146,7 @@ describe("sortDefault / mergeCards", () => {
   const cards = productRows.map((r) => toListCard(buildProductDoc(r, ctx)));
   it("sorts by created_at desc then slug asc", () => {
     expect(sortDefault(cards).map((c) => c.slug)).toEqual([
-      "coords-set-chinese-collar-soft-pear",
+      "coords-set-boys-soft-pear",
       "frock-japanese-soft-pear",
       "jhabla-sleeveless-moons-and-stars",
     ]);
@@ -195,7 +195,7 @@ describe("sortDefault / mergeCards", () => {
   it("replaces, adds and deletes cards", () => {
     const updatedFrock = { ...cards[0]!, name: "Renamed" };
     const merged = mergeCards(cards, [updatedFrock], ["jhabla-sleeveless-moons-and-stars"]);
-    expect(merged.map((c) => c.slug)).toEqual(["coords-set-chinese-collar-soft-pear", "frock-japanese-soft-pear"]);
+    expect(merged.map((c) => c.slug)).toEqual(["coords-set-boys-soft-pear", "frock-japanese-soft-pear"]);
     expect(merged.find((c) => c.slug === "frock-japanese-soft-pear")?.name).toBe("Renamed");
   });
 });

@@ -70,7 +70,7 @@ describe("rankProducts", () => {
 
     expect(await rankProducts(store, "frock", DEFAULT_FILTERS)).toEqual(["frock-japanese-soft-pear"]);
     // "shorts" appears only in the coord set's description; "collar" would also match the frock.
-    expect(await rankProducts(store, "shorts", { ...DEFAULT_FILTERS, gender: "boy" })).toEqual(["coords-set-chinese-collar-soft-pear"]);
+    expect(await rankProducts(store, "shorts", { ...DEFAULT_FILTERS, gender: "boy" })).toEqual(["coords-set-boys-soft-pear"]);
     expect(await rankProducts(store, "shorts", { ...DEFAULT_FILTERS, gender: "girl" })).toEqual([]);
     expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, design: "soft-pear" })).toEqual(["frock-japanese-soft-pear"]);
     expect(await rankProducts(store, "frock", { ...DEFAULT_FILTERS, design: "moon-and-stars" })).toEqual([]);

@@ -75,7 +75,7 @@ export const frockRow: ProductRow = {
 };
 
 export const coordRow: ProductRow = {
-  slug: "coords-set-chinese-collar-soft-pear",
+  slug: "coords-set-boys-soft-pear",
   name: "Petal Pops - Boys Co ord set",
   description: "Chinese collar shirt and shorts set.",
   price: 1299,
@@ -140,5 +140,5 @@ export const productRows: ProductRow[] = [frockRow, coordRow, jhablaRow];
 export const ratingRows: RatingRow[] = [
   { product_slug: "frock-japanese-soft-pear", rating: 5 },
   { product_slug: "frock-japanese-soft-pear", rating: 4 },
-  { product_slug: "coords-set-chinese-collar-soft-pear", rating: null },
+  { product_slug: "coords-set-boys-soft-pear", rating: null },
 ];
