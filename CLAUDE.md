@@ -60,6 +60,7 @@ npm run db:test-overrides                # admin price-override table + note bac
 npm run db:test-sales-register           # invoice_voided_at trigger, guard and invoice-number backfill (rolled back)
 npm run db:test-retail                   # retail consignment tables + functions SQL tests (rolled back)
 npm run db:test-sales-ranking            # product_sales_ranks table + refresh triggers SQL tests (rolled back)
+npm run db:test-product-slugs            # 13 product slug fixes + Naughty Nuts print rename SQL tests (rolled back)
 ```
 
 ## Architecture
