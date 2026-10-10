@@ -106,6 +106,12 @@ select 'print_variants_and_product_colours',
        and exists (select 1 from public.products where slug = 'coords-set-boys-naughty-nuts' and 'naughty-nuts' = any(color_slugs)),
        format('variants=%s (before %s)', (select count(*) from public.product_variants where color_slug = 'naughty-nuts'), :nuts_variants_before);
 
+-- Final review 2026-10-10: the FK re-creation takes ACCESS EXCLUSIVE locks; a stuck session on
+-- products must make the migration give up quickly, not queue every storefront read behind it.
+insert into t_result
+select 'migration_sets_lock_timeout', current_setting('lock_timeout') = '5s',
+       format('lock_timeout=%s', current_setting('lock_timeout'));
+
 insert into t_result
 select 'fks_cascade_on_update',
        (select count(*) from pg_constraint

@@ -3,4 +3,4 @@
 // inside a transaction and rolls back, so it mutates nothing.
 import { runPsqlAssertions } from "./lib/run-psql-assertions.mjs";
 
-runPsqlAssertions({ file: "scripts/sql/test-fix-product-slugs.sql", expected: 12 });
+runPsqlAssertions({ file: "scripts/sql/test-fix-product-slugs.sql", expected: 13 });

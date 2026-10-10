@@ -16,6 +16,11 @@
 -- A second run raises 'fix_product_slugs: …' and changes nothing.
 -- Rollback: scripts/sql/fix-product-slugs.rollback.sql.
 
+-- Re-creating the foreign keys takes ACCESS EXCLUSIVE locks on the product tables. If another
+-- session holds a lock there, give up after 5 s (re-run later) instead of queueing every
+-- storefront read of products behind this migration.
+set local lock_timeout = '5s';
+
 create temporary table if not exists slug_renames (
   old_slug text primary key,
   new_slug text not null unique
