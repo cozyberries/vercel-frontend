@@ -5,6 +5,13 @@
 \set ON_ERROR_STOP on
 begin;
 
+-- Works before and after the migration is applied: once it is live, the rollback script first
+-- restores the old slugs inside this transaction, so the migration is exercised the same way.
+select exists (select 1 from public.products where slug = 'coords-set-boys-petal-pops') as already_applied \gset
+\if :already_applied
+\ir fix-product-slugs.rollback.sql
+\endif
+
 create temporary table t_map(old_slug text primary key, new_slug text not null) on commit drop;
 insert into t_map values
   ('coords-set-chinese-collar-soft-pear', 'coords-set-boys-petal-pops'),
