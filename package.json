@@ -47,6 +47,7 @@
     "db:test-sales-ranking": "node scripts/db-test-sales-ranking.mjs",
     "db:test-product-slugs": "node scripts/db-test-product-slugs.mjs",
     "db:test-variant-slugs": "node scripts/db-test-variant-slugs.mjs",
+    "db:test-order-skus": "node scripts/db-test-order-skus.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {
