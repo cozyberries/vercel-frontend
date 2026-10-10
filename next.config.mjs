@@ -1,5 +1,6 @@
 import BundleAnalyzer from '@next/bundle-analyzer';
 import withSerwistInit from '@serwist/next';
+import { renamedProductRedirects } from './lib/catalog/renamed-redirects.mjs';
 
 const withBundleAnalyzer = BundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
 
@@ -90,12 +91,16 @@ const nextConfig = {
   },
   // Retired info pages redirect at the edge. Rendering a page that called redirect() served a 200
   // shell whose client-side redirect aborted the layout link prefetches and logged console errors.
+  // Renamed products (lib/catalog/renamed-products.json) 308 to their new slug.
   async redirects() {
-    return ["/faqs", "/shipping-returns", "/track-order"].map((source) => ({
-      source,
-      destination: "/",
-      permanent: false,
-    }));
+    return [
+      ...["/faqs", "/shipping-returns", "/track-order"].map((source) => ({
+        source,
+        destination: "/",
+        permanent: false,
+      })),
+      ...renamedProductRedirects(),
+    ];
   },
   async headers() {
     return [

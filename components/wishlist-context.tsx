@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from "react";
 import { useWishlistPersistence } from "@/hooks/useWishlistPersistence";
+import { withCurrentSlugs } from "@/lib/catalog/renamed";
 
 export interface WishlistItem {
   id: string;
@@ -32,8 +33,12 @@ const WishlistContext = createContext<WishlistContextType | undefined>(
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
 
-  // Use wishlist persistence hook for Supabase integration
-  const { isLoading, clearAllWishlist } = useWishlistPersistence({ wishlist, setWishlist });
+  // Use wishlist persistence hook for Supabase integration. Wishlists saved before a slug fix
+  // move to the new slug as they load.
+  const { isLoading, clearAllWishlist } = useWishlistPersistence({
+    wishlist,
+    setWishlist: (items: WishlistItem[]) => setWishlist(withCurrentSlugs(items)),
+  });
 
   const addToWishlist = (item: WishlistItem) => {
     setWishlist((prev) => {

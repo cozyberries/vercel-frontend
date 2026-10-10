@@ -40,6 +40,11 @@ describe("parseFilters", () => {
     expect(parseFilters({ sortBy: "weird", sortOrder: "sideways" }).sortBy).toBe("default");
     expect(parseFilters({ sortBy: "weird", sortOrder: "sideways" }).sortOrder).toBe("desc");
   });
+  // 2026-10-10: the Naughty Nuts print slug was misspelled (naugthy-nuts); old links still filter.
+  it("reads the old misspelled print slug as the corrected one, inside a comma list too", () => {
+    expect(parseFilters(new URLSearchParams("design=naugthy-nuts")).design).toBe("naughty-nuts");
+    expect(parseFilters(new URLSearchParams("design=soft-pear,naugthy-nuts")).design).toBe("soft-pear,naughty-nuts");
+  });
   it("reads design (print slug) and colour (base colour slug), accepting the US spelling", () => {
     expect(parseFilters(new URLSearchParams("design=Petal-Pops&colour=White"))).toMatchObject({ design: "petal-pops", colour: "white" });
     expect(parseFilters(new URLSearchParams("color=lilac"))).toMatchObject({ colour: "lilac" });

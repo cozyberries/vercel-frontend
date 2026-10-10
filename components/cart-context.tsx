@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { useCartPersistence } from "@/hooks/useCartPersistence";
 import { logEvent } from "@/lib/services/event-logger";
+import { currentPrintSlug, currentProductSlug } from "@/lib/catalog/renamed";
 
 export interface CartItem {
   id: string;
@@ -26,11 +27,13 @@ export function getCartItemKey(item: Pick<CartItem, "id" | "size">): string {
 
 /**
  * Folds lines that share a key into the first of them, capped at its stock. Carts saved while
- * colour was still part of the key can hold the same size twice.
+ * colour was still part of the key can hold the same size twice. Lines saved before a slug fix
+ * (lib/catalog/renamed-products.json) move to the new product and print slug first.
  */
 export function collapseCartLines(items: CartItem[]): CartItem[] {
   const lines = new Map<string, CartItem>();
-  for (const item of items) {
+  for (const saved of items) {
+    const item = { ...saved, id: currentProductSlug(saved.id), ...(saved.color ? { color: currentPrintSlug(saved.color) } : {}) };
     const key = getCartItemKey(item);
     const kept = lines.get(key);
     if (!kept) {

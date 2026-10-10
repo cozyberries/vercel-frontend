@@ -50,7 +50,7 @@ vi.mock("@/lib/services/cart", () => ({
 }));
 vi.mock("@/lib/services/event-logger", () => ({ logEvent: () => {} }));
 
-import { CartProvider, useCart } from "./cart-context";
+import { CartProvider, collapseCartLines, useCart } from "./cart-context";
 import CartItemRow from "./CartItem";
 import WishlistPage from "@/app/wishlist/page";
 import { useReorder } from "@/hooks/useReorder";
@@ -157,5 +157,24 @@ describe("paths that add a size already in the cart", () => {
     fireEvent.click(await screen.findByRole("button", { name: "2-3Y" }));
     fireEvent.click(screen.getByRole("button", { name: /^Update · ₹/ }));
     expect(cartLines()).toEqual(["2-3Y mushie-mini 2"]);
+  });
+});
+
+describe("collapseCartLines with renamed slugs", () => {
+  // 2026-10-10: carts saved in a browser before the slug fix must still check out.
+  it("re-keys old product slugs and the old print, then merges lines that now match", () => {
+    const line = (id: string, size: string, quantity: number, color?: string) =>
+      ({ id, name: id, price: 699, size, quantity, ...(color ? { color } : {}) }) as CartItem;
+    const out = collapseCartLines([
+      line("pyjamas-classic-popsicles", "0-3M", 1),
+      line("pyjamas-with-rib-popsicles", "0-3M", 2),
+      line("pyjamas-classic-popsicles", "3-6M", 1),
+      line("coords-set-boys-naughty-nuts", "1-2Y", 1, "naugthy-nuts"),
+    ]);
+    expect(out.map((l) => [l.id, l.size, l.quantity, l.color])).toEqual([
+      ["pyjamas-with-rib-popsicles", "0-3M", 3, undefined],
+      ["pyjamas-with-rib-popsicles", "3-6M", 1, undefined],
+      ["coords-set-boys-naughty-nuts", "1-2Y", 1, "naughty-nuts"],
+    ]);
   });
 });

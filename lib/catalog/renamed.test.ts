@@ -69,3 +69,11 @@ describe("renamedProductRedirects", () => {
     });
   });
 });
+
+describe("next.config redirects", () => {
+  it("includes every renamed product redirect", async () => {
+    const config = (await import("../../next.config.mjs")).default as { redirects: () => Promise<unknown[]> };
+    const redirects = await config.redirects();
+    for (const r of renamedProductRedirects()) expect(redirects).toContainEqual(r);
+  });
+});

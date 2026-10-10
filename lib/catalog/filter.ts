@@ -1,6 +1,7 @@
 // Pure filter/sort/paginate engine. Client-safe: no node or Next imports.
 // Semantics mirror app/api/products/route.ts so the URL contract does not change.
 import { compareListed, comparePhotoFirst } from "./order";
+import { currentPrintSlug } from "./renamed";
 import type { Filters, ListCard, ProductListResponse, Reference, ReferenceAge, SortBy, SortOrder } from "./types";
 
 export const DEFAULT_FILTERS: Filters = {
@@ -39,7 +40,8 @@ export function parseFilters(src: ParamSource): Filters {
     gender: normalizeOption(read(src, "gender")),
     size: normalizeOption(read(src, "size")),
     age: normalizeOption(read(src, "age")),
-    design: normalizeOption(read(src, "design")),
+    // Old links may carry a print slug that has since been corrected (lib/catalog/renamed-products.json).
+    design: normalizeOption(read(src, "design")).split(",").map(currentPrintSlug).join(","),
     // British spelling in the UI and URLs; accept the US spelling for hand-typed links.
     colour: normalizeOption(read(src, "colour") ?? read(src, "color")),
     search: (read(src, "search") ?? "").trim(),
