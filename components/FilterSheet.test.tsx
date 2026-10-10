@@ -99,15 +99,37 @@ describe("FilterSheet design and colour groups", () => {
     expect(white.className).not.toContain("border-white");
   });
 
-  it("shows a tick on the selected swatch only, and drops it when deselected", () => {
+  it("ticks every chosen swatch and drops the tick when one is deselected", () => {
     const sheet = openSheet({ onApplyFilters: vi.fn(), currentColour: "white" });
     expect(within(within(sheet).getByTestId("swatch-white")).getByTestId("swatch-check")).toBeInTheDocument();
     expect(within(within(sheet).getByTestId("swatch-lilac")).queryByTestId("swatch-check")).toBeNull();
     fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+    // 2026-10-10: multi-select — choosing Lilac adds to White instead of replacing it.
     expect(within(within(sheet).getByTestId("swatch-lilac")).getByTestId("swatch-check")).toBeInTheDocument();
-    expect(within(within(sheet).getByTestId("swatch-white")).queryByTestId("swatch-check")).toBeNull();
+    expect(within(within(sheet).getByTestId("swatch-white")).getByTestId("swatch-check")).toBeInTheDocument();
     fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "White" }));
     expect(within(sheet).queryAllByTestId("swatch-check")).toHaveLength(0);
+  });
+
+  // 2026-10-10: every group is multi-select; several choices in one group are applied as a comma list.
+  it("applies several choices per group as comma lists", () => {
+    const onApplyFilters = vi.fn();
+    const sheet = openSheet({ onApplyFilters });
+    for (const name of ["Lilac Blossom", "Petal Pops", "0-3M", "3-6 Years", "Lilac", "White"]) {
+      fireEvent.click(within(sheet).getByRole("button", { name }));
+      expect(within(sheet).getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
+    }
+    fireEvent.click(within(sheet).getByRole("button", { name: "Petal Pops" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: /show 12 items/i }));
+    expect(onApplyFilters).toHaveBeenCalledWith({ gender: "all", age: "0-3m,3-6y", design: "lilac-blossom", colour: "lilac,white" });
+  });
+
+  it("pre-selects every choice in a comma list from the URL", () => {
+    const sheet = openSheet({ onApplyFilters: vi.fn(), currentDesign: "lilac-blossom,petal-pops", currentAge: "0-3m,3-6y" });
+    for (const name of ["Lilac Blossom", "Petal Pops", "0-3M", "3-6 Years"]) {
+      expect(within(sheet).getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
+    }
   });
 
   // Regression (2026-09-14): ?gender=Girl is parsed to "girl", so reopening the sheet never showed
@@ -149,6 +171,16 @@ describe("FilterSheet design and colour groups", () => {
       expect(within(sheet).getByRole("button", { name: "Lilac Blossom" })).toBeEnabled();
       // Other colours stay selectable so the shopper can switch rather than clear first.
       expect(within(sheet).getByRole("button", { name: "White" })).toBeEnabled();
+    });
+
+    it("widens with a second choice in the same group and keeps the other groups open to it", () => {
+      const sheet = openSheet({ onApplyFilters: vi.fn(), ...withProducts });
+      fireEvent.click(within(sheet).getByRole("button", { name: "Lilac" }));
+      expect(within(sheet).getByRole("button", { name: "Petal Pops" })).toBeDisabled();
+      fireEvent.click(within(sheet).getByRole("button", { name: "White" }));
+      expect(within(sheet).getByRole("button", { name: "Show 2 items" })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Petal Pops" })).toBeEnabled();
+      expect(within(sheet).getByRole("button", { name: "3-6 Years" })).toBeEnabled();
     });
 
     it("never disables the selected option and re-enables everything when it is cleared", () => {

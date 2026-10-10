@@ -3,14 +3,16 @@
 // own box, sort its own sheet, and featured has no UI control.
 import { slugToTitle } from "@/lib/utils/product";
 import { baseColourSlug } from "./colours";
-import { resolveGenderSlugs } from "./filter";
+import { filterValues, resolveGenderSlugs } from "./filter";
 import type { Filters, Reference } from "./types";
 
 export type ActiveFilterParam = "gender" | "age" | "size" | "design" | "colour";
 
 export interface ActiveFilterChip {
-  /** URL parameter to delete when the chip is removed. */
+  /** URL parameter the chip's value sits in. */
   param: ActiveFilterParam;
+  /** The value as it appears in that parameter's comma list; removing the chip drops just this one. */
+  slug: string;
   /** Group name as shown in the Filters sheet. */
   label: string;
   /** Human-readable value, resolved from the reference when possible. */
@@ -30,19 +32,13 @@ function colourName(slug: string, reference: Reference): string {
 
 export function activeFilterChips(filters: Filters, reference: Reference): ActiveFilterChip[] {
   const chips: ActiveFilterChip[] = [];
-  if (filters.gender !== "all") chips.push({ param: "gender", label: "Gender", value: genderName(filters.gender, reference) });
-  if (filters.age !== "all") {
-    const age = reference.ages.find((a) => a.slug === filters.age);
-    chips.push({ param: "age", label: "Age", value: age?.name ?? slugToTitle(filters.age) });
-  }
-  if (filters.size !== "all") {
-    const size = reference.sizes.find((s) => s.slug === filters.size || s.name.toLowerCase() === filters.size);
-    chips.push({ param: "size", label: "Size", value: size?.name ?? slugToTitle(filters.size) });
-  }
-  if (filters.design !== "all") {
-    const print = reference.colors.find((c) => c.slug === filters.design);
-    chips.push({ param: "design", label: "Design", value: print?.name || slugToTitle(filters.design) });
-  }
-  if (filters.colour !== "all") chips.push({ param: "colour", label: "Colour", value: colourName(filters.colour, reference) });
+  const add = (param: ActiveFilterParam, label: string, name: (slug: string) => string) => {
+    for (const slug of filterValues(filters[param])) chips.push({ param, label, value: name(slug), slug });
+  };
+  add("gender", "Gender", (slug) => genderName(slug, reference));
+  add("age", "Age", (slug) => reference.ages.find((a) => a.slug === slug)?.name ?? slugToTitle(slug));
+  add("size", "Size", (slug) => reference.sizes.find((s) => s.slug === slug || s.name.toLowerCase() === slug)?.name ?? slugToTitle(slug));
+  add("design", "Design", (slug) => reference.colors.find((c) => c.slug === slug)?.name || slugToTitle(slug));
+  add("colour", "Colour", (slug) => colourName(slug, reference));
   return chips;
 }

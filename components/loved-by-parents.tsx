@@ -5,12 +5,15 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductCard from "./product-card";
 import { useProducts } from "@/hooks/useApiQueries";
+import type { Product } from "@/lib/services/api";
 
-export default function LovedByParents() {
-  const { data, isLoading, error } = useProducts({ limit: 5 });
-  const products = data?.products ?? [];
+/** Best sellers. The home page passes a row without the Featured products; without it, fetch one. */
+export default function LovedByParents({ initialProducts }: { initialProducts?: Product[] } = {}) {
+  const { data, isLoading, error } = useProducts({ limit: 5, enabled: initialProducts === undefined });
+  const products = initialProducts ?? data?.products ?? [];
 
-  if (isLoading || error || !products.length) return null;
+  if (!initialProducts && (isLoading || error)) return null;
+  if (!products.length) return null;
 
   return (
     <section className="lg:py-14 py-8 bg-[#f9f7f4]">

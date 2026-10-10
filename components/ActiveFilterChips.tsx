@@ -5,7 +5,7 @@ import type { ActiveFilterChip, ActiveFilterParam } from "@/lib/catalog/active-f
 
 interface ActiveFilterChipsProps {
   chips: ActiveFilterChip[];
-  onRemove: (param: ActiveFilterParam) => void;
+  onRemove: (param: ActiveFilterParam, slug: string) => void;
   onClearAll: () => void;
 }
 
@@ -15,14 +15,14 @@ export default function ActiveFilterChips({ chips, onRemove, onClearAll }: Activ
     <div className="flex flex-wrap items-center gap-2" aria-label="Applied filters">
       {chips.map((chip) => (
         <span
-          key={chip.param}
+          key={`${chip.param}:${chip.slug}`}
           className="inline-flex items-center gap-1 rounded-full bg-cb-muted pl-3 pr-1.5 py-1 text-[12.5px] text-cb-fg"
         >
           <span className="text-cb-muted-fg">{chip.label}:</span>
           <span className="font-semibold">{chip.value}</span>
           <button
             type="button"
-            onClick={() => onRemove(chip.param)}
+            onClick={() => onRemove(chip.param, chip.slug)}
             aria-label={`Remove ${chip.label} filter ${chip.value}`}
             className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full text-cb-muted-fg hover:bg-white hover:text-cb-fg"
           >

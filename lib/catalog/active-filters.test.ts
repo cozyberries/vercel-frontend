@@ -20,11 +20,21 @@ describe("activeFilterChips", () => {
       reference,
     );
     expect(chips).toEqual([
-      { param: "gender", label: "Gender", value: "Girls" },
-      { param: "age", label: "Age", value: "3-6 Years" },
-      { param: "size", label: "Size", value: "0-3M" },
-      { param: "design", label: "Design", value: "Soft Pear" },
-      { param: "colour", label: "Colour", value: "Green" },
+      { param: "gender", label: "Gender", value: "Girls", slug: "girls" },
+      { param: "age", label: "Age", value: "3-6 Years", slug: "3-6y" },
+      { param: "size", label: "Size", value: "0-3M", slug: "0-3m" },
+      { param: "design", label: "Design", value: "Soft Pear", slug: "soft-pear" },
+      { param: "colour", label: "Colour", value: "Green", slug: "green" },
+    ]);
+  });
+
+  it("gives each of several choices in a group its own chip", () => {
+    const chips = activeFilterChips({ ...DEFAULT_FILTERS, age: "0-3m,3-6y", colour: "green, white" }, reference);
+    expect(chips).toEqual([
+      { param: "age", label: "Age", value: "0-3M", slug: "0-3m" },
+      { param: "age", label: "Age", value: "3-6 Years", slug: "3-6y" },
+      { param: "colour", label: "Colour", value: "Green", slug: "green" },
+      { param: "colour", label: "Colour", value: "White", slug: "white" },
     ]);
   });
 

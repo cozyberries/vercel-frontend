@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import type { ColourOption, DesignOption } from "@/lib/catalog/colours";
 import { facetCounts, isOptionAvailable } from "@/lib/catalog/facets";
-import { applyFilters } from "@/lib/catalog/filter";
+import { applyFilters, filterValues, toggleFilterValue } from "@/lib/catalog/filter";
 import type { Filters, ListCard } from "@/lib/catalog/types";
 
 interface Option {
@@ -25,15 +25,19 @@ interface AgeOption extends Option {
   slug: string;
 }
 
+/** Each group is "all" or a comma list of choices ("0-3m,3-6y"); choices in one group widen the results. */
 export interface FilterValues {
   gender: string;
-  /** Age slug ("0-3m", "3-6y") or "all". Size is the same axis and is not offered separately. */
+  /** Age slugs ("0-3m", "3-6y") or "all". Size is the same axis and is not offered separately. */
   age: string;
-  /** Print slug ("petal-pops") or "all". */
+  /** Print slugs ("petal-pops") or "all". */
   design: string;
-  /** Base colour slug ("white") or "all". */
+  /** Base colour slugs ("white") or "all". */
   colour: string;
 }
+
+/** Is `value` one of the choices in `list`? Gender comes as a display name and the URL lowercases it. */
+const isChosen = (list: string, value: string) => filterValues(list).includes(value.toLowerCase());
 
 interface FilterSheetProps {
   genderOptions: Option[];
@@ -176,14 +180,13 @@ export default function FilterSheet({
               <h3 className="text-sm font-bold mb-3">Gender</h3>
               <div className="flex flex-wrap gap-2">
                 {genderOptions.map((g) => {
-                  // The URL keeps the name but parseFilters lowercases it, so compare case-insensitively.
-                  const on = pendingGender.toLowerCase() === g.name.toLowerCase();
+                  const on = isChosen(pendingGender, g.name);
                   return (
                     <Chip
                       key={g.id}
                       active={on}
                       disabled={!isOptionAvailable(counts, "gender", g.name, pendingGender)}
-                      onClick={() => setPendingGender(on ? "all" : g.name)}
+                      onClick={() => setPendingGender(toggleFilterValue(pendingGender, g.name))}
                     >
                       {g.name}
                     </Chip>
@@ -199,9 +202,9 @@ export default function FilterSheet({
                 {ageOptions.map((a) => (
                   <Chip
                     key={a.id}
-                    active={pendingAge === a.slug}
+                    active={isChosen(pendingAge, a.slug)}
                     disabled={!isOptionAvailable(counts, "age", a.slug, pendingAge)}
-                    onClick={() => setPendingAge(pendingAge === a.slug ? "all" : a.slug)}
+                    onClick={() => setPendingAge(toggleFilterValue(pendingAge, a.slug))}
                   >
                     {a.name}
                   </Chip>
@@ -217,9 +220,9 @@ export default function FilterSheet({
                   {designOptions.map((d) => (
                     <Chip
                       key={d.slug}
-                      active={pendingDesign === d.slug}
+                      active={isChosen(pendingDesign, d.slug)}
                       disabled={!isOptionAvailable(counts, "design", d.slug, pendingDesign)}
-                      onClick={() => setPendingDesign(pendingDesign === d.slug ? "all" : d.slug)}
+                      onClick={() => setPendingDesign(toggleFilterValue(pendingDesign, d.slug))}
                     >
                       {d.name}
                     </Chip>
@@ -234,13 +237,13 @@ export default function FilterSheet({
                 <h3 className="text-sm font-bold mb-3">Colour</h3>
                 <div className="flex flex-wrap gap-3">
                   {colourOptions.map((c) => {
-                    const on = pendingColour === c.slug;
+                    const on = isChosen(pendingColour, c.slug);
                     const available = isOptionAvailable(counts, "colour", c.slug, pendingColour);
                     return (
                       <button
                         key={c.slug}
                         type="button"
-                        onClick={() => setPendingColour(on ? "all" : c.slug)}
+                        onClick={() => setPendingColour(toggleFilterValue(pendingColour, c.slug))}
                         aria-label={c.name}
                         aria-pressed={on}
                         disabled={!available}

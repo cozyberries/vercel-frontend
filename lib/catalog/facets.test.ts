@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildProductDoc, buildReference, computeRatingSummaries, toListCard } from "./build";
 import { productRows, ratingRows, referenceRows } from "./__fixtures__/catalog-rows";
 import { DEFAULT_FILTERS } from "./filter";
-import { facetCounts, isOptionAvailable, type FacetOptions, type PendingSelection } from "./facets";
+import { categoryCounts, facetCounts, isOptionAvailable, type FacetOptions, type PendingSelection } from "./facets";
 
 // 2026-09-14: options in the Filters sheet are re-counted against the pending choices, so a
 // combination that would return zero products is greyed out before the shopper applies it.
@@ -38,6 +38,16 @@ describe("facetCounts", () => {
     expect(counts.colour).toEqual({ green: 1, white: 1 });
   });
 
+  it("widens with several choices in one group and counts each option of that group on its own", () => {
+    const counts = facetCounts(cards, DEFAULT_FILTERS, { ...none, colour: "green,white" }, options);
+    // Both prints are reachable with green or white chosen…
+    expect(counts.design).toEqual({ "soft-pear": 1, "moon-and-stars": 1 });
+    expect(counts.age).toEqual({ "0-3m": 2, "3-6m": 1, "3-6y": 0 });
+    // …and picking 3-6M does not grey out 0-3M: adding it would only widen the results.
+    const ages = facetCounts(cards, DEFAULT_FILTERS, { ...none, age: "3-6m" }, options);
+    expect(ages.age).toEqual({ "0-3m": 2, "3-6m": 1, "3-6y": 1 });
+  });
+
   it("respects filters the sheet does not own, such as the category chips and search", () => {
     const counts = facetCounts(cards, { ...DEFAULT_FILTERS, category: "frocks" }, none, options);
     expect(counts.colour).toEqual({ green: 1, white: 0 });
@@ -53,9 +63,26 @@ describe("isOptionAvailable", () => {
     expect(isOptionAvailable(counts, "age", "3-6y", "3-6y")).toBe(true);
     expect(isOptionAvailable(counts, "age", "0-3m", "all")).toBe(true);
   });
+  it("never disables any option that is part of a multi-choice selection", () => {
+    const counts = facetCounts(cards, DEFAULT_FILTERS, { ...none, colour: "green" }, options);
+    expect(isOptionAvailable(counts, "age", "3-6y", "0-3m,3-6y")).toBe(true);
+    expect(isOptionAvailable(counts, "age", "3-6y", "0-3m,3-6m")).toBe(false);
+    expect(isOptionAvailable(counts, "gender", "Boys", "Girls, boys")).toBe(true);
+  });
   it("treats an option the counts do not know as available", () => {
     const counts = facetCounts(cards, DEFAULT_FILTERS, none, options);
     expect(isOptionAvailable(counts, "design", "petal-pops", "all")).toBe(true);
     expect(isOptionAvailable(null, "design", "soft-pear", "all")).toBe(true);
+  });
+});
+
+describe("categoryCounts", () => {
+  // 2026-10-10: the category row ignored the sheet's filters, so Boys Coord Sets stayed tappable with Gender = Girl.
+  const slugs = cards.map((c) => c.category_slug);
+  it("counts each category under the applied filters, ignoring the category already chosen", () => {
+    const [frockCat, coordCat, jhablaCat] = slugs;
+    expect(categoryCounts(cards, { ...DEFAULT_FILTERS, gender: "girl" }, slugs)).toEqual({ [frockCat!]: 1, [coordCat!]: 0, [jhablaCat!]: 1 });
+    expect(categoryCounts(cards, { ...DEFAULT_FILTERS, gender: "girl", category: frockCat! }, slugs)[coordCat!]).toBe(0);
+    expect(categoryCounts(cards, { ...DEFAULT_FILTERS, colour: "white" }, slugs)).toEqual({ [frockCat!]: 0, [coordCat!]: 0, [jhablaCat!]: 1 });
   });
 });

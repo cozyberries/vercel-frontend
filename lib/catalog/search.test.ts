@@ -51,6 +51,14 @@ describe("buildSearchFilter", () => {
     const [category] = buildSearchFilter("pear", { ...DEFAULT_FILTERS, category: "pyjamas,rompers" }).$must as unknown[];
     expect(category).toEqual({ $or: [{ category_slug: { $eq: "pyjamas" } }, { category_slug: { $eq: "rompers" } }] });
   });
+  it("ranks any of several ages, sizes or designs, as the local filter matches them", () => {
+    const [age, size, design] = buildSearchFilter("pear", {
+      ...DEFAULT_FILTERS, age: "0-3m,3-6-years", size: "0-3m,3-6m", design: "soft-pear,popsicles",
+    }).$must as unknown[];
+    expect(age).toEqual({ $or: ["0-3m", "3-4y", "4-5y", "5-6y"].map((slug) => ({ size_slugs: { $eq: slug } })) });
+    expect(size).toEqual({ $or: [{ size_slugs: { $eq: "0-3m" } }, { size_slugs: { $eq: "3-6m" } }] });
+    expect(design).toEqual({ $or: [{ color_slugs: { $eq: "soft-pear" } }, { color_slugs: { $eq: "popsicles" } }] });
+  });
 });
 
 describe("rankProducts", () => {

@@ -1,7 +1,7 @@
 // Text ranking via the Redis Search index. Filters mirror lib/catalog/filter.ts so the
 // server ranking and the browser's local filtering agree on the candidate set.
 import { normalizeAgeSlug } from "./build";
-import { MIN_QUERY_LENGTH, normalizeQuery, resolveAgeSizeSlugs, resolveCategorySlugs, resolveGenderSlugs } from "./filter";
+import { MIN_QUERY_LENGTH, filterValues, normalizeQuery, resolveAgeSizeSlugs, resolveCategorySlugs, resolveGenderSlugs } from "./filter";
 import { KEYS, type CatalogStore } from "./store";
 import type { Filters } from "./types";
 
@@ -10,23 +10,26 @@ import type { Filters } from "./types";
 export { MIN_QUERY_LENGTH, normalizeQuery };
 export const RANK_LIMIT = 100;
 
+/** One slug → an exact match; several → any of them. */
+function anyOf(field: string, slugs: string[]): Record<string, unknown> {
+  return slugs.length === 1 ? { [field]: { $eq: slugs[0] } } : { $or: slugs.map((slug) => ({ [field]: { $eq: slug } })) };
+}
+
 export function buildSearchFilter(q: string, f: Filters): Record<string, unknown> {
   const must: unknown[] = [];
   if (f.featured) must.push({ is_featured: { $eq: true } });
-  if (f.category !== "all") {
-    const slugs = f.category.split(",").flatMap(resolveCategorySlugs);
-    must.push(slugs.length === 1 ? { category_slug: { $eq: slugs[0] } } : { $or: slugs.map((slug) => ({ category_slug: { $eq: slug } })) });
-  }
-  if (f.gender !== "all") {
-    must.push({ $or: f.gender.split(",").flatMap(resolveGenderSlugs).map((slug) => ({ gender_slug: { $eq: slug } })) });
-  }
-  if (f.age !== "all") {
-    must.push({ $or: resolveAgeSizeSlugs(normalizeAgeSlug(f.age)).map((slug) => ({ size_slugs: { $eq: slug } })) });
-  }
-  if (f.size !== "all") must.push({ size_slugs: { $eq: f.size } });
+  const categories = filterValues(f.category).flatMap(resolveCategorySlugs);
+  if (categories.length > 0) must.push(anyOf("category_slug", categories));
+  const genders = filterValues(f.gender).flatMap(resolveGenderSlugs);
+  if (genders.length > 0) must.push({ $or: genders.map((slug) => ({ gender_slug: { $eq: slug } })) });
+  const ages = filterValues(f.age).flatMap((age) => resolveAgeSizeSlugs(normalizeAgeSlug(age)));
+  if (ages.length > 0) must.push({ $or: ages.map((slug) => ({ size_slugs: { $eq: slug } })) });
+  const sizes = filterValues(f.size);
+  if (sizes.length > 0) must.push(anyOf("size_slugs", sizes));
   // Design is a print slug and color_slugs is indexed. Colour (base colour) is not in the index,
   // so it is applied locally by matchesFilters after the ranking comes back.
-  if (f.design !== "all") must.push({ color_slugs: { $eq: f.design } });
+  const designs = filterValues(f.design);
+  if (designs.length > 0) must.push(anyOf("color_slugs", designs));
   must.push({
     $should: [
       { name: { $smart: q }, $boost: 10 },

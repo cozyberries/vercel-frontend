@@ -6,6 +6,7 @@ import {
   MIN_QUERY_LENGTH,
   ageFilterOptions,
   applyFilters,
+  filterValues,
   filtersKey,
   localSearchMatch,
   matchesFilters,
@@ -17,6 +18,7 @@ import {
   resolveCategorySlugs,
   resolveGenderSlugs,
   sortCards,
+  toggleFilterValue,
 } from "./filter";
 
 const reference = buildReference(referenceRows);
@@ -121,10 +123,34 @@ describe("matchesFilters", () => {
     const f = { ...DEFAULT_FILTERS, category: `${coord!.category_slug}, ${jhabla!.category_slug}` };
     expect(applyFilters(cards, f).map((c) => c.slug).sort()).toEqual([coord!.slug, jhabla!.slug].sort());
   });
+  it("matches any of a comma-separated list of ages, designs, colours or sizes (OR within a group)", () => {
+    const slugsFor = (f: Partial<typeof DEFAULT_FILTERS>) => applyFilters(cards, { ...DEFAULT_FILTERS, ...f }).map((c) => c.slug).sort();
+    expect(slugsFor({ age: "3-6y,3-6m" })).toEqual([...new Set([...slugsFor({ age: "3-6y" }), ...slugsFor({ age: "3-6m" })])].sort());
+    expect(slugsFor({ colour: "green, white" })).toEqual([frock!.slug, jhabla!.slug].sort());
+    expect(slugsFor({ design: `soft-pear,${jhabla!.color_slugs[0]}` })).toEqual([frock!.slug, jhabla!.slug].sort());
+    expect(slugsFor({ size: "3-6m,3-4y" })).toEqual([...new Set([...slugsFor({ size: "3-6m" }), ...slugsFor({ size: "3-4y" })])].sort());
+  });
+  it("narrows across groups while widening within one (AND across, OR within)", () => {
+    expect(matchesFilters(frock!, { ...DEFAULT_FILTERS, colour: "green,white", design: "soft-pear" })).toBe(true);
+    expect(matchesFilters(jhabla!, { ...DEFAULT_FILTERS, colour: "green,white", design: "soft-pear" })).toBe(false);
+  });
   it("treats cards built before base colours existed as matching no colour", () => {
     const legacy = { ...frock!, base_colors: undefined } as unknown as typeof frock;
     expect(matchesFilters(legacy!, { ...DEFAULT_FILTERS, colour: "green" })).toBe(false);
     expect(matchesFilters(legacy!, DEFAULT_FILTERS)).toBe(true);
+  });
+});
+
+describe("filterValues and toggleFilterValue", () => {
+  it("reads a comma list, ignoring blanks, case and 'all'", () => {
+    expect(filterValues("all")).toEqual([]);
+    expect(filterValues(" 3-6M, ,6-12m ")).toEqual(["3-6m", "6-12m"]);
+  });
+  it("adds a missing choice and removes a present one, back to 'all' when none are left", () => {
+    expect(toggleFilterValue("all", "3-6m")).toBe("3-6m");
+    expect(toggleFilterValue("3-6m", "6-12m")).toBe("3-6m,6-12m");
+    expect(toggleFilterValue("3-6m,6-12m", "3-6M")).toBe("6-12m");
+    expect(toggleFilterValue("girls", "Girls")).toBe("all");
   });
 });
 

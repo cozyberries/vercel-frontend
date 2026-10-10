@@ -11,7 +11,9 @@ import FilterSheet from "@/components/FilterSheet";
 import SortSheet from "@/components/SortSheet";
 import type { Product } from "@/lib/services/api";
 import { useCatalog, useRanking } from "@/hooks/useCatalog";
-import { MIN_QUERY_LENGTH, ageFilterOptions, applyFilters, filtersKey, normalizeQuery, parseFilters } from "@/lib/catalog/filter";
+import { MIN_QUERY_LENGTH, ageFilterOptions, applyFilters, filterValues, filtersKey, normalizeQuery, parseFilters, toggleFilterValue } from "@/lib/catalog/filter";
+import { categoryCounts, isCountAvailable } from "@/lib/catalog/facets";
+import { featuredSlugs, withFeaturedBadge } from "@/lib/catalog/home";
 import { colourOptionsFor, designOptionsFor } from "@/lib/catalog/colours";
 import { activeFilterChips, type ActiveFilterParam } from "@/lib/catalog/active-filters";
 import { FOCUS_SEARCH_EVENT, SEARCH_HASH } from "@/lib/utils/search-navigation";
@@ -90,7 +92,8 @@ interface ProductsClientProps {
 
 /** Update the URL without a server round trip. Next syncs pushState/replaceState into useSearchParams. */
 function navigate(params: URLSearchParams, mode: "push" | "replace") {
-  const query = params.toString();
+  // Commas are legal in a query string; keep multi-choice links readable (?age=0-3m,3-6m).
+  const query = params.toString().replace(/%2C/gi, ",");
   const url = query ? `/products?${query}` : "/products";
   if (mode === "push") window.history.pushState(null, "", url);
   else window.history.replaceState(null, "", url);
@@ -123,6 +126,19 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
         .filter((c) => !HIDDEN_CATEGORY_SLUGS.has(c.slug))
         .map((c) => ({ id: c.slug, name: c.name, slug: c.slug })),
     [snapshot.reference.categories],
+  );
+  // A category that would show nothing with the filters already applied is greyed out.
+  const categoryCount = useMemo(
+    () => categoryCounts(snapshot.products, filters, categories.map((c) => c.slug)),
+    [snapshot.products, filters, categories],
+  );
+  // Greyed-out categories go to the end of the row; each half keeps the usual order (sort is stable).
+  const categoryRow = useMemo(
+    () =>
+      categories
+        .map((cat) => ({ cat, available: isCountAvailable(categoryCount, cat.slug, filters.category) }))
+        .sort((a, b) => Number(b.available) - Number(a.available)),
+    [categories, categoryCount, filters.category],
   );
   const genderOptions = useMemo(
     () => snapshot.reference.genders.map((g) => ({ id: g.slug, name: g.name, display_order: g.display_order })),
@@ -288,6 +304,7 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     setParams((p) => p.delete("search"));
     searchInputRef.current?.focus();
   };
+  // The category row is single-select (unlike the sheet's groups): a tap replaces the chosen category.
   const handleCategoryChange = (category: string) => setParams((p) => setOrDelete(p, "category", category));
   const handleSortChange = (sort: string) =>
     setParams((p) => {
@@ -314,9 +331,9 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     setSearchInput("");
     navigate(new URLSearchParams(searchParams.get("view") === "grid" ? { view: "grid" } : {}), "push");
   };
-  const handleRemoveFilter = (param: ActiveFilterParam) =>
+  const handleRemoveFilter = (param: ActiveFilterParam, slug: string) =>
     setParams((p) => {
-      p.delete(param);
+      setOrDelete(p, param, toggleFilterValue(filters[param], slug));
       if (param === "colour") p.delete("color");
     });
   const appliedChips = useMemo(() => activeFilterChips(filters, snapshot.reference), [filters, snapshot.reference]);
@@ -333,8 +350,10 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
     filters.featured ||
     filters.search !== "";
   const totalItems = filtered.length;
+  // "Featured" stickers follow the home Featured row, not the database flag.
+  const featured = useMemo(() => featuredSlugs(snapshot.products), [snapshot.products]);
   // ListCard is the list-shaped subset of Product; ProductCard only reads those fields.
-  const cards = visible as unknown as Product[];
+  const cards = useMemo(() => withFeaturedBadge(visible, featured), [visible, featured]) as unknown as Product[];
 
   /* ─── Shared toolbar: search + category chips + filter/sort/count row ─── */
   const toolbar = (
@@ -353,8 +372,14 @@ export default function ProductsClient({ snapshot: initialSnapshot, initialRanki
         <Chip active={currentCategory === "all"} onClick={() => handleCategoryChange("all")}>
           All
         </Chip>
-        {categories.map((cat) => (
-          <Chip key={cat.id} active={currentCategory === cat.slug} onClick={() => handleCategoryChange(cat.slug)}>
+        {categoryRow.map(({ cat, available }) => (
+          <Chip
+            key={cat.id}
+            active={filterValues(currentCategory).includes(cat.slug)}
+            disabled={!available}
+            title={available ? undefined : `${cat.name} — no products with the current filters`}
+            onClick={() => handleCategoryChange(cat.slug)}
+          >
             {cat.name}
           </Chip>
         ))}

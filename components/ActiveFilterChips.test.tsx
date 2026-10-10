@@ -6,8 +6,9 @@ import ActiveFilterChips from "./ActiveFilterChips";
 // Regression (2026-09-14): applied filters were invisible on the results screen.
 
 const chips = [
-  { param: "age" as const, label: "Age", value: "3-6 Years" },
-  { param: "colour" as const, label: "Colour", value: "Pink" },
+  { param: "age" as const, label: "Age", value: "3-6 Years", slug: "3-6y" },
+  { param: "colour" as const, label: "Colour", value: "Pink", slug: "pink" },
+  { param: "colour" as const, label: "Colour", value: "White", slug: "white" },
 ];
 
 describe("ActiveFilterChips", () => {
@@ -18,7 +19,8 @@ describe("ActiveFilterChips", () => {
     expect(screen.getByText("3-6 Years")).toBeInTheDocument();
     expect(screen.getByText("Pink")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Remove Colour filter Pink" }));
-    expect(onRemove).toHaveBeenCalledWith("colour");
+    // Only that colour goes; White stays applied.
+    expect(onRemove).toHaveBeenCalledWith("colour", "pink");
     fireEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
     expect(onClearAll).toHaveBeenCalledTimes(1);
   });

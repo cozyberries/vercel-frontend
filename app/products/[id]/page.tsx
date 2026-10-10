@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { getAllProductSlugs, getProductBySlug } from '@/lib/services/products-server';
 import { getProduct, getSnapshot } from '@/lib/catalog/cache';
 import { isCatalogRedisEnabled } from '@/lib/catalog/flags';
+import { featuredSlugs, withFeaturedBadge } from '@/lib/catalog/home';
 import type { Product } from '@/lib/services/api';
 import ProductInteractions from '@/components/product-interactions';
 import ProductStaticInfo from '@/components/product-static-info';
@@ -15,17 +16,21 @@ export const dynamicParams = true;
 /** Redis catalog when enabled (cookie-free → static page); legacy Supabase otherwise. */
 async function loadProduct(slug: string): Promise<Product | null> {
   if (!isCatalogRedisEnabled()) return getProductBySlug(slug);
-  const { product } = await getProduct(slug);
+  const [{ product }, { snapshot }] = await Promise.all([getProduct(slug), getSnapshot()]);
+  if (!product) return null;
+  // The "Featured" sticker follows the home Featured row, not the database flag.
+  const [badged] = withFeaturedBadge([product], featuredSlugs(snapshot.products));
   // ProductDoc is a superset of Product; variant `size` may be null where Product says string.
-  return product ? (product as unknown as Product) : null;
+  return badged as unknown as Product;
 }
 
 async function loadRelated(product: Product): Promise<Product[]> {
   if (!isCatalogRedisEnabled()) return [];
   const { snapshot } = await getSnapshot();
-  return snapshot.products
+  const related = snapshot.products
     .filter((p) => p.slug !== product.slug && p.category_slug === product.category_slug)
-    .slice(0, 12) as unknown as Product[];
+    .slice(0, 12);
+  return withFeaturedBadge(related, featuredSlugs(snapshot.products)) as unknown as Product[];
 }
 
 export async function generateStaticParams() {

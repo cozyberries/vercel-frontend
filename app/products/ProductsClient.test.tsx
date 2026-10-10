@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useSyncExternalStore } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { productRows, ratingRows, referenceRows } from "@/lib/catalog/__fixtures__/catalog-rows";
 import { buildProductDoc, buildReference, buildSnapshot, computeRatingSummaries, toListCard } from "@/lib/catalog/build";
 import { applyFilters, parseFilters } from "@/lib/catalog/filter";
+import { featuredSlugs } from "@/lib/catalog/home";
 
 // The app router syncs history.pushState/replaceState into useSearchParams. In jsdom we mirror that
 // with an external store fed by a "locationchange" event dispatched from the patched history methods.
@@ -37,8 +38,8 @@ vi.mock("@/hooks/useCatalog", () => ({
 vi.mock("@/hooks/useIsMobile", () => ({ useIsMobile: () => true }));
 vi.mock("@/lib/analytics/meta-pixel", () => ({ trackSearch: vi.fn() }));
 vi.mock("@/components/product-card", () => ({
-  default: ({ product }: { product: { slug: string; name: string } }) => (
-    <a href={`/products/${product.slug}`} data-testid="card">
+  default: ({ product }: { product: { slug: string; name: string; is_featured?: boolean } }) => (
+    <a href={`/products/${product.slug}`} data-testid="card" data-featured={String(Boolean(product.is_featured))}>
       {product.name}
     </a>
   ),
@@ -135,5 +136,60 @@ describe("ProductsClient", () => {
     render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
     const expected = snapshot.products.filter((p) => p.category_slug === category.slug).length;
     expect(itemsText()).toBe(itemsLabel(expected));
+  });
+
+  // 2026-10-10: the category row ignored the Filters sheet, so Boys Coord Sets stayed tappable with Gender = Girl.
+  it("greys out categories with no products under the applied filters, but never All or a chosen one", () => {
+    window.history.replaceState(null, "", "/products?gender=girl");
+    render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
+    expect(screen.getByRole("button", { name: "Boys Coord Sets" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Frocks" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "All" })).toBeEnabled();
+  });
+
+  it("moves greyed-out categories to the end of the row, keeping the usual order otherwise", () => {
+    const row = () => screen.getByRole("button", { name: "All" }).parentElement!;
+    const names = () => Array.from(row().querySelectorAll("button")).map((b) => b.textContent);
+    render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
+    const usual = names();
+    expect(usual.indexOf("Boys Coord Sets")).toBeLessThan(usual.length - 1);
+    act(() => window.history.pushState(null, "", "/products?gender=girl"));
+    expect(names()).toEqual([...usual.filter((n) => n !== "Boys Coord Sets"), "Boys Coord Sets"]);
+  });
+
+  it("keeps a chosen category tappable even when the other filters leave it empty", () => {
+    window.history.replaceState(null, "", "/products?category=boys-coord-sets&gender=girl");
+    render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
+    expect(screen.getByRole("button", { name: "Boys Coord Sets" })).toBeEnabled();
+  });
+
+  // 2026-10-10: the sheet's groups are multi-select, but the category row stays single-select.
+  it("keeps the category row single-select: a tap replaces the chosen category", () => {
+    render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Frocks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Jhabla" }));
+    expect(window.location.search).toBe("?category=jhabla");
+    expect(screen.getByRole("button", { name: "Frocks" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Jhabla" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    expect(window.location.search).toBe("");
+  });
+
+  it("removes only the tapped value when one chip of a multi-choice filter is removed", () => {
+    window.history.replaceState(null, "", "/products?colour=green,white");
+    render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Colour filter Green" }));
+    expect(window.location.search).toBe("?colour=white");
+  });
+
+  // Regression (2026-10-10): the grid badged products by the old is_featured flag, not the home Featured row.
+  it("badges the same products as the home Featured row, not the database flag", () => {
+    render(<ProductsClient snapshot={snapshot} initialRanking={null} />);
+    const expected = featuredSlugs(snapshot.products);
+    expect(expected.size).toBeGreaterThan(0);
+    const badged = screen.getAllByTestId("card").filter((a) => a.dataset.featured === "true").map((a) => a.getAttribute("href"));
+    expect(badged.sort()).toEqual([...expected].map((slug) => `/products/${slug}`).sort());
+    // The fixture flags a product in the database that is not a baby-model best seller.
+    expect(snapshot.products.some((p) => p.is_featured && !expected.has(p.slug))).toBe(true);
   });
 });

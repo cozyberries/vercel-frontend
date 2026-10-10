@@ -15,14 +15,18 @@ import {
 } from "@/components/HomeClientSections";
 import { getSnapshot } from "@/lib/catalog/cache";
 import { isCatalogRedisEnabled } from "@/lib/catalog/flags";
+import { FEATURED_COUNT, homeProductRows } from "@/lib/catalog/home";
 import type { Product } from "@/lib/services/api";
 
 export const revalidate = 604800; // backstop; on-demand via the catalog tag
 
 async function loadHomeData() {
-  if (!isCatalogRedisEnabled()) return { featured: undefined, categories: undefined };
+  if (!isCatalogRedisEnabled()) return { featured: undefined, lovedByParents: undefined, categories: undefined };
   const { snapshot } = await getSnapshot();
-  const featured = snapshot.products.filter((p) => p.is_featured).slice(0, 8) as unknown as Product[];
+  // Featured = baby-model best sellers; Loved by Parents = the next best sellers, never the same cards.
+  const rows = homeProductRows(snapshot.products, { featured: FEATURED_COUNT, lovedByParents: 5 });
+  const featured = rows.featured as unknown as Product[];
+  const lovedByParents = rows.lovedByParents as unknown as Product[];
   const categories = snapshot.reference.categories.map((c) => ({
     id: c.slug,
     slug: c.slug,
@@ -31,11 +35,11 @@ async function loadHomeData() {
     images: c.image ? [{ url: c.image }] : [],
     display: c.display,
   }));
-  return { featured, categories };
+  return { featured, lovedByParents, categories };
 }
 
 export default async function Home() {
-  const { featured, categories } = await loadHomeData();
+  const { featured, lovedByParents, categories } = await loadHomeData();
   return (
     <div className="flex flex-col">
       <PromoPill />
@@ -75,7 +79,7 @@ export default async function Home() {
       <ValuesSection />
 
       {/* Loved by Parents */}
-      <LovedByParents />
+      <LovedByParents initialProducts={lovedByParents} />
 
       {/* Sustainability */}
       <SustainabilitySection />

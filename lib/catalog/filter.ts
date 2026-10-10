@@ -108,21 +108,42 @@ export function localSearchMatch(card: ListCard, search: string): boolean {
   return haystack.includes(needle);
 }
 
+/**
+ * A filter value as its list of choices: "all" (or empty) → [], "3-6m, 6-12m" → ["3-6m", "6-12m"].
+ * Every group takes a comma list; choices in one group widen the results (OR), groups narrow them (AND).
+ */
+export function filterValues(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim().toLowerCase())
+    .filter((v) => v !== "" && v !== "all");
+}
+
+/** Ticks or unticks one choice in a comma list; "all" when nothing is left. */
+export function toggleFilterValue(current: string, value: string): string {
+  const choice = value.trim().toLowerCase();
+  const values = filterValues(current);
+  const next = values.includes(choice) ? values.filter((v) => v !== choice) : [...values, choice];
+  return next.length === 0 ? "all" : next.join(",");
+}
+
+const overlaps = (wanted: string[], have: string[]) => wanted.some((value) => have.includes(value));
+
 export function matchesFilters(card: ListCard, f: Filters): boolean {
   if (f.featured && !card.is_featured) return false;
-  if (f.category !== "all" && !f.category.split(",").flatMap(resolveCategorySlugs).includes(card.category_slug)) return false;
-  if (f.gender !== "all") {
-    const wanted = f.gender.split(",").flatMap(resolveGenderSlugs);
-    if (!wanted.includes(card.gender_slug)) return false;
-  }
-  if (f.age !== "all") {
-    const sizes = resolveAgeSizeSlugs(f.age);
-    if (!sizes.some((s) => card.size_slugs.includes(s))) return false;
-  }
-  if (f.size !== "all" && !card.size_slugs.includes(f.size)) return false;
-  if (f.design !== "all" && !(card.color_slugs ?? []).includes(f.design)) return false;
+  const categories = filterValues(f.category).flatMap(resolveCategorySlugs);
+  if (categories.length > 0 && !categories.includes(card.category_slug)) return false;
+  const genders = filterValues(f.gender).flatMap(resolveGenderSlugs);
+  if (genders.length > 0 && !genders.includes(card.gender_slug)) return false;
+  const ages = filterValues(f.age).flatMap(resolveAgeSizeSlugs);
+  if (ages.length > 0 && !overlaps(ages, card.size_slugs)) return false;
+  const sizes = filterValues(f.size);
+  if (sizes.length > 0 && !overlaps(sizes, card.size_slugs)) return false;
+  const designs = filterValues(f.design);
+  if (designs.length > 0 && !overlaps(designs, card.color_slugs ?? [])) return false;
   // Cards cached before base colours existed have no `base_colors`; they match no colour rather than all.
-  if (f.colour !== "all" && !(card.base_colors ?? []).includes(f.colour)) return false;
+  const colours = filterValues(f.colour);
+  if (colours.length > 0 && !overlaps(colours, card.base_colors ?? [])) return false;
   return true;
 }
 

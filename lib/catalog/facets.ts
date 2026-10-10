@@ -1,12 +1,12 @@
 // Live option counts for the Filters sheet. Client-safe: no node or Next imports. Each option is
 // counted as "the pending choices, with this group set to this option", using the same matching
 // code the results grid uses, so a disabled option is exactly one that would show zero products.
-import { applyFilters } from "./filter";
+import { applyFilters, filterValues } from "./filter";
 import type { Filters, ListCard } from "./types";
 
 export type FacetGroup = "gender" | "age" | "design" | "colour";
 
-/** What the shopper has tapped in the sheet so far (URL values when it opens). */
+/** What the shopper has tapped in the sheet so far (URL values when it opens): "all" or a comma list. */
 export type PendingSelection = Record<FacetGroup, string>;
 
 export interface FacetOptions {
@@ -36,12 +36,24 @@ export function facetCounts(cards: ListCard[], base: Filters, pending: PendingSe
 }
 
 /**
- * An option is offered unless the counts say it yields nothing. The currently selected option is
- * always offered so it can be deselected, and unknown options (or no counts) stay enabled.
+ * Category chips sit outside the sheet and apply at once, so each is counted under the filters
+ * already applied, with the chosen categories swapped for that one category.
  */
-export function isOptionAvailable(counts: FacetCounts | null, group: FacetGroup, value: string, selected: string): boolean {
+export function categoryCounts(cards: ListCard[], filters: Filters, slugs: string[]): Record<string, number> {
+  return Object.fromEntries(slugs.map((slug) => [slug, applyFilters(cards, { ...filters, category: slug }, null).length] as const));
+}
+
+/**
+ * An option is offered unless the counts say it yields nothing. Options already chosen ("all" or a
+ * comma list) are always offered so they can be deselected, and unknown options (or no counts) stay enabled.
+ */
+export function isCountAvailable(counts: Record<string, number> | null, value: string, selected: string): boolean {
   if (!counts) return true;
-  if (value.toLowerCase() === selected.toLowerCase()) return true;
-  const count = counts[group][value];
+  if (filterValues(selected).includes(value.trim().toLowerCase())) return true;
+  const count = counts[value];
   return count === undefined || count > 0;
+}
+
+export function isOptionAvailable(counts: FacetCounts | null, group: FacetGroup, value: string, selected: string): boolean {
+  return isCountAvailable(counts ? counts[group] : null, value, selected);
 }
