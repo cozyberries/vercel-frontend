@@ -40,7 +40,7 @@ node scripts/fix-product-categories.mjs
 - Uses smart pattern matching to categorize products by name
 - Supports patterns for:
   - Pyjamas (regular and ribbed)
-  - Frocks, one category per style (Frill Sleeve Muslin, Japanese Muslin, Sleeveless Muslin, Muslin Collar)
+  - Frocks, one category per style (Frill Sleeve Frocks, Japanese Collar Frocks, Sleeveless Frocks, Modern Collar Frocks)
   - Coord Sets (boys and girls)
   - Rompers (girls only and unisex)
   - Jabla products (sleeveless, with shorts, half-sleeve)
@@ -49,7 +49,7 @@ node scripts/fix-product-categories.mjs
 
 **Pattern Matching Examples:**
 - "Pyjama - Joyful Orbs" → Pyjamas
-- "Lilac Blossom - Japanese Muslin Frock" → Japanese Muslin
+- "Lilac Blossom - Japanese Collar Frock" → Japanese Collar Frocks
 - "Coords Set - Rocket Rangers" → Boys Coord Sets
 - "Rompers - Girls Only Loose Fit" → Rompers
 - "Jhabla Sleeveless - Popsicles" → Sleeveless Jablas

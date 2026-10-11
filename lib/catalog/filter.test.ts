@@ -67,12 +67,25 @@ describe("gender and age resolution (parity with app/api/products/route.ts)", ()
 });
 
 describe("category resolution", () => {
-  it("resolves the retired Frocks slug to itself and the four categories it was split into", () => {
-    expect(resolveCategorySlugs("frocks")).toEqual(["frocks", "frill-sleeve-muslin", "japanese-muslin", "sleeveless-muslin", "muslin-collar"]);
+  it("resolves the retired Frocks slug to itself and every frock style category, old and renamed", () => {
+    expect(resolveCategorySlugs("frocks")).toEqual([
+      "frocks",
+      "frill-sleeve-muslin", "frill-sleeve-frocks",
+      "japanese-muslin", "japanese-collar-frocks",
+      "sleeveless-muslin", "sleeveless-frocks",
+      "muslin-collar", "modern-collar-frocks",
+    ]);
     expect(resolveCategorySlugs(" Frocks ")).toEqual(resolveCategorySlugs("frocks"));
   });
-  it("passes every other category through", () => {
-    expect(resolveCategorySlugs("japanese-muslin")).toEqual(["japanese-muslin"]);
+  it("resolves the four renamed frock slugs to themselves and their new slug", () => {
+    expect(resolveCategorySlugs("sleeveless-muslin")).toEqual(["sleeveless-muslin", "sleeveless-frocks"]);
+    expect(resolveCategorySlugs("japanese-muslin")).toEqual(["japanese-muslin", "japanese-collar-frocks"]);
+    expect(resolveCategorySlugs("muslin-collar")).toEqual(["muslin-collar", "modern-collar-frocks"]);
+    expect(resolveCategorySlugs("frill-sleeve-muslin")).toEqual(["frill-sleeve-muslin", "frill-sleeve-frocks"]);
+  });
+  it("passes every other category through, including the new frock slugs", () => {
+    expect(resolveCategorySlugs("japanese-collar-frocks")).toEqual(["japanese-collar-frocks"]);
+    expect(resolveCategorySlugs("sleeveless-frocks")).toEqual(["sleeveless-frocks"]);
     expect(resolveCategorySlugs("pyjamas")).toEqual(["pyjamas"]);
   });
 });
@@ -123,6 +136,21 @@ describe("matchesFilters", () => {
     expect(matchesFilters(frock!, oldLink)).toBe(true);
     // A new category shows only its own frocks.
     expect(applyFilters(split, { ...DEFAULT_FILTERS, category: "japanese-muslin" }).map((c) => c.slug)).toEqual(["frock-japanese-soft-pear"]);
+  });
+  it("keeps old frock style links working after the 2026-10-11 rename, and ?category=frocks too", () => {
+    const renamed = [
+      { ...frock!, slug: "frock-butterfly-sleeve-pine-cone", category_slug: "frill-sleeve-frocks" },
+      { ...frock!, slug: "frock-japanese-soft-pear", category_slug: "japanese-collar-frocks" },
+      { ...frock!, slug: "frock-sleeveless-moons-and-stars", category_slug: "sleeveless-frocks" },
+      { ...frock!, slug: "frock-modern-peach", category_slug: "modern-collar-frocks" },
+    ];
+    const slugsFor = (category: string) => applyFilters([...renamed, coord!, jhabla!], { ...DEFAULT_FILTERS, category }).map((c) => c.slug);
+    expect(slugsFor("japanese-muslin")).toEqual(["frock-japanese-soft-pear"]);
+    expect(slugsFor("muslin-collar")).toEqual(["frock-modern-peach"]);
+    expect(slugsFor("frill-sleeve-muslin")).toEqual(["frock-butterfly-sleeve-pine-cone"]);
+    expect(slugsFor("sleeveless-muslin")).toEqual(["frock-sleeveless-moons-and-stars"]);
+    expect(slugsFor("modern-collar-frocks")).toEqual(["frock-modern-peach"]);
+    expect(slugsFor("frocks").sort()).toEqual(renamed.map((c) => c.slug).sort());
   });
   it("accepts a comma-separated list of categories, like gender", () => {
     const f = { ...DEFAULT_FILTERS, category: `${coord!.category_slug}, ${jhabla!.category_slug}` };

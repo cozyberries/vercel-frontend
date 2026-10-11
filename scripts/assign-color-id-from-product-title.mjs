@@ -3,7 +3,7 @@
 /**
  * Assign color_id to product_variants that have null color_id,
  * using the product's name (title). Product names follow "PrintName - ProductType"
- * e.g. "Aloe Mist - Muslin Collar Frock" → Aloe Mist → color_id for Aloe Green.
+ * e.g. "Aloe Mist - Modern Collar Frock" → Aloe Mist → color_id for Aloe Green.
  *
  * Usage: node scripts/assign-color-id-from-product-title.mjs [--dry-run]
  * Requires: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env

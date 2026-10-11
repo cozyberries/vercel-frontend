@@ -48,6 +48,7 @@
     "db:test-product-slugs": "node scripts/db-test-product-slugs.mjs",
     "db:test-variant-slugs": "node scripts/db-test-variant-slugs.mjs",
     "db:test-order-skus": "node scripts/db-test-order-skus.mjs",
+    "db:test-rename-frock-categories": "node scripts/db-test-rename-frock-categories.mjs",
     "display:untagged": "node scripts/display-untagged.mjs"
   },
   "dependencies": {

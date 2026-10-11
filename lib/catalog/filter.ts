@@ -61,18 +61,30 @@ export function resolveGenderSlugs(gender: string): string[] {
 }
 
 /**
- * Categories that were split up, so old links (Instagram, WhatsApp, Google) still find their
- * products. A retired slug keeps itself so its links work on either side of the data migration.
+ * Categories that were split up or renamed, so old links (Instagram, WhatsApp, Google) still find
+ * their products. A retired slug keeps itself so its links work on either side of the data
+ * migration. Entries chain: a slug listed here that is itself retired is expanded too.
  */
 const RETIRED_CATEGORIES: Record<string, string[]> = {
   // 2026-09-27: Frocks became one category per frock style.
   frocks: ["frocks", "frill-sleeve-muslin", "japanese-muslin", "sleeveless-muslin", "muslin-collar"],
+  // 2026-10-11: all four styles renamed (migration 20261011120000).
+  "frill-sleeve-muslin": ["frill-sleeve-muslin", "frill-sleeve-frocks"],
+  "japanese-muslin": ["japanese-muslin", "japanese-collar-frocks"],
+  "muslin-collar": ["muslin-collar", "modern-collar-frocks"],
+  "sleeveless-muslin": ["sleeveless-muslin", "sleeveless-frocks"],
 };
 
-/** A retired category → the categories it was split into; any other category → itself. */
+/** A retired category → itself plus every category it became; any other category → itself. */
 export function resolveCategorySlugs(category: string): string[] {
-  const normalized = category.trim().toLowerCase();
-  return RETIRED_CATEGORIES[normalized] ?? [normalized];
+  const out: string[] = [];
+  const visit = (slug: string) => {
+    if (out.includes(slug)) return;
+    out.push(slug);
+    for (const next of RETIRED_CATEGORIES[slug] ?? []) visit(next);
+  };
+  visit(category.trim().toLowerCase());
+  return out;
 }
 
 /** "3-6y" (or the legacy "3-6-years") spans three sizes; any other age is its own size slug. */
