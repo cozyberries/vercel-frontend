@@ -65,11 +65,12 @@ export function StockFinder({
         </h2>
         <p className="text-xs text-cb-muted-fg">The stall keeps 1 of each size in stock; the rest is at home.</p>
       </div>
-      <FilterChips chips={GENDER_CHIPS} value={filters.gender} onChange={(gender) => onChange({ ...filters, gender })} label="Gender" />
+      <FilterChips large chips={GENDER_CHIPS} value={filters.gender} onChange={(gender) => onChange({ gender, size })} label="Gender" />
       <FilterChips
+        large
         chips={sizeChips}
         value={size ?? ANY_SIZE}
-        onChange={(v) => onChange({ ...filters, size: v === ANY_SIZE ? null : v })}
+        onChange={(v) => onChange({ gender: filters.gender, size: v === ANY_SIZE ? null : v })}
         label="Size"
       />
       {tree.length === 0 ? (

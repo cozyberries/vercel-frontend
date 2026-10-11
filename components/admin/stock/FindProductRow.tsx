@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { useId } from "react";
 import { STATUS_COLORS } from "@/components/admin/charts/chart-colors";
 import { FIND_STATE_LABEL, formatFindCounts, type FindProduct, type FindState } from "@/lib/admin/stock-find";
 
@@ -14,13 +13,11 @@ const STATE_COLORS: Record<FindState, string> = {
 
 /** One product in the Find view: photo, name, counts; open → one row per size with stall and home. */
 export function FindProductRow({ product, open, onToggle }: { product: FindProduct; open: boolean; onToggle: () => void }) {
-  const listId = useId();
   return (
     <li className="py-2">
       <button
         type="button"
         aria-expanded={open}
-        aria-controls={listId}
         onClick={onToggle}
         className="flex min-h-11 w-full items-center gap-3 text-left"
       >
@@ -38,7 +35,7 @@ export function FindProductRow({ product, open, onToggle }: { product: FindProdu
         </span>
       </button>
       {open && (
-        <ul id={listId} aria-label={`${product.name} sizes`} className="mt-2 space-y-1.5 pl-[3.75rem]">
+        <ul aria-label={`${product.name} sizes`} className="mt-2 space-y-1.5 pl-[3.75rem]">
           {product.sizes.map((s) => (
             <li key={s.variant_slug} data-state={s.state} className="flex min-h-8 items-center gap-3 text-sm">
               <span className="w-12 shrink-0 whitespace-nowrap font-medium text-cb-fg">{s.size_label}</span>

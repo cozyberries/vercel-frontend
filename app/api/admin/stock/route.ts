@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
 
-/** Live stock for /admin/stock. No cache: two small reads per load on an admin-only page. */
+/** Live stock for /admin/stock: variants and paid orders read live on every load (no cache), plus the cached catalog snapshot for photos. */
 export async function GET() {
   const gate = await requireAdmin();
   if (gate.response) return gate.response;

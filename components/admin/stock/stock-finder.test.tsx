@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StockFinder } from "./index";
 import { productRow, stockRow } from "@/lib/admin/__fixtures__/stock-metrics";
 import type { FindFilters } from "@/lib/admin/stock-find";
@@ -102,5 +102,12 @@ describe("StockFinder", () => {
   it("names the filters when nothing matches", () => {
     render(<Harness initial={{ gender: "boy", size: "3-4y" }} />);
     expect(screen.getByText("Nothing in 3-4Y for Boy")).toBeInTheDocument();
+  });
+
+  it("drops an unknown size from the filters when a gender is tapped", () => {
+    const onChange = vi.fn();
+    render(<StockFinder products={PRODUCTS} filters={{ gender: "any", size: "9-10y" }} onChange={onChange} />);
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Gender" })).getByRole("radio", { name: "Girl" }));
+    expect(onChange).toHaveBeenCalledWith({ gender: "girl", size: null });
   });
 });

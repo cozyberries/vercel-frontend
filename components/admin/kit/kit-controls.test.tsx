@@ -76,6 +76,20 @@ describe("FilterChips", () => {
     );
     expect(screen.getByRole("radio", { name: "30d" })).toHaveAttribute("aria-checked", "false");
   });
+
+  it("wraps with 44 px chips when large, and is unchanged otherwise", () => {
+    const chips = [
+      { value: "7", label: "7d" },
+      { value: "30", label: "30d" },
+    ];
+    const { rerender } = render(<FilterChips label="Days" chips={chips} value="7" onChange={() => {}} />);
+    expect(screen.getByRole("radiogroup")).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("radio", { name: "7d" })).not.toHaveClass("min-h-11");
+    rerender(<FilterChips large label="Days" chips={chips} value="7" onChange={() => {}} />);
+    expect(screen.getByRole("radiogroup")).toHaveClass("flex-wrap");
+    expect(screen.getByRole("radiogroup")).not.toHaveClass("overflow-x-auto");
+    for (const r of screen.getAllByRole("radio")) expect(r).toHaveClass("min-h-11");
+  });
 });
 
 describe("StatTile", () => {

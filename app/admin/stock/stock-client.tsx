@@ -41,12 +41,6 @@ export default function StockClient() {
     setFilters(params.filters);
   }, []);
 
-  const show = (nextView: StockView, nextFilters: FindFilters) => {
-    setView(nextView);
-    setFilters(nextFilters);
-    window.history.replaceState(window.history.state, "", writeStockParams(window.location.href, nextView, nextFilters));
-  };
-
   const query = useQuery({
     queryKey: ["admin", "stock"],
     queryFn: fetchStock,
@@ -56,6 +50,15 @@ export default function StockClient() {
     refetchInterval: stockRefetchInterval(view),
     placeholderData: keepPreviousData,
   });
+
+  const show = (nextView: StockView, nextFilters: FindFilters) => {
+    // Data loaded on Overview can be minutes old; Find must not over-promise home stock.
+    if (nextView === "find" && view === "overview") void query.refetch();
+    setView(nextView);
+    setFilters(nextFilters);
+    window.history.replaceState(window.history.state, "", writeStockParams(window.location.href, nextView, nextFilters));
+  };
+
   const m = query.data;
   const status = (query.error as { status?: number } | null)?.status;
 

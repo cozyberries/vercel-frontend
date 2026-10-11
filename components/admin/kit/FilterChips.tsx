@@ -10,14 +10,21 @@ export function FilterChips<V extends string>({
   value,
   onChange,
   label,
+  large = false,
 }: {
   chips: FilterChip<V>[];
   value: V;
   onChange: (value: V) => void;
   label: string;
+  /** Phone-first rows: chips wrap instead of scrolling sideways and are 44 px tall. */
+  large?: boolean;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={large ? "flex flex-wrap gap-2" : "-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0"}
+    >
       {chips.map((c) => {
         const checked = c.value === value;
         return (
@@ -27,7 +34,7 @@ export function FilterChips<V extends string>({
             role="radio"
             aria-checked={checked}
             onClick={() => onChange(c.value)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`shrink-0 rounded-full border ${large ? "min-h-11 px-4" : "px-3"} py-1.5 text-sm font-medium transition-colors ${
               checked
                 ? "border-cb-fg bg-cb-fg text-white"
                 : "border-cb-border bg-cb-white text-cb-fg"

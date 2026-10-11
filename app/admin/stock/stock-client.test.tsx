@@ -150,6 +150,18 @@ describe("StockClient", () => {
     expect(screen.getByRole("button", { name: /^Girls Coord Sets/ })).toBeInTheDocument();
   });
 
+  it("refetches when moving from Overview to Find, but not on Find filter changes", async () => {
+    const f = stubStock();
+    renderPage();
+    await screen.findByText("as of 10:00");
+    expect(f).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("tab", { name: "Find" }));
+    await waitFor(() => expect(f).toHaveBeenCalledTimes(2));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Gender" })).getByRole("radio", { name: "Girl" }));
+    await act(async () => {});
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
   it("refreshes every minute only while Find is open", () => {
     expect(stockRefetchInterval("find")).toBe(60_000);
     expect(stockRefetchInterval("overview")).toBe(false);
