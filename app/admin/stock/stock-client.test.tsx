@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import StockClient from "./stock-client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import StockClient, { stockRefetchInterval } from "./stock-client";
 import { stockMetricsFixture } from "@/lib/admin/__fixtures__/stock-metrics";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -22,6 +22,10 @@ function renderPage(qc = new QueryClient({ defaultOptions: { queries: { retry: f
 }
 
 const tile = (label: string) => screen.getByText(label).parentElement!;
+
+beforeEach(() => {
+  window.history.replaceState(null, "", "/admin/stock");
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -100,5 +104,54 @@ describe("StockClient", () => {
     await screen.findByRole("alert");
     expect(screen.getByRole("link", { name: "Log in again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("opens on Overview, with a Find tab", async () => {
+    stubStock();
+    renderPage();
+    expect(await screen.findByRole("region", { name: "Restock next" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Find" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByRole("region", { name: "Find stock" })).not.toBeInTheDocument();
+  });
+
+  it("switches to Find and back, keeping the view in the URL", async () => {
+    stubStock();
+    renderPage();
+    await screen.findByRole("region", { name: "Restock next" });
+    fireEvent.click(screen.getByRole("tab", { name: "Find" }));
+    expect(screen.getByRole("region", { name: "Find stock" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Restock next" })).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?view=find");
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Gender" })).getByRole("radio", { name: "Girl" }));
+    expect(window.location.search).toBe("?view=find&gender=girl");
+    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+    expect(window.location.search).toBe("");
+    expect(screen.getByRole("region", { name: "Restock next" })).toBeInTheDocument();
+  });
+
+  it("opens straight into Find from a bookmarked link with its filters", async () => {
+    window.history.replaceState(null, "", "/admin/stock?view=find&gender=girl&size=2-3y");
+    stubStock();
+    renderPage();
+    expect(await screen.findByRole("region", { name: "Find stock" })).toBeInTheDocument();
+    expect(within(screen.getByRole("radiogroup", { name: "Gender" })).getByRole("radio", { name: "Girl" })).toHaveAttribute("aria-checked", "true");
+    expect(within(screen.getByRole("radiogroup", { name: "Size" })).getByRole("radio", { name: "2-3Y" })).toHaveAttribute("aria-checked", "true");
+    expect(within(screen.getByRole("list", { name: "Girls Coord Set Blue Daisy sizes" })).getByRole("listitem")).toHaveTextContent("2-3Y—Out");
+    expect(screen.queryByRole("list", { name: "Boys Coord Set Navy sizes" })).not.toBeInTheDocument();
+  });
+
+  it("ignores a bookmarked size that no longer exists", async () => {
+    window.history.replaceState(null, "", "/admin/stock?view=find&size=9-10y");
+    stubStock();
+    renderPage();
+    await screen.findByRole("region", { name: "Find stock" });
+    expect(within(screen.getByRole("radiogroup", { name: "Size" })).getByRole("radio", { name: "Any" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: /^Girls Coord Sets/ })).toBeInTheDocument();
+  });
+
+  it("refreshes every minute only while Find is open", () => {
+    expect(stockRefetchInterval("find")).toBe(60_000);
+    expect(stockRefetchInterval("overview")).toBe(false);
   });
 });

@@ -1,15 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ErrorBanner, LoadingList, PageHeader, StatGrid, StatTile } from "@/components/admin/kit";
+import { ErrorBanner, LoadingList, PageHeader, SegmentedTabs, StatGrid, StatTile, type SegmentedTab } from "@/components/admin/kit";
 import { ChartCard } from "@/components/admin/charts/ChartCard";
 import { RankBars } from "@/components/admin/charts/RankBars";
 import { SegmentBar } from "@/components/admin/charts/SegmentBar";
 import { STATUS_COLORS } from "@/components/admin/charts/chart-colors";
-import { SizeGapGrid, StockList } from "@/components/admin/stock";
+import { SizeGapGrid, StockFinder, StockList } from "@/components/admin/stock";
 import type { StockMetrics } from "@/lib/admin/stock-metrics";
+import { readStockParams, writeStockParams, type FindFilters, type StockView } from "@/lib/admin/stock-find";
 import { formatCount, formatRupees } from "@/lib/admin/sales-format";
 import { formatIstTime } from "@/lib/admin/stock-format";
+
+const VIEW_TABS: SegmentedTab<StockView>[] = [
+  { key: "overview", label: "Overview" },
+  { key: "find", label: "Find" },
+];
+
+/** Find is used at the stall while a customer waits: refresh it every minute so a ✅'d sale shows. */
+export function stockRefetchInterval(view: StockView): number | false {
+  return view === "find" ? 60_000 : false;
+}
 
 async function fetchStock(): Promise<StockMetrics> {
   const res = await fetch("/api/admin/stock", { credentials: "same-origin", cache: "no-store" });
@@ -19,12 +31,29 @@ async function fetchStock(): Promise<StockMetrics> {
 }
 
 export default function StockClient() {
+  const [view, setView] = useState<StockView>("overview");
+  const [filters, setFilters] = useState<FindFilters>({ gender: "any", size: null });
+
+  // Seeds from ?view=&gender=&size= so the stall phone's bookmark opens Find. Read in an effect: no useSearchParams.
+  useEffect(() => {
+    const params = readStockParams(window.location.search);
+    setView(params.view);
+    setFilters(params.filters);
+  }, []);
+
+  const show = (nextView: StockView, nextFilters: FindFilters) => {
+    setView(nextView);
+    setFilters(nextFilters);
+    window.history.replaceState(window.history.state, "", writeStockParams(window.location.href, nextView, nextFilters));
+  };
+
   const query = useQuery({
     queryKey: ["admin", "stock"],
     queryFn: fetchStock,
     staleTime: 30_000,
     // The app's QueryProvider turns focus refetch off by default; stock should refresh when the tab comes back.
     refetchOnWindowFocus: true,
+    refetchInterval: stockRefetchInterval(view),
     placeholderData: keepPreviousData,
   });
   const m = query.data;
@@ -33,6 +62,9 @@ export default function StockClient() {
   return (
     <div>
       <PageHeader title="Stock" subtitle={m ? `as of ${formatIstTime(m.generated_at)}` : undefined} />
+      <div className="mb-3">
+        <SegmentedTabs tabs={VIEW_TABS} value={view} onChange={(v) => show(v, filters)} label="Stock view" />
+      </div>
       {query.isError && (
         <ErrorBanner
           message={(query.error as Error).message}
@@ -41,7 +73,15 @@ export default function StockClient() {
           loginRedirect={status === 401 || status === 403 ? "/admin/stock" : undefined}
         />
       )}
-      {m ? <StockBody metrics={m} /> : !query.isError && <LoadingList rows={3} label="Loading stock" />}
+      {m ? (
+        view === "find" ? (
+          <StockFinder products={m.products} filters={filters} onChange={(f) => show("find", f)} />
+        ) : (
+          <StockBody metrics={m} />
+        )
+      ) : (
+        !query.isError && <LoadingList rows={3} label="Loading stock" />
+      )}
     </div>
   );
 }
