@@ -125,7 +125,7 @@ export default function StallRefillsClient() {
   }
 
   const data = query.data;
-  const openCount = (d: RefillDay) => d.lines.filter((l) => l.pending > 0).length;
+  const openCount = (d: RefillDay) => unitCounts(d).open;
   const current = day === "today" ? data.today : data.yesterday;
   const title = day === "today" ? "Today" : "Yesterday";
   const emptyText = day === "today" ? "Nothing sold yet today." : "Nothing sold yesterday.";
@@ -201,9 +201,15 @@ interface SectionProps {
   onUndo: (id: string) => void;
 }
 
+/** Counts pieces, not rows: a size sold in two orders is one row but two pieces on the stall's handwritten note. */
+function unitCounts(day: RefillDay) {
+  const sold = day.lines.reduce((sum, line) => sum + line.sold, 0);
+  const open = day.lines.reduce((sum, line) => sum + line.pending, 0);
+  return { sold, open, done: sold - open };
+}
+
 function DaySection({ title, day, emptyText, busy, onRecord, onConfirmNoStock, onUndo }: SectionProps) {
-  const open = day.lines.filter((line) => line.pending > 0).length;
-  const done = day.lines.length - open;
+  const { sold, open, done } = unitCounts(day);
   return (
     <section aria-label={title}>
       <div className="mb-3 flex items-baseline justify-between gap-2">
@@ -212,7 +218,7 @@ function DaySection({ title, day, emptyText, busy, onRecord, onConfirmNoStock, o
         </h2>
         {day.lines.length > 0 && (
           <p className="text-sm text-cb-muted-fg">
-            {open} to refill · {done} done
+            {sold} sold · {open} to refill · {done} done
           </p>
         )}
       </div>

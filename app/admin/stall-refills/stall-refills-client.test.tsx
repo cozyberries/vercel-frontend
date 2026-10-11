@@ -104,7 +104,8 @@ describe("stall refills list", () => {
     renderPage();
     const today = await screen.findByRole("region", { name: "Today" });
     expect(within(today).getByRole("heading", { name: "Today · Sun 27 Sep" })).toBeInTheDocument();
-    expect(within(today).getByText("2 to refill · 1 done")).toBeInTheDocument();
+    // pieces, not rows: Moon sold 3 + Old Frock 1 still to refill, Rocket 1 done
+    expect(within(today).getByText("5 sold · 4 to refill · 1 done")).toBeInTheDocument();
     const moon = within(today).getByTestId("refill-line-frock-moon-0-3m");
     expect(within(moon).getByText("Left 1")).toBeInTheDocument();
     expect(within(moon).getByText(/Sold 3/)).toBeInTheDocument();
@@ -256,6 +257,8 @@ describe("stall refills list", () => {
     renderPage();
     const line = await screen.findByTestId("refill-line-coords-partial-2-3y");
     expect(within(line).getByText("1 more to refill")).toBeInTheDocument();
+    expect(screen.getByText("3 sold · 1 to refill · 2 done")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Today/ })).toHaveTextContent("1");
     expect(within(line).getByText("Refilled ×2 · 14:30 · Asha")).toBeInTheDocument();
     expect(within(line).getByRole("button", { name: "Undo" })).toBeInTheDocument();
     expect(within(line).getByRole("button", { name: "Refilled" })).toBeInTheDocument();
@@ -276,11 +279,11 @@ describe("stall refills list", () => {
     expect(await screen.findByText("Nothing sold yet today.")).toBeInTheDocument();
   });
 
-  it("shows the day tabs with the open count on each", async () => {
-    // fixture: today has 2 lines open + 1 done, yesterday 1 open
+  it("shows the day tabs with the pieces still to refill on each", async () => {
+    // fixture: today has 4 pieces open over 2 lines + 1 done, yesterday 1 open
     renderPage();
     await screen.findByRole("tab", { name: /Today/ });
-    expect(screen.getByRole("tab", { name: /Today/ })).toHaveTextContent("2");
+    expect(screen.getByRole("tab", { name: /Today/ })).toHaveTextContent("4");
     expect(screen.getByRole("tab", { name: /Yesterday/ })).toHaveTextContent("1");
     expect(screen.queryByRole("region", { name: "Yesterday" })).not.toBeInTheDocument();
   });
