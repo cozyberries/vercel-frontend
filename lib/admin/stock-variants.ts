@@ -4,7 +4,7 @@ import type { StockVariantRow } from "./stock-metrics";
 export const VARIANT_PAGE_SIZE = 1000;
 
 const COLUMNS =
-  "slug, product_slug, size_slug, stock_quantity, price, products!inner(name, is_active, category_slug, categories(name)), sizes(name, display_order)";
+  "slug, product_slug, size_slug, stock_quantity, price, products!inner(name, is_active, category_slug, gender_slug, categories(name)), sizes(name, display_order)";
 
 /**
  * Every variant of an active product, with its product, category and size embedded. Read in pages

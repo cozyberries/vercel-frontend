@@ -35,7 +35,7 @@ describe("fetchActiveVariants", () => {
     const q = queries[0];
     expect(callsOf(q, "from")).toEqual([["product_variants"]]);
     expect(callsOf(q, "select")[0][0]).toBe(
-      "slug, product_slug, size_slug, stock_quantity, price, products!inner(name, is_active, category_slug, categories(name)), sizes(name, display_order)",
+      "slug, product_slug, size_slug, stock_quantity, price, products!inner(name, is_active, category_slug, gender_slug, categories(name)), sizes(name, display_order)",
     );
     expect(callsOf(q, "eq")).toEqual([["products.is_active", true]]);
     expect(callsOf(q, "order")).toEqual([["slug", { ascending: true }]]);

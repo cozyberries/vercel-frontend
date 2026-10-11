@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SizeGapGrid, StockList } from "./index";
-import { stockMetricsFixture, stockRow } from "@/lib/admin/__fixtures__/stock-metrics";
+import { productRow, stockMetricsFixture, stockRow } from "@/lib/admin/__fixtures__/stock-metrics";
 
 const NOW = new Date("2026-10-03T04:30:00Z");
 const metrics = stockMetricsFixture();
@@ -80,7 +80,7 @@ describe("SizeGapGrid", () => {
   it("wraps long product names in size gaps", () => {
     render(
       <SizeGapGrid
-        products={[{ slug: "long", name: LONG_NAME, out: 1, sizes: [stockRow({ stock: 0, state: "out" })] }]}
+        products={[productRow({ slug: "long", name: LONG_NAME, out: 1, sizes: [stockRow({ stock: 0, state: "out" })] })]}
       />,
     );
     const name = screen.getByText(LONG_NAME);
@@ -89,7 +89,7 @@ describe("SizeGapGrid", () => {
   });
 
   it("says no size runs are broken when nothing is out", () => {
-    render(<SizeGapGrid products={[{ slug: "p", name: "P", out: 0, sizes: [stockRow({ stock: 3, state: "in" })] }]} />);
+    render(<SizeGapGrid products={[productRow({ slug: "p", name: "P", out: 0, sizes: [stockRow({ stock: 3, state: "in" })] })]} />);
     expect(screen.getByText("No size runs are broken")).toBeInTheDocument();
   });
 });

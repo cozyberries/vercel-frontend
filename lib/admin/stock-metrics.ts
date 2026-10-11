@@ -1,4 +1,6 @@
 import { startOfIstDay } from "@/lib/orders/pickup";
+import type { ListCard } from "@/lib/catalog/types";
+import { getVariantUrl } from "@/lib/utils/image";
 import { PAID_ORDER_STATUSES, saleDate, type SalesOrderRow } from "./sales-metrics";
 
 /** 1-2 left is low; 0 is out; 3 or more is in stock. */
@@ -25,6 +27,7 @@ export interface StockVariantRow {
     name: string;
     is_active: boolean;
     category_slug: string | null;
+    gender_slug: string | null;
     categories: { name: string } | null;
   } | null;
   sizes: { name: string; display_order: number | null } | null;
@@ -34,6 +37,8 @@ export interface StockSizeRow {
   variant_slug: string;
   product_slug: string;
   product_name: string;
+  /** sizes.slug of the variant; null for a one-size variant. */
+  size_slug: string | null;
   size_label: string;
   size_order: number;
   stock: number;
@@ -56,6 +61,13 @@ export interface StockProductRow {
   name: string;
   out: number;
   sizes: StockSizeRow[];
+  category_slug: string | null;
+  /** categories.name, else the slug, else "Uncategorised" (same as the category bars). */
+  category_name: string;
+  /** "girl" | "boy" | "unisex", or null when the product has none. */
+  gender_slug: string | null;
+  /** Thumbnail of the first catalog photo; null when the snapshot has none. */
+  image: string | null;
 }
 
 /** The /api/admin/stock payload. JSON-only types; product and size names, counts and dates only. */
@@ -99,14 +111,27 @@ export function productsWithGaps(products: StockProductRow[]): StockProductRow[]
   return products.filter((p) => p.out > 0).sort((a, b) => b.out - a.out || a.name.localeCompare(b.name));
 }
 
+/** First catalog photo of each product as a thumbnail URL, by product slug. Cards without photos are skipped. */
+export function productThumbnails(cards: Array<Pick<ListCard, "slug" | "images">>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const card of cards) {
+    const photo = card.images?.[0];
+    if (photo) out.set(card.slug, getVariantUrl(photo, "thumbnail", "webp"));
+  }
+  return out;
+}
+
 export function buildStockMetrics({
   variants,
   orders,
   now,
+  images,
 }: {
   variants: StockVariantRow[];
   orders: SalesOrderRow[];
   now: Date;
+  /** Product slug → thumbnail URL (productThumbnails). Missing → image null. */
+  images?: Map<string, string>;
 }): StockMetrics {
   const active = variants.filter((v) => v.products?.is_active === true);
   const resolve = variantResolver(active);
@@ -132,6 +157,7 @@ export function buildStockMetrics({
 
   const kpis = { units: 0, value: 0, sizes: 0, in: 0, low: 0, out: 0 };
   const categories = new Map<string, StockCategoryRow>();
+  const productInfo = new Map<string, { category_slug: string | null; category_name: string; gender_slug: string | null }>();
   const rows: StockSizeRow[] = active.map((v) => {
     const stock = Math.max(0, Number(v.stock_quantity) || 0);
     const value = stock * (Number(v.price) || 0);
@@ -153,12 +179,20 @@ export function buildStockMetrics({
     c.value += value;
     c.sizes += 1;
     categories.set(categorySlug ?? "", c);
+    if (!productInfo.has(v.product_slug)) {
+      productInfo.set(v.product_slug, {
+        category_slug: categorySlug,
+        category_name: c.name,
+        gender_slug: v.products?.gender_slug ?? null,
+      });
+    }
 
     const s = sales.get(v.slug);
     return {
       variant_slug: v.slug,
       product_slug: v.product_slug,
       product_name: v.products?.name ?? v.product_slug,
+      size_slug: v.size_slug,
       size_label: v.sizes?.name ?? v.size_slug ?? "One size",
       size_order: v.sizes?.display_order ?? 0,
       stock,
@@ -180,7 +214,17 @@ export function buildStockMetrics({
 
   const products = new Map<string, StockProductRow>();
   for (const r of rows) {
-    const p = products.get(r.product_slug) ?? { slug: r.product_slug, name: r.product_name, out: 0, sizes: [] };
+    const info = productInfo.get(r.product_slug);
+    const p = products.get(r.product_slug) ?? {
+      slug: r.product_slug,
+      name: r.product_name,
+      out: 0,
+      sizes: [],
+      category_slug: info?.category_slug ?? null,
+      category_name: info?.category_name ?? "Uncategorised",
+      gender_slug: info?.gender_slug ?? null,
+      image: images?.get(r.product_slug) ?? null,
+    };
     p.sizes.push(r);
     if (r.state === "out") p.out += 1;
     products.set(r.product_slug, p);

@@ -30,6 +30,7 @@ const VARIANT = {
     name: "Frill Sleeve Petal Pops",
     is_active: true,
     category_slug: "frill-sleeve-muslin",
+    gender_slug: "girl",
     categories: { name: "Frill Sleeve Muslin" },
   },
   sizes: { name: "0-3M", display_order: 1 },

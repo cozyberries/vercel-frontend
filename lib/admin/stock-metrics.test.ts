@@ -4,6 +4,7 @@ import {
   buildStockMetrics,
   LOW_STOCK_MAX,
   productsWithGaps,
+  productThumbnails,
   stockState,
   variantResolver,
   type StockMetrics,
@@ -22,6 +23,7 @@ interface VariantOpts {
   price?: number | null;
   order?: number;
   category?: string | null;
+  gender?: string | null;
   active?: boolean;
   name?: string;
   sizes?: StockVariantRow["sizes"];
@@ -40,6 +42,7 @@ function variant(product: string, size: string, stock: number | null, opts: Vari
       name: opts.name ?? `Name ${product}`,
       is_active: opts.active ?? true,
       category_slug: category,
+      gender_slug: opts.gender ?? null,
       categories: category === null ? null : { name: `Category ${category}` },
     },
     sizes: opts.sizes === undefined ? { name: size.toUpperCase(), display_order: opts.order ?? 0 } : opts.sizes,
@@ -259,12 +262,60 @@ describe("buildStockMetrics: products and size gaps", () => {
   });
 
   it("puts products with the most out-of-stock sizes first in the gaps view", () => {
-    const product = (name: string, out: number): StockProductRow => ({ slug: name, name, out, sizes: [] });
+    const product = (name: string, out: number): StockProductRow => ({
+      slug: name,
+      name,
+      out,
+      sizes: [],
+      category_slug: null,
+      category_name: "Uncategorised",
+      gender_slug: null,
+      image: null,
+    });
     expect(productsWithGaps([product("A", 1), product("B", 2), product("C", 0), product("D", 1)]).map((p) => p.name)).toEqual([
       "B",
       "A",
       "D",
     ]);
+  });
+
+  it("carries each product's category, gender and photo, and each size's slug", () => {
+    const m = buildStockMetrics({
+      variants: [
+        variant("daisy", "2-3y", 2, { name: "Daisy", category: "girls-coord", gender: "girl" }),
+        variant("plain", "0-3m", 1, { name: "Plain", category: null }),
+      ],
+      orders: [],
+      now: NOW,
+      images: new Map([["daisy", "https://x.test/daisy_thumbnail.webp"]]),
+    });
+    expect(m.products.map(({ sizes, ...p }) => ({ ...p, sizeSlugs: sizes.map((s) => s.size_slug) }))).toEqual([
+      {
+        slug: "daisy",
+        name: "Daisy",
+        out: 0,
+        category_slug: "girls-coord",
+        category_name: "Category girls-coord",
+        gender_slug: "girl",
+        image: "https://x.test/daisy_thumbnail.webp",
+        sizeSlugs: ["2-3y"],
+      },
+      {
+        slug: "plain",
+        name: "Plain",
+        out: 0,
+        category_slug: null,
+        category_name: "Uncategorised",
+        gender_slug: null,
+        image: null,
+        sizeSlugs: ["0-3m"],
+      },
+    ]);
+  });
+
+  it("keeps a null size slug for a one-size variant", () => {
+    const m = build([variant("q", "x", 1, { sizes: null, sizeSlug: null, slug: "q-only" })]);
+    expect(row(m, "q-only").size_slug).toBeNull();
   });
 });
 
@@ -272,5 +323,21 @@ describe("buildStockMetrics: JSON", () => {
   it("survives a JSON round trip unchanged", () => {
     const m = build([variant("p", "a", 1), variant("p", "b", 0)], [order(TODAY, [{ sku: "p-a", product_id: "p", quantity: 1 }])]);
     expect(JSON.parse(JSON.stringify(m))).toEqual(m);
+  });
+});
+
+describe("productThumbnails", () => {
+  const SUPA = "https://abc.supabase.co/storage/v1/object/public/products/daisy";
+
+  it("maps each card's first photo to its thumbnail variant", () => {
+    const thumbs = productThumbnails([
+      { slug: "daisy", images: [`${SUPA}/1.jpg`, `${SUPA}/2.jpg`] },
+      { slug: "bare", images: [] },
+    ]);
+    expect([...thumbs.entries()]).toEqual([["daisy", `${SUPA}/1_thumbnail.webp`]]);
+  });
+
+  it("leaves a non-Supabase photo unchanged", () => {
+    expect(productThumbnails([{ slug: "p", images: ["https://cdn.test/p.jpg"] }]).get("p")).toBe("https://cdn.test/p.jpg");
   });
 });
