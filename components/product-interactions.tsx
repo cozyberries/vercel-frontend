@@ -84,6 +84,9 @@ interface ProductInteractionsProps {
 // reappears as a bulleted "Features" accordion further down the page.
 const TOP_CHIP_COUNT = 3;
 
+// The hover zoom needs a mouse and room for its panel beside the photo.
+const HOVER_ZOOM_QUERY = "(hover: hover) and (pointer: fine) and (min-width: 768px)";
+
 export default function ProductInteractions({ product, initialSize: initialSizeProp, staticContent, relatedProducts: relatedProductsProp }: ProductInteractionsProps) {
   // Read ?size= from the URL after mount. useSearchParams() would bail the statically rendered
   // product page out to client-side rendering (the HTML shipped only the loading skeleton).
@@ -101,7 +104,8 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
-  const [isMobile, setIsMobile] = useState(false);
+  // Mobile first: touch behaviour until a hover-capable mouse is detected.
+  const [isMobile, setIsMobile] = useState(true);
   const [isShaking, setIsShaking] = useState(false);
   const [showMobileImageModal, setShowMobileImageModal] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -206,16 +210,15 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
     }
   }, [productSlug, setProductSlug]);
 
-  // Check if mobile screen
+  // Touch or mouse, by input rather than width: a phone turned sideways or a tablet is 768+ wide
+  // but has no hover, so a tap must open the full-screen viewer, not the desktop hover zoom.
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-
-    return () => window.removeEventListener("resize", checkMobile);
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(HOVER_ZOOM_QUERY);
+    const update = () => setIsMobile(!mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
   }, []);
 
   // Build the display review list for this product from the shared rating context
@@ -1044,12 +1047,19 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
 
       {/* Mobile Image Preview Modal */}
       {showMobileImageModal && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 md:hidden">
-          <div className="relative w-full h-full flex items-center justify-center">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo viewer"
+          className="fixed inset-0 bg-black/90 z-50 p-4"
+        >
+          <div className="relative w-full h-full">
             {/* Close button — top-right */}
             <button
+              type="button"
+              aria-label="Close photo viewer"
               onClick={() => setShowMobileImageModal(false)}
-              className="absolute top-4 right-4 text-white z-10 bg-white/25 backdrop-blur-sm rounded-full p-2"
+              className="absolute top-0 right-0 text-white z-10 bg-white/25 backdrop-blur-sm rounded-full p-2"
             >
               <svg
                 className="w-6 h-6"
@@ -1065,8 +1075,10 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 />
               </svg>
             </button>
+            {/* Photo area between the close button and the dots; the photo is contained in it,
+                so it fits a portrait phone, a phone turned sideways and a tablet alike. */}
             <div
-              className="relative w-full max-w-sm touch-none"
+              className="absolute inset-x-0 top-12 bottom-14 overflow-hidden touch-none"
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
@@ -1076,15 +1088,16 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
                 initial={{ scale: 0.75, x: -42 }}
                 animate={{ scale: 1, x: 0 }}
                 transition={{ duration: 0.28, ease: "easeOut" }}
+                className="absolute inset-0"
                 style={{ transformOrigin: "left center" }}
               >
                 <SupabaseImage
                   src={product.images?.[selectedImage]}
                   preset="detail"
                   alt={product.name}
-                  width={400}
-                  height={400}
-                  className="w-full h-auto object-contain select-none"
+                  fill
+                  sizes="100vw"
+                  className="!object-contain select-none"
                   priority
                   draggable={false}
                 />
@@ -1092,7 +1105,7 @@ export default function ProductInteractions({ product, initialSize: initialSizeP
             </div>
             {/* Bottom row: image dots + position indicator */}
             {product.images && product.images.length > 1 && (
-              <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2">
+              <div className="absolute bottom-0 inset-x-0 flex flex-col items-center gap-2">
                 <div className="flex gap-2">
                   {product.images.map((_, index) => (
                     <button
