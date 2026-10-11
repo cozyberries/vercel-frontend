@@ -3,7 +3,8 @@ import { requireAdmin } from "@/lib/services/admin-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { fetchActiveVariants } from "@/lib/admin/stock-variants";
 import { fetchPaidOrders } from "@/lib/admin/sales-orders";
-import { buildStockMetrics } from "@/lib/admin/stock-metrics";
+import { getSnapshot } from "@/lib/catalog/cache";
+import { buildStockMetrics, productThumbnails } from "@/lib/admin/stock-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,18 @@ export async function GET() {
 
   try {
     const admin = createAdminSupabaseClient();
-    const [variants, orders] = await Promise.all([fetchActiveVariants(admin), fetchPaidOrders(admin, null)]);
-    const metrics = buildStockMetrics({ variants, orders, now: new Date() });
+    const [variants, orders, images] = await Promise.all([
+      fetchActiveVariants(admin),
+      fetchPaidOrders(admin, null),
+      // Photos only: without the snapshot, the Find view shows no thumbnails.
+      getSnapshot()
+        .then(({ snapshot }) => productThumbnails(snapshot.products))
+        .catch((err): Map<string, string> => {
+          console.error("[admin-stock] catalog snapshot unavailable:", err);
+          return new Map();
+        }),
+    ]);
+    const metrics = buildStockMetrics({ variants, orders, now: new Date(), images });
     return NextResponse.json({ metrics }, { headers: NO_STORE });
   } catch (e) {
     console.error("[admin-stock]", e);

@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   user: null as unknown,
   fetchActiveVariants: vi.fn(),
   fetchPaidOrders: vi.fn(),
+  getSnapshot: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase-server", () => ({
@@ -14,11 +15,13 @@ vi.mock("@/lib/supabase-server", () => ({
 }));
 vi.mock("@/lib/admin/stock-variants", () => ({ fetchActiveVariants: h.fetchActiveVariants }));
 vi.mock("@/lib/admin/sales-orders", () => ({ fetchPaidOrders: h.fetchPaidOrders }));
+vi.mock("@/lib/catalog/cache", () => ({ getSnapshot: h.getSnapshot }));
 
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
 import { GET } from "./route";
 
 const NOW = new Date("2026-10-03T04:30:00Z");
+const PHOTO = "https://abc.supabase.co/storage/v1/object/public/products/frill/1.jpg";
 
 const VARIANT = {
   slug: "frill-0-3m",
@@ -70,6 +73,7 @@ beforeEach(() => {
   h.user = { id: "a", app_metadata: { role: "admin" } };
   h.fetchActiveVariants.mockReset().mockResolvedValue([VARIANT]);
   h.fetchPaidOrders.mockReset().mockResolvedValue([ORDER]);
+  h.getSnapshot.mockReset().mockResolvedValue({ snapshot: { products: [{ slug: "frill", images: [PHOTO] }] } });
   vi.mocked(createAdminSupabaseClient).mockClear();
 });
 
@@ -83,6 +87,7 @@ describe("GET /api/admin/stock", () => {
     expect((await GET()).status).toBe(401);
     expect(createAdminSupabaseClient).not.toHaveBeenCalled();
     expect(h.fetchActiveVariants).not.toHaveBeenCalled();
+    expect(h.getSnapshot).not.toHaveBeenCalled();
   });
 
   it("403s a customer", async () => {
@@ -120,5 +125,27 @@ describe("GET /api/admin/stock", () => {
     for (const secret of [ORDER.id, ORDER.order_number, ORDER.user_id, ORDER.customer_name, ORDER.customer_email, ORDER.customer_phone, "12 MG Road"]) {
       expect(text).not.toContain(secret);
     }
+  });
+
+  it("gives each product its catalog thumbnail, gender and category", async () => {
+    const body = await (await GET()).json();
+    expect(body.metrics.products[0]).toMatchObject({
+      slug: "frill",
+      category_slug: "frill-sleeve-muslin",
+      category_name: "Frill Sleeve Muslin",
+      gender_slug: "girl",
+      image: "https://abc.supabase.co/storage/v1/object/public/products/frill/1_thumbnail.webp",
+    });
+    expect(body.metrics.products[0].sizes[0].size_slug).toBe("0-3m");
+  });
+
+  it("still loads, without photos, when the catalog snapshot is unavailable", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.getSnapshot.mockRejectedValueOnce(new Error("redis down"));
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.metrics.products[0].image).toBeNull();
+    expect(body.metrics.kpis.units).toBe(1);
   });
 });
