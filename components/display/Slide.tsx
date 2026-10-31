@@ -6,7 +6,7 @@ interface SlideProps {
   photoSrc: string;
 }
 
-/** Layout B: the photo framed on a blurred copy of itself, with a floating name card. */
+/** The brand on top, the product name under it, then the photo, all over a blurred copy of the photo. */
 export default function Slide({ slide, photoSrc }: SlideProps) {
   return (
     <div
@@ -19,18 +19,28 @@ export default function Slide({ slide, photoSrc }: SlideProps) {
         src={photoSrc}
         alt=""
         aria-hidden
-        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl brightness-75"
+        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl brightness-[0.6]"
       />
-      <div className="relative flex h-full w-full items-center justify-center gap-[4vmin] p-[4vmin] landscape:flex-row portrait:flex-col">
-        <div className="aspect-square shrink-0 overflow-hidden rounded-2xl shadow-2xl landscape:h-[min(88vh,54vw)] portrait:w-[min(88vw,62vh)]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photoSrc} alt={slide.name} className="display-zoom h-full w-full object-cover" />
+      <div
+        data-testid="display-slide-stack"
+        className="relative flex h-full w-full flex-col items-center justify-center gap-[2vmin] p-[3vmin] text-center text-[#fffaf4] [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]"
+      >
+        <div className="w-full max-w-[90vmin] shrink-0">
+          <h1 className="font-serif text-[max(22px,5.5vmin)] leading-tight tracking-wide">CozyBerries</h1>
+          <h2 className="mt-[1vmin] line-clamp-2 text-[max(16px,3.4vmin)] font-medium leading-snug text-[#f3e6d8]">
+            {slide.name}
+          </h2>
         </div>
-        <div className="rounded-2xl bg-[rgba(255,250,244,0.92)] p-[3vmin] text-[#4a3426] shadow-xl landscape:w-[min(36vw,60vh)] portrait:w-[min(88vw,62vh)]">
-          <p className="text-[max(12px,1.6vmin)] font-semibold uppercase tracking-[0.18em] text-[#8a6a52]">
-            CozyBerries
-          </p>
-          <h2 className="mt-[1.5vmin] font-serif text-[max(18px,4vmin)] leading-tight">{slide.name}</h2>
+        {/* Whatever the text leaves: the photo is the largest square that fits it (cq units = this box).
+            Capped at the padded screen width so a portrait screen keeps text and photo together, centred. */}
+        <div
+          data-testid="display-photo-area"
+          className="flex max-h-[calc(100vw-6vmin)] min-h-0 w-full flex-1 items-center justify-center [container-type:size]"
+        >
+          <div className="h-[min(100cqw,100cqh)] w-[min(100cqw,100cqh)] overflow-hidden rounded-2xl shadow-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoSrc} alt={slide.name} className="display-zoom h-full w-full object-cover" />
+          </div>
         </div>
       </div>
     </div>
