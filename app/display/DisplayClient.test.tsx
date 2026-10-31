@@ -13,9 +13,6 @@ const catalog = vi.hoisted(() => ({ override: null as Snapshot | null }));
 vi.mock("@/hooks/useCatalog", () => ({
   useCatalog: (initial: Snapshot) => ({ data: catalog.override ?? initial }),
 }));
-vi.mock("@/components/display/Qr", () => ({
-  default: ({ value }: { value: string }) => <div data-testid="qr" data-value={value} />,
-}));
 
 import DisplayClient, { STARTED_KEY } from "./DisplayClient";
 
@@ -143,12 +140,11 @@ describe("DisplayClient", () => {
     expect(shownSlug()).toBe("c");
   });
 
-  it("shows the Scan to shop card when no product qualifies", async () => {
+  it("shows the brand card when no product qualifies", async () => {
     localStorage.setItem(STARTED_KEY, "1");
     renderDisplay({ tags: { ...tags, withBaby: [] } });
     await tick(0);
     expect(screen.getByTestId("display-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("qr").getAttribute("data-value")).toMatch(/\/\?utm_source=stall&utm_medium=display$/);
   });
 
   it("starts playing as soon as the first photo arrives", async () => {
