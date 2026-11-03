@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import modelPhotos from "../display/model-photos.json";
-import { compareListed, featuredCards, hasModelPhoto, type Listed } from "./order";
+import { compareBestSeller, compareListed, featuredCards, hasModelPhoto, type Listed } from "./order";
 
 // 2026-10-10: products whose first photo shows a baby model (lib/display/model-photos.json
 // withBaby) lead the default order, and the home Featured row is the best sellers among them.
@@ -36,6 +36,12 @@ describe("compareListed", () => {
   it("still puts every product without a photo last, tagged or not", () => {
     const list = [card(BABY, { images: [] }), card(NO_BABY)];
     expect([...list].sort(compareListed).map((c) => c.slug)).toEqual([NO_BABY, BABY]);
+  });
+
+  it("puts sold-out products last, after products without a photo, baby model or not", () => {
+    const list = [card(BABY, { in_stock: false, sales_rank: 1 }), card(NO_BABY, { images: [] }), card(BABY_2)];
+    expect([...list].sort(compareListed).map((c) => c.slug)).toEqual([BABY_2, NO_BABY, BABY]);
+    expect([...list].sort(compareBestSeller).map((c) => c.slug)).toEqual([BABY_2, NO_BABY, BABY]);
   });
 
   it("orders baby-model products among themselves by best seller, then newest", () => {

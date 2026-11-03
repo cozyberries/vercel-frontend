@@ -153,7 +153,7 @@ describe("sortDefault / mergeCards", () => {
   });
   describe("best sellers and photos", () => {
     const [coord, frock, jhabla] = sortDefault(cards);
-    const card = (base: ListCard, patch: Partial<ListCard>): ListCard => ({ ...base, images: ["https://img/x.jpg"], sales_rank: null, ...patch });
+    const card = (base: ListCard, patch: Partial<ListCard>): ListCard => ({ ...base, images: ["https://img/x.jpg"], sales_rank: null, in_stock: true, ...patch });
 
     it("puts best sellers first, then unsold products newest first", () => {
       const sorted = sortDefault([

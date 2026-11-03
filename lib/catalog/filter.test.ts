@@ -189,7 +189,7 @@ describe("filterValues and toggleFilterValue", () => {
 
 describe("sorting", () => {
   const photo = ["https://img/x.jpg"];
-  const pictured = cards.map((c) => ({ ...c, images: photo }));
+  const pictured = cards.map((c) => ({ ...c, images: photo, in_stock: true }));
   it("default is created_at desc when nothing has sold, price and name honour sortOrder", () => {
     expect(sortCards(pictured, "default", "desc").map((c) => c.slug)).toEqual([coord!.slug, frock!.slug, jhabla!.slug]);
     expect(sortCards(pictured, "price", "asc").map((c) => c.price)).toEqual([499, 899, 1299]);
@@ -201,7 +201,7 @@ describe("sorting", () => {
     const ranked = [
       { ...coord!, images: [], sales_rank: 1 },
       { ...frock!, images: photo, sales_rank: 2 },
-      { ...jhabla!, images: photo, sales_rank: null },
+      { ...jhabla!, images: photo, sales_rank: null, in_stock: true },
     ];
     expect(sortCards(ranked, "default", "desc").map((c) => c.slug)).toEqual([frock!.slug, jhabla!.slug, coord!.slug]);
   });
@@ -214,6 +214,19 @@ describe("sorting", () => {
     expect(sortCards(mixed, "price", "asc").map((c) => c.slug)).toEqual([frock!.slug, coord!.slug, jhabla!.slug]);
     expect(sortCards(mixed, "price", "desc").map((c) => c.slug)).toEqual([coord!.slug, frock!.slug, jhabla!.slug]);
   });
+
+  // 2026-11-01: sold-out products go last in every order, even after products without a photo.
+  it("puts sold-out products last in every sort, best seller or not", () => {
+    const stocked = [
+      { ...coord!, images: photo, sales_rank: 1, in_stock: false },
+      { ...frock!, images: [], sales_rank: null, in_stock: true },
+      { ...jhabla!, images: photo, sales_rank: 2, in_stock: true },
+    ];
+    const order = [jhabla!.slug, frock!.slug, coord!.slug];
+    expect(sortCards(stocked, "default", "desc").map((c) => c.slug)).toEqual(order);
+    expect(sortCards(stocked, "price", "desc").map((c) => c.slug)).toEqual(order);
+    expect(sortCards(stocked, "name", "asc").map((c) => c.slug)).toEqual(order);
+  });
 });
 
 describe("search", () => {
@@ -224,17 +237,22 @@ describe("search", () => {
     expect(localSearchMatch(coord!, "frock")).toBe(false);
   });
   it("uses server ranking order when provided and drops unranked cards", () => {
-    const pictured = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"] }));
+    const pictured = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"], in_stock: true }));
     const ranked = applyFilters(pictured, { ...DEFAULT_FILTERS, search: "soft" }, [jhabla!.slug, frock!.slug]);
     expect(ranked.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug]);
   });
   it("keeps search matches without photos after those with photos", () => {
-    const withoutFrockPhoto = cards.map((c) => (c.slug === frock!.slug ? { ...c, images: [] } : { ...c, images: ["https://img/x.jpg"] }));
+    const withoutFrockPhoto = cards.map((c) => ({ ...c, images: c.slug === frock!.slug ? [] : ["https://img/x.jpg"], in_stock: true }));
     const ranked = applyFilters(withoutFrockPhoto, { ...DEFAULT_FILTERS, search: "soft" }, [frock!.slug, jhabla!.slug]);
     expect(ranked.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug]);
   });
+  it("keeps sold-out search matches after those in stock", () => {
+    const soldOutFrock = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"], in_stock: c.slug !== frock!.slug }));
+    const ranked = applyFilters(soldOutFrock, { ...DEFAULT_FILTERS, search: "soft" }, [frock!.slug, jhabla!.slug]);
+    expect(ranked.map((c) => c.slug)).toEqual([jhabla!.slug, frock!.slug]);
+  });
   it("re-sorts a ranked result when an explicit sort is requested", () => {
-    const pictured = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"] }));
+    const pictured = cards.map((c) => ({ ...c, images: ["https://img/x.jpg"], in_stock: true }));
     const ranked = applyFilters(pictured, { ...DEFAULT_FILTERS, search: "soft", sortBy: "price", sortOrder: "asc" }, [frock!.slug, jhabla!.slug]);
     expect(ranked.map((c) => c.price)).toEqual([499, 899]);
   });

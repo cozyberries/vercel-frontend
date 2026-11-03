@@ -2,11 +2,23 @@
 // the browser-side filter/sort in filter.ts.
 import modelPhotos from "../display/model-photos.json";
 
-export type Listed = { created_at: string; slug: string; images?: string[]; sales_rank?: number | null };
+export type Listed = { created_at: string; slug: string; images?: string[]; sales_rank?: number | null; in_stock?: boolean };
 
-/** Products with a photo before those without; every storefront order applies this first. */
-export function comparePhotoFirst(a: Pick<Listed, "images">, b: Pick<Listed, "images">): number {
+type Shelf = Pick<Listed, "images" | "in_stock">;
+
+/** Products with a photo before those without. */
+function comparePhotoFirst(a: Shelf, b: Shelf): number {
   return Number((b.images?.length ?? 0) > 0) - Number((a.images?.length ?? 0) > 0);
+}
+
+/** In stock before sold out (missing `in_stock` counts as in stock). */
+function compareSoldOutLast(a: Shelf, b: Shelf): number {
+  return Number(a.in_stock === false) - Number(b.in_stock === false);
+}
+
+/** Sold out last, then products without a photo; every storefront order applies this first. */
+export function compareShelfFirst(a: Shelf, b: Shelf): number {
+  return compareSoldOutLast(a, b) || comparePhotoFirst(a, b);
 }
 
 // Products whose first photo shows a baby model (tagged by hand for /display; untagged = no).
@@ -30,15 +42,15 @@ function compareSalesRank(a: Listed, b: Listed): number {
   return ra - rb;
 }
 
-/** Best sellers first (photo still first), then newest, then slug. Ignores the baby-model rule. */
+/** Best sellers first (shelf rule still first), then newest, then slug. Ignores the baby-model rule. */
 export function compareBestSeller(a: Listed, b: Listed): number {
-  return comparePhotoFirst(a, b) || compareSalesRank(a, b) || b.created_at.localeCompare(a.created_at) || a.slug.localeCompare(b.slug);
+  return compareShelfFirst(a, b) || compareSalesRank(a, b) || b.created_at.localeCompare(a.created_at) || a.slug.localeCompare(b.slug);
 }
 
-/** Default ("Popular") order: photo first, baby-model photo next, then best sellers, then newest, then slug. */
+/** Default ("Popular") order: shelf rule first, baby-model photo next, then best sellers, then newest, then slug. */
 export function compareListed(a: Listed, b: Listed): number {
   return (
-    comparePhotoFirst(a, b) ||
+    compareShelfFirst(a, b) ||
     compareModelPhotoFirst(a, b) ||
     compareSalesRank(a, b) ||
     b.created_at.localeCompare(a.created_at) ||
