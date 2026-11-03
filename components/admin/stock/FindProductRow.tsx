@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { STATUS_COLORS } from "@/components/admin/charts/chart-colors";
 import { FIND_STATE_LABEL, formatFindCounts, type FindProduct, type FindState } from "@/lib/admin/stock-find";
 
@@ -49,6 +50,11 @@ export function FindProductRow({ product, open, onToggle }: { product: FindProdu
             </li>
           ))}
         </ul>
+      )}
+      {open && (
+        <Link href={`/admin/products/${product.slug}`} className="ml-[3.75rem] mt-1 inline-flex min-h-8 items-center text-sm font-medium text-cb-terracotta">
+          Edit stock &amp; photos
+        </Link>
       )}
     </li>
   );

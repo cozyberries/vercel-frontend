@@ -49,6 +49,7 @@ describe("StockFinder", () => {
     expect(sizes.map((s) => s.textContent)).toEqual(["1-2YStall 1 · Home 3In stock", "2-3YStall 1 · Home 0Last piece", "3-4Y—Out"]);
     expect(sizes.map((s) => s.getAttribute("data-state"))).toEqual(["in", "last", "out"]);
     expect(within(sizes[1]).getByText("Last piece").tagName).toBe("STRONG");
+    expect(screen.getByRole("link", { name: "Edit stock & photos" })).toHaveAttribute("href", "/admin/products/daisy");
   });
 
   it("shows the product photo, or a placeholder when there is none", () => {
