@@ -1,4 +1,5 @@
 import { getDelhiveryConfig } from "./config";
+import type { PickupRequestPayload, PickupRequestResponse } from "./pickup";
 import type {
   CreateShipmentRequest,
   CreateShipmentResponse,
@@ -90,6 +91,19 @@ export async function createShipment(
   return request<CreateShipmentResponse>("POST", "/api/cmu/create.json", {
     body,
     contentType: "application/x-www-form-urlencoded",
+  });
+}
+
+/**
+ * Asks Delhivery to collect from a warehouse on a date (POST /fm/request/new/). One request
+ * per warehouse per day: a second one that day comes back 400 "already exists", which
+ * callers read with interpretPickupResponse() in ./pickup.
+ */
+export async function createPickupRequest(
+  payload: PickupRequestPayload
+): Promise<DelhiveryResult<PickupRequestResponse>> {
+  return request<PickupRequestResponse>("POST", "/fm/request/new/", {
+    body: JSON.stringify(payload),
   });
 }
 

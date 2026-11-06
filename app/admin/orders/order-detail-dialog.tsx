@@ -9,8 +9,17 @@ import { Input } from "@/components/ui/input";
 import { formatOrderStatus } from "@/lib/utils/order-status";
 import type { OrderStatus } from "@/lib/types/order";
 import { formatPriceOverride } from "@/lib/utils/admin-override";
+import { istToday } from "@/lib/delhivery/pickup";
 import { api, ApiError, type AdminOrder } from "./api";
 import TrackingPanel from "./tracking-panel";
+
+interface PickupResponse {
+  success: boolean;
+  already_open: boolean;
+  pickup_id?: number;
+  date?: string;
+  time?: string;
+}
 
 const ALL_STATUSES: OrderStatus[] = [
   "payment_pending", "verifying_payment", "payment_confirmed", "processing",
@@ -27,6 +36,10 @@ export default function OrderDetailDialog({
   const [status, setStatus] = useState<OrderStatus | "">("");
   const [tracking, setTracking] = useState("");
   const [notes, setNotes] = useState("");
+  // "Add to pickup" form: opened by the button, or automatically once a shipment is created.
+  const [pickupOpen, setPickupOpen] = useState(false);
+  const [pickupDate, setPickupDate] = useState(() => istToday(new Date()));
+  const [pickupCount, setPickupCount] = useState("1");
 
   // Resync the local form fields only when the dialog opens/closes or a
   // genuinely different order is selected — keyed on the order id, not the
@@ -39,6 +52,9 @@ export default function OrderDetailDialog({
     setStatus(order?.status ?? "");
     setTracking(order?.tracking_number ?? "");
     setNotes(order?.delivery_notes ?? "");
+    setPickupOpen(false);
+    setPickupDate(istToday(new Date()));
+    setPickupCount("1");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally id-keyed, see comment above
   }, [order?.id]);
 
@@ -59,7 +75,23 @@ export default function OrderDetailDialog({
   const createShipment = useMutation({
     mutationFn: () =>
       api<{ waybill: string }>(`/api/admin/orders/${order!.id}/shipment`, { method: "POST" }),
-    onSuccess: (d) => { toast.success(`Shipment created: ${d.waybill}`); onChanged(); },
+    onSuccess: (d) => { toast.success(`Shipment created: ${d.waybill}`); setPickupOpen(true); onChanged(); },
+    onError,
+  });
+
+  const requestPickup = useMutation({
+    mutationFn: () =>
+      api<PickupResponse>(`/api/admin/orders/${order!.id}/pickup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: pickupDate, count: Number(pickupCount) || 1 }),
+      }),
+    onSuccess: (d) => {
+      if (d.already_open) toast.success(`A pickup is already open for ${d.date ?? pickupDate}; this parcel goes with it`);
+      else toast.success(`Pickup #${d.pickup_id} requested for ${d.date} at ${(d.time ?? "").slice(0, 5)}`);
+      setPickupOpen(false);
+      onChanged();
+    },
     onError,
   });
 
@@ -76,7 +108,10 @@ export default function OrderDetailDialog({
     order.fulfilment_method !== "pickup" &&
     !isDelhivery &&
     (order.status === "payment_confirmed" || order.status === "processing");
-  const busy = save.isPending || createShipment.isPending || cancelShipment.isPending;
+  // A parcel is packed the moment it is manifested, so the pickup can be asked for as long as
+  // the order is still Processing (Shipped means Delhivery already has it).
+  const canRequestPickup = order.fulfilment_method !== "pickup" && isDelhivery && order.status === "processing";
+  const busy = save.isPending || createShipment.isPending || cancelShipment.isPending || requestPickup.isPending;
 
   // Computed once per render so the Save button can be disabled — and the
   // mutation short-circuited — when nothing actually changed, instead of
@@ -138,6 +173,11 @@ export default function OrderDetailDialog({
               Create Delhivery shipment
             </Button>
           )}
+          {canRequestPickup && !pickupOpen && (
+            <Button variant="outline" className="rounded-full" disabled={busy} onClick={() => setPickupOpen(true)}>
+              Add to pickup
+            </Button>
+          )}
           {isDelhivery && (
             <>
               <Button variant="outline" className="rounded-full"
@@ -155,6 +195,35 @@ export default function OrderDetailDialog({
             </Button>
           )}
         </div>
+
+        {pickupOpen && (
+          <div className="rounded-xl border border-cb-border bg-cb-white p-3">
+            <p className="font-medium text-cb-fg">Add to pickup</p>
+            <p className="text-xs text-cb-muted-fg">
+              Asks Delhivery to collect from the warehouse. One request covers every parcel ready that day.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs text-cb-muted-fg">Pickup date</span>
+                <Input type="date" className="rounded-xl" value={pickupDate} min={istToday(new Date())}
+                  onChange={(e) => setPickupDate(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="text-xs text-cb-muted-fg">Parcels</span>
+                <Input type="number" min={1} step={1} className="rounded-xl" value={pickupCount}
+                  onChange={(e) => setPickupCount(e.target.value)} />
+              </label>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Button className="rounded-full" disabled={busy} onClick={() => requestPickup.mutate()}>
+                Request pickup
+              </Button>
+              <Button variant="ghost" className="rounded-full" disabled={busy} onClick={() => setPickupOpen(false)}>
+                Not now
+              </Button>
+            </div>
+          </div>
+        )}
 
         {isDelhivery && <TrackingPanel order={order} />}
       </div>
