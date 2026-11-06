@@ -157,6 +157,7 @@ app/
   on `/admin/orders`.
 - Additional env vars (server-only): `DELHIVERY_WAREHOUSE_NAME`,
   `DELHIVERY_WEBHOOK_TOKEN`, `INTERNAL_JOB_TOKEN`.
+- **Parcel returned (RTO), re-ship with a corrected phone:** `npm run order:reship -- --order=ORD-… --phone=<mobile> [--execute] [--force]` (`scripts/reship-order.mjs`, planner in `scripts/lib/reship-order.mjs`). It writes the phone on the order and its `shipping_address`, notes the returned AWB in `delivery_notes`, clears the tracking fields and sets `processing` (with an `order_status_events` row), then clears the order and dashboard caches. It refuses unless `delhivery_latest_status` says RTO/returned and the number differs from the one that failed (`--force` overrides). "Cancel shipment" cannot do this: Delhivery's edit API only cancels before pickup. The replacement is manifested on Delhivery One by hand with the suffixed order id the script prints (`ORD-…-R1`): Delhivery rejects a manifest as "Duplicate Order Id" when client, order id, amount, product description, payment mode and consignee name all match an earlier one, and the app's shipment route sends the bare order number. Paste the new AWB into `/admin/orders`. First used 2026-11-06 for ORD-20261024-084659-00514.
 
 ### Stall pickup orders
 - `orders.fulfilment_method` is `delivery` (default) or `pickup`. Pickup has no `shipping_address` and `delivery_charge = 0`; both are enforced by CHECK constraints, and `deliveryChargeFor()` (`lib/utils/fulfilment.ts`) is the only place the charge is computed.
